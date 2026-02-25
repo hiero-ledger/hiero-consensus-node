@@ -68,10 +68,25 @@ public class SidecarVerbs {
      */
     public static CustomSpecAssert expectContractStateChangesSidecarFor(
             @NonNull final String txnName, @NonNull final List<StateChange> stateChanges) {
+        return expectContractStateChangesSidecarFor(txnName, 0, stateChanges);
+    }
+
+    /**
+     * Expect a sidecar file to be generated for the given transaction name with the given contract state changes,
+     * for the default {@link SidecarWatcher}.
+     *
+     * @param txnName The name of the transaction to expect the sidecar for.
+     * @param childIndex The index of the child transaction to expect the sidecar for.
+     * @param stateChanges The contract state changes to expect in the sidecar.
+     * @return A {@link CustomSpecAssert} that will expect the sidecar file to be generated.
+     */
+    public static CustomSpecAssert expectContractStateChangesSidecarFor(
+            @NonNull final String txnName, final int childIndex, @NonNull final List<StateChange> stateChanges) {
         requireNonNull(txnName);
         requireNonNull(stateChanges);
         return expectSidecarRecord(
                 txnName,
+                childIndex,
                 (builder, spec, originRecord) -> builder.setStateChanges(ContractStateChanges.newBuilder()
                         .addAllContractStateChanges(stateChangesToGrpc(stateChanges, spec))
                         .build()));

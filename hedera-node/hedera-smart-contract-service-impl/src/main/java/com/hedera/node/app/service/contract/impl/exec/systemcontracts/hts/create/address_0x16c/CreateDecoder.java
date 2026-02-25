@@ -161,7 +161,7 @@ public class CreateDecoder extends CreateCommonDecoder {
             @NonNull final AddressIdConverter addressIdConverter) {
         final var tokenCreateWrapper = getTokenCreateWrapperWithMetadata(
                 tokenCreateStruct, true, initSupply, decimals, senderId, nativeOperations, addressIdConverter);
-        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter);
+        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
         final var fractionalFess = decodeFractionalFees(fractionalFeesTuple, addressIdConverter);
         tokenCreateWrapper.setFixedFees(fixedFees);
         tokenCreateWrapper.setFractionalFees(fractionalFess);
@@ -186,8 +186,9 @@ public class CreateDecoder extends CreateCommonDecoder {
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final AddressIdConverter addressIdConverter) {
-        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter);
-        final var royaltyFees = decodeRoyaltyFees(royaltyFeesTuple, addressIdConverter);
+        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
+        final var royaltyFees =
+                decodeRoyaltyFees(royaltyFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
         final long initSupply = 0L;
         final int decimals = 0;
         final var tokenCreateWrapper = getTokenCreateWrapperWithMetadata(

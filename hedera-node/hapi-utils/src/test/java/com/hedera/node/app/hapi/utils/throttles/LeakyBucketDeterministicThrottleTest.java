@@ -24,7 +24,7 @@ class LeakyBucketDeterministicThrottleTest {
 
     @BeforeEach
     void setup() {
-        subject = new LeakyBucketDeterministicThrottle(DEFAULT_CAPACITY, THROTTLE_NAME);
+        subject = new LeakyBucketDeterministicThrottle(DEFAULT_CAPACITY, THROTTLE_NAME, 1);
     }
 
     @Test
@@ -39,7 +39,7 @@ class LeakyBucketDeterministicThrottleTest {
         // then:
         assertTrue(result);
         assertEquals(
-                DEFAULT_CAPACITY - gasLimitForTX, subject.delegate().bucket().capacityFree());
+                DEFAULT_CAPACITY - gasLimitForTX, subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -49,10 +49,21 @@ class LeakyBucketDeterministicThrottleTest {
     }
 
     @Test
+    void canGetCapacityFree() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var capacity = 1_000_000;
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
+        assertEquals(capacity, subject.capacityFree(now));
+        subject.allow(now, capacity / 2);
+        assertEquals(capacity / 2, subject.capacityFree(now));
+        assertEquals(capacity / 2, subject.capacityFree(now.minusNanos(123)));
+    }
+
+    @Test
     void canGetPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(0.0, subject.percentUsed(now));
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.percentUsed(now));
@@ -63,7 +74,7 @@ class LeakyBucketDeterministicThrottleTest {
     void canGetInstantaneousPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(0.0, subject.instantaneousPercentUsed());
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.instantaneousPercentUsed());
@@ -73,7 +84,7 @@ class LeakyBucketDeterministicThrottleTest {
     void canGetFreeToUsedRatio() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         subject.allow(now, capacity / 4);
         assertEquals(3, subject.instantaneousFreeToUsedRatio());
     }
@@ -81,7 +92,7 @@ class LeakyBucketDeterministicThrottleTest {
     @Test
     void leaksUntilNowBeforeEstimatingFreeToUsed() {
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(Long.MAX_VALUE, subject.instantaneousFreeToUsedRatio());
     }
 
@@ -128,7 +139,26 @@ class LeakyBucketDeterministicThrottleTest {
         assertTrue(result);
         assertEquals(
                 (long) (DEFAULT_CAPACITY - gasLimitForTX - gasLimitForTX + toLeak),
-                subject.delegate().bucket().capacityFree());
+                subject.delegate().bucket().brimfulCapacityFree());
+    }
+
+    @Test
+    void leaksAsExpected() {
+        // setup:
+        long gasLimitForTX = 100_000;
+
+        double elapsed = 1_234;
+        double toLeak = (elapsed / ONE_SECOND_IN_NANOSECONDS) * DEFAULT_CAPACITY;
+
+        Instant originalDecision = Instant.ofEpochSecond(1_234_567L, 0);
+        Instant now = Instant.ofEpochSecond(1_234_567L, (long) elapsed);
+
+        subject.allow(originalDecision, gasLimitForTX);
+        subject.leakUntil(now);
+
+        assertEquals(
+                (long) (DEFAULT_CAPACITY - gasLimitForTX + toLeak),
+                subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -144,10 +174,10 @@ class LeakyBucketDeterministicThrottleTest {
     @Test
     void verifyLeakUnusedGas() {
         subject.allow(Instant.now(), 100L);
-        assertEquals(999_900L, subject.delegate().bucket().capacityFree());
+        assertEquals(999_900L, subject.delegate().bucket().brimfulCapacityFree());
 
         subject.leakUnusedGasPreviouslyReserved(100L);
-        assertEquals(DEFAULT_CAPACITY, subject.delegate().bucket().capacityFree());
+        assertEquals(DEFAULT_CAPACITY, subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -185,7 +215,7 @@ class LeakyBucketDeterministicThrottleTest {
 
         // then:
         assertTrue(result);
-        assertEquals(DEFAULT_CAPACITY, subject.delegate().bucket().capacityFree());
+        assertEquals(DEFAULT_CAPACITY, subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -205,7 +235,7 @@ class LeakyBucketDeterministicThrottleTest {
         assertTrue(result2);
         assertEquals(gasLimitForTX, subject.used());
         assertEquals(
-                DEFAULT_CAPACITY - gasLimitForTX, subject.delegate().bucket().capacityFree());
+                DEFAULT_CAPACITY - gasLimitForTX, subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -225,6 +255,6 @@ class LeakyBucketDeterministicThrottleTest {
         assertTrue(result2);
         assertEquals(
                 DEFAULT_CAPACITY - (gasLimitForTX * 2),
-                subject.delegate().bucket().capacityFree());
+                subject.delegate().bucket().brimfulCapacityFree());
     }
 }

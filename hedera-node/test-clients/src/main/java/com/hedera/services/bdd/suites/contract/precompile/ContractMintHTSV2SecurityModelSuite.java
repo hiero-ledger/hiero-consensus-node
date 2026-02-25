@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -52,7 +53,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractMintHTSV2SecurityModelSuite {
-    private static final long GAS_TO_OFFER = 4_000_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final String TOKEN_TREASURY = "treasury";
     private static final KeyShape TRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
     private static final String CONTRACT_KEY = "ContractKey";
@@ -232,6 +233,7 @@ public class ContractMintHTSV2SecurityModelSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositive() {
         final var amount = 1;
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
@@ -366,6 +368,7 @@ public class ContractMintHTSV2SecurityModelSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryNegative() {
         final var amount = 10L;
         final AtomicReference<TokenID> fungible = new AtomicReference<>();

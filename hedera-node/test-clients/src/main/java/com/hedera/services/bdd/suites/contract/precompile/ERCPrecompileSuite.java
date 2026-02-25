@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -49,6 +45,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -75,6 +72,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.openzeppelin.ERC20ContractInteractions;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -89,7 +87,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+@Tag(LONG_RUNNING)
 public class ERCPrecompileSuite {
 
     private static final Logger log = LogManager.getLogger(ERCPrecompileSuite.class);
@@ -148,7 +146,7 @@ public class ERCPrecompileSuite {
     private static final String MSG_SENDER_IS_THE_SAME_AS_FROM = "MSG_SENDER_IS_THE_SAME_AS_FROM";
     private static final String DO_SPECIFIC_APPROVAL = "doSpecificApproval";
     private static final String NFT_TOKEN_MINT = "nftTokenMint";
-    public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
+    public static final String TRANSFER_SIGNATURE = ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE;
     private static final String NESTED_ERC_20_CONTRACT = "NestedERC20Contract";
 
     @HapiTest
@@ -416,8 +414,7 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(id -> tokenAddr.set(asHexedSolidityAddress(asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
@@ -440,32 +437,26 @@ public class ERCPrecompileSuite {
                                 .gas(GAS_TO_OFFER))),
                 getContractInfo(ERC_20_CONTRACT).saveToRegistry(ERC_20_CONTRACT),
                 getAccountInfo(RECIPIENT).savingSnapshot(RECIPIENT),
-                withOpContext((spec, log) -> {
-                    final var sender =
-                            spec.registry().getContractInfo(ERC_20_CONTRACT).getContractID();
-                    final var receiver =
-                            spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken = asEntityString(
-                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
-                    var txnRecord = getTxnRecord(TRANSFER_TXN)
-                            .hasPriority(recordWith()
-                                    .contractCallResult(resultWith()
-                                            .logs(inOrder(logWith()
-                                                    .contract(idOfToken)
-                                                    .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    sender.getContractNum()),
-                                                            parsedToByteString(
-                                                                    receiver.getShardNum(),
-                                                                    receiver.getRealmNum(),
-                                                                    receiver.getAccountNum())))
-                                                    .longValue(2)))))
-                            .andAllChildRecords();
-                    allRunFor(spec, txnRecord);
-                }),
+                //  check ERC event
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        getTxnRecord(TRANSFER_TXN)
+                                .hasPriority(recordWith()
+                                        .contractCallResult(resultWith()
+                                                .logs(inOrder(logWith()
+                                                        .contract(String.valueOf(spec.registry()
+                                                                .getTokenID(FUNGIBLE_TOKEN)
+                                                                .getTokenNum()))
+                                                        .withTopicsInOrder(List.of(
+                                                                eventSignatureOf(TRANSFER_SIGNATURE),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getContractId(ERC_20_CONTRACT)),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getAccountID(RECIPIENT))))
+                                                        .longValue(2)))))
+                                .andAllChildRecords())),
                 childRecordsCheck(
                         TRANSFER_TXN,
                         SUCCESS,
@@ -504,8 +495,8 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(
+                                id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
@@ -571,31 +562,23 @@ public class ERCPrecompileSuite {
                                 .hasKnownStatus(SUCCESS))),
                 getContractInfo(ERC_20_CONTRACT).saveToRegistry(ERC_20_CONTRACT),
                 getContractInfo(nestedContract).saveToRegistry(nestedContract),
-                withOpContext((spec, log) -> {
-                    final var sender =
-                            spec.registry().getContractInfo(ERC_20_CONTRACT).getContractID();
-                    final var receiver =
-                            spec.registry().getContractInfo(nestedContract).getContractID();
-
-                    var txnRecord = getTxnRecord(TRANSFER_TXN)
-                            .hasPriority(recordWith()
-                                    .contractCallResult(resultWith()
-                                            .logs(inOrder(logWith()
-                                                    .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    sender.getContractNum()),
-                                                            parsedToByteString(
-                                                                    receiver.getShardNum(),
-                                                                    receiver.getRealmNum(),
-                                                                    receiver.getContractNum())))
-                                                    .longValue(2)))))
-                            .andAllChildRecords()
-                            .logged();
-                    allRunFor(spec, txnRecord);
-                }),
+                // check ERC event
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        getTxnRecord(TRANSFER_TXN)
+                                .hasPriority(recordWith()
+                                        .contractCallResult(resultWith()
+                                                .logs(inOrder(logWith()
+                                                        .withTopicsInOrder(List.of(
+                                                                eventSignatureOf(TRANSFER_SIGNATURE),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getContractId(ERC_20_CONTRACT)),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getContractId(nestedContract))))
+                                                        .longValue(2)))))
+                                .andAllChildRecords())),
                 childRecordsCheck(
                         TRANSFER_TXN,
                         SUCCESS,
@@ -1455,11 +1438,7 @@ public class ERCPrecompileSuite {
                                 ByteString.copyFromUtf8("I dream of silent verses"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 tokenAssociate(B_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(AccountID.newBuilder()
-                        .setShardNum(shard)
-                        .setRealmNum(realm)
-                        .setAccountNum(666_666_666L)
-                        .build()))),
+                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(spec, 666_666_666L))),
                 // --- Negative cases for approve ---
                 // * Can't approve a non-existent serial number
                 sourcing(() -> contractCall(
@@ -2571,6 +2550,24 @@ public class ERCPrecompileSuite {
                                 .gas(500_000L)
                                 .via(TRANSFER_FROM_ACCOUNT_TXN)
                                 .hasKnownStatus(SUCCESS),
+                        // check ERC event
+                        getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN)
+                                .hasPriority(recordWith()
+                                        .contractCallResult(resultWith()
+                                                .logs(inOrder(logWith()
+                                                        .contract(String.valueOf(spec.registry()
+                                                                .getTokenID(FUNGIBLE_TOKEN)
+                                                                .getTokenNum()))
+                                                        .withTopicsInOrder(List.of(
+                                                                eventSignatureOf(TRANSFER_SIGNATURE),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getAccountID(OWNER)),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getAccountID(RECIPIENT))))
+                                                        .longValue(2)))))
+                                .andAllChildRecords(),
                         // ERC_20_CONTRACT should have spent its allowance
                         contractCall(
                                         ERC_20_CONTRACT,
@@ -2703,32 +2700,26 @@ public class ERCPrecompileSuite {
                         getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender())),
                 getAccountInfo(OWNER).savingSnapshot(OWNER),
                 getAccountInfo(RECIPIENT).savingSnapshot(RECIPIENT),
-                withOpContext((spec, log) -> {
-                    final var sender = spec.registry().getAccountInfo(OWNER).getAccountID();
-                    final var receiver =
-                            spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken = asEntityString(
-                            spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
-                    var txnRecord = getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN)
-                            .hasPriority(recordWith()
-                                    .contractCallResult(resultWith()
-                                            .logs(inOrder(logWith()
-                                                    .contract(idOfToken)
-                                                    .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    sender.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    receiver.getShardNum(),
-                                                                    receiver.getRealmNum(),
-                                                                    receiver.getAccountNum()),
-                                                            parsedToByteString(1L)))))))
-                            .andAllChildRecords()
-                            .logged();
-                    allRunFor(spec, txnRecord);
-                }));
+                // check ERC event
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN)
+                                .hasPriority(recordWith()
+                                        .contractCallResult(resultWith()
+                                                .logs(inOrder(logWith()
+                                                        .contract(String.valueOf(spec.registry()
+                                                                .getTokenID(NON_FUNGIBLE_TOKEN)
+                                                                .getTokenNum()))
+                                                        .withTopicsInOrder(List.of(
+                                                                eventSignatureOf(TRANSFER_SIGNATURE),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getAccountID(OWNER)),
+                                                                parsedToByteString(
+                                                                        spec.registry()
+                                                                                .getAccountID(RECIPIENT)),
+                                                                parsedToByteString(1L)))))))
+                                .andAllChildRecords())));
     }
 
     @HapiTest

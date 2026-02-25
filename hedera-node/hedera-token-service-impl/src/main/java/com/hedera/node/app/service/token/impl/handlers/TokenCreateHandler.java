@@ -23,6 +23,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -42,7 +43,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -444,12 +444,11 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     public static SubType tokenSubTypeFrom(final TokenType tokenType, boolean hasCustomFees) {
         return switch (tokenType) {
-            case FUNGIBLE_COMMON -> hasCustomFees
-                    ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_FUNGIBLE_COMMON;
-            case NON_FUNGIBLE_UNIQUE -> hasCustomFees
-                    ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized token type");
+            case FUNGIBLE_COMMON ->
+                hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.TOKEN_FUNGIBLE_COMMON;
+            case NON_FUNGIBLE_UNIQUE ->
+                hasCustomFees ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
         };
     }
 }

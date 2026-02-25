@@ -26,11 +26,23 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 
 class TokenKeyTranslatorTest extends CallAttemptTestBase {
+
     @Mock
     private HtsCallAttempt attempt;
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    private final Token token = Token.newBuilder()
+            .adminKey(keyBuilder("adminKey"))
+            .kycKey(keyBuilder("kycKey"))
+            .freezeKey(keyBuilder("freezeKey"))
+            .wipeKey(keyBuilder("wipeKey"))
+            .supplyKey(keyBuilder("supplyKey"))
+            .feeScheduleKey(keyBuilder("feeScheduleKey"))
+            .pauseKey(keyBuilder("pauseKey"))
+            .metadataKey(keyBuilder("metadataKey"))
+            .build();
 
     private TokenKeyTranslator subject;
 
@@ -66,39 +78,23 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 4, 8, 16, 32, 64})
     void testTokenKey(final int keyType) {
-        final Token token = Token.newBuilder()
-                .adminKey(keyBuilder("adminKey"))
-                .kycKey(keyBuilder("kycKey"))
-                .freezeKey(keyBuilder("freezeKey"))
-                .wipeKey(keyBuilder("wipeKey"))
-                .supplyKey(keyBuilder("supplyKey"))
-                .feeScheduleKey(keyBuilder("feeScheduleKey"))
-                .pauseKey(keyBuilder("pauseKey"))
-                .metadataKey(keyBuilder("metadataKey"))
-                .build();
-
         final Key result = TokenKeyCommons.getTokenKey(token, keyType, HTS_167_CONTRACT_ID);
         assertThat(result).isNotNull();
     }
 
     @Test
     void testTokenKeyWithMetaKey() {
-        final Token token = Token.newBuilder()
-                .adminKey(keyBuilder("adminKey"))
-                .kycKey(keyBuilder("kycKey"))
-                .freezeKey(keyBuilder("freezeKey"))
-                .wipeKey(keyBuilder("wipeKey"))
-                .supplyKey(keyBuilder("supplyKey"))
-                .feeScheduleKey(keyBuilder("feeScheduleKey"))
-                .pauseKey(keyBuilder("pauseKey"))
-                .metadataKey(keyBuilder("metadataKey"))
-                .build();
-
         final Key result = TokenKeyCommons.getTokenKey(token, 128, HTS_167_CONTRACT_ID);
         assertThat(result).isNull();
     }
 
-    private Key keyBuilder(final String keyName) {
+    @Test
+    void testTokenKeyWithNegativeKey() {
+        final Key result = TokenKeyCommons.getTokenKey(token, -1, HTS_167_CONTRACT_ID);
+        assertThat(result).isNull();
+    }
+
+    private static Key keyBuilder(final String keyName) {
         return Key.newBuilder().ed25519(Bytes.wrap(keyName.getBytes())).build();
     }
 }

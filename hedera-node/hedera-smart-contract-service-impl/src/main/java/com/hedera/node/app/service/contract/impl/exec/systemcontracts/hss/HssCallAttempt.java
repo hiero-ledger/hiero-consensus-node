@@ -96,7 +96,7 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
      */
     public @Nullable Schedule linkedSchedule(@NonNull final Address scheduleAddress) {
         requireNonNull(scheduleAddress);
-        if (isLongZero(nativeOperations().entityIdFactory(), scheduleAddress)) {
+        if (isLongZero(scheduleAddress)) {
             return nativeOperations()
                     .getSchedule(nativeOperations()
                             .entityIdFactory()

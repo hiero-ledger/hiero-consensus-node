@@ -70,7 +70,12 @@ class SpecialRewardReceiversTest {
     void addsNftOwnershipChanges() {
         final var body = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(TokenTransferList.newBuilder()
-                        .nftTransfers(new NftTransfer(A_NEW_ACCOUNT_ID, B_NEW_ACCOUNT_ID, 123L, true))
+                        .nftTransfers(NftTransfer.newBuilder()
+                                .senderAccountID(A_NEW_ACCOUNT_ID)
+                                .receiverAccountID(B_NEW_ACCOUNT_ID)
+                                .serialNumber(123L)
+                                .isApproval(true)
+                                .build())
                         .build())
                 .build();
         SPECIAL_REWARD_RECEIVERS.addInFrame(frame, body, List.of());

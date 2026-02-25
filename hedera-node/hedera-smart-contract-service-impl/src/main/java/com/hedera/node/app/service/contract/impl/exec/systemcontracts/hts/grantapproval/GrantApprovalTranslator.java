@@ -50,12 +50,12 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
     public static final SystemContractMethod GRANT_APPROVAL = SystemContractMethod.declare(
                     "approve(address,address,uint256)", "(int32,bool)")
             .withVariant(Variant.FT)
-            .withCategories(Category.ERC721, Category.APPROVAL);
+            .withCategories(Category.ERC20, Category.APPROVAL);
     /** Selector for approveNFT(address,address,uint256) method. */
     public static final SystemContractMethod GRANT_APPROVAL_NFT = SystemContractMethod.declare(
                     "approveNFT(address,address,uint256)", ReturnTypes.INT_64)
             .withVariant(Variant.NFT)
-            .withCategories(Category.APPROVAL);
+            .withCategories(Category.ERC721, Category.APPROVAL);
 
     private final GrantApprovalDecoder decoder;
 
@@ -132,7 +132,8 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
                 attempt.enhancement(),
                 attempt.defaultVerificationStrategy(),
                 attempt.senderId(),
-                ConversionUtils.asTokenId((Address) tokenAddress),
+                ConversionUtils.asTokenId(
+                        attempt.enhancement().nativeOperations().entityIdFactory(), (Address) tokenAddress),
                 spender,
                 amount,
                 tokenType);

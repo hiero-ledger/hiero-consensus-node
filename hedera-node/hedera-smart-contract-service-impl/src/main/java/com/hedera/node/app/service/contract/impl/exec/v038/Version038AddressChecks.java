@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.v030.Version030AddressChecks;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import javax.inject.Inject;
@@ -38,8 +38,7 @@ public class Version038AddressChecks extends Version030AddressChecks {
         if (address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS) {
             return true;
         }
-        return isLongZero(entityIdFactory, address)
-                && numberOfLongZero(address.toArray()) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
+        return isLongZero(address) && numberOfLongZero(address.toArray()) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
     }
 
     @Override
@@ -47,6 +46,6 @@ public class Version038AddressChecks extends Version030AddressChecks {
         if (address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) < FIRST_USER_ACCOUNT) {
             return true;
         }
-        return isLongZero(entityIdFactory, address) && numberOfLongZero(address.toArray()) < FIRST_USER_ACCOUNT;
+        return isLongZero(address) && numberOfLongZero(address.toArray()) < FIRST_USER_ACCOUNT;
     }
 }

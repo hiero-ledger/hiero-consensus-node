@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForCost;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForPrecheck;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 import static java.lang.Thread.sleep;
 import static java.util.Objects.requireNonNull;
@@ -14,7 +18,6 @@ import static java.util.stream.Collectors.toList;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryCheckStateException;
@@ -173,7 +176,6 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
 
         Transaction payment = Transaction.getDefaultInstance();
@@ -206,11 +208,35 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             processAnswerOnlyResponse(spec);
 
             actualPrecheck = reflectForPrecheck(response);
-            if (answerOnlyRetryPrechecks.isPresent()
+
+            // no need to retry if the precheck status is the expected one
+            if (actualPrecheck == expectedAnswerOnlyPrecheck()) {
+                break;
+            }
+
+            // Automatically retry on transient platform errors (backlog/not active/fee issues)
+            // regardless of explicit answerOnlyRetryPrechecks configuration
+            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
+                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
+                    || actualPrecheck == BUSY;
+            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
+            // when no explicit retryLimits is set (which defaults to unlimited)
+            final int maxTransientRetries = 10;
+            final boolean withinTransientLimit = retryCount < maxTransientRetries;
+            final boolean shouldRetryTransient = isTransientPlatformError && withinTransientLimit;
+            final boolean shouldRetryExplicit = answerOnlyRetryPrechecks.isPresent()
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount)) {
+                    && isWithInRetryLimit(retryCount);
+            if (shouldRetryTransient || shouldRetryExplicit) {
                 retryCount++;
-                sleep(10);
+                log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
+                try {
+                    // Use longer sleep for platform errors to allow recovery
+                    sleep(isTransientPlatformError ? 1000 : 10);
+                } catch (InterruptedException e) {
+                    log.error("Interrupted while sleeping before retry");
+                    throw new RuntimeException(e);
+                }
             } else {
                 break;
             }
@@ -282,7 +308,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             }
             query = maybeModified(queryFor(spec, payment, ResponseType.COST_ANSWER), spec);
             response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
-            final var realNodePayment = costFrom(response);
+            var realNodePayment = costFrom(response);
             Optional.ofNullable(nodePaymentObserver).ifPresent(observer -> observer.accept(realNodePayment));
             if (expectedCostAnswerPrecheck() != OK) {
                 return Transaction.getDefaultInstance();
@@ -426,13 +452,13 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
         return self();
     }
 
-    public T setNode(String account) {
-        node = Optional.of(HapiPropertySource.asAccount(account));
+    public T setNode(String accountNum) {
+        node = Optional.of(accountNum);
         return self();
     }
 
     public T setNodeFrom(Supplier<String> accountSupplier) {
-        nodeSupplier = Optional.of(() -> HapiPropertySource.asAccount(accountSupplier.get()));
+        nodeSupplier = Optional.of(() -> asAccount(accountSupplier.get()));
         return self();
     }
 

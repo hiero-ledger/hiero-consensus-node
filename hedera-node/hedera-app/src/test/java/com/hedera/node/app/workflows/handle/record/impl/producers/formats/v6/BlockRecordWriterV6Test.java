@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
 import static com.hedera.node.app.records.RecordTestData.ENDING_RUNNING_HASH_OBJ;
 import static com.hedera.node.app.records.RecordTestData.SIGNER;
 import static com.hedera.node.app.records.RecordTestData.STARTING_RUNNING_HASH_OBJ;
 import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.VERSION;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -22,7 +22,6 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.stream.Signer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileSystem;
@@ -35,7 +34,8 @@ import java.util.List;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Signer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -82,7 +82,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         app = appBuilder.build();
         config = app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         hapiVersion = app.hapiVersion();
-        writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
+        writer = new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem);
         final var ext = ".rcd.gz";
         final var recordDir =
                 fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
@@ -102,13 +102,13 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @SuppressWarnings("DataFlowIssue")
         void nullArgsToConstructorThrows() {
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(null, selfNodeInfo, signer, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(null, selfNodeInfo.accountId(), signer, fileSystem))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> new BlockRecordWriterV6(config, null, signer, fileSystem))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, null, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), null, fileSystem))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, signer, null))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), signer, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -117,7 +117,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         void recordFileVersionMustBeV6() {
             appBuilder.withConfigValue("hedera.recordStream.recordFileVersion", 5);
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("record file version");
         }
@@ -127,7 +127,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         void signatureFileVersionMustBeV6() {
             appBuilder.withConfigValue("hedera.recordStream.signatureFileVersion", 5);
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("signature file version");
         }
@@ -138,7 +138,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             // A path cannot have the null character in it
             appBuilder.withConfigValue("hedera.recordStream.logDir", "\0IllegalPath/records");
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(InvalidPathException.class);
         }
 
@@ -155,7 +155,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             // When we attempt to create the writer, then it fails AND logs!
             final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordWriterV6.class));
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(UncheckedIOException.class);
             assertThat(logCaptor.fatalLogs()).hasSize(1);
             assertThat(logCaptor.fatalLogs()).allMatch(msg -> msg.contains("Could not create record directory"));
@@ -204,7 +204,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             Files.createDirectories(recordDir);
 
             // When we create a new writer and initialize it
-            writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
+            writer = new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem);
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
 
             // Then it didn't throw, and the record file exists
@@ -360,7 +360,11 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             // Check that the sidecar file exists (if the block records produced any sidecars)
             final var sidecarPath = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd.gz");
+            final var sidecarMarker = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.mf");
             assertThat(Files.exists(sidecarPath)).isEqualTo(hasSidecars);
+            assertThat(Files.exists(sidecarMarker)).isEqualTo(hasSidecars);
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isEqualTo(hasSidecars);
         }
 
         @Test
@@ -413,6 +417,8 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             assertThat(logCaptor.warnLogs()).hasSizeGreaterThan(0);
             assertThat(logCaptor.warnLogs()).allMatch(msg -> msg.contains("sidecar"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
         }
     }
 
@@ -463,6 +469,17 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             assertThat(logCaptor.warnLogs())
                     .matches(logs -> logs.getFirst().contains("Error closing sidecar file")
                             && logs.getLast().contains("Error closing record file"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
+        }
+    }
+
+    private boolean anyMarkerFilesExist(Path dir) {
+        if (!dir.getFileSystem().isOpen() || Files.notExists(dir)) return false;
+        try (Stream<Path> paths = Files.walk(dir, 2)) {
+            return paths.anyMatch(p -> p.toString().endsWith(".mf"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

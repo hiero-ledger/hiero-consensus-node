@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -48,13 +49,15 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 class TokenClaimAirdropSystemContractTest {
 
-    @Contract(contract = "ClaimAirdrop", creationGas = 1_000_000L)
+    private static final String TXN_NAME = "claimAirdropTxn";
+
+    @Contract(contract = "ClaimAirdrop", creationGas = 2_000_000L)
     static SpecContract claimAirdrop;
 
     @Account(name = "sender", tinybarBalance = 100_000_000_000L)
     static SpecAccount sender;
 
-    @Account(name = "receiver", maxAutoAssociations = 0)
+    @Account(name = "receiver")
     static SpecAccount receiver;
 
     @FungibleToken(name = "token", initialSupply = 1000)
@@ -72,47 +75,60 @@ class TokenClaimAirdropSystemContractTest {
     @HapiTest
     @DisplayName("Can claim  1 fungible airdrop")
     public Stream<DynamicTest> claimAirdrop() {
-        return hapiTest(
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0)),
-                tokenAirdrop(moving(10, token.name()).between(sender.name(), receiver.name()))
-                        .payingWith(sender.name())
-                        .via("tokenAirdrop"),
-                getTxnRecord("tokenAirdrop")
-                        .hasPriority(recordWith()
-                                .pendingAirdrops(includingFungiblePendingAirdrop(
-                                        moving(10, token.name()).between(sender.name(), receiver.name())))),
-                claimAirdrop
-                        .call("claim", sender, receiver, token)
-                        .payingWith(receiver)
-                        .via("claimAirdrop"),
-                getTxnRecord("claimAirdrop").hasPriority(recordWith().pendingAirdropsCount(0)),
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)));
+        return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(
+                    spec,
+                    receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0)),
+                    tokenAirdrop(moving(10, token.name()).between(sender.name(), receiver.name()))
+                            .payingWith(sender.name())
+                            .via("tokenAirdrop"),
+                    getTxnRecord("tokenAirdrop")
+                            .hasPriority(recordWith()
+                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                            moving(10, token.name()).between(sender.name(), receiver.name())))),
+                    claimAirdrop
+                            .call("claim", sender, receiver, token)
+                            .payingWith(receiver)
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).hasChildRecords(recordWith().pendingAirdropsCount(0)),
+                    receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)));
+            // check ERC20 events
+            AirdropSystemContractTest.checkErcEvents(
+                    TXN_NAME, spec, List.of(token), List.of(), List.of(sender), List.of(receiver), List.of(10L));
+        }));
     }
 
     @HapiTest
     @DisplayName("Can claim 1 nft airdrop")
     public Stream<DynamicTest> claimNftAirdrop(@NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft) {
-        return hapiTest(
-                sender.associateTokens(nft),
-                nft.treasury().transferNFTsTo(sender, nft, 1L),
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0)),
-                tokenAirdrop(movingUnique(nft.name(), 1L).between(sender.name(), receiver.name()))
-                        .payingWith(sender.name())
-                        .via("tokenAirdrop"),
-                getTxnRecord("tokenAirdrop")
-                        .hasPriority(recordWith()
-                                .pendingAirdrops(includingNftPendingAirdrop(
-                                        movingUnique(nft.name(), 1L).between(sender.name(), receiver.name())))),
-                claimAirdrop
-                        .call("claimNFTAirdrop", sender, receiver, nft, 1L)
-                        .payingWith(receiver)
-                        .via("claimNFTAirdrop"),
-                getTxnRecord("claimNFTAirdrop").hasPriority(recordWith().pendingAirdropsCount(0)),
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1)));
+        return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(
+                    spec,
+                    sender.associateTokens(nft),
+                    nft.treasury().transferNFTsTo(sender, nft, 1L),
+                    receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0)),
+                    tokenAirdrop(movingUnique(nft.name(), 1L).between(sender.name(), receiver.name()))
+                            .payingWith(sender.name())
+                            .via("tokenAirdrop"),
+                    getTxnRecord("tokenAirdrop")
+                            .hasPriority(recordWith()
+                                    .pendingAirdrops(includingNftPendingAirdrop(
+                                            movingUnique(nft.name(), 1L).between(sender.name(), receiver.name())))),
+                    claimAirdrop
+                            .call("claimNFTAirdrop", sender, receiver, nft, 1L)
+                            .payingWith(receiver)
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).hasChildRecords(recordWith().pendingAirdropsCount(0)),
+                    receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1)));
+            // check ERC721 events
+            AirdropSystemContractTest.checkErcEvents(
+                    TXN_NAME, spec, List.of(), List.of(nft), List.of(sender), List.of(receiver), List.of(1L));
+        }));
     }
 
     @HapiTest
     @DisplayName("Can claim 10 fungible airdrops")
+    @Tag(MATS)
     public Stream<DynamicTest> claim10Airdrops(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -143,14 +159,24 @@ class TokenClaimAirdropSystemContractTest {
                     spec,
                     claimAirdrop
                             .call("claimAirdrops", senders, receivers, combined, serials)
-                            .via("claimAirdrops"),
-                    getTxnRecord("claimAirdrops").hasPriority(recordWith().pendingAirdropsCount(0)),
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     checkForBalances(receiver, tokenList, nftList));
+            // check ERC721 events
+            AirdropSystemContractTest.checkErcEvents(
+                    TXN_NAME,
+                    spec,
+                    tokenList,
+                    nftList,
+                    List.of(sender),
+                    List.of(receiver),
+                    List.of(10L, 10L, 10L, 10L, 10L, 1L, 1L, 1L, 1L, 1L));
         }));
     }
 
     @HapiTest
     @DisplayName("Can claim 3 fungible airdrops")
+    @Tag(MATS)
     public Stream<DynamicTest> claim3Airdrops(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -167,9 +193,12 @@ class TokenClaimAirdropSystemContractTest {
                     spec,
                     claimAirdrop
                             .call("claimAirdrops", senders, receivers, tokens, serials)
-                            .via("claimAirdrops"),
-                    getTxnRecord("claimAirdrops").hasPriority(recordWith().pendingAirdropsCount(0)),
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     checkForBalances(receiver, tokenList, List.of()));
+            // check ERC721 events
+            AirdropSystemContractTest.checkErcEvents(
+                    TXN_NAME, spec, tokenList, List.of(), List.of(sender), List.of(receiver), List.of(10L, 10L, 10L));
         }));
     }
 

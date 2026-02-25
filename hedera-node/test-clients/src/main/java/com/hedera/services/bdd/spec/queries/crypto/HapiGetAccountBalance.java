@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.crypto;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
@@ -45,7 +42,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -59,8 +56,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     private String account;
     Optional<Long> expected = Optional.empty();
     Optional<Supplier<String>> entityFn = Optional.empty();
-    Optional<Function<HapiSpec, Function<Long, Optional<String>>>> expectedCondition = Optional.empty();
+    Optional<Function<HapiSpec, Function<Long, Optional<String>>>> expectedTinybarCondition = Optional.empty();
     Optional<Map<String, LongConsumer>> tokenBalanceObservers = Optional.empty();
+
+    @Nullable
+    private Map<String, Function<HapiSpec, Function<Long, Optional<String>>>> expectedTokenConditions = null;
 
     @Nullable
     LongConsumer balanceObserver;
@@ -94,7 +94,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             repr = "KeyAlias(" + aliasKeySource + ")";
         } else if (type == ReferenceType.HEXED_CONTRACT_ALIAS) {
             literalHexedAlias = reference;
-            repr = SHARD_AND_REALM + reference;
+            repr = reference;
         } else {
             account = reference;
             repr = account;
@@ -115,13 +115,22 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
         return this;
     }
 
+    public HapiGetAccountBalance hasTokenBalance(
+            String token, Function<HapiSpec, Function<Long, Optional<String>>> condition) {
+        if (expectedTokenConditions == null) {
+            expectedTokenConditions = new HashMap<>();
+        }
+        expectedTokenConditions.put(token, condition);
+        return this;
+    }
+
     public HapiGetAccountBalance includeTokenMemoOnError() {
         includeTokenMemoOnError = true;
         return this;
     }
 
     public HapiGetAccountBalance hasTinyBars(Function<HapiSpec, Function<Long, Optional<String>>> condition) {
-        expectedCondition = Optional.of(condition);
+        expectedTinybarCondition = Optional.of(condition);
         return this;
     }
 
@@ -206,8 +215,9 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             assertEquals(expectedId, response.getCryptogetAccountBalance().getAccountID(), "Wrong account id");
         }
 
-        if (expectedCondition.isPresent()) {
-            Function<Long, Optional<String>> condition = expectedCondition.get().apply(spec);
+        if (expectedTinybarCondition.isPresent()) {
+            Function<Long, Optional<String>> condition =
+                    expectedTinybarCondition.get().apply(spec);
             Optional<String> failure = condition.apply(actual);
             if (failure.isPresent()) {
                 Assertions.fail("Bad balance! :: " + failure.get());
@@ -218,7 +228,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
         // Since we don't support token balances from getAccountBalance query, for internal testing
         // we are using getAccountDetails query to get token balances.
-        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent()) {
+        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent() || expectedTokenConditions != null) {
             final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(balanceResponse.getAccountID()))
                     .payingWith(GENESIS);
             allRunFor(spec, detailsLookup);
@@ -232,6 +242,19 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                                     .build())
                             .collect(Collectors.toMap(
                                     TokenBalance::getTokenId, tb -> Pair.of(tb.getBalance(), tb.getDecimals())));
+            if (expectedTokenConditions != null) {
+                expectedTokenConditions.forEach((key, value) -> {
+                    final var tokenId = asTokenId(key, spec);
+                    final var condition = value.apply(spec);
+                    final long actualBalance = actualTokenBalances
+                            .getOrDefault(tokenId, Pair.of(0L, 0))
+                            .getLeft();
+                    condition
+                            .apply(actualBalance)
+                            .ifPresent(s -> Assertions.fail("Bad token balance (" + tokenId.toString() + " was "
+                                    + actualBalance + ") :: " + s));
+                });
+            }
             Pair<Long, Integer> defaultTb = Pair.of(0L, 0);
             for (Map.Entry<String, String> tokenBalance : expectedTokenBalances) {
                 var tokenId = asTokenId(tokenBalance.getKey(), spec);
@@ -244,7 +267,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                             String.format("Wrong balance for token '%s'!", HapiPropertySource.asTokenString(tokenId)));
                 } catch (AssertionError e) {
                     if (includeTokenMemoOnError) {
-                        final var lookup = QueryVerbs.getTokenInfo(SHARD_AND_REALM + tokenId.getTokenNum());
+                        final var lookup = QueryVerbs.getTokenInfo(
+                                tokenId.getShardNum() + "." + tokenId.getRealmNum() + "." + tokenId.getTokenNum());
                         allRunFor(spec, lookup);
                         final var memo = lookup.getResponse()
                                 .getTokenGetInfo()
@@ -319,8 +343,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             config = b -> b.setContractID(TxnUtils.asContractId(account, spec));
         } else if (referenceType == ReferenceType.HEXED_CONTRACT_ALIAS) {
             final var cid = ContractID.newBuilder()
-                    .setShardNum(SHARD)
-                    .setRealmNum(REALM)
+                    .setShardNum(spec.shard())
+                    .setRealmNum(spec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(literalHexedAlias)))
                     .build();
             config = b -> b.setContractID(cid);
@@ -330,12 +354,12 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                 id = TxnUtils.asId(account, spec);
             } else if (referenceType == ReferenceType.LITERAL_ACCOUNT_ALIAS) {
                 id = AccountID.newBuilder()
-                        .setShardNum(SHARD)
-                        .setRealmNum(REALM)
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
                         .setAlias(rawAlias)
                         .build();
             } else {
-                id = spec.registry().keyAliasIdFor(aliasKeySource);
+                id = spec.registry().keyAliasIdFor(spec, aliasKeySource);
             }
             config = b -> b.setAccountID(id);
         }

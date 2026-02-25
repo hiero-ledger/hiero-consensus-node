@@ -53,7 +53,7 @@ public interface Savepoint extends BuilderSink {
     StreamBuilder createBuilder(
             @NonNull ReversingBehavior reversingBehavior,
             @NonNull HandleContext.TransactionCategory txnCategory,
-            @NonNull StreamBuilder.TransactionCustomizer customizer,
+            @NonNull StreamBuilder.SignedTxCustomizer customizer,
             @NonNull StreamMode streamMode,
             boolean isBaseBuilder);
 
@@ -62,6 +62,12 @@ public interface Savepoint extends BuilderSink {
      * @param amount the amount to track
      */
     void trackCollectedNodeFee(long amount);
+
+    /**
+     * Tracks the given amount of fees refunded from node accounts in this savepoint.
+     * @param amount the amount to track
+     */
+    void trackRefundedNodeFee(long amount);
 
     /**
      * The total fees collected into node accounts and not rolled back in this savepoint.

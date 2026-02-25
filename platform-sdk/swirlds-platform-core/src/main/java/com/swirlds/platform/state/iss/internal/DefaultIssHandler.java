@@ -4,22 +4,20 @@ package com.swirlds.platform.state.iss.internal;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.platform.components.common.output.FatalErrorConsumer;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.system.SystemExitCode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.function.Consumer;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * A standard implementation of {@link IssHandler}.
  */
 public class DefaultIssHandler implements IssHandler {
     private final StateConfig stateConfig;
-    private final Consumer<String> haltRequestedConsumer;
     private final FatalErrorConsumer fatalErrorConsumer;
     private final Scratchpad<IssScratchpad> issScratchpad;
 
@@ -29,16 +27,13 @@ public class DefaultIssHandler implements IssHandler {
      * Create an object responsible for handling ISS events.
      *
      * @param platformContext       the platform context
-     * @param haltRequestedConsumer consumer to invoke when a system halt is desired
      * @param fatalErrorConsumer    consumer to invoke if a fatal error occurs
      * @param issScratchpad         scratchpad for ISS data, is persistent across restarts
      */
     public DefaultIssHandler(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Consumer<String> haltRequestedConsumer,
             @NonNull final FatalErrorConsumer fatalErrorConsumer,
             @NonNull final Scratchpad<IssScratchpad> issScratchpad) {
-        this.haltRequestedConsumer = Objects.requireNonNull(haltRequestedConsumer);
         this.fatalErrorConsumer = Objects.requireNonNull(fatalErrorConsumer);
         this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         this.issScratchpad = Objects.requireNonNull(issScratchpad);
@@ -65,7 +60,6 @@ public class DefaultIssHandler implements IssHandler {
             return;
         }
         if (stateConfig.haltOnAnyIss()) {
-            haltRequestedConsumer.accept("other node observed with ISS");
             halted = true;
         }
     }
@@ -106,7 +100,6 @@ public class DefaultIssHandler implements IssHandler {
         updateIssRoundInScratchpad(round);
 
         if (stateConfig.haltOnAnyIss()) {
-            haltRequestedConsumer.accept("self ISS observed");
             halted = true;
         } else if (stateConfig.automatedSelfIssRecovery()) {
             // Automated recovery is a fancy way of saying "turn it off and on again".
@@ -181,7 +174,6 @@ public class DefaultIssHandler implements IssHandler {
         updateIssRoundInScratchpad(round);
 
         if (stateConfig.haltOnAnyIss() || stateConfig.haltOnCatastrophicIss()) {
-            haltRequestedConsumer.accept("catastrophic ISS observed");
             halted = true;
         }
     }

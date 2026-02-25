@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Provides the context for a migration of state from one {@link Schema} version to another.
+ *
+ * @param <V> - version type
  */
-public interface MigrationContext {
+public interface MigrationContext<V> {
     /**
      * Returns the round number of the state being migrated, zero at genesis.
      */
@@ -58,26 +59,11 @@ public interface MigrationContext {
     Configuration platformConfig();
 
     /**
-     * Returns the startup networks in use.
-     */
-    @NonNull
-    StartupNetworks startupNetworks();
-
-    /**
-     * Copies and releases the underlying on-disk state for the given key. If this is not called
-     * periodically during a large migration, the underlying {@code VirtualMap} will grow too large
-     * and apply extreme backpressure during transaction handling post-migration.
-     *
-     * @param stateKey the key of the state to copy and release
-     */
-    void copyAndReleaseOnDiskState(String stateKey);
-
-    /**
      * Provides the previous version of the schema. This is useful to know if this is genesis restart
      * @return the previous version of the schema. Previous version will be null if this is genesis restart
      */
     @Nullable
-    SemanticVersion previousVersion();
+    V previousVersion();
 
     /**
      * Returns a mutable "scratchpad" that can be used to share values between different services
@@ -91,21 +77,25 @@ public interface MigrationContext {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-        return previousVersion() == null || previousVersion() == SemanticVersion.DEFAULT;
+        return previousVersion() == null;
     }
+
+    /**
+     * Provides a comparator for comparing versions of type {@code V}.
+     *
+     * @return a comparator for ordering or comparing versions of type {@code V}
+     */
+    Comparator<V> getVersionComparator();
 
     /**
      * Returns whether the current version is an upgrade from the previous version, relative to the ordering
      * implied by the given functions used to compare the version in the current app configuration and the
      * previous state version.
-     * @param currentVersionFn the function to compute the current version from the app configuration
-     * @param previousVersionFn the function to compute the previous version from the saved state
+     * @param currentVersion the function to compute the current version from the app configuration
      * @return whether the current version is an upgrade from the previous version
      * @param <T> the type of the version
      */
-    default <T extends Comparable<? super T>> boolean isUpgrade(
-            @NonNull final Function<Configuration, T> currentVersionFn,
-            @NonNull final Function<SemanticVersion, T> previousVersionFn) {
-        return currentVersionFn.apply(appConfig()).compareTo(previousVersionFn.apply(previousVersion())) > 0;
+    default <T extends Comparable<? super T>> boolean isUpgrade(@NonNull final V currentVersion) {
+        return getVersionComparator().compare(currentVersion, previousVersion()) > 0;
     }
 }

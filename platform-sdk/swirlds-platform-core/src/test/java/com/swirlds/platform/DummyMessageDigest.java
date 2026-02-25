@@ -3,7 +3,7 @@ package com.swirlds.platform;
 
 import java.security.MessageDigest;
 import java.util.Arrays;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 public class DummyMessageDigest extends MessageDigest {
     private static final byte mdHash[] = new byte[DigestType.SHA_384.digestLength()];

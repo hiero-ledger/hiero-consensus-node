@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.readUnknownTypeKeyFrom;
+import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSources;
 import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
@@ -8,6 +10,7 @@ import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0032.mnemonicToEd25519Key;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
@@ -18,22 +21,28 @@ import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.function.Function;
@@ -41,7 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.StringUtils;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Aggregates the properties to be used in setting up a {@link HapiSpec}.
@@ -62,7 +71,7 @@ public class HapiSpecSetup {
             DEFAULT_PROPERTY_SOURCE =
                     inPriorityOrder(asSources(Stream.of(Stream.of(sources), Stream.of(BASE_DEFAULT_PROPERTY_SOURCE))
                             .flatMap(Function.identity())
-                            .toArray(n -> new Object[n])));
+                            .toArray(Object[]::new)));
         }
         return DEFAULT_PROPERTY_SOURCE;
     }
@@ -113,8 +122,55 @@ public class HapiSpecSetup {
     }
 
     /**
+     * Tries to load a private key from a file, which may either be a PEM file or a BIP-0032 mnemonic file; or, as
+     * a last resort, a hexed ECDSA key.
+     * @param f the file to load the key from
+     * @param passphraseEnvVar if available the environment variable that may contain the passphrase for a PEM file
+     * @return the loaded private key
+     */
+    public static PrivateKey loadKeyOrThrow(@NonNull final File f, @Nullable final String passphraseEnvVar) {
+        final var path = f.getAbsolutePath();
+        if (path.endsWith("pem")) {
+            final var passphrase = getPassphrase(f, passphraseEnvVar).orElseThrow();
+            return readUnknownTypeKeyFrom(f, passphrase);
+        } else if (path.endsWith("words")) {
+            final var mnemonic = Bip0032.mnemonicFromFile(path);
+            return mnemonicToEd25519Key(mnemonic);
+        } else {
+            try {
+                final var hexed = Files.readString(f.toPath()).trim();
+                readECKeyFrom(CommonUtils.unhex(hexed));
+            } catch (Exception ignore) {
+            }
+            throw new IllegalArgumentException("Unable to load a key from " + path);
+        }
+    }
+
+    /**
+     * If there is a passphrase environment variable, and it is set, return that.  Otherwise, if there is a
+     * a passphrase file next to the given PEM file, return that. Otherwise, return empty.
+     * @param pemFile the PEM file to look next to for a passphrase file
+     * @param passphraseEnvVar if available the environment variable that may contain the passphrase for a PEM file
+     * @return the passphrase, if available
+     */
+    private static Optional<String> getPassphrase(
+            @NonNull final File pemFile, @Nullable final String passphraseEnvVar) {
+        String fromEnv;
+        if (passphraseEnvVar != null && (fromEnv = System.getenv(passphraseEnvVar)) != null) {
+            return Optional.of(fromEnv);
+        }
+        final var optPassFile = AccessoryUtils.passFileFor(pemFile);
+        if (optPassFile.isPresent()) {
+            try {
+                return Optional.of(Files.readString(optPassFile.get().toPath()).trim());
+            } catch (IOException ignore) {
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Returns the Ed25519 private key for the default payer in this spec setup.  This method will only return an Ed25519 key if the default payer key does point to an Ed25519 key
-     *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
     private EdDSAPrivateKey payerKeyAsEd25519() {
@@ -125,6 +181,8 @@ public class HapiSpecSetup {
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonicFile())) {
             final var mnemonic = Bip0032.mnemonicFromFile(defaultPayerMnemonicFile());
             return mnemonicToEd25519Key(mnemonic);
+        } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
+            return defaultPayerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
         }
@@ -138,8 +196,23 @@ public class HapiSpecSetup {
     private ECPrivateKey payerKeyAsEcdsa() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Secp256k1Utils.readECKeyFrom(CommonUtils.unhex(defaultPayerKey()));
+        } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
+            return defaultPayerKeyFromResource(in -> Secp256k1Utils.readECKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Secp256k1Utils.readECKeyFrom(new File(defaultPayerPemKeyLoc()), defaultPayerPemKeyPassphrase());
+        }
+    }
+
+    private <T extends PrivateKey> T defaultPayerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
+        try (var in =
+                Thread.currentThread().getContextClassLoader().getResourceAsStream(defaultPayerPemKeyResource())) {
+            if (in == null) {
+                throw new IllegalArgumentException(
+                        "No resource found for default payer key " + defaultPayerPemKeyResource());
+            }
+            return reader.apply(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -288,6 +361,10 @@ public class HapiSpecSetup {
         return props.get("default.payer.mnemonicFile");
     }
 
+    public String defaultPayerPemKeyResource() {
+        return props.get("default.payer.pemKeyResource");
+    }
+
     public String defaultPayerPemKeyLoc() {
         return props.get("default.payer.pemKeyLoc");
     }
@@ -324,10 +401,6 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
-    public RealmID defaultRealm() {
-        return props.getRealm("default.realm");
-    }
-
     /**
      * Returns whether a {@link HapiSpec} should automatically take and fuzzy-match snapshots of the record stream.
      *
@@ -349,10 +422,6 @@ public class HapiSpecSetup {
 
     public boolean defaultReceiverSigRequired() {
         return props.getBoolean("default.receiverSigRequired");
-    }
-
-    public ShardID defaultShard() {
-        return props.getShard("default.shard");
     }
 
     public int defaultThresholdM() {
@@ -427,6 +496,22 @@ public class HapiSpecSetup {
         return props.get("fee.schedule.name");
     }
 
+    public AccountID simpleFeesScheduleControl() {
+        return props.getAccount("simplefees.schedule.controlAccount.id");
+    }
+
+    public String simpleFeesScheduleControlName() {
+        return props.get("simplefees.schedule.controlAccount.name");
+    }
+
+    public FileID simpleFeesScheduleId() {
+        return props.getFile("simplefees.schedule.id");
+    }
+
+    public String simpleFeesScheduleName() {
+        return props.get("simplefees.schedule.name");
+    }
+
     public int feesTokenTransferUsageMultiplier() {
         return props.getInteger("fees.tokenTransferUsageMultiplier");
     }
@@ -487,6 +572,10 @@ public class HapiSpecSetup {
         return props.get("invalid.contract.name");
     }
 
+    public Address missingAddress() {
+        return Utils.mirrorAddrWith(props.getAccount("missing.address"));
+    }
+
     public Boolean suppressUnrecoverableNetworkFailures() {
         return props.getBoolean("warnings.suppressUnrecoverableNetworkFailures");
     }
@@ -499,10 +588,10 @@ public class HapiSpecSetup {
         return props.get("node.details.name");
     }
 
-    public List<NodeConnectInfo> nodes() {
+    public List<NodeConnectInfo> nodes(long shard, long realm) {
         NodeConnectInfo.NEXT_DEFAULT_ACCOUNT_NUM = 3;
         return Stream.of(props.get("nodes").split(","))
-                .map(NodeConnectInfo::new)
+                .map(inString -> new NodeConnectInfo(inString, shard, realm))
                 .toList();
     }
 
@@ -534,16 +623,24 @@ public class HapiSpecSetup {
         return props.getLong("status.wait.timeout.ms");
     }
 
+    public long shard() {
+        return props.getShard();
+    }
+
+    public long realm() {
+        return props.getRealm();
+    }
+
     public AccountID nodeRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
+        return asAccount(shard(), realm(), 801L);
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
+        return asAccount(shard(), realm(), 800);
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
+        return asAccount(shard(), realm(), 802L);
     }
 
     public String nodeRewardAccountName() {
@@ -571,18 +668,11 @@ public class HapiSpecSetup {
     }
 
     public boolean getConfigTLS() {
-        boolean useTls = false;
-        switch (this.tls()) {
-            case ON:
-                useTls = Boolean.TRUE;
-                break;
-            case OFF:
-                useTls = Boolean.FALSE;
-                break;
-            case ALTERNATE:
-                useTls = r.nextBoolean();
-        }
-        return useTls;
+        return switch (this.tls()) {
+            case ON -> Boolean.TRUE;
+            case OFF -> Boolean.FALSE;
+            case ALTERNATE -> r.nextBoolean();
+        };
     }
 
     TxnProtoStructure txnProtoStructure() {

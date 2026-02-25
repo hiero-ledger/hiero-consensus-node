@@ -14,25 +14,31 @@ import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -44,11 +50,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * A factory for creating {@link TransactionExecutor} instances.
@@ -65,10 +70,10 @@ public enum TransactionExecutors {
     public static final String DISABLE_THROTTLES_PROPERTY = "executor.disableThrottles";
 
     /**
-     * A strategy to bind and retrieve {@link OperationTracer} scoped to a thread.
+     * A strategy to bind and retrieve {@link ActionSidecarContentTracer} scoped to a thread.
      */
-    public interface TracerBinding extends Supplier<List<OperationTracer>> {
-        void runWhere(@NonNull List<OperationTracer> tracers, @NonNull Runnable runnable);
+    public interface TracerBinding extends Supplier<List<ActionSidecarContentTracer>> {
+        void runWhere(@NonNull List<ActionSidecarContentTracer> tracers, @NonNull Runnable runnable);
     }
 
     /**
@@ -83,7 +88,7 @@ public enum TransactionExecutors {
             @NonNull Map<String, String> appProperties,
             @Nullable TracerBinding customTracerBinding,
             @NonNull Set<Operation> customOps,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull SemanticVersion softwareVersionFactory) {
         /**
          * Create a new {@link Builder} instance.
          * @return a new {@link Builder} instance
@@ -100,7 +105,7 @@ public enum TransactionExecutors {
             private TracerBinding customTracerBinding;
             private final Map<String, String> appProperties = new HashMap<>();
             private final Set<Operation> customOps = new HashSet<>();
-            private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+            private SemanticVersion softwareVersionFactory;
 
             /**
              * Set the required {@link State} field.
@@ -158,8 +163,7 @@ public enum TransactionExecutors {
             /**
              * Set the software version factory.
              */
-            public Builder softwareVersionFactory(
-                    @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            public Builder softwareVersionFactory(@NonNull final SemanticVersion softwareVersionFactory) {
                 this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
                 return this;
             }
@@ -194,7 +198,6 @@ public enum TransactionExecutors {
                 properties.appProperties(),
                 properties.customTracerBinding(),
                 properties.customOps(),
-                properties.softwareVersionFactory(),
                 entityIdFactory);
     }
 
@@ -211,19 +214,17 @@ public enum TransactionExecutors {
             @NonNull final Map<String, String> properties,
             @Nullable final TracerBinding customTracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         final var tracerBinding =
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
-        final var executor = newExecutorComponent(
-                state, properties, tracerBinding, customOps, softwareVersionFactory, entityIdFactory);
+        final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
-        executor.initializer().accept(state);
+        executor.initializer().initialize(state, StreamMode.BOTH);
         final var exchangeRateManager = executor.exchangeRateManager();
-        return (transactionBody, consensusNow, operationTracers) -> {
+        return (transactionBody, consensusNow, tracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
-            tracerBinding.runWhere(List.of(operationTracers), () -> executor.dispatchProcessor()
-                    .processDispatch(dispatch));
+            tracerBinding.runWhere(
+                    List.of(tracers), () -> executor.dispatchProcessor().processDispatch(dispatch));
             final var recordSource = dispatch.stack()
                     .buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates())
                     .recordSourceOrThrow();
@@ -231,12 +232,11 @@ public enum TransactionExecutors {
         };
     }
 
-    private ExecutorComponent newExecutorComponent(
+    public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         // Translate legacy executor property name to hedera.nodeTransaction.maxBytes, which
         // now controls the effective max size of a signed transaction after ingest
@@ -247,13 +247,13 @@ public enum TransactionExecutors {
                             : e)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
-        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
+        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl(properties);
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
-        var defaultNodeInfo =
-                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
+        var defaultNodeInfo = new NodeInfoImpl(
+                0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
         final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
                 .map(Boolean::parseBoolean)
                 .orElse(false);
@@ -268,16 +268,13 @@ public enum TransactionExecutors {
                 bootstrapConfigProvider::getConfiguration,
                 () -> defaultNodeInfo,
                 () -> NO_OP_METRICS,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         configProvider::getConfiguration,
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
-                        (configSupplier, capacitySplitSource, throttleType, versionFactory) -> disableThrottles
-                                ? new ThrottleAccumulator(
-                                        configSupplier, capacitySplitSource, NOOP_THROTTLE, versionFactory)
-                                : new ThrottleAccumulator(
-                                        configSupplier, capacitySplitSource, throttleType, versionFactory),
-                        softwareVersionFactory),
+                        (configSupplier, capacitySplitSource, throttleType) -> disableThrottles
+                                ? new ThrottleAccumulator(configSupplier, capacitySplitSource, NOOP_THROTTLE)
+                                : new ThrottleAccumulator(configSupplier, capacitySplitSource, throttleType)),
                 () -> componentRef.get().appFeeCharging(),
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
@@ -296,22 +293,29 @@ public enum TransactionExecutors {
                 appContext,
                 new HintsLibraryImpl(),
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
-        final var historyService = new HistoryServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
+        final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);
+        standaloneNetworkInfo.initFrom(state);
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
-                .scheduleService(scheduleService)
+                .tokenServiceImpl(new TokenServiceImpl(appContext))
+                .consensusServiceImpl(new ConsensusServiceImpl())
+                .networkServiceImpl(new NetworkServiceImpl())
                 .contractServiceImpl(contractService)
                 .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
                 .hintsService(hintsService)
                 .historyService(historyService)
+                .addressBookService(new AddressBookServiceImpl())
                 .metrics(NO_OP_METRICS)
                 .throttleFactory(appContext.throttleFactory())
+                .selfNodeAccountIdManager(
+                        new SelfNodeAccountIdManagerImpl(configProvider, standaloneNetworkInfo, state))
                 .build();
         componentRef.set(component);
         return component;
@@ -323,17 +327,18 @@ public enum TransactionExecutors {
     private enum DefaultTracerBinding implements TracerBinding {
         DEFAULT_TRACER_BINDING;
 
-        private static final ThreadLocal<List<OperationTracer>> OPERATION_TRACERS = ThreadLocal.withInitial(List::of);
+        private static final ThreadLocal<List<ActionSidecarContentTracer>> TRACERS = ThreadLocal.withInitial(List::of);
 
         @Override
-        public void runWhere(@NonNull final List<OperationTracer> tracers, @NonNull final Runnable runnable) {
-            OPERATION_TRACERS.set(tracers);
+        public void runWhere(
+                @NonNull final List<ActionSidecarContentTracer> tracers, @NonNull final Runnable runnable) {
+            TRACERS.set(tracers);
             runnable.run();
         }
 
         @Override
-        public List<OperationTracer> get() {
-            return OPERATION_TRACERS.get();
+        public List<ActionSidecarContentTracer> get() {
+            return TRACERS.get();
         }
     }
 

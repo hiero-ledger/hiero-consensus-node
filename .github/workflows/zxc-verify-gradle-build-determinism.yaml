@@ -20,6 +20,9 @@ on:
         default: "21.0.6"
 
     secrets:
+      github-token:
+        description: "GitHub Token with permissions to checkout the repository."
+        required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
         required: true
@@ -44,44 +47,36 @@ env:
 
 jobs:
   generate-baseline:
-    name: Generate Baseline
-    runs-on: hiero-network-node-linux-medium
+    name: "Gradle: Generate Baseline"
+    runs-on: hl-cn-gradle-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       path: ${{ steps.baseline.outputs.path }}
       file: ${{ steps.baseline.outputs.file }}
       name: ${{ steps.baseline.outputs.name }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # v1.0.5
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Setup Java
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
-        with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
-        with:
-          cache-disabled: true
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Retrieve Commit Hash
         id: commit
@@ -95,7 +90,7 @@ jobs:
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
 
-          if gsutil ls "${BASELINE_FILE}" >/dev/null 2>&1; then
+          if gsutil ls "${BASELINE_FILE}" 2>&1; then
              BASELINE_EXISTS="true"
           fi
 
@@ -120,55 +115,97 @@ jobs:
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
-  verify-artifacts:
-    name: "Verify Artifacts (${{ join(matrix.os, ', ') }})"
-    runs-on: ${{ matrix.os }}
-    needs:
-      - generate-baseline
-    strategy:
-      fail-fast: false
-      matrix:
-        # Disabled MacOS runner testing due to concurrency issues with the Github hosted runners.
-        os:
-          - ubuntu-24.04
-          - ubuntu-22.04
-          #- macos-12
-          #- macos-11
-          - windows-2022
-          - windows-2019
-          - hiero-network-node-linux-medium
-          - hiero-network-node-linux-large
+  generate-matrix:
+    name: "Gradle: Generate OS Matrix"
+    runs-on: hl-cn-gradle-determinism-lin-ss
+    outputs:
+      os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
+      - name: Set OS Matrix
+        id: set-matrix
+        run: |
+          ALWAYS_RUN=(
+            "ubuntu-24.04"
+            "ubuntu-22.04"
+            "hl-cn-gradle-determinism-lin-md"
+            "hl-cn-gradle-determinism-lin-u24-md"
+            "hl-cn-gradle-determinism-lin-d12-md"
+            "hl-cn-gradle-determinism-lin-lg"
+            "hl-cn-gradle-determinism-lin-u24-lg"
+            "hl-cn-gradle-determinism-lin-d12-lg"
+          )
+
+          PUBLIC_ONLY=(
+            "windows-2022"
+            "windows-2025"
+          )
+
+          if [[ "${{ github.event.repository.private }}" == "true" ]]; then
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}")
+            echo "Using Linux runners only (private repo)"
+          else
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}" "${PUBLIC_ONLY[@]}")
+            echo "Using all runners including Windows (public repo)"
+          fi
+
+          printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
+          MATRIX="{\"os\":[${joined%,}]}"
+
+          echo "----------------------------------------"
+          echo "Selected runners (${#ALL_RUNNERS[@]} total):"
+          printf ' - %s\n' "${ALL_RUNNERS[@]}"
+          echo "----------------------------------------"
+          echo "Matrix JSON:"
+          echo "$MATRIX"
+          echo "----------------------------------------"
+
+          # Set the output (simplified name)
+          echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  verify-artifacts:
+    name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    runs-on: ${{ matrix.os }}
+    needs:
+      - generate-baseline
+      - generate-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.os-matrix) }}
+    steps:
       - name: Standardize Git Line Endings
         run: |
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # v1.0.5
         with:
-          ref: ${{ inputs.ref }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
 
-      - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-        with:
-          python-version: 3.9
+      - name: Install Python (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3 python3-venv python3-pip
 
-      - name: Setup Java
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+      - name: Install Python
+        if: ${{ runner.os != 'Linux' }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
-        with:
-          cache-disabled: true
+          python-version: "3.12"
 
       - name: Setup CoreUtils (macOS)
         if: ${{ runner.os == 'macOS' }}
@@ -176,13 +213,13 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         env:
           CLOUDSDK_PYTHON: ${{ format('{0}{1}', env.pythonLocation, runner.os == 'Windows' && '\python.exe' || '/bin/python3') }}
 
@@ -232,7 +269,7 @@ jobs:
           fi
 
       - name: Publish Manifests
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ steps.regen-manifest.conclusion == 'success' && failure() && !cancelled() }}
         with:
           name: Gradle Manifests [${{ join(matrix.os, ', ') }}]

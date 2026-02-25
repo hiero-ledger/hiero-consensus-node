@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -9,9 +10,9 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -42,6 +43,7 @@ public class HintsControllers {
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
     private final Supplier<Configuration> configurationSupplier;
+    private final OnHintsFinished onHintsFinished;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -58,7 +60,8 @@ public class HintsControllers {
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final Supplier<Configuration> configurationSupplier) {
+            @NonNull final Supplier<Configuration> configurationSupplier,
+            @NonNull final OnHintsFinished onHintsFinished) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.context = requireNonNull(context);
@@ -66,20 +69,23 @@ public class HintsControllers {
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+        this.onHintsFinished = requireNonNull(onHintsFinished);
     }
 
     /**
      * Creates a new controller for the given hinTS construction, sourcing its rosters from the given store.
      *
      * @param activeRosters the active rosters
-     * @param construction  the hinTS construction
-     * @param hintsStore    the hinTS store
+     * @param construction the hinTS construction
+     * @param hintsStore the hinTS store
+     * @param activeHintsConstruction the active hinTS construction
      * @return the result of the operation
      */
     public @NonNull HintsController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(hintsStore);
@@ -87,7 +93,7 @@ public class HintsControllers {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller = newControllerFor(activeRosters, construction, hintsStore);
+            controller = newControllerFor(activeRosters, construction, hintsStore, activeHintsConstruction);
         }
         return requireNonNull(controller);
     }
@@ -139,17 +145,19 @@ public class HintsControllers {
      * @param activeRosters the active rosters
      * @param construction  the hinTS construction
      * @param hintsStore    the hints store
+     * @param activeHintsConstruction the active hinTS construction, if any
      * @return the controller
      */
     private HintsController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final WritableHintsStore hintsStore) {
-        final var weights = activeRosters.transitionWeights();
+            @NonNull final WritableHintsStore hintsStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
+        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
         } else {
-            final var numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
+            final int numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
             log.info(
                     "Creating controller for construction #{} from nodes {} to {} with {} hinTS parties",
                     construction.constructionId(),
@@ -179,7 +187,8 @@ public class HintsControllers {
                     submissions,
                     context,
                     configurationSupplier,
-                    hintsStore);
+                    hintsStore,
+                    onHintsFinished);
         }
     }
 

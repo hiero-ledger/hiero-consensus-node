@@ -1,0 +1,68 @@
+/**
+ * # Block Footer
+ * A collection of hashes of sub parts of the blocks top fixed merkle
+ * tree that are needed to compute the blocks root hash. These are the
+ * hashes of the first 3 nodes across the bottom of the block fixed
+ * merkle tree in field order.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.output;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.output.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+message BlockFooter {
+
+    /**
+     * The root hash of the block, for the previous block to the one this
+     * footer belongs to. This value MUST match the block merkle tree root
+     * hash of the previous block in the block stream.<br/>
+     * This value SHALL be empty for the genesis block, and SHALL NOT be empty
+     * for any other block.<br/>
+     * Client systems SHOULD optimistically reject any block with a
+     * `previous_block_proof_hash` that does not match the block hash of the
+     * previous block and MAY assume the block stream has encountered data
+     * loss, data corruption, or unauthorized modification.<br>
+     * For historical converted record stream blocks, this is the hash of the
+     * previous hashed converted block using block stream hashing algorithm.
+     * That means it is different from the original record stream block hash
+     * which is available from mirror node and hashscan.io.
+     */
+    bytes previous_block_root_hash = 1;
+
+    /**
+     * The root hash of a merkle tree containg the root hashes of all block
+     * from block zero up to but not including this current block.
+     */
+    bytes root_hash_of_all_block_hashes_tree = 2;
+
+    /**
+     * A merkle root hash of the network state.<br/>
+     * This is present to support validation of this block proof by clients
+     * that do not maintain a full copy of the network state.
+     * <p>
+     * This MUST contain a hash of the "state" merkle tree root at the start
+     * of the current block.<br/>
+     * State processing clients SHOULD calculate the state root hash
+     * independently and SHOULD NOT rely on this value.<br/>
+     * State processing clients MUST validate the application of state changes
+     * for a block using the value present in the Block Footer of the
+     * _following_ block.
+     * Stateless (non-state-processing) clients MUST use this value to
+     * construct the block merkle tree.<br>
+     * For historical converted record stream blocks, this the state root hash
+     * was never recorded in the record stream at that time, so this field
+     * will be 48 bytes of zeros.
+     */
+    bytes start_of_block_state_root_hash = 3;
+}

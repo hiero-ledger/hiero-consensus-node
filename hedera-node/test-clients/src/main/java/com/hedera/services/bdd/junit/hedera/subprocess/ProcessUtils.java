@@ -14,6 +14,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -140,7 +141,13 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz,
+        // e.g. "/Users/hincadenza/misc/wraps-v0.2.0", to get the WRAPS library ready to produce proofs
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
+        environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
+        environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
         environment.putAll(prCheckOverrides());
         // Give any overrides set by the test author the highest priority
@@ -172,15 +179,17 @@ public class ProcessUtils {
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
         commandLine.addAll(List.of(
-                "-classpath",
-                // Use the same classpath that started this process, excluding test-clients
-                currentNonTestClientClasspath(),
+                "--module-path",
+                // Use the same module path that started this process, excluding test-clients
+                currentNonTestClientModulePath(),
                 // JVM system
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
+                "-Dhedera.recordStream.wrappedRecordHashesDir=" + DATA_DIR + "/wrappedRecordHashes",
                 "-Dhedera.profiles.active=DEV",
-                "com.hedera.node.app.ServicesMain",
+                "--module",
+                "com.hedera.node.app/com.hedera.node.app.ServicesMain",
                 "-local",
                 Long.toString(metadata.nodeId())));
         return commandLine;
@@ -239,33 +248,34 @@ public class ProcessUtils {
                 EXECUTOR);
     }
 
-    private static String currentNonTestClientClasspath() {
-        // Could have been launched with -cp, or -classpath, or @/path/to/classpathFile.txt, or maybe module path?
+    private static String currentNonTestClientModulePath() {
+        // When started through Gradle, this was launched with @/path/to/pathFile.txt.
+        // This also works when launched with --module-path, -cp, or -classpath.
         final var args = ProcessHandle.current().info().arguments().orElse(EMPTY_STRING_ARRAY);
 
-        String classpath = "";
+        String moduleOrClassPath = "";
         for (int i = 0; i < args.length; i++) {
             final var arg = args[i];
             if (arg.startsWith("@")) {
                 try {
                     final var fileContents = Files.readString(Path.of(arg.substring(1)));
-                    classpath = fileContents.substring(fileContents.indexOf('/'));
+                    moduleOrClassPath = fileContents.substring(fileContents.indexOf('/'));
                     break;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            } else if (arg.equals("-cp") || arg.equals("-classpath")) {
-                classpath = args[i + 1];
+            } else if (arg.equals("--module-path") || arg.equals("-cp") || arg.equals("-classpath")) {
+                moduleOrClassPath = args[i + 1];
                 break;
             }
         }
-        if (classpath.isBlank()) {
-            throw new IllegalStateException("Cannot discover the classpath. Was --module-path used instead?");
+        if (moduleOrClassPath.isBlank()) {
+            throw new IllegalStateException("Cannot discover module path or classpath.");
         }
-        return Arrays.stream(classpath.split(":"))
-                .map(String::trim) // may have picked up a '\n' in the original classpath String
+        return Arrays.stream(moduleOrClassPath.split(File.pathSeparator))
+                .map(String::trim) // may have picked up a '\n' in the original path String
                 .filter(s -> !s.contains("test-clients"))
-                .collect(Collectors.joining(":"));
+                .collect(Collectors.joining(File.pathSeparator));
     }
 
     private static boolean endsWith(final String[] args, final String lastArg) {

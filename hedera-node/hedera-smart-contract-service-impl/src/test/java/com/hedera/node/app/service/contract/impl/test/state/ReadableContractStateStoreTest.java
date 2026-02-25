@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_KEY;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BYTECODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -15,7 +15,7 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.contract.impl.state.ReadableContractStateStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -49,8 +49,8 @@ class ReadableContractStateStoreTest {
 
     @BeforeEach
     void setUp() {
-        given(states.<SlotKey, SlotValue>get(STORAGE_KEY)).willReturn(storage);
-        given(states.<ContractID, Bytecode>get(BYTECODE_KEY)).willReturn(bytecode);
+        given(states.<SlotKey, SlotValue>get(STORAGE_STATE_ID)).willReturn(storage);
+        given(states.<ContractID, Bytecode>get(BYTECODE_STATE_ID)).willReturn(bytecode);
 
         subject = new ReadableContractStateStore(states, readableEntityCounters);
     }
@@ -91,8 +91,9 @@ class ReadableContractStateStoreTest {
     @Test
     void getsSizeAsExpected() {
         given(readableEntityCounters.getCounterFor(EntityType.CONTRACT_STORAGE)).willReturn(1L);
+        given(readableEntityCounters.getCounterFor(EntityType.EVM_HOOK_STORAGE)).willReturn(2L);
 
-        assertSame(1L, subject.getNumSlots());
+        assertSame(3L, subject.getNumSlots());
     }
 
     @Test

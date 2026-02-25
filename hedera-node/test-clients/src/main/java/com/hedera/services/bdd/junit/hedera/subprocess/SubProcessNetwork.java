@@ -5,25 +5,26 @@ import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.configTxtForLocal;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
-import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.ParseException;
@@ -34,12 +35,10 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
-import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
+import com.hedera.services.bdd.junit.hedera.utils.NetworkUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
-import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
@@ -65,6 +64,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,6 +76,7 @@ import org.apache.logging.log4j.Logger;
  * stopping and restarting.
  */
 public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetwork {
+    public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     private static final Logger log = LogManager.getLogger(SubProcessNetwork.class);
 
     // 3 gRPC ports, 2 gossip ports, 1 Prometheus
@@ -82,14 +84,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
-    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE; // Default to no block nodes
-
-    // Whether to use a single block node simulator for all consensus nodes
-    private boolean manyToOneSimulator = false;
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
-    private static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     private static final GrpcPinger GRPC_PINGER = new GrpcPinger();
     private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
 
@@ -104,61 +101,20 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
     private long maxNodeId;
-    private String configTxt;
-    private final String genesisConfigTxt;
+    private Network network;
+    private final Network genesisNetwork;
+    private final long shard;
+    private final long realm;
 
-    private final List<BlockNodeContainer> blockNodeContainers = new ArrayList<>();
+    private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
+    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
     private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
-    /**
-     * Configure the block node mode for this network.
-     * @param mode the block node mode to use
-     */
-    public void setBlockNodeMode(BlockNodeMode mode) {
-        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
-        this.blockNodeMode = mode;
-    }
+    @Nullable
+    private UnaryOperator<Network> overrideCustomizer = null;
 
-    /**
-     * Get the current block node mode for this network.
-     * @return the current block node mode
-     */
-    public BlockNodeMode getBlockNodeMode() {
-        return this.blockNodeMode;
-    }
-
-    /**
-     * Check if the network is configured to use a single block node simulator for all consensus nodes.
-     * @return true if using a single simulator for all nodes, false otherwise
-     */
-    public boolean isManyToOneSimulator() {
-        return manyToOneSimulator;
-    }
-
-    /**
-     * Configure whether to use a single block node simulator for all consensus nodes.
-     * @param manyToOne true to use a single simulator for all nodes, false otherwise
-     */
-    public void setManyToOneSimulator(boolean manyToOne) {
-        this.manyToOneSimulator = manyToOne;
-        log.info("Set manyToOneSimulator to {}", manyToOne);
-    }
-
-    /**
-     * Get the list of simulated block node servers.
-     * @return the list of simulated block node servers
-     */
-    public List<SimulatedBlockNodeServer> getSimulatedBlockNodes() {
-        return Collections.unmodifiableList(simulatedBlockNodes);
-    }
-
-    /**
-     * Get a controller for the simulated block nodes.
-     * @return a controller for the simulated block nodes
-     */
-    public BlockNodeSimulatorController getBlockNodeSimulatorController() {
-        return new BlockNodeSimulatorController(this);
-    }
+    private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -215,12 +171,17 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
-    private SubProcessNetwork(@NonNull final String networkName, @NonNull final List<SubProcessNode> nodes) {
+    private SubProcessNetwork(
+            @NonNull final String networkName, @NonNull final List<SubProcessNode> nodes, long shard, long realm) {
         super(networkName, nodes.stream().map(node -> (HederaNode) node).toList());
+        this.shard = shard;
+        this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.configTxt = configTxtForLocal(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
-        this.genesisConfigTxt = configTxt;
+        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.genesisNetwork = network;
+        this.postInitWorkingDirActions.add(this::configureApplicationProperties);
+        this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
 
     /**
@@ -229,11 +190,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @return the shared network
      */
-    public static synchronized HederaNetwork newSharedNetwork(final int size) {
+    public static synchronized HederaNetwork newSharedNetwork(
+            String networkName, final int size, final long shard, final long realm) {
         if (NetworkTargetingExtension.SHARED_NETWORK.get() != null) {
             throw new UnsupportedOperationException("Only one shared network allowed per launcher session");
         }
-        final var sharedNetwork = liveNetwork(SHARED_NETWORK_NAME, size);
+        final var sharedNetwork = liveNetwork(networkName, size, shard, realm);
         NetworkTargetingExtension.SHARED_NETWORK.set(sharedNetwork);
         return sharedNetwork;
     }
@@ -254,201 +216,29 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
-        log.info(
-                "Starting network with block node mode: {}, manyToOneSimulator: {}", blockNodeMode, manyToOneSimulator);
-
-        // First start block nodes if needed
-        startBlockNodesAsApplicable();
-
-        // Then start each network node
-        for (int i = 0; i < nodes.size(); i++) {
-            HederaNode node = nodes.get(i);
-            log.info("Starting node {} with block node mode: {}", i, blockNodeMode);
-
-            // Initialize Working Directory for Node
-            node.initWorkingDir(configTxt);
-
-            configureBlockNodeConnectionInformation(i, node);
-
-            // Start the node
+        nodes.forEach(node -> {
+            node.initWorkingDir(network);
+            executePostInitWorkingDirActions(node);
             node.start();
-        }
+        });
     }
 
-    private void startBlockNodesAsApplicable() {
-        if (blockNodeMode == BlockNodeMode.REAL) {
-            log.info("Starting block node containers for {} nodes", nodes.size());
-            for (HederaNode node : nodes) {
-                // Start a block node container for this network node
-                BlockNodeContainer container = new BlockNodeContainer();
-                container.start();
-                blockNodeContainers.add(container);
-                log.info(
-                        "Started block node container for node {} @ localhost:{}",
-                        node.getNodeId(),
-                        container.getGrpcPort());
-            }
-        } else if (blockNodeMode == BlockNodeMode.SIMULATOR) {
-            if (manyToOneSimulator) {
-                log.info("Starting a single simulated block node for all {} nodes", nodes.size());
-                try {
-                    // Find an available port
-                    int port = findAvailablePort();
-                    SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                    server.start();
-                    simulatedBlockNodes.add(server);
-                    log.info("Started shared simulated block node @ localhost:{}", port);
-                } catch (IOException e) {
-                    log.error("Failed to start shared simulated block node {}", e.toString());
-                }
-            } else {
-                log.info("Starting simulated block nodes for {} nodes", nodes.size());
-                // Start a simulated block node for each consensus node
-                for (HederaNode node : nodes) {
-                    try {
-                        // Find an available port
-                        int port = findAvailablePort();
-                        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                        server.start();
-                        simulatedBlockNodes.add(server);
-                        log.info("Started simulated block node @ localhost:{}", port);
-                    } catch (IOException e) {
-                        log.error("Failed to start simulated block node {}", e.toString());
-                    }
-                }
-            }
-        } else {
-            log.info("Skipping block nodes as mode is: {}", blockNodeMode);
+    /**
+     * Add a listener to be notified when the network is ready.
+     * @param listener the listener to notify when the network is ready
+     */
+    public void onReady(@NonNull final Consumer<HederaNetwork> listener) {
+        requireNonNull(listener);
+        if (ready.get() != null) {
+            throw new IllegalStateException("Listeners must be registered before awaitReady()");
         }
+        onReadyListeners.add(listener);
     }
 
-    private void configureBlockNodeConnectionInformation(int i, HederaNode node) {
-        // Write block node config if needed
-        if (blockNodeMode == BlockNodeMode.REAL) {
-            BlockNodeContainer container = blockNodeContainers.get(i);
-            updateBlockNodesConfigForNode(node, container);
-            log.info(
-                    "Configured block node for node {} with container port {}",
-                    node.getNodeId(),
-                    container.getGrpcPort());
-        } else if (blockNodeMode == BlockNodeMode.SIMULATOR) {
-            if (manyToOneSimulator) {
-                // All nodes connect to the same simulator
-                updateBlockNodesConfigForNodeWithSimulators(node, simulatedBlockNodes.getFirst());
-                log.info("Configured node {} to use shared simulated block node", node.getNodeId());
-            } else {
-                // Each node connects to its own simulator
-                updateBlockNodesConfigForNodeWithSimulators(node, simulatedBlockNodes.get(i));
-                log.info("Configured simulated block nodes for node {}", node.getNodeId());
-            }
-        } else if (blockNodeMode == BlockNodeMode.LOCAL_NODE && i == 0) {
-            updateSubProcessNodeOneConfigForLocalBlockNode(node);
-            log.info("Configured local block nodes for node {}", node.getNodeId());
-        } else {
-            log.info("Skipping block node for node {} as block nodes are disabled", node.getNodeId());
+    private void executePostInitWorkingDirActions(HederaNode node) {
+        for (Consumer<HederaNode> action : postInitWorkingDirActions) {
+            action.accept(node);
         }
-    }
-
-    private void updateSubProcessNodeOneConfigForLocalBlockNode(HederaNode node) {
-        try {
-            // Create block node config for this container
-            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080));
-
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
-
-            // Write the config to this consensus node's block-nodes.json
-            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-
-            // Update application.properties with block stream settings
-            updateApplicationPropertiesWithGrpcStreaming(node);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
-        }
-    }
-
-    private void updateBlockNodesConfigForNode(HederaNode node, BlockNodeContainer container) {
-        try {
-            // Create block node config for this container
-            List<BlockNodeConfig> blockNodes =
-                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort()));
-
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
-
-            // Write the config to this consensus node's block-nodes.json
-            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-
-            log.info(
-                    "Updated block node configuration for node {} with container port {}",
-                    node.getNodeId(),
-                    container.getGrpcPort());
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
-        }
-    }
-
-    private void updateBlockNodesConfigForNodeWithSimulators(HederaNode node, SimulatedBlockNodeServer sim) {
-        try {
-            // Create block node config for simulator servers
-            List<BlockNodeConfig> blockNodes = new ArrayList<>();
-            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort()));
-
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
-
-            // Write the config to this consensus node's block-nodes.json
-            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-
-            log.info(
-                    "Updated block node configuration for node {} with simulator on port {}",
-                    node.getNodeId(),
-                    sim.getPort());
-
-            // Update application.properties with block stream settings
-            updateApplicationPropertiesWithGrpcStreaming(node);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
-        }
-    }
-
-    private static void updateApplicationPropertiesWithGrpcStreaming(HederaNode node) throws IOException {
-        Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
-        log.info(
-                "Attempting to update application.properties at path {} for node {}",
-                appPropertiesPath,
-                node.getNodeId());
-
-        // First check if file exists and log current content
-        if (Files.exists(appPropertiesPath)) {
-            String currentContent = Files.readString(appPropertiesPath);
-            log.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
-        } else {
-            log.info("application.properties does not exist yet for node {}, will create new file", node.getNodeId());
-        }
-
-        String blockStreamConfig =
-                """
-                # Block stream configuration
-                blockStream.writerMode=FILE_AND_GRPC
-                blockStream.shutdownNodeOnNoBlockNodes=true
-                """;
-
-        // Write the properties with CREATE and APPEND options
-        Files.writeString(appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-
-        // Verify the file was updated
-        String updatedContent = Files.readString(appPropertiesPath);
-        log.info(
-                "Verified application.properties content after update for node {}: {}",
-                node.getNodeId(),
-                updatedContent);
     }
 
     /**
@@ -458,42 +248,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void terminate() {
         // Then stop network nodes first to prevent new streaming requests
         nodes.forEach(HederaNode::stopFuture);
-
-        // Stop block node containers
-        for (BlockNodeContainer container : blockNodeContainers) {
-            container.stop();
-        }
-        blockNodeContainers.clear();
-
-        // Stop simulated block nodes with grace period
-        Duration shutdownTimeout = Duration.ofSeconds(30);
-        log.info(
-                "Gracefully stopping {} simulated block nodes with {} timeout",
-                simulatedBlockNodes.size(),
-                shutdownTimeout);
-
-        List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                try {
-                    server.stop();
-                    log.info("Successfully stopped simulated block node on port {}", server.getPort());
-                } catch (Exception e) {
-                    log.error("Error stopping simulated block node on port {}", server.getPort(), e);
-                }
-            });
-            shutdownFutures.add(future);
-        }
-
-        try {
-            // Wait for all servers to stop or timeout
-            CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0]))
-                    .get(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("All simulated block nodes stopped successfully");
-        } catch (Exception e) {
-            log.error("Timeout or error while stopping simulated block nodes", e);
-        }
-        simulatedBlockNodes.clear();
     }
 
     /**
@@ -508,31 +262,28 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Thread.currentThread().getName());
             final var deferredRun = new DeferredRun(() -> {
                 final var deadline = Instant.now().plus(timeout);
-                // Block until all nodes are ACTIVE
+                // Block until all nodes are ACTIVE and ready to handle transactions
                 nodes.forEach(node -> awaitStatus(node, Duration.between(Instant.now(), deadline), ACTIVE));
                 nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
                         .orTimeout(10, TimeUnit.SECONDS)
                         .join());
-                nodes.forEach(node -> node.logFuture("TSS protocol ready")
-                        .orTimeout(30, TimeUnit.MINUTES)
+                nodes.forEach(node -> CompletableFuture.anyOf(
+                                // Only the block stream uses TSS, so it is deactivated when streamMode=RECORDS
+                                node.logFuture("blockStream.streamMode = RECORDS")
+                                        .orTimeout(3, TimeUnit.MINUTES),
+                                node.logFuture(TssBlockHashSigner.SIGNER_READY_MSG)
+                                        .orTimeout(30, TimeUnit.MINUTES))
                         .join());
                 this.clients = HapiClients.clientsFor(this);
             });
+            // We only need one thread to wait for readiness
             if (ready.compareAndSet(null, deferredRun)) {
-                // We only need one thread to wait for readiness
                 deferredRun.runAsync();
+                // Only attach onReady listeners once
+                deferredRun.futureOrThrow().thenRun(() -> onReadyListeners.forEach(listener -> listener.accept(this)));
             }
         }
         ready.get().futureOrThrow().join();
-    }
-
-    /**
-     * Returns the genesis <i>config.txt</i> file for the network.
-     *
-     * @return the genesis <i>config.txt</i> file
-     */
-    public String genesisConfigTxt() {
-        return genesisConfigTxt;
     }
 
     /**
@@ -548,6 +299,15 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         } else {
             pendingNodeAccounts.put(nodeId, accountId);
         }
+    }
+
+    /**
+     * Sets a one-time use customizer for use during the next {@literal override-network.json} refresh.
+     * @param overrideCustomizer the customizer to apply to the override network
+     */
+    public void setOneTimeOverrideCustomizer(@NonNull final UnaryOperator<Network> overrideCustomizer) {
+        requireNonNull(overrideCustomizer);
+        this.overrideCustomizer = overrideCustomizer;
     }
 
     /**
@@ -569,7 +329,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        configTxt = configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -592,8 +352,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -619,10 +379,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         SHARED_NETWORK_NAME.equals(name()) ? null : name(),
                         nextGrpcPort + (int) nodeId * 2,
                         nextNodeOperatorPort + (int) nodeId,
-                        true,
                         nextInternalGossipPort + (int) nodeId * 2,
                         nextExternalGossipPort + (int) nodeId * 2,
-                        nextPrometheusPort + (int) nodeId),
+                        nextPrometheusPort + (int) nodeId,
+                        shard,
+                        realm),
                 GRPC_PINGER,
                 PROMETHEUS_CLIENT);
         final var accountId = pendingNodeAccounts.remove(nodeId);
@@ -630,9 +391,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
-        nodes.get(insertionPoint).initWorkingDir(configTxt);
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        nodes.get(insertionPoint).initWorkingDir(network);
+        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
+            executePostInitWorkingDirActions(node);
+        }
+
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -673,7 +438,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @return the network
      */
-    private static synchronized HederaNetwork liveNetwork(@NonNull final String name, final int size) {
+    private static synchronized HederaNetwork liveNetwork(
+            @NonNull final String name, final int size, final long shard, final long realm) {
         if (!nextPortsInitialized) {
             initializeNextPortsForNetwork(size);
         }
@@ -688,28 +454,35 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         SHARED_NETWORK_NAME.equals(name) ? null : name,
                                         nextGrpcPort,
                                         nextNodeOperatorPort,
-                                        true,
                                         nextInternalGossipPort,
                                         nextExternalGossipPort,
-                                        nextPrometheusPort),
+                                        nextPrometheusPort,
+                                        shard,
+                                        realm),
                                 GRPC_PINGER,
                                 PROMETHEUS_CLIENT))
-                        .toList());
+                        .toList(),
+                shard,
+                realm);
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
     }
 
     /**
      * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network,
-     * as implied by the current {@link SubProcessNetwork#configTxt} field. (Note the weights in this {@code configTxt}
+     * as implied by the current {@link SubProcessNetwork#network} field. (Note the weights in this {@code configTxt}
      * field are maintained in very brittle fashion by getting up-to-date values from {@code node0}'s
      * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; at some point
      * we should clean this up.)
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
-        log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
+        log.info("Refreshing override networks for '{}' - \n{}", name(), network);
         nodes.forEach(node -> {
-            final var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.YES);
+            var overrideNetwork = network;
+            if (overrideCustomizer != null) {
+                // Apply the override customizer to the network
+                overrideNetwork = overrideCustomizer.apply(overrideNetwork);
+            }
             final var genesisNetworkPath = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
             final var isGenesis = genesisNetworkPath.toFile().exists();
             // Only write override-network.json if a node is not starting from genesis; otherwise it will adopt
@@ -745,6 +518,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 }
             }
         });
+        overrideCustomizer = null;
     }
 
     private NodeMetadata withReassignedPorts(
@@ -837,7 +611,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
-    private int findAvailablePort() {
+    public static int findAvailablePort() {
         // Find a random available port between 30000 and 40000
         int attempts = 0;
         while (attempts < 100) {
@@ -849,5 +623,178 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         }
         throw new RuntimeException("Could not find available port after 100 attempts");
+    }
+
+    public void configureApplicationProperties(HederaNode node) {
+        // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
+        final var nodeId = node.getNodeId();
+        if (applicationPropertyOverrides.containsKey(nodeId)) {
+            final var properties = applicationPropertyOverrides.get(nodeId);
+            log.info("Configuring application properties for node {}: {}", nodeId, properties);
+            Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
+            log.info(
+                    "Attempting to update application.properties at path {} for node {}",
+                    appPropertiesPath,
+                    node.getNodeId());
+
+            try {
+                // First check if file exists and log current content
+                if (Files.exists(appPropertiesPath)) {
+                    String currentContent = Files.readString(appPropertiesPath);
+                    log.info(
+                            "Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
+                } else {
+                    log.info(
+                            "application.properties does not exist yet for node {}, will create new file",
+                            node.getNodeId());
+                }
+
+                // Prepare the block stream config string
+                StringBuilder propertyBuilder = new StringBuilder();
+                for (int i = 0; i < properties.size(); i += 2) {
+                    propertyBuilder.append(properties.get(i)).append("=").append(properties.get(i + 1));
+                    if (i < properties.size() - 1) {
+                        propertyBuilder.append(System.lineSeparator());
+                    }
+                }
+
+                // Write the properties with CREATE and APPEND options
+                Files.writeString(
+                        appPropertiesPath,
+                        propertyBuilder.toString(),
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.APPEND);
+
+                // Verify the file was updated
+                String updatedContent = Files.readString(appPropertiesPath);
+                log.info(
+                        "application.properties content after update for node {}: {}",
+                        node.getNodeId(),
+                        updatedContent);
+            } catch (IOException e) {
+                log.error("Failed to update application.properties for node {}: {}", node.getNodeId(), e.getMessage());
+                throw new RuntimeException("Failed to update application.properties for node " + node.getNodeId(), e);
+            }
+        } else {
+            log.info("No bootstrap property overrides for node {}", nodeId);
+        }
+    }
+
+    /**
+     * Appends platform settings overrides to the {@code settings.txt} in the node's working directory.
+     * These overrides only affect HAPI test subprocess nodes, not the shared dev configuration.
+     */
+    private static void configurePlatformSettings(@NonNull final HederaNode node) {
+        final var settingsPath = node.getExternalPath(WORKING_DIR).resolve("settings.txt");
+        try {
+            Files.writeString(
+                    settingsPath,
+                    System.lineSeparator() + "platformStatus.observingStatusDelay,             0s"
+                            + System.lineSeparator(),
+                    StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public List<Consumer<HederaNode>> getPostInitWorkingDirActions() {
+        return postInitWorkingDirActions;
+    }
+
+    @Override
+    public long shard() {
+        return shard;
+    }
+
+    @Override
+    public long realm() {
+        return realm;
+    }
+
+    @Override
+    public PrometheusClient prometheusClient() {
+        return PROMETHEUS_CLIENT;
+    }
+
+    /**
+     * Configures the log level for the block node communication package in the node's log4j2.xml file.
+     * This allows for more detailed logging of block streaming operations during tests.
+     *
+     * @param node the node whose logging configuration should be updated
+     * @param logLevel the log level to set (e.g., "DEBUG", "INFO", "WARN")
+     */
+    public void configureBlockNodeCommunicationLogLevel(
+            @NonNull final HederaNode node, @NonNull final String logLevel) {
+        requireNonNull(node, "Node cannot be null");
+        requireNonNull(logLevel, "Log level cannot be null");
+        final Path loggerConfigPath = node.getExternalPath(LOG4J2_XML);
+        try {
+            // Read the existing XML file
+            String xmlContent = Files.readString(loggerConfigPath);
+
+            // Check if the logger configuration for streaming package exists
+            if (xmlContent.contains("<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=")) {
+                // Update the existing logger configuration
+                final String updatedXmlContent = xmlContent.replaceAll(
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"[^\"]*\"",
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"" + logLevel + "\"");
+
+                // Write the updated XML back to the file
+                Files.writeString(loggerConfigPath, updatedXmlContent);
+
+                log.info("Updated existing com.hedera.node.app.blocks.impl.streaming logger to level {}", logLevel);
+            } else {
+                // If the logger configuration doesn't exist, add it
+                final int insertPosition = xmlContent.lastIndexOf("</Loggers>");
+                if (insertPosition != -1) {
+                    // Create the new logger configuration
+                    final StringBuilder newLogger = new StringBuilder();
+                    newLogger
+                            .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming\" ")
+                            .append("level=\"" + logLevel + "\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n\n");
+
+                    // Insert the new logger configuration
+                    final String updatedXmlContent =
+                            xmlContent.substring(0, insertPosition) + newLogger + xmlContent.substring(insertPosition);
+
+                    // Write the updated XML back to the file
+                    Files.writeString(loggerConfigPath, updatedXmlContent);
+
+                    log.info(
+                            "Successfully added com.hedera.node.app.blocks.impl.streaming logger at level {}",
+                            logLevel);
+                } else {
+                    log.info("Could not find </Loggers> tag in log4j2.xml");
+                }
+            }
+        } catch (IOException e) {
+            log.error("Error updating log4j2.xml: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Gets the current block node mode for this network.
+     *
+     * @return the current block node mode
+     */
+    public @NonNull BlockNodeMode getBlockNodeMode() {
+        return blockNodeMode;
+    }
+
+    /**
+     * Configure the block node mode for this network.
+     * @param mode the block node mode to use
+     */
+    public void setBlockNodeMode(@NonNull final BlockNodeMode mode) {
+        requireNonNull(mode, "Block node mode cannot be null");
+        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
+        this.blockNodeMode = mode;
+    }
+
+    public Map<Long, List<String>> getApplicationPropertyOverrides() {
+        return applicationPropertyOverrides;
     }
 }

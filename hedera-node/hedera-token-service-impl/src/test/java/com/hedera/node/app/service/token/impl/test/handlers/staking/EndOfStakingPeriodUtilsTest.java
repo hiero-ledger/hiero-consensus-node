@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
-import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.*;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeExtendedRewardSumHistory;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeNewStakes;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.readableNonZeroHistory;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.token.impl.test.util.CommonTestUtils.assertUnsupportedConstructor;
 
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
 import com.hedera.node.config.data.StakingConfig;
 import java.math.BigInteger;
 import java.util.Collections;
@@ -31,6 +35,11 @@ class EndOfStakingPeriodUtilsTest {
             .weight(5)
             .build();
     private static final StakingConfig STAKING_CONFIG = DEFAULT_CONFIG.getConfigData(StakingConfig.class);
+
+    @Test
+    void throwsInConstructor() {
+        assertUnsupportedConstructor(EndOfStakingPeriodUtils.class);
+    }
 
     @Test
     void readableNonZeroHistoryFromEmptyRewards() {

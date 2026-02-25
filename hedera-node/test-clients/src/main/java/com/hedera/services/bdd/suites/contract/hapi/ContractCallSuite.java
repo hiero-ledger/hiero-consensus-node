@@ -2,16 +2,10 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -80,10 +74,15 @@ import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIForContract;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.numAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.NESTED_LAZY_CREATE_VIA_CONSTRUCTOR;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.SALT;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
@@ -104,7 +103,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_SAME_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -116,7 +115,6 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.esaulpaugh.headlong.abi.TypeFactory;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -126,11 +124,13 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.suites.utils.contracts.ContractCallResult;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
@@ -140,7 +140,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -154,7 +154,7 @@ public class ContractCallSuite {
     private static final String ALICE = "Alice";
 
     private static final long DEPOSIT_AMOUNT = 1000;
-    private static final long GAS_TO_OFFER = 2_000_000L;
+    private static final long GAS_TO_OFFER = 1_000_000L;
 
     public static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     public static final String SIMPLE_UPDATE_CONTRACT = "SimpleUpdate";
@@ -214,6 +214,7 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> repeatedCreate2FailsWithInterpretableActionSidecars() {
         final var contract = "Create2PrecompileUser";
         final var salt = unhex(SALT);
@@ -284,21 +285,17 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> lowLevelEcrecCallBehavior() {
         final var TEST_CONTRACT = "TestContract";
         final var somebody = "somebody";
-        final var account = SHARD_AND_REALM + "1";
+        final var account = "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
-                contractCreate(
-                                TEST_CONTRACT,
-                                idAsHeadlongAddress(AccountID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setAccountNum(2)
-                                        .build()),
-                                BigInteger.ONE)
-                        .balance(ONE_HBAR),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCreate(TEST_CONTRACT, numAsHeadlongAddress(spec, 2), BigInteger.ONE)
+                                .balance(ONE_HBAR))),
                 cryptoCreate(somebody),
                 balanceSnapshot("start", account),
                 cryptoUpdate(account).receiverSigRequired(true).signedBy(GENESIS),
@@ -604,7 +601,7 @@ public class ContractCallSuite {
                         contractCall(WHITELISTER, "addToWhitelist", asHeadlongAddress(childEip1014.get()))
                                 .payingWith(DEFAULT_PAYER),
                         contractCallWithFunctionAbi(
-                                        asContractString(contractIdFromHexedMirrorAddress(childMirror.get())),
+                                        asContractString(contractIdFromHexedMirrorAddress(spec, childMirror.get())),
                                         getABIFor(FUNCTION, "isWhitelisted", WHITELISTER),
                                         asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
                                 .payingWith(DEFAULT_PAYER)
@@ -687,7 +684,6 @@ public class ContractCallSuite {
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
         final AtomicReference<String> addressBookMirror = new AtomicReference<>();
         final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
-
         return hapiTest(
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
                 withOpContext((spec, opLog) -> defaultPayerMirror.set((unhex(
@@ -698,12 +694,14 @@ public class ContractCallSuite {
                 // support
                 contractCreate(addressBook)
                         .gas(1_000_000L)
-                        .exposingNumTo(num -> addressBookMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .exposingContractIdTo(id -> addressBookMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
                 contractCreate(jurisdictions)
-                        .gas(1_000_000L)
-                        .exposingNumTo(num -> jurisdictionMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .gas(4_000_000L)
+                        .exposingContractIdTo(id -> jurisdictionMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .withExplicitParams(() -> EXPLICIT_JURISDICTION_CONS_PARAMS)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
@@ -756,6 +754,7 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> exchangeRatePrecompileWorks() {
         final var valueToTinycentCall = "recoverUsd";
         final var rateAware = "ExchangeRatePrecompile";
@@ -813,6 +812,7 @@ public class ContractCallSuite {
      */
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> erc721TokenUriAndHtsNftInfoTreatNonUtf8BytesDifferently() {
         final var contractAlternatives = "ErcAndHtsAlternatives";
         final AtomicReference<Address> nftAddr = new AtomicReference<>();
@@ -830,7 +830,7 @@ public class ContractCallSuite {
                         .initialSupply(0)
                         .supplyKey(DEFAULT_PAYER)
                         .treasury(DEFAULT_PAYER),
-                mintToken("nft", List.of(ByteString.copyFrom(CommonUtils.unhex(hexedNonUtf8Meta)))),
+                mintToken("nft", List.of(ByteString.copyFrom(Objects.requireNonNull(unhex(hexedNonUtf8Meta))))),
                 sourcing(() -> contractCall(
                                 contractAlternatives, "canGetMetadataViaERC", nftAddr.get(), BigInteger.valueOf(1))
                         .via(viaErc721TokenURI)),
@@ -981,7 +981,7 @@ public class ContractCallSuite {
                         .mapToObj(i -> movingUnique(erc721Name, i).between(TOKEN_TREASURY, ercUser))
                         .toArray(TokenMovement[]::new)),
                 uploadInitCode(contract),
-                contractCreate(contract, secret).gas(250_000L),
+                contractCreate(contract, secret).gas(1_250_000L),
                 contractCallLocalWithFunctionAbi(contract, secretAbi)
                         .exposingTypedResultsTo(results -> LOG.info("Secret is {}", results[0]))
                         .exposingRawResultsTo(secretOutput::set),
@@ -1068,7 +1068,7 @@ public class ContractCallSuite {
                 getAccountInfo("Dave").savingSnapshot("DaveAcctInfo"),
                 uploadInitCode(contract),
                 contractCreate(contract, BigInteger.valueOf(1_000_000L), "OpenCrowd Token", "OCT")
-                        .gas(250_000L)
+                        .gas(1_000_000L)
                         .payingWith(TOKEN_ISSUER)
                         .via("tokenCreateTxn")
                         .refusingEthConversion(),
@@ -1306,7 +1306,7 @@ public class ContractCallSuite {
                     var codeSize = 0;
                     if (result != null && result.length > 0) {
                         final var retResults = function.decodeReturn(result);
-                        if (retResults != null && retResults.size() > 0) {
+                        if (retResults != null && !retResults.isEmpty()) {
                             final var retBi = (BigInteger) retResults.get(0);
                             codeSize = retBi.intValue();
                         }
@@ -1330,7 +1330,7 @@ public class ContractCallSuite {
                     codeSize = 0;
                     if (result != null && result.length > 0) {
                         final var retResults = function.decodeReturn(result);
-                        if (retResults != null && retResults.size() > 0) {
+                        if (retResults != null && !retResults.isEmpty()) {
                             final var retBi = (BigInteger) retResults.get(0);
                             codeSize = retBi.intValue();
                         }
@@ -1465,7 +1465,10 @@ public class ContractCallSuite {
                 cryptoCreate("accountToPay"),
                 uploadInitCode(contract),
                 contractCreate(contract),
-                contractCall(contract, "create").fee(0L).payingWith("accountToPay"));
+                contractCall(contract, "create")
+                        .fee(0L)
+                        .payingWith("accountToPay")
+                        .gas(400_000L));
     }
 
     @HapiTest
@@ -1651,7 +1654,7 @@ public class ContractCallSuite {
                         .receiverSigRequired(true),
                 getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT).savingSnapshot(RECEIVABLE_SIG_REQ_ACCOUNT_INFO),
                 uploadInitCode(TRANSFERRING_CONTRACT),
-                contractCreate(TRANSFERRING_CONTRACT).gas(300_000L).balance(5000L),
+                contractCreate(TRANSFERRING_CONTRACT).gas(1_000_000L).balance(5000L),
                 withOpContext((spec, opLog) -> {
                     final var accountAddress = spec.registry()
                             .getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT_INFO)
@@ -1793,9 +1796,8 @@ public class ContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT + to).saveToRegistry("contract_to"),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
                 withOpContext((spec, log) -> {
-                    var cto = spec.registry()
-                            .getContractInfo(TRANSFERRING_CONTRACT + to)
-                            .getContractAccountID();
+                    var cto = asSolidityAddress(
+                            spec.registry().getContractInfo("contract_to").getContractID());
                     var transferCall = contractCall(
                                     TRANSFERRING_CONTRACT,
                                     TRANSFER_TO_ADDRESS,
@@ -2115,6 +2117,7 @@ public class ContractCallSuite {
                                 .savingSnapshot(ACCOUNT_INFO_AFTER_CALL)
                                 .payingWith(GENESIS))),
                 assertionsHold((spec, opLog) -> {
+                    final var callRecord = spec.registry().getTransactionRecord("txn");
                     final var fee = spec.registry().getTransactionRecord("txn").getTransactionFee();
                     final var accountBalanceBeforeCall =
                             spec.registry().getAccountInfo(ACCOUNT_INFO).getBalance();
@@ -2255,7 +2258,7 @@ public class ContractCallSuite {
                     final var contractBalanceAfterCall =
                             spec.registry().getContractInfo(CONTRACT_FROM).getBalance();
 
-                    assertEquals(contractBalanceAfterCall, 10_000L);
+                    assertEquals(10_000L, contractBalanceAfterCall);
                 }),
                 getAccountBalance(RECEIVER).hasTinyBars(10_000L));
     }
@@ -2284,6 +2287,7 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> callStaticCallToLargeAddress() {
         final var txn = "txn";
         final var contract = "CallInConstructor";
@@ -2365,7 +2369,7 @@ public class ContractCallSuite {
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).gas(400_000L),
                 contractCall(contract, "callRequested", nonExtantEvmAddress, new byte[0], BigInteger.valueOf(88_888L)));
     }
 
@@ -2386,6 +2390,7 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateFollowedByContractCallNoncesExternalization() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";
@@ -2404,7 +2409,7 @@ public class ContractCallSuite {
         return hapiTest(
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).via(contractCreateTx).gas(500_000L),
+                contractCreate(contract).via(contractCreateTx).gas(1_000_000L),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(contract, deployParentContractFn)
@@ -2413,7 +2418,7 @@ public class ContractCallSuite {
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(SUCCESS))),
                 withOpContext((spec, opLog) -> {
-                    /** 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
+                    /* 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
                     final var opCreateTxRecord = getTxnRecord(contractCreateTx);
                     allRunFor(spec, opCreateTxRecord);
 
@@ -2429,7 +2434,7 @@ public class ContractCallSuite {
                                     .equals(spec.registry().getContractId(contract)))
                             .toList();
 
-                    /** 2. Asserts main contract (NoncesExternalization) nonce is 5 */
+                    /* 2. Asserts main contract (NoncesExternalization) nonce is 5 */
                     final var opAssertMain = getTxnRecord(deployContractTx)
                             .logged()
                             .hasPriority(recordWith()
@@ -2437,10 +2442,10 @@ public class ContractCallSuite {
                                             .contractWithNonce(spec.registry().getContractId(contract), 5L)));
                     allRunFor(spec, opAssertMain);
 
-                    /**
-                     * 3. Deploys child from the first parent contract deployed in the constructor (index 0).
-                     * Asserts parent's nonce is 2.
-                     */
+                    /*
+                     3. Deploys child from the first parent contract deployed in the constructor (index 0).
+                     Asserts parent's nonce is 2.
+                    */
                     final var deployChild = contractCall(contract, deployChildFromParentContractFn, BigInteger.ZERO)
                             .gas(GAS_TO_OFFER)
                             .via(committedInnerCreationTx);
@@ -2448,7 +2453,8 @@ public class ContractCallSuite {
                     allRunFor(spec, deployChild, deployChildTxnRecord);
 
                     /* Retrieves contractId of the first deployed contract in the constructor - index 0 */
-                    final var firstParentContractId = parentContractsList.get(0).getContractId();
+                    final var firstParentContractId =
+                            parentContractsList.getFirst().getContractId();
                     spec.registry().saveContractId("firstParentContractId", firstParentContractId);
 
                     HapiGetTxnRecord opFirstParentNonce = getTxnRecord(committedInnerCreationTx)
@@ -2460,7 +2466,7 @@ public class ContractCallSuite {
                                                     spec.registry().getContractId("firstParentContractId"), 2L)));
                     allRunFor(spec, opFirstParentNonce);
 
-                    /** 4. Tries to deploy child from parent and reverts. Asserts contract_nonces entries are null. */
+                    /* 4. Tries to deploy child from parent and reverts. Asserts contract_nonces entries are null. */
                     final var deployChildAndRevert = contractCall(
                                     contract, deployChildAndRevertFromParentContractFn, BigInteger.ONE)
                             .gas(GAS_TO_OFFER)
@@ -2492,7 +2498,7 @@ public class ContractCallSuite {
         return hapiTest(
                 cryptoCreate(PAYER).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).via(contractCreateTxn).gas(500_000L),
+                contractCreate(contract).via(contractCreateTxn).gas(1_000_000L),
                 withOpContext((spec, opLog) -> {
                     final var opContractTxnRecord = getTxnRecord(contractCreateTxn);
 
@@ -2555,25 +2561,52 @@ public class ContractCallSuite {
 
     @HapiTest
     final Stream<DynamicTest> badEvmAddressResultsInPrecheckFail() {
-        final var BAD_EVM_ADDRESS = "123456";
+        final var address = "123456";
+        final var contract = "badEvmAddressContract";
+
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                .build());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> zeroContractIdResultsInPrecheckFail() {
+        final var contract = "zeroIdContract";
+
+        return contractIdResultsInPrecheckFail(
+                contract, spec -> ContractID.newBuilder().setContractNum(0).build());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> zeroEvmAddressContractIdResultsInPrecheckFail() {
+        final var address = "0000000000000000000000000000000000000000";
+        final var contract = "zeroEvmAddressContract";
+
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                .build());
+    }
+
+    private Stream<DynamicTest> contractIdResultsInPrecheckFail(
+            final String contractName, final java.util.function.Function<HapiSpec, ContractID> contractId) {
         final var NAME = "name";
         final var ERC_721_ABI = "ERC721ABI";
-        final var BAD_EVM_ADDRESS_CONTRACT = "badEvmAddressContract";
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(
-                                BAD_EVM_ADDRESS_CONTRACT,
-                                asContractIdWithEvmAddress(ByteString.copyFrom(unhex(BAD_EVM_ADDRESS))))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
-                        contractCallWithFunctionAbi(BAD_EVM_ADDRESS_CONTRACT, getABIFor(FUNCTION, NAME, ERC_721_ABI))
+                        contractCallWithFunctionAbi(contractName, getABIFor(FUNCTION, NAME, ERC_721_ABI))
                                 .notTryingAsHexedliteral()
                                 .hasPrecheck(INVALID_CONTRACT_ID))));
     }
 
     private String getNestedContractAddress(final String contract, final HapiSpec spec) {
-        return HapiPropertySource.asHexedSolidityAddress(spec.registry().getContractId(contract));
+        return asHexedSolidityAddress(spec.registry().getContractId(contract));
     }
 
     private ByteString bookInterpolated(final byte[] jurisdictionInitcode, final String addressBookMirror) {

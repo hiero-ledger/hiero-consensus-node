@@ -7,13 +7,13 @@ import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
-import java.util.OptionalLong;
 
 /**
  * Provides write access to the {@link HintsConstruction} instances in state.
@@ -54,7 +54,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @return the updated construction
      */
     HintsConstruction setHintsScheme(
-            long constructionId, @NonNull PreprocessedKeys keys, @NonNull Map<Long, Integer> nodePartyIds);
+            long constructionId,
+            @NonNull PreprocessedKeys keys,
+            @NonNull Map<Long, Integer> nodePartyIds,
+            @NonNull Map<Long, Long> nodeWeights);
 
     /**
      * Sets the preprocessing start time for the construction with the given ID and returns the updated construction.
@@ -68,17 +71,14 @@ public interface WritableHintsStore extends ReadableHintsStore {
     /**
      * Updates state for a handoff to the given roster hash.
      *
-     * @param previousRoster the previous roster
-     * @param adoptedRoster the adopted roster
-     * @param adoptedRosterHash the adopted roster hash
+     * @param fromRoster the previous roster
+     * @param toRoster the adopted roster
+     * @param toRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff changed the hinTS scheme
      */
-    boolean updateAtHandoff(
-            @NonNull Roster previousRoster,
-            @NonNull Roster adoptedRoster,
-            @NonNull Bytes adoptedRosterHash,
-            boolean forceHandoff);
+    boolean handoff(
+            @NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash, boolean forceHandoff);
 
     /**
      * Sets the {@link CRSState} for the network.
@@ -94,7 +94,7 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param nextNodeIdFromRoster    the ID of the next node in the roster
      * @param nextContributionTimeEnd the end of the time window for the next contribution
      */
-    void moveToNextNode(@NonNull OptionalLong nextNodeIdFromRoster, @NonNull Instant nextContributionTimeEnd);
+    void moveToNextNode(@Nullable Long nextNodeIdFromRoster, @NonNull Instant nextContributionTimeEnd);
 
     /**
      * Adds a CRS publication to the store.

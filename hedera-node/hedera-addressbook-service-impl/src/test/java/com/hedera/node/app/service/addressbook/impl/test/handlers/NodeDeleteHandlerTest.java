@@ -3,7 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -26,6 +26,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -76,13 +77,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @BeforeEach
     void setUp() {
-        mockStore = mock(ReadableNodeStoreImpl.class);
         subject = new NodeDeleteHandler();
-
-        writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
         testConfig = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
     }
 
@@ -116,6 +112,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         final var feeCalc = mock(FeeCalculator.class);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.enableDAB", true)
                 .getOrCreateConfig();
@@ -133,8 +130,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
-        writableNodeState = emptyWritableNodeState();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        writableNodeState = writableNodeStateBuilder(0).build();
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
@@ -154,8 +151,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         node = null;
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
-        writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        writableNodeState = writableNodeStateBuilder(1).build();
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
@@ -179,6 +176,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         subject.handle(handleContext);
 
@@ -191,9 +189,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("Node already deleted returns error")
     void noFileKeys() {
+        // mark current node as deleted
         givenValidNode(true);
-        refreshStoresWithCurrentNodeInBothReadableAndWritable();
-
+        // refresh sate with updated node
+        rebuildState(1);
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
@@ -210,9 +209,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleWorksWhenExistingAdminKeyValid() throws PreCheckException {
+        // update current node key
         givenValidNodeWithAdminKey(anotherKey);
-        refreshStoresWithCurrentNodeInReadable();
-
+        // refresh sate with updated node
+        rebuildState(1);
         final var txn = newDeleteTxnWithNodeId(nodeId.number());
         final var context = setupPreHandlePayerKey(txn, accountId, key);
         subject.preHandle(context);
@@ -223,8 +223,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
+        // update current node key
         givenValidNodeWithAdminKey(invalidKey);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with updated node
+        rebuildState(1);
         final var txn = newDeleteTxnWithNodeId(nodeId.number());
         final var context = setupPreHandlePayerKey(txn, accountId, anotherKey);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
@@ -296,7 +298,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("accounts.addressBookAdmin", 55)
                 .getOrCreateConfig();
-        mockPayerLookup(key, contextPayerId, accountStore);
+        mockAccountLookup(key, contextPayerId, accountStore);
         final var context = new FakePreHandleContext(accountStore, txn, config);
         context.registerStore(ReadableNodeStore.class, readableStore);
         return context;

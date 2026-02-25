@@ -13,17 +13,9 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.common.metrics.platform.prometheus.NameConverter;
-import com.swirlds.metrics.api.Counter;
-import com.swirlds.metrics.api.Metric;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.metrics.api.*;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -31,6 +23,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.platform.prometheus.NameConverter;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 
@@ -50,10 +43,19 @@ public class ContractMetrics {
     private boolean p2MetricsEnabled;
     private final SystemContractMethodRegistry systemContractMethodRegistry;
 
+    private CountAccumulateAverageMetricTriplet transactionDuration;
+    private CountAccumulateAverageMetricTriplet successfulTransactionDuration;
+    private CountAccumulateAverageMetricTriplet failedTransactionDuration;
+    private CountAccumulateAverageMetricTriplet transactionGasUsed;
+    private LongGauge gasPrice;
+
+    private final OpsDurationMetrics opsDurationMetrics;
+
     // Counters that are the P1 metrics
 
-    private final HashMap<HederaFunctionality, Counter> rejectedTxsCounters = new HashMap<>();
-    private final HashMap<HederaFunctionality, Counter> rejectedTxsLackingIntrinsicGas = new HashMap<>();
+    private final ConcurrentHashMap<HederaFunctionality, Counter> rejectedTxsCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<HederaFunctionality, Counter> rejectedTxsLackingIntrinsicGas =
+            new ConcurrentHashMap<>();
     private Counter rejectedEthType3Counter;
 
     private enum MethodMetricType {
@@ -62,7 +64,7 @@ public class ContractMetrics {
         public final int index;
         public final String name;
 
-        private MethodMetricType(final int index, @NonNull final String name) {
+        MethodMetricType(final int index, @NonNull final String name) {
             this.index = index;
             this.name = name;
         }
@@ -70,35 +72,42 @@ public class ContractMetrics {
         public @NonNull String toString() {
             return this.name;
         }
-    };
+    }
+
+    public record TransactionProcessingSummary(
+            long durationNanos, long opsDurationUnitsConsumed, long gasUsed, OptionalLong gasPrice, boolean success) {}
 
     // Counters that are the P2 metrics, and maps that take `SystemContractMethods` into the specific counters
 
     // Counters for SystemContract usage (i.e., calls to HAS, HSS, HTS)
-    private final Map<SystemContractMethod.SystemContract, Counter[]> systemContractMethodCounters = new HashMap<>();
+    private final Map<SystemContractMethod.SystemContract, Counter[]> systemContractMethodCounters =
+            new ConcurrentHashMap<>();
 
     // Counters for DIRECT vs PROXY usage
-    private final Map<SystemContractMethod.CallVia, Counter[]> systemContractMethodCountersVia = new HashMap<>();
+    private final Map<SystemContractMethod.CallVia, Counter[]> systemContractMethodCountersVia =
+            new ConcurrentHashMap<>();
 
     // Counters for ERC-20 and ERC-721 usage (there's overlap as some methods are defined in _both_), plus the map
     // that takes a `SystemContract` to the ERC types (if any)
     private final Map<SystemContractMethod, EnumSet<SystemContractMethod.Category>> systemContractMethodErcMembers =
-            new HashMap<>();
-    private final Map<SystemContractMethod.Category, Counter[]> systemContractERCTypeCounters = new HashMap<>();
+            new ConcurrentHashMap<>();
+    private final Map<SystemContractMethod.Category, Counter[]> systemContractERCTypeCounters =
+            new ConcurrentHashMap<>();
 
     // Counters for the "method groups" (e.g., transfers vs creates vs burns etc), plus the map that takes a
     // `SystemContract` to the method group(s) it is part of
     private final Map<SystemContractMethod, EnumSet<SystemContractMethod.Category>> systemContractMethodGroupMembers =
-            new HashMap<>();
-    private final Map<SystemContractMethod.Category, Counter[]> systemContractMethodGroupCounters = new HashMap<>();
+            new ConcurrentHashMap<>();
+    private final Map<SystemContractMethod.Category, Counter[]> systemContractMethodGroupCounters =
+            new ConcurrentHashMap<>();
 
     private static final Map<HederaFunctionality, String> POSSIBLE_FAILING_TX_TYPES = Map.of(
             CONTRACT_CALL, "contractCallTx", CONTRACT_CREATE, "contractCreateTx", ETHEREUM_TRANSACTION, "ethereumTx");
 
     // String templates and other stringish things used to create metrics' names and descriptions
 
-    private static final String METRIC_CATEGORY = "app";
-    private static final String METRIC_SERVICE = "SmartContractService";
+    static final String METRIC_CATEGORY = "app";
+    static final String METRIC_SERVICE = "SmartContractService";
     private static final String METRIC_TXN_UNIT = "txs";
 
     // Templates:  %1$s - HederaFunctionality name
@@ -123,7 +132,7 @@ public class ContractMetrics {
     //             %2$s = METRIC_SERVICE
     //             %3$s - METHOD_METRIC_TYPE
     //             %4%s - clarification
-    private static final String METHOD_METRIC_NAME_TEMPLATE = "%2$s:Method_%1$s_%3$s";
+    private static final String METHOD_METRIC_NAME_TEMPLATE = "%2$s:SystemContractMethodCall_%1$s_%3$s";
     private static final String METHOD_METRIC_DESCR_TEMPLATE = "system contract method %1$s %3$s %4$s";
 
     @Inject
@@ -136,6 +145,7 @@ public class ContractMetrics {
                 requireNonNull(contractsConfigSupplier, "contracts configuration supplier must not be null");
         this.systemContractMethodRegistry =
                 requireNonNull(systemContractMethodRegistry, "systemContractMethodRegistry must not be null");
+        this.opsDurationMetrics = new OpsDurationMetrics(metrics);
     }
 
     // --------------------
@@ -185,6 +195,29 @@ public class ContractMetrics {
                 final var metric = newCounter(metrics, config);
                 rejectedEthType3Counter = metric;
             }
+
+            transactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":TransactionDuration",
+                    "Actual duration of processed smart contract transactions in nanoseconds");
+            successfulTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":SuccessfulTransactionDuration",
+                    "Actual duration of successful smart contract transactions in nanoseconds");
+            failedTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":FailedTransactionDuration",
+                    "Actual duration of failed smart contract transactions in nanoseconds");
+            transactionGasUsed = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":TransactionGasUsed",
+                    "Actual gas used by smart contract transactions");
+            gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + ":LatestGasPrice")
+                    .withDescription("Gas price of the latest processed smart contract transaction"));
         }
     }
 
@@ -362,6 +395,27 @@ public class ContractMetrics {
         }
     }
 
+    public void recordProcessedTransaction(final TransactionProcessingSummary summary) {
+        if (p1MetricsEnabled) {
+            this.transactionDuration.recordObservation(summary.durationNanos());
+            if (summary.success()) {
+                this.successfulTransactionDuration.recordObservation(summary.durationNanos());
+            } else {
+                this.failedTransactionDuration.recordObservation(summary.durationNanos());
+            }
+            this.transactionGasUsed.recordObservation(summary.gasUsed());
+            summary.gasPrice().ifPresent(newGasPrice -> {
+                this.gasPrice.set(newGasPrice);
+            });
+        }
+
+        this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());
+    }
+
+    public OpsDurationMetrics opsDurationMetrics() {
+        return opsDurationMetrics;
+    }
+
     // -----------------
     // Unit test helpers
 
@@ -436,6 +490,11 @@ public class ContractMetrics {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + ": " + e.getValue())
                 .collect(Collectors.joining("\n"));
+    }
+
+    @VisibleForTesting
+    public long getProcessedTransactionCount() {
+        return this.transactionDuration.counter().get();
     }
 
     // ---------------------------------

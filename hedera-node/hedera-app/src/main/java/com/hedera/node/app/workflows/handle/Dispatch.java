@@ -11,17 +11,17 @@ import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -216,18 +216,39 @@ public interface Dispatch extends FeeCharging.Context {
     }
 
     @Override
-    default void charge(
+    default Fees charge(
             @NonNull final AccountID payerId, @NonNull final Fees fees, @Nullable final ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), cb);
+        return feeAccumulator().chargeFee(payerId, fees.totalFee(), cb);
     }
 
     @Override
-    default void charge(
+    default void refund(@NonNull final AccountID receiverId, @NonNull final Fees fees) {
+        requireNonNull(receiverId);
+        requireNonNull(fees);
+        feeAccumulator().refundFee(receiverId, fees.totalFee());
+    }
+
+    @Override
+    default Fees charge(
             @NonNull final AccountID payerId,
             @NonNull final Fees fees,
             @NonNull final AccountID nodeAccountId,
             @Nullable ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
+        return feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
+    }
+
+    @Override
+    default void refund(
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @NonNull final AccountID nodeAccountId) {
+        requireNonNull(payerId);
+        requireNonNull(fees);
+        requireNonNull(nodeAccountId);
+        feeAccumulator().refundFees(payerId, fees, nodeAccountId);
+    }
+
+    @Override
+    default AccountID nodeAccountId() {
+        return creatorInfo().accountId();
     }
 
     @Override

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip583;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -24,6 +23,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.ethereum.EthereumSuite.GAS_LIMIT;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.GAS_TO_OFFER;
@@ -46,13 +46,13 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
-import com.hedera.services.bdd.suites.contract.Utils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests expected behavior when the {@code cryptoCreateWithAlias.enabled} feature flag is off for
@@ -66,6 +66,7 @@ public class CreateWithAliasDisabledTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> etx026AccountWithoutAliasCanMakeEthTxnsDueToAutomaticAliasCreation() {
         final String ACCOUNT = "account";
         return hapiTest(
@@ -87,7 +88,7 @@ public class CreateWithAliasDisabledTest {
                 newKeyNamed(ECDSA_KEY).shape(SECP256K1),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(ECDSA_KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -98,8 +99,8 @@ public class CreateWithAliasDisabledTest {
                                                 .getKey(ECDSA_KEY)
                                                 .getECDSASecp256K1()
                                                 .toByteArray(),
-                                        HapiParserUtil.asHeadlongAddress((byte[])
-                                                ArrayUtils.toPrimitive(Utils.asSolidityAddress(shard, realm, 15252L))),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                (byte[]) ArrayUtils.toPrimitive(asSolidityAddress(spec, 15252L))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(EXISTING_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(

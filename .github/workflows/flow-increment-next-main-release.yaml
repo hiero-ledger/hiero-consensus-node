@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "[Main] Increment to Next Release Version"
+name: "[Release] Increment Version File"
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +7,11 @@ on:
         description: "Ref to run the workflow on:"
         required: true
         default: "main" # Default branch
+      dry-run-enabled:
+        description: "Perform Dry Run"
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -17,11 +22,11 @@ permissions:
 
 jobs:
   next-main-release:
-    name: Increment to Next Release Version
-    runs-on: hiero-network-node-linux-medium
+    name: Increment Version File
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -34,19 +39,19 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Setup Java
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: "temurin"
           java-version: "21.0.4"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-disabled: true
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -96,6 +101,7 @@ jobs:
           ./gradlew versionAsSpecified -PnewVersion="${{ steps.increment_version.outputs.new-version }}"
 
       - name: Add & Commit
+        if: ${{ inputs.dry-run-enabled == false }}
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
           cwd: "."

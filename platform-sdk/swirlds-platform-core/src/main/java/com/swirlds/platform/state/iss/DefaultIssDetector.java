@@ -6,29 +6,16 @@ import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.util.MarkerFileWriter;
-import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -38,11 +25,21 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * A default implementation of the {@link IssDetector}.
@@ -58,14 +55,9 @@ public class DefaultIssDetector implements IssDetector {
     private long previousRound = -1;
 
     /**
-     * The roster of this network.
+     * The current roster.
      */
     private final Roster roster;
-
-    /**
-     * The current software version
-     */
-    private final SemanticVersion currentSoftwareVersion;
 
     /**
      * Prevent log messages about a lack of signatures from spamming the logs.
@@ -103,29 +95,28 @@ public class DefaultIssDetector implements IssDetector {
     private final IssMetrics issMetrics;
 
     /**
-     * Writes marker files to disk.
+     * The last round that was frozen. This is used to ignore signatures from previous software versions. If null, then
+     * no signatures are ignored.
      */
-    private final MarkerFileWriter markerFileWriter;
+    private final long latestFreezeRound;
 
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
-     * @param platformContext              the platform context
-     * @param roster                       the roster for the network
-     * @param currentSoftwareVersion       the current software version
+     * @param platformContext the platform context
+     * @param roster the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
-     *                                     validate them like normal.
-     * @param ignoredRound                 a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if
-     *                                     all rounds should be validated.
+     * validate them like normal.
+     * @param ignoredRound a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if all rounds
+     * should be validated.
      */
     public DefaultIssDetector(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final SemanticVersion currentSoftwareVersion,
             final boolean ignorePreconsensusSignatures,
-            final long ignoredRound) {
+            final long ignoredRound,
+            final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
-        markerFileWriter = new MarkerFileWriter(platformContext);
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
@@ -137,7 +128,6 @@ public class DefaultIssDetector implements IssDetector {
         catastrophicIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
 
         this.roster = Objects.requireNonNull(roster);
-        this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
 
         this.roundData = new StandardSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
@@ -154,6 +144,7 @@ public class DefaultIssDetector implements IssDetector {
             logger.warn(STARTUP.getMarker(), "No ISS detection will be performed for round {}", ignoredRound);
         }
         this.issMetrics = new IssMetrics(platformContext.getMetrics(), roster);
+        this.latestFreezeRound = latestFreezeRound;
     }
 
     /**
@@ -168,7 +159,7 @@ public class DefaultIssDetector implements IssDetector {
      * Create an ISS notification if the round shouldn't be ignored
      *
      * @param roundNumber the round number of the ISS
-     * @param issType     the type of the ISS
+     * @param issType the type of the ISS
      * @return an ISS notification, or null if the round of the ISS should be ignored
      */
     @Nullable
@@ -176,7 +167,6 @@ public class DefaultIssDetector implements IssDetector {
         if (roundNumber == ignoredRound) {
             return null;
         }
-        markerFileWriter.writeMarkerFile(issType.toString());
         return new IssNotification(roundNumber, issType);
     }
 
@@ -209,7 +199,6 @@ public class DefaultIssDetector implements IssDetector {
         }
 
         previousRound = roundNumber;
-
         roundData.put(
                 roundNumber, new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), issMetrics));
 
@@ -367,19 +356,13 @@ public class DefaultIssDetector implements IssDetector {
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> transaction) {
         final NodeId signerId = transaction.submitterId();
         final StateSignatureTransaction signaturePayload = transaction.transaction();
-        final SemanticVersion eventVersion = transaction.softwareVersion();
-
-        if (eventVersion == null) {
-            // Illegal event version, ignore.
-            return null;
-        }
 
         if (ignorePreconsensusSignatures && replayingPreconsensusStream) {
             // We are still replaying preconsensus events, and we are configured to ignore signatures during replay
             return null;
         }
 
-        if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(currentSoftwareVersion, eventVersion) != 0) {
+        if (transaction.eventBirthRound() <= latestFreezeRound) {
             // this is a signature from a different software version, ignore it
             return null;
         }
@@ -415,7 +398,7 @@ public class DefaultIssDetector implements IssDetector {
      * Checks the validity of the self state hash for a round.
      *
      * @param round the round of the state
-     * @param hash  the hash of the state
+     * @param hash the hash of the state
      * @return an ISS notification, or null if no ISS occurred
      */
     @Nullable
@@ -506,12 +489,14 @@ public class DefaultIssDetector implements IssDetector {
                 }
                 yield notification;
             }
-            case UNDECIDED -> throw new IllegalStateException(
-                    "status is undecided, but method reported a decision, round = " + round);
-            case LACK_OF_DATA -> throw new IllegalStateException(
-                    "a decision that we lack data should only be possible once time runs out, round = " + round);
-            default -> throw new IllegalStateException(
-                    "unhandled case " + roundValidator.getStatus() + ", round = " + round);
+            case UNDECIDED ->
+                throw new IllegalStateException(
+                        "status is undecided, but method reported a decision, round = " + round);
+            case LACK_OF_DATA ->
+                throw new IllegalStateException(
+                        "a decision that we lack data should only be possible once time runs out, round = " + round);
+            default ->
+                throw new IllegalStateException("unhandled case " + roundValidator.getStatus() + ", round = " + round);
         };
     }
 
@@ -569,9 +554,8 @@ public class DefaultIssDetector implements IssDetector {
             hashFinder.writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            logger.fatal(
-                    EXCEPTION.getMarker(),
-                    new IssPayload(sb.toString(), round, Mnemonics.generateMnemonic(selfHash), "", true));
+            final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
+            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true));
         }
     }
 

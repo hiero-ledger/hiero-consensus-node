@@ -7,6 +7,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * A no-op implementation of {@link FeeCalculator} that always returns {@link Fees#FREE}.
@@ -51,8 +52,20 @@ public class NoOpFeeCalculator implements FeeCalculator {
     }
 
     @NonNull
+    @Override
+    public FeeCalculator addGas(final long amount) {
+        return this;
+    }
+
+    @NonNull
     public FeeCalculator resetUsage() {
         return this;
+    }
+
+    @Override
+    @NonNull
+    public FeeSchedule getSimpleFeesSchedule() {
+        return FeeSchedule.DEFAULT;
     }
 
     @NonNull

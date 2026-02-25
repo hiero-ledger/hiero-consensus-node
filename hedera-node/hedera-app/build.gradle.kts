@@ -9,7 +9,6 @@ description = "Hedera Application - Implementation"
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
-    annotationProcessor("com.google.auto.service.processor")
 
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
@@ -17,6 +16,10 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("io.helidon.webclient.http2")
+    runtimeOnly("com.hedera.pbj.grpc.client.helidon")
+    runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("org.hiero.consensus.pcli")
 }
 
 testModuleInfo {
@@ -24,14 +27,17 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
+    requires("com.hedera.node.app.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")
+    requires("com.swirlds.merkledb")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
+    requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("com.esaulpaugh.headlong")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
@@ -42,6 +48,10 @@ testModuleInfo {
     requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
+
+    exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
+    opensTo("com.swirlds.common") // instantiation via reflection
 }
 
 jmhModuleInfo {
@@ -49,11 +59,22 @@ jmhModuleInfo {
     requires("com.hedera.node.app.hapi.utils")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.app.test.fixtures")
+    requires("com.hedera.node.config")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
-    requires("com.swirlds.common")
-    requires("jmh.core")
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions")
+    requires("com.swirlds.metrics.api")
+    requires("com.swirlds.platform.core")
+    requires("com.swirlds.state.api")
+    requires("com.hedera.pbj.grpc.helidon")
+    requires("com.hedera.pbj.grpc.helidon.config")
+    requires("io.helidon.common")
+    requires("io.helidon.webserver")
     requires("org.hiero.consensus.model")
+    requires("org.hiero.consensus.platformstate")
+    requires("jmh.core")
+    requires("org.hiero.base.crypto")
 }
 
 // Add all the libs dependencies into the jar manifest!
@@ -159,6 +180,8 @@ var updateDockerEnvTask =
         workingDir(layout.projectDirectory.dir("../docker"))
         commandLine("./update-env.sh", project.version)
     }
+
+dependencies { api(project(":config")) }
 
 tasks.register<Exec>("createDockerImage") {
     description = "Creates the docker image of the services based on the current version"

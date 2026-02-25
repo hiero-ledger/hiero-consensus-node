@@ -9,12 +9,12 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Function;
@@ -56,22 +56,20 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         // looking by ContractID first, because in 'normal' behavior it should be more frequent
         var account = store.getContractById(contractId);
         if (account == null) {
-            final var accountId =
-                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+            final var accountId = entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(contractId));
             account = store.getAccountById(accountId);
         }
         return account;
     }
 
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+        final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(contractId));
         return context.createStore(ReadableTokenStore.class).get(tokenID);
     }
 
     protected @Nullable Schedule scheduleFrom(
             @NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        final var scheduleId =
-                entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+        final var scheduleId = entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(contractId));
         return context.createStore(ReadableScheduleStore.class).get(scheduleId);
     }
 }

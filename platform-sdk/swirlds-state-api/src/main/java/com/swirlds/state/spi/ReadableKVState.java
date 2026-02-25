@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
-import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -18,19 +16,7 @@ import java.util.Set;
  * @param <K> The type of the key
  * @param <V> The type of the value
  */
-public interface ReadableKVState<K, V> {
-    /**
-     * Gets the "state key" that uniquely identifies this {@link ReadableKVState} within the
-     * {@link Schema} which are scoped to the service implementation. The key is therefore not globally
-     * unique, only unique within the service implementation itself.
-     *
-     * <p>The call is idempotent, always returning the same value. It must never return null.
-     *
-     * @return The state key. This will never be null, and will always be the same value for an
-     * instance of {@link ReadableKVState}.
-     */
-    @NonNull
-    String getStateKey();
+public interface ReadableKVState<K, V> extends ReadableState {
 
     /**
      * Gets whether the given key exists in this {@link ReadableKVState}.
@@ -55,15 +41,6 @@ public interface ReadableKVState<K, V> {
     V get(@NonNull K key);
 
     /**
-     * Used during migration ONLY. PLEASE DO NOT COME TO RELY ON THIS METHOD! It will be hopelessly
-     * slow on large data sets like on disk!
-     *
-     * @return an iterator over all keys in the state
-     */
-    @NonNull
-    Iterator<K> keys();
-
-    /**
      * Gets the set of keys that a client read from the {@link ReadableKVState}.
      *
      * @return The possibly empty set of keys.
@@ -73,10 +50,11 @@ public interface ReadableKVState<K, V> {
 
     /**
      * Gets the number of keys in the {@link ReadableKVState}.
+     * Used only in tests.
+     *
+     * @deprecated DO NOT USE IT in production code as it returns size of all states, instead use {@code EntityIdService.entityCounts} to get the size of the state.
      *
      * @return number of keys in the {@link ReadableKVState}.
-     * @deprecated This method is deprecated and will be removed in a future release when MegaMap is enabled.
-     * Please use {@code EntityIdService.entityCounts} to get the size of the state.
      */
     @Deprecated
     long size();

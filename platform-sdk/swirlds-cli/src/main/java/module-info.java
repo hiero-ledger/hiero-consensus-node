@@ -1,24 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.swirlds.cli {
-    exports com.swirlds.cli;
-    exports com.swirlds.cli.commands;
-    exports com.swirlds.cli.utility;
-    exports com.swirlds.cli.logging;
-
-    opens com.swirlds.cli to
+module org.hiero.consensus.pcli {
+    opens org.hiero.consensus.pcli to
             info.picocli;
-    opens com.swirlds.cli.utility to
+    opens org.hiero.consensus.pcli.utility to
             info.picocli;
-    opens com.swirlds.cli.commands to
-            info.picocli;
-    opens com.swirlds.cli.logging to
+    opens org.hiero.consensus.pcli.graph to
             info.picocli;
 
-    requires transitive com.swirlds.common;
-    requires transitive org.hiero.consensus.model;
-    requires transitive info.picocli;
-    requires transitive org.apache.logging.log4j;
+    exports org.hiero.consensus.pcli.utility;
+    exports org.hiero.consensus.pcli;
+
+    requires com.hedera.node.hapi;
+    requires com.hedera.pbj.runtime;
+    requires com.swirlds.base;
+    requires com.swirlds.common;
+    requires com.swirlds.component.framework;
+    requires com.swirlds.config.api;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.metrics.api;
+    requires com.swirlds.platform.core;
+    requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
+    requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.creator;
+    requires org.hiero.consensus.event.intake;
+    requires org.hiero.consensus.gossip;
+    requires org.hiero.consensus.hashgraph.impl;
+    requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.model;
+    requires org.hiero.consensus.pces.impl;
+    requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility;
+    requires info.picocli;
     requires io.github.classgraph;
-    requires static transitive com.github.spotbugs.annotations;
+    requires org.apache.logging.log4j;
+    requires static com.github.spotbugs.annotations;
 }

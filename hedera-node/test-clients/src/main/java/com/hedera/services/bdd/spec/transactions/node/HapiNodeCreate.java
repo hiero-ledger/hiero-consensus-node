@@ -2,7 +2,9 @@
 package com.hedera.services.bdd.spec.transactions.node;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -19,7 +21,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -44,12 +45,17 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private boolean advertiseCreation = false;
     private boolean useAvailableSubProcessPorts = false;
     private final String nodeName;
-    private Optional<AccountID> accountId = Optional.empty();
+    private Optional<Long> accountNum = Optional.empty();
+    private Optional<String> account = Optional.empty();
     private Optional<String> description = Optional.empty();
     private List<ServiceEndpoint> gossipEndpoints =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
-    private List<ServiceEndpoint> grpcEndpoints = Arrays.asList(
+    private List<ServiceEndpoint> grpcEndpoints = List.of(
             ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build());
+    // (FUTURE) Since the introduction of a flag to explicitly enable the web proxy endpoint functionality, a non-empty
+    // default here causes some tests to fail with GRPC_WEB_PROXY_NOT_SUPPORTED. Once we can enable
+    // nodes.webProxyEndpointsEnabled permanently, we can restore the non-null default.
+    private Optional<ServiceEndpoint> grpcWebProxyEndpoint = Optional.empty();
     private Optional<byte[]> gossipCaCertificate = Optional.empty();
     private Optional<byte[]> grpcCertificateHash = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();
@@ -62,8 +68,14 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     @Nullable
     private Key adminKey;
 
-    public HapiNodeCreate(@NonNull final String nodeName) {
+    public HapiNodeCreate(@NonNull final String nodeName, @NonNull final String account) {
         this.nodeName = nodeName;
+        this.account = Optional.of(account);
+    }
+
+    public HapiNodeCreate(@NonNull final String nodeName, @NonNull final Long accountNum) {
+        this.nodeName = nodeName;
+        this.accountNum = Optional.of(accountNum);
     }
 
     @Override
@@ -86,8 +98,13 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
-    public HapiNodeCreate accountId(final AccountID accountID) {
-        this.accountId = Optional.of(accountID);
+    public HapiNodeCreate accountId(final String accountStr) {
+        this.account = Optional.of(accountStr);
+        return this;
+    }
+
+    public HapiNodeCreate accountNum(final long accountNum) {
+        this.accountNum = Optional.of(accountNum);
         return this;
     }
 
@@ -109,6 +126,15 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     public HapiNodeCreate serviceEndpoint(final List<ServiceEndpoint> serviceEndpoint) {
         this.grpcEndpoints = serviceEndpoint;
         return this;
+    }
+
+    public HapiNodeCreate grpcWebProxyEndpoint(final ServiceEndpoint grpcWebProxyEndpoint) {
+        this.grpcWebProxyEndpoint = Optional.ofNullable(grpcWebProxyEndpoint);
+        return this;
+    }
+
+    public HapiNodeCreate withNoWebProxyEndpoint() {
+        return this.grpcWebProxyEndpoint(null);
     }
 
     public HapiNodeCreate gossipCaCertificate(@NonNull final Bytes cert) {
@@ -174,11 +200,20 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         final NodeCreateTransactionBody opBody = spec.txns()
                 .<NodeCreateTransactionBody, NodeCreateTransactionBody.Builder>body(
                         NodeCreateTransactionBody.class, builder -> {
-                            accountId.ifPresent(builder::setAccountId);
+                            // Node account ID should be required.
+                            // Using default value will cause following creates with same default account to fail
+                            if (account.isEmpty() && accountNum.isEmpty()) {
+                                throw new IllegalStateException(
+                                        "HapiNodeCreate with no account or accountNum specified");
+                            }
+                            account.ifPresent(name -> builder.setAccountId(asIdForKeyLookUp(name, spec)));
+                            accountNum.ifPresent(accountNum ->
+                                    builder.setAccountId(asAccount(spec.shard(), spec.realm(), accountNum)));
                             description.ifPresent(builder::setDescription);
                             builder.setAdminKey(adminKey);
                             builder.clearGossipEndpoint().addAllGossipEndpoint(gossipEndpoints);
                             builder.clearServiceEndpoint().addAllServiceEndpoint(grpcEndpoints);
+                            grpcWebProxyEndpoint.ifPresent(builder::setGrpcProxyEndpoint);
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
                             declineReward.ifPresent(builder::setDeclineReward);
@@ -224,6 +259,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return helper;
     }
 
+    @Nullable
     public Key getAdminKey() {
         return adminKey;
     }

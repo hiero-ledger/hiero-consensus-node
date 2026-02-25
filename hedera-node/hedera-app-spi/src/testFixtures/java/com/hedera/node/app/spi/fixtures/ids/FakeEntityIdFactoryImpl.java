@@ -2,7 +2,7 @@
 package com.hedera.node.app.spi.fixtures.ids;
 
 import static java.lang.System.arraycopy;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -12,8 +12,8 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

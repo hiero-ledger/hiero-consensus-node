@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,7 +35,7 @@ public final class ParsedBucket extends Bucket {
     /**
      * Create a new bucket with the default size.
      */
-    ParsedBucket() {
+    public ParsedBucket() {
         this(null);
     }
 
@@ -108,7 +109,7 @@ public final class ParsedBucket extends Bucket {
      * {@inheritDoc}
      */
     @Override
-    public void putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    public boolean putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final boolean needCheckOldValue = oldValue != INVALID_VALUE;
         try {
             final int entryIndex = findEntryIndex(keyHashCode, keyBytes);
@@ -116,28 +117,32 @@ public final class ParsedBucket extends Bucket {
                 if (entryIndex >= 0) { // if found
                     final BucketEntry entry = entries.get(entryIndex);
                     if (needCheckOldValue && (oldValue != entry.getValue())) {
-                        return;
+                        return false;
                     }
                     entries.remove(entryIndex);
+                    return true;
                 } else {
                     // entry not found, nothing to delete
+                    return false;
                 }
-                return;
             }
             if (entryIndex >= 0) {
                 // yay! we found it, so update value
                 final BucketEntry entry = entries.get(entryIndex);
                 if (needCheckOldValue && (oldValue != entry.getValue())) {
-                    return;
+                    return false;
                 }
+                final long entryOldValue = entry.getValue();
                 entry.setValue(value);
+                return value == entryOldValue;
             } else {
                 if (needCheckOldValue) {
-                    return;
+                    return false;
                 }
                 final BucketEntry newEntry = new BucketEntry(keyHashCode, value, keyBytes);
                 entries.add(newEntry);
-                checkLargestBucket(entries.size());
+                checkLargestBucket();
+                return true;
             }
         } catch (IOException e) {
             logger.error(EXCEPTION.getMarker(), "Failed putting key={} value={} in a bucket", keyBytes, value, e);
@@ -145,12 +150,15 @@ public final class ParsedBucket extends Bucket {
         }
     }
 
+    public void forEachEntry(final Consumer<BucketEntry> consumer) {
+        entries.forEach(consumer);
+    }
+
     public void readFrom(final ReadableSequentialData in) {
         // defaults
         bucketIndex = 0;
         entries.clear();
 
-        int entriesCount = 0;
         while (in.hasRemaining()) {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
@@ -162,13 +170,12 @@ public final class ParsedBucket extends Bucket {
                 in.limit(in.position() + entryBytesSize);
                 entries.add(new BucketEntry(in));
                 in.limit(oldLimit);
-                entriesCount++;
             } else {
                 throw new IllegalArgumentException("Unknown bucket field: " + fieldNum);
             }
         }
 
-        checkLargestBucket(entriesCount);
+        checkLargestBucket();
     }
 
     public void writeTo(final WritableSequentialData out) {
@@ -218,14 +225,14 @@ public final class ParsedBucket extends Bucket {
     }
 
     /**
-     * A single entry in a bucket, which contains key hash code, value (usually, path), and
-     * full serialized key. A bucket may contain multiple such entries.
+     * A single entry in a bucket, which contains key hash code, value (usually, path), and full
+     * serialized key. A bucket may contain multiple such entries.
      *
      * <p>This class would be a record, if it was immutable. However, when a value is updated
-     * in a bucket, and a bucket entry already exists for the same key, instead of creating
-     * a new entry, we just update the value in the existing entry.
+     * in a bucket, and a bucket entry already exists for the same key, instead of creating a new
+     * entry, we just update the value in the existing entry.
      */
-    private static class BucketEntry {
+    public static class BucketEntry {
 
         /** Key hash code */
         private final int hashCode;
@@ -252,11 +259,11 @@ public final class ParsedBucket extends Bucket {
             while (entryData.hasRemaining()) {
                 final int tag = entryData.readVarInt(false);
                 final int fieldNum = tag >> TAG_FIELD_OFFSET;
-                if (fieldNum == FIELD_BUCKETENTRY_HASHCODE.number()) {
+                if (fieldNum == Bucket.FIELD_BUCKETENTRY_HASHCODE.number()) {
                     hashCode = entryData.readInt();
-                } else if (fieldNum == FIELD_BUCKETENTRY_VALUE.number()) {
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_VALUE.number()) {
                     value = entryData.readLong();
-                } else if (fieldNum == FIELD_BUCKETENTRY_KEYBYTES.number()) {
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_KEYBYTES.number()) {
                     final int bytesSize = entryData.readVarInt(false);
                     keyBytes = entryData.readBytes(bytesSize);
                 } else {
@@ -292,21 +299,22 @@ public final class ParsedBucket extends Bucket {
 
         public int sizeInBytes() {
             int size = 0;
-            size += ProtoWriterTools.sizeOfTag(FIELD_BUCKETENTRY_HASHCODE, ProtoConstants.WIRE_TYPE_FIXED_32_BIT)
+            size += ProtoWriterTools.sizeOfTag(Bucket.FIELD_BUCKETENTRY_HASHCODE, ProtoConstants.WIRE_TYPE_FIXED_32_BIT)
                     + Integer.BYTES;
-            size += ProtoWriterTools.sizeOfTag(FIELD_BUCKETENTRY_VALUE, ProtoConstants.WIRE_TYPE_FIXED_64_BIT)
+            size += ProtoWriterTools.sizeOfTag(Bucket.FIELD_BUCKETENTRY_VALUE, ProtoConstants.WIRE_TYPE_FIXED_64_BIT)
                     + Long.BYTES;
-            size += ProtoWriterTools.sizeOfDelimited(FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()));
+            size += ProtoWriterTools.sizeOfDelimited(
+                    Bucket.FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()));
             return size;
         }
 
         public void writeTo(final WritableSequentialData out) {
-            ProtoWriterTools.writeTag(out, FIELD_BUCKETENTRY_HASHCODE);
+            ProtoWriterTools.writeTag(out, Bucket.FIELD_BUCKETENTRY_HASHCODE);
             out.writeInt(hashCode);
-            ProtoWriterTools.writeTag(out, FIELD_BUCKETENTRY_VALUE);
+            ProtoWriterTools.writeTag(out, Bucket.FIELD_BUCKETENTRY_VALUE);
             out.writeLong(value);
             ProtoWriterTools.writeDelimited(
-                    out, FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
+                    out, Bucket.FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
         }
     }
 }

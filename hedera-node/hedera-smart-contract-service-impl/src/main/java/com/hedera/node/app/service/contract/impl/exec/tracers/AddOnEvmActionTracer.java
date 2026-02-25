@@ -3,14 +3,16 @@ package com.hedera.node.app.service.contract.impl.exec.tracers;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -20,40 +22,48 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 
 /**
- * A {@link OperationTracer} that delegates just the relevant callbacks to a {@link EvmActionTracer}, and all
- * {@link OperationTracer} callbacks to a list of "add on" tracers.
+ * An {@link ActionSidecarContentTracer} that delegates just the relevant callbacks to a {@link EvmActionTracer},
+ * and all {@link ActionSidecarContentTracer} callbacks to a list of "add on" tracers.
  */
 public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     private final EvmActionTracer evmActionTracer;
-    private final List<OperationTracer> addOnTracers;
+    private final List<ActionSidecarContentTracer> addOnTracers;
 
     /**
      * @param evmActionTracer the evm action tracer
-     * @param addOnTracers all operation tracer callbacks
+     * @param addOnTracers all action sidecar content tracer callbacks
      */
     public AddOnEvmActionTracer(
-            @NonNull final EvmActionTracer evmActionTracer, @NonNull final List<OperationTracer> addOnTracers) {
+            @NonNull final EvmActionTracer evmActionTracer,
+            @NonNull final List<ActionSidecarContentTracer> addOnTracers) {
         this.evmActionTracer = requireNonNull(evmActionTracer);
         this.addOnTracers = requireNonNull(addOnTracers);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // ActionSidecarContentTracer methods - delegate to evmActionTracer and forward to add-on tracers
+    // ---------------------------------------------------------------------------------------------
+
     @Override
     public void traceOriginAction(@NonNull final MessageFrame frame) {
         evmActionTracer.traceOriginAction(frame);
+        addOnTracers.forEach(tracer -> tracer.traceOriginAction(frame));
     }
 
     @Override
     public void sanitizeTracedActions(@NonNull final MessageFrame frame) {
         evmActionTracer.sanitizeTracedActions(frame);
+        addOnTracers.forEach(tracer -> tracer.sanitizeTracedActions(frame));
     }
 
     @Override
     public void tracePrecompileResult(@NonNull final MessageFrame frame, @NonNull final ContractActionType type) {
         evmActionTracer.tracePrecompileResult(frame, type);
+        addOnTracers.forEach(tracer -> tracer.tracePrecompileResult(frame, type));
     }
 
     @Override
-    public @NonNull ContractActions contractActions() {
+    public @NonNull List<ContractAction> contractActions() {
         return evmActionTracer.contractActions();
     }
 
@@ -115,12 +125,13 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
             @Nullable final Bytes output,
             @NonNull final List<Log> logs,
             final long gasUsed,
+            final Set<Address> selfDestructs,
             final long timeNs) {
         requireNonNull(worldView);
         requireNonNull(tx);
         requireNonNull(logs);
-        addOnTracers.forEach(
-                tracer -> tracer.traceEndTransaction(worldView, tx, status, output, logs, gasUsed, timeNs));
+        addOnTracers.forEach(tracer ->
+                tracer.traceEndTransaction(worldView, tx, status, output, logs, gasUsed, selfDestructs, timeNs));
     }
 
     @Override

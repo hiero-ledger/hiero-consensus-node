@@ -8,9 +8,9 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
 public class ReadableTokenRelationStoreImpl implements ReadableTokenRelationStore {
+
     /** The underlying data storage class that holds the token data. */
     private final ReadableKVState<EntityIDPair, TokenRelation> readableTokenRelState;
 
@@ -34,7 +35,7 @@ public class ReadableTokenRelationStoreImpl implements ReadableTokenRelationStor
      */
     public ReadableTokenRelationStoreImpl(
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
-        this.readableTokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_KEY);
+        this.readableTokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

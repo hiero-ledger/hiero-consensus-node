@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -21,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenManagementSpecsStateful {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     public static final String INVALID_ACCOUNT = "999.999.999";
@@ -95,5 +98,25 @@ public class TokenManagementSpecsStateful {
                         .hasKnownStatus(MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED),
                 restoreDefault("tokens.nfts.maxAllowedMints"),
                 mintToken(FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("Again, why not?"))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> requireCorrectFreezeKeys() {
+        final var FREEZE_KEY = "FreezeKey";
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(TOKEN),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(TOKEN).freezeKey(FREEZE_KEY).treasury(TOKEN_TREASURY),
+                // freeze token without the freeze key
+                tokenFreeze(TOKEN, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // freeze token with the freeze key
+                tokenFreeze(TOKEN, TOKEN_TREASURY).signedBy(GENESIS, FREEZE_KEY).hasKnownStatus(SUCCESS),
+                // unfreeze the token without the freeze key
+                tokenUnfreeze(TOKEN, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // unfreeze the token with the freeze key
+                tokenUnfreeze(TOKEN, TOKEN_TREASURY)
+                        .signedBy(GENESIS, FREEZE_KEY)
+                        .hasKnownStatus(SUCCESS));
     }
 }

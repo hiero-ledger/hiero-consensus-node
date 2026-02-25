@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.3.8" }
+plugins {
+    id("org.hiero.gradle.build") version "0.7.4"
+    id("com.hedera.pbj.pbj-compiler") version "0.14.0" apply false
+}
 
 javaModules {
-    // This "intermediate parent project" should be removed
-    module("platform-sdk") { artifact = "swirlds-platform" }
-
     // The Hedera API module
     directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
-    directory("platform-sdk") {
-        group = "com.swirlds"
-        module("swirlds") // not actually a Module as it has no module-info.java
-        module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-    }
+    directory("platform-sdk") { group = "com.hedera.hashgraph" }
 
     // The Hedera services modules
     directory("hedera-node") {
@@ -41,14 +37,16 @@ javaModules {
         module("hedera-token-service-impl") { artifact = "app-service-token-impl" }
         module("hedera-util-service") { artifact = "app-service-util" }
         module("hedera-util-service-impl") { artifact = "app-service-util-impl" }
+        module("hedera-roster-service") { artifact = "app-service-roster" }
+        module("hedera-roster-service-impl") { artifact = "app-service-roster-impl" }
+        module("hedera-entity-id-service") { artifact = "app-service-entity-id" }
+        module("hedera-entity-id-service-impl") { artifact = "app-service-entity-id-impl" }
     }
 
     // Platform-base demo applications
-    directory("example-apps") { group = "com.swirlds" }
+    directory("example-apps") { group = "com.hedera.hashgraph" }
 
-    // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") { group = "com.swirlds" }
+    directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
-    // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.swirlds" }
+    module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }

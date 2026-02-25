@@ -4,7 +4,7 @@ package com.swirlds.merkledb.collections;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A simple random access list of {@link Hash}es. It acts like a very simple long to {@link Hash} map.

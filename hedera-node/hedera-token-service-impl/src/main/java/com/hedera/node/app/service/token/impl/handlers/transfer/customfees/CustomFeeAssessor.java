@@ -3,7 +3,9 @@ package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenType;
@@ -131,13 +133,24 @@ public class CustomFeeAssessor extends BaseTokenHandler {
             final var entryValue = entry.getValue();
             for (final var entryTx : entryValue.entrySet()) {
                 final Long htsBalanceChange = entryTx.getValue();
+                final var accountId = entryTx.getKey();
+                final var tokenRel = tokenRelStore.get(accountId, entry.getKey());
+                // revalidate collector's association
+                if (htsBalanceChange > 0) {
+                    if (tokenRel == null) {
+                        final var currentAccount = accountStore.getAccountById(accountId);
+                        final var mayBeAutoAssociatedHere = currentAccount != null
+                                && (currentAccount.maxAutoAssociations() > currentAccount.usedAutoAssociations()
+                                        || currentAccount.maxAutoAssociations() == -1);
+                        validateTrue(mayBeAutoAssociatedHere, TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR);
+                    }
+                }
+
                 if (htsBalanceChange < 0) {
                     // IMPORTANT: These special cases exist only to simulate mono-service failure codes in
                     // some of the "classic" custom fee scenarios encoded in EETs; but they have no logical
                     // priority relative to other failure responses that would be assigned in a later step
                     // if we didn't fail here
-                    final var accountId = entryTx.getKey();
-                    final var tokenRel = tokenRelStore.get(accountId, entry.getKey());
                     final var precedingChanges =
                             result.getImmutableInputTokenAdjustments().get(entry.getKey());
                     final var precedingAdjustment =

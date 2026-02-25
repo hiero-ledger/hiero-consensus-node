@@ -2,9 +2,12 @@
 package com.hedera.node.app.state;
 
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hederahashgraph.api.proto.java.TransactionReceiptEntries;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -86,10 +89,38 @@ public interface HederaRecordCache extends RecordCache {
      *     start within {@link HederaConfig#transactionMaxValidDuration()} seconds of the given consensus time
      *     (meaning it might still be duplicated).</li>
      * </ol>
-     * @param state The state to commit the transaction receipts to
-     * @param consensusNow The current consensus time
+     *
+     * @param state                        The state to commit the transaction receipts to
+     * @param consensusNow                 The current consensus time
+     * @param immediateStateChangeListener The listener to capture the state changes
+     * @param blockStreamManager           The block stream manager
+     * @param streamMode                   The stream mode
      */
-    void commitRoundReceipts(@NonNull State state, @NonNull Instant consensusNow);
+    void commitReceipts(
+            @NonNull State state,
+            @NonNull Instant consensusNow,
+            @NonNull ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull BlockStreamManager blockStreamManager,
+            @NonNull StreamMode streamMode);
+
+    /**
+     * Does the same work as {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)},
+     * <b>if</b> the number of receipts accumulated so far in the round exceeds the given batch size.
+     *
+     * @param state                        The state to commit the transaction receipts to
+     * @param consensusNow                 The current consensus time
+     * @param immediateStateChangeListener The listener to capture the state changes
+     * @param blockStreamManager           The block stream manager
+     * @param receiptEntriesBatchSize      The maximum number of receipts to accumulate in a batch before committing
+     * @param streamMode                   The stream mode
+     */
+    void maybeCommitReceiptsBatch(
+            @NonNull State state,
+            @NonNull Instant consensusNow,
+            @NonNull ImmediateStateChangeListener immediateStateChangeListener,
+            int receiptEntriesBatchSize,
+            @NonNull BlockStreamManager blockStreamManager,
+            @NonNull StreamMode streamMode);
 
     /** The possible results of a duplicate check */
     enum DuplicateCheckResult {

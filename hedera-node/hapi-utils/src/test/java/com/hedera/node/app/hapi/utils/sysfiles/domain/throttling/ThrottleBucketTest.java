@@ -31,10 +31,12 @@ class ThrottleBucketTest {
         subject.setBurstPeriod(123);
         subject.setBurstPeriodMs(123L);
         subject.setName("Thom");
+        subject.setHighVolume(true);
 
         assertEquals(123, subject.getBurstPeriod());
         assertEquals(123L, subject.getBurstPeriodMs());
         assertEquals("Thom", subject.getName());
+        assertEquals(true, subject.isHighVolume());
     }
 
     @Test
@@ -64,7 +66,7 @@ class ThrottleBucketTest {
         final var delegate = bucket.asThrottleMapping(31).getKey().delegate();
         final var mtps = delegate.mtps();
         // Compute the burst period implied by the delegates mtps and total capacity
-        final var chosenBurstPeriodMs = BigDecimal.valueOf(delegate.bucket().totalCapacity())
+        final var chosenBurstPeriodMs = BigDecimal.valueOf(delegate.bucket().nominalCapacity())
                 .divide(BigDecimal.valueOf(mtps * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN))
                 .multiply(BigDecimal.valueOf(1000))
                 .longValue();

@@ -10,6 +10,7 @@ import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -118,7 +119,7 @@ public class HapiTokenUpdateNfts extends HapiTxnOp<HapiTokenUpdateNfts> {
         final List<Function<HapiSpec, Key>> signers = new ArrayList<>();
         signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
         if (metadataKey.isPresent()) {
-            signers.add(spec -> spec.registry().getMetadataKey(token));
+            signers.add(spec -> spec.registry().getRoleKey(token, KeyRole.METADATA));
         }
         return signers;
     }

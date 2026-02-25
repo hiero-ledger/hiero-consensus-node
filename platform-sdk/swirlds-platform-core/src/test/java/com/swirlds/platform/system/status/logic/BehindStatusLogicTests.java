@@ -10,15 +10,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import java.time.temporal.ChronoUnit;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,7 +78,15 @@ class BehindStatusLogicTests {
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
+        triggerActionAndAssertNoTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(
+                        time.now(),
+                        new TimeElapsedAction.QuiescingStatus(true, time.now().minus(5, ChronoUnit.SECONDS))),
+                logic.getStatus());
         triggerActionAndAssertNoTransition(
                 logic::processSelfEventReachedConsensusAction,
                 new SelfEventReachedConsensusAction(time.now()),

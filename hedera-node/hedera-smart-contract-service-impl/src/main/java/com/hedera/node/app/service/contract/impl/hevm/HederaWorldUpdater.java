@@ -13,11 +13,10 @@ import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperat
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -123,10 +122,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * this method surfaces any problem by throwing an exception.
      *
      * @param payerId the id of the account to collect the fee from
-     * @param amount      the amount to collect
+     * @param amount the amount to collect
+     * @param withNonceIncrement if the nonce should be incremented
      * @throws IllegalArgumentException if the collection fails for any reason
      */
-    void collectFee(@NonNull AccountID payerId, long amount);
+    void collectGasFee(@NonNull AccountID payerId, long amount, boolean withNonceIncrement);
 
     /**
      * Refunds the given fee to the given account. The caller should have already
@@ -136,7 +136,7 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @param payerId the id of the account to refund the fee to
      * @param amount the amount to refund
      */
-    void refundFee(@NonNull AccountID payerId, long amount);
+    void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
      * Tries to transfer the given amount from a sending contract to the recipient. The sender
@@ -267,13 +267,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
     void finalizeHollowAccount(@NonNull Address address, @NonNull Address parent);
 
     /**
-     * Returns all storage updates that would be committed by this updater, necessary for constructing
-     * a {@link com.hedera.hapi.streams.SidecarType#CONTRACT_STATE_CHANGE} sidecar.
-     *
-     * @return the full list of account-scoped storage changes
+     * Returns a summary of all storage usage in this updater's transaction.
+     * @return a summary of all storage usage in this updater's transaction
      */
     @NonNull
-    List<StorageAccesses> pendingStorageUpdates();
+    TxStorageUsage getTxStorageUsage();
 
     /**
      * Returns the {@link ExchangeRate} for the current consensus timestamp

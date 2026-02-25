@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.logging.legacy.json.JsonLogEntry;
 import com.swirlds.logging.legacy.json.JsonParser;
 import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
@@ -24,6 +23,7 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -63,7 +63,6 @@ public class LoggingTests {
                 new SynchronizationCompletePayload(syncCompleteMessage)
                         .setTimeInSeconds(time)
                         .setHashTimeInSeconds(hashTime)
-                        .setInitializationTimeInSeconds(initTime)
                         .setTotalNodes(totalNodes)
                         .setLeafNodes(leaves)
                         .setRedundantLeafNodes(redundantLeaves)
@@ -85,7 +84,6 @@ public class LoggingTests {
         SynchronizationCompletePayload payload = entry2.getPayload(SynchronizationCompletePayload.class);
         assertEquals(syncCompleteMessage, payload.getMessage());
         assertEquals(time, payload.getTimeInSeconds());
-        assertEquals(initTime, payload.getInitializationTimeInSeconds());
         assertEquals(totalNodes, payload.getTotalNodes());
         assertEquals(leaves, payload.getLeafNodes());
         assertEquals(redundantLeaves, payload.getRedundantLeafNodes());
@@ -166,7 +164,6 @@ public class LoggingTests {
                 EXCEPTION.getMarker(), () -> new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
                         .setHashTimeInSeconds(1.0)
-                        .setInitializationTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -178,7 +175,6 @@ public class LoggingTests {
                 new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
                         .setHashTimeInSeconds(1.0)
-                        .setInitializationTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -194,7 +190,6 @@ public class LoggingTests {
                 () -> new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
                         .setHashTimeInSeconds(1.0)
-                        .setInitializationTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -207,7 +202,6 @@ public class LoggingTests {
                 new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
                         .setHashTimeInSeconds(1.0)
-                        .setInitializationTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)

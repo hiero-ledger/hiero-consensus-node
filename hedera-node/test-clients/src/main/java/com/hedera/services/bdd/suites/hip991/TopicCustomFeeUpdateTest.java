@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -49,11 +50,12 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @DisplayName("Topic custom fees update")
@@ -442,6 +444,7 @@ public class TopicCustomFeeUpdateTest extends TopicCustomFeeBase {
 
         @HapiTest
         @DisplayName("to add a custom fee to a topic without")
+        @Tag(MATS)
         final Stream<DynamicTest> updateToAddACustomFee() {
             return hapiTest(
                     // create a topic without a custom fee

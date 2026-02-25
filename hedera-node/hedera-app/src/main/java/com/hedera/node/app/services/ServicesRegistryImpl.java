@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.hedera.node.app.state.merkle.SchemaApplications;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +16,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * A simple implementation of {@link ServicesRegistry}.
@@ -73,8 +73,7 @@ public final class ServicesRegistryImpl implements ServicesRegistry {
         final var serviceName = service.getServiceName();
 
         logger.debug("Registering schemas for service {}", serviceName);
-        final var registry =
-                new MerkleSchemaRegistry(constructableRegistry, serviceName, bootstrapConfig, new SchemaApplications());
+        final var registry = new MerkleSchemaRegistry(serviceName, new SchemaApplications());
         service.registerSchemas(registry);
 
         entries.add(new Registration(service, registry));

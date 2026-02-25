@@ -3,7 +3,6 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.getChangedCryptoKeys;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.getChangedTokenKeys;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
@@ -37,6 +36,7 @@ public class CryptoOpsUsage {
 
     public static final long CREATE_SLOT_MULTIPLIER = 1228;
     public static final long UPDATE_SLOT_MULTIPLIER = 24000;
+    public static final long HOUR_TO_SECOND_MULTIPLIER = 3600L;
 
     public static EstimatorFactory txnEstimateFactory = TxnUsageEstimator::new;
     static Function<ResponseType, QueryUsage> queryEstimateFactory = QueryUsage::new;
@@ -54,7 +54,6 @@ public class CryptoOpsUsage {
         accumulator.resetForTransaction(baseMeta, sigUsage);
 
         final int tokenMultiplier = xferMeta.getTokenMultiplier();
-
         /* BPT calculations shouldn't include any custom fee payment usage */
         int totalXfers = baseMeta.numExplicitTransfers();
         int weightedTokensInvolved = tokenMultiplier * xferMeta.getNumTokensInvolved();
@@ -160,6 +159,11 @@ public class CryptoOpsUsage {
         if (slotRbsDelta > 0) {
             accumulator.addRbs(slotRbsDelta);
         }
+        // Add SBH for hook creations/deletions
+        if (cryptoUpdateMeta.getNumHookCreations() > 0 || cryptoUpdateMeta.getNumHookDeletions() > 0) {
+            accumulator.addSbs((cryptoUpdateMeta.getNumHookCreations() + cryptoUpdateMeta.getNumHookDeletions())
+                    * HOUR_TO_SECOND_MULTIPLIER);
+        }
     }
 
     public void cryptoCreateUsage(
@@ -184,6 +188,10 @@ public class CryptoOpsUsage {
         accumulator.addBpt(baseSize + 2 * LONG_SIZE + BOOL_SIZE);
         accumulator.addRbs((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime);
         accumulator.addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
+        // Add SBH for hook creations
+        if (cryptoCreateMeta.getNumHooks() > 0) {
+            accumulator.addSbs(cryptoCreateMeta.getNumHooks() * HOUR_TO_SECOND_MULTIPLIER);
+        }
     }
 
     public void cryptoApproveAllowanceUsage(
@@ -218,11 +226,7 @@ public class CryptoOpsUsage {
 
     private long getNewBytes(final CryptoApproveAllowanceMeta cryptoApproveMeta, final ExtantCryptoContext ctx) {
         long newTotalBytes = 0;
-        final var newCryptoKeys = getChangedCryptoKeys(
-                cryptoApproveMeta.getCryptoAllowances().keySet(),
-                ctx.currentCryptoAllowances().keySet());
-
-        newTotalBytes += newCryptoKeys * CRYPTO_ALLOWANCE_SIZE;
+        newTotalBytes += cryptoApproveMeta.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE;
 
         final var newTokenKeys = getChangedTokenKeys(
                 cryptoApproveMeta.getTokenAllowances().keySet(),

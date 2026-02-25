@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.file;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -100,8 +100,9 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192")
 public class FileUpdateSuite {
@@ -171,7 +172,7 @@ public class FileUpdateSuite {
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     final Stream<DynamicTest> optimisticSpecialFileUpdate() {
         final var appendsPerBurst = 128;
-        final var specialFile = asEntityString(159);
+        final var specialFile = "159";
         final var contents = randomUtf8Bytes(64 * BYTES_4K);
         final var specialFileContents = ByteString.copyFrom(contents);
         final byte[] expectedHash;
@@ -301,7 +302,7 @@ public class FileUpdateSuite {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(100_000L),
+                contractCreate(CONTRACT).gas(600_000L),
                 contractCall(CONTRACT, CREATE_TXN).gas(1_000_000L),
                 contractCallLocal(CONTRACT, INDIRECT_GET_ABI)
                         .gas(300_000L)
@@ -369,6 +370,7 @@ public class FileUpdateSuite {
 
     @SuppressWarnings("java:S5960")
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+    @Tag(MATS)
     final Stream<DynamicTest> serviceFeeRefundedIfConsGasExhausted() {
         final var contract = "User";
         final var gasToOffer = 15_000_000;
@@ -426,6 +428,7 @@ public class FileUpdateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> chainIdChangesDynamically() {
         final var chainIdUser = "ChainIdUser";
         final var otherChainId = 0xABCDL;

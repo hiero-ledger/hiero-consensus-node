@@ -2,17 +2,16 @@
 package com.hedera.node.app.info;
 
 import static com.hedera.node.app.info.NodeInfoImpl.fromRosterEntry;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -20,8 +19,6 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,6 +38,7 @@ import org.apache.logging.log4j.Logger;
  */
 @Singleton
 public class StateNetworkInfo implements NetworkInfo {
+
     private static final Logger log = LogManager.getLogger(StateNetworkInfo.class);
     private final long selfId;
     private final Bytes ledgerId;
@@ -70,18 +68,17 @@ public class StateNetworkInfo implements NetworkInfo {
      * Constructs a new network information provider from the given state, roster, selfID, and configuration provider.
      *
      * @param selfId the ID of the node
-     * @param state the state to retrieve the network information from
+     * @param state if not at genesis, the state to retrieve the network information from
      * @param roster the roster to retrieve the network information from
      * @param configProvider the configuration provider to retrieve the ledger ID from
      * @param genesisNetworkSupplier the supplier for the genesis network
      */
     public StateNetworkInfo(
             final long selfId,
-            @NonNull final State state,
+            @Nullable final State state,
             @NonNull final Roster roster,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
-        requireNonNull(state);
         requireNonNull(configProvider);
         this.activeRoster = requireNonNull(roster);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
@@ -136,14 +133,9 @@ public class StateNetworkInfo implements NetworkInfo {
      * @param state the state to retrieve the node information from
      * @return a map of node information
      */
-    private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
-        final var entityCounts = state.getReadableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
+    private Map<Long, NodeInfo> nodeInfosFrom(@Nullable final State state) {
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
-        if (requireNonNull(entityCounts.get()).numNodes() == 0) {
-            // If there are no nodes in state, we can only fall back to the genesis network assets
-            // until the first round is handled and the system entities created; c.f. doGenesisSetup()
-            // in SystemTransactions which will give us another chance to populate from state then
+        if (state == null) {
             final var network = genesisNetworkSupplier.get();
             for (final var metadata : network.nodeMetadata()) {
                 final var node = metadata.nodeOrThrow();
@@ -154,12 +146,13 @@ public class StateNetworkInfo implements NetworkInfo {
                         node.gossipEndpoint(),
                         node.gossipCaCertificate(),
                         node.serviceEndpoint(),
-                        node.declineReward());
+                        node.declineReward(),
+                        node.grpcCertificateHash().length() > 0 ? node.grpcCertificateHash() : null);
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
         } else {
             final ReadableKVState<EntityNumber, Node> nodes =
-                    state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
+                    state.getReadableStates(AddressBookService.NAME).get(NODES_STATE_ID);
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every

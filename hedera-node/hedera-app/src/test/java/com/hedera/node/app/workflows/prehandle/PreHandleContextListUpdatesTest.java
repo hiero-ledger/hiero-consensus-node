@@ -22,15 +22,15 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,7 +110,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         final var txn = createAccountTransaction();
 
         // When we create a PreHandleContext
@@ -128,7 +128,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer, and a PreHandleContext
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -144,7 +144,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer, and a PreHandleContext
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -161,7 +161,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer, and a PreHandleContext
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -177,7 +177,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account ID that does not exist
         final var txn = createAccountTransaction();
         given(accountStore.getAccountById(payer)).willReturn(null);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
         // When we create a PreHandleContext, then it fails with INVALID_PAYER_ACCOUNT_ID
         assertThrowsPreCheck(
@@ -190,7 +190,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer and a PreHandleContext
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -211,7 +211,7 @@ class PreHandleContextListUpdatesTest {
         // Given an account with a key, and a transaction using that account as the payer and a PreHandleContext
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -230,7 +230,7 @@ class PreHandleContextListUpdatesTest {
         given(contractAccount.key()).willReturn(contractIdKey);
         given(contractAccount.keyOrElse(EMPTY_KEY_LIST)).willReturn(contractIdKey);
         given(contractAccount.accountIdOrThrow()).willReturn(asAccount(0L, 0L, otherContractId.contractNum()));
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
 
@@ -248,7 +248,7 @@ class PreHandleContextListUpdatesTest {
         given(accountStore.getAccountById(alias)).willReturn(account);
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(account.accountIdOrThrow()).willReturn(payer);
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);
@@ -270,7 +270,7 @@ class PreHandleContextListUpdatesTest {
         given(contractAccount.accountIdOrThrow()).willReturn(asAccount(0L, 0L, otherContractId.contractNum()));
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
         subject = new PreHandleContextImpl(
                         storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo)
@@ -286,7 +286,7 @@ class PreHandleContextListUpdatesTest {
         given(accountStore.getAccountById(alias)).willReturn(null);
         given(accountStore.getAccountById(payer)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
         subject = new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), CONFIG, dispatcher, transactionChecker, creatorInfo);

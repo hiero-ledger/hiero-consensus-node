@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1754,4 +1754,185 @@ enum ResponseCodeEnum {
      * Token airdrop transactions can not contain multiple senders for a single token.
      */
     AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN = 398;
+
+    /**
+     * The GRPC proxy endpoint is set in the NodeCreate or NodeUpdate transaction,
+     * which the network does not support.
+     */
+    GRPC_WEB_PROXY_NOT_SUPPORTED = 399;
+
+    /**
+     * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
+     */
+    NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
+
+    /**
+     * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
+     */
+    INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
+
+    /**
+     * A HookStore referenced a valid entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
+
+    /**
+     * An EVM hook execution was throttled due to high network gas utilization.
+     */
+    EVM_HOOK_GAS_THROTTLED = 500;
+
+    /**
+     * A user tried to create a hook with an id already in use.
+     */
+    HOOK_ID_IN_USE = 501;
+
+    /**
+     * A transaction tried to execute a hook that did not match the specified
+     * type or was malformed in some other way.
+     */
+    BAD_HOOK_REQUEST = 502;
+
+    /**
+     * A CryptoTransfer relying on a ACCOUNT_ALLOWANCE hook was rejected.
+     */
+    REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK = 503;
+
+    /**
+     * A hook id was not found.
+     */
+    HOOK_NOT_FOUND = 504;
+
+    /**
+     * An EVM hook mapping slot, storage key, or storage value exceeded 32 bytes.
+     */
+    EVM_HOOK_STORAGE_UPDATE_BYTES_TOO_LONG = 505;
+
+    /**
+     * An EVM hook's mapping slot, storage key, or storage value failed to use the
+     * minimal representation (i.e., no leading zeros).
+     */
+    EVM_HOOK_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 506;
+
+    /**
+     * A hook id was invalid.
+     */
+    INVALID_HOOK_ID = 507;
+
+    /**
+     * An EVM hook storage update had no contents.
+     */
+    EMPTY_EVM_HOOK_STORAGE_UPDATE = 508;
+
+    /**
+     * A user repeated the same hook id in a creation details list.
+     */
+    HOOK_ID_REPEATED_IN_CREATION_DETAILS = 509;
+
+    /**
+     * Hooks are not not enabled on the target Hiero network.
+     */
+    HOOKS_NOT_ENABLED = 510;
+
+    /**
+     * The target hook is not an EVM hook.
+     */
+    HOOK_IS_NOT_AN_EVM_HOOK = 511;
+
+    /**
+     * A hook was deleted.
+     */
+    HOOK_DELETED = 512;
+
+    /**
+     * The HookStore tried to update too many storage slots in a single transaction.
+     */
+    TOO_MANY_EVM_HOOK_STORAGE_UPDATES = 513;
+
+    /**
+     * An EVM hook mapping slot, storage key, or storage value failed to use the
+     * minimal representation (i.e., no leading zeros).
+     */
+    HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 514;
+
+    /**
+     * A EVM hook mapping slot, storage key, or storage value exceeded 32 bytes.
+     */
+    HOOK_CREATION_BYTES_TOO_LONG = 515;
+
+    /**
+     * A hook creation spec was not found.
+     */
+    INVALID_HOOK_CREATION_SPEC = 516;
+
+    /**
+     * A hook extension point was empty.
+     */
+    HOOK_EXTENSION_EMPTY = 517;
+
+    /**
+     * A hook admin key was invalid.
+     */
+    INVALID_HOOK_ADMIN_KEY = 518;
+
+    /**
+     * The hook deletion requires the hook to have zero storage slots.
+    */
+    HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS = 519;
+
+    /**
+     * Cannot set both a hook call and an approval on the same AccountAmount or NftTransfer message.
+     */
+    CANNOT_SET_HOOKS_AND_APPROVAL = 520;
+
+    /**
+     * The attempted operation is invalid until all the target entity's hooks have been deleted.
+     */
+    TRANSACTION_REQUIRES_ZERO_HOOKS = 521;
+
+    /**
+     * The HookCall set in the transaction is invalid
+     */
+    INVALID_HOOK_CALL = 522;
+
+    /**
+     *  Hooks are not supported to be used in TokenAirdrop transactions
+     */
+    HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
+
+    /**
+     * This operation cannot be completed because the target
+     * account is a "Node Account".<br/>
+     * This account is currently in use as the "Node Account" for a
+     * consensus node, and therefore the requested change is
+     * not permitted. The transaction may be resubmitted once the
+     * account is no longer in use as a "Node Account" for any
+     * consensus node.
+     */
+    ACCOUNT_IS_LINKED_TO_A_NODE = 524;
+
+    /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
+
+    /**
+     * This operation cannot be completed because the target
+     * account has a zero balance.<br/>
+     * Node accounts require a positive balance. The transaction may be
+     * resubmitted once the account has been funded.
+     */
+    NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
+
+    /**
+     * This operation cannot be completed because the target
+     * account is a "Fee Collection Account".<br/>
+     * Any attempt to transfer to a fee collection account is not permitted.
+     */
+    TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED = 527;
+
+    /**
+     * The number of hook invocations exceeds the maximum allowed per transaction.
+     */
+    TOO_MANY_HOOK_INVOCATIONS = 528;
 }

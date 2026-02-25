@@ -5,15 +5,9 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.Locked;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
@@ -38,9 +32,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -82,21 +79,20 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     /**
      * Create a new scratchpad.
      *
-     * @param platformContext the platform context
-     * @param selfId          the ID of this node
-     * @param clazz           the enum class that defines the scratchpad fields
-     * @param id              the unique ID of this scratchpad (creating multiple scratchpad instances on the same node
-     *                        with the same unique ID has undefined (and possibly undesirable) behavior. Must not
-     *                        contain any non-alphanumeric characters, with the exception of the following characters:
-     *                        "_", "-", and ".". Must not be empty.
+     * @param configuration the configuration to use
+     * @param selfId the ID of this node
+     * @param clazz the enum class that defines the scratchpad fields
+     * @param id the unique ID of this scratchpad (creating multiple scratchpad instances on the same node with the same
+     * unique ID has undefined (and possibly undesirable) behavior. Must not contain any non-alphanumeric characters,
+     * with the exception of the following characters: "_", "-", and ".". Must not be empty.
      */
     public StandardScratchpad(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-        this.configuration = platformContext.getConfiguration();
-        final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
+        this.configuration = configuration;
+        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         scratchpadDirectory = stateConfig
                 .savedStateDirectory()
                 .resolve(SCRATCHPAD_DIRECTORY_NAME)
@@ -237,7 +233,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             final Path scratchpadFile = files.get(files.size() - 1);
             nextScratchpadIndex = getFileIndex(scratchpadFile) + 1;
 
-            try (final SerializableDataInputStream in = new SerializableDataInputStreamImpl(
+            try (final SerializableDataInputStream in = new SerializableDataInputStream(
                     new BufferedInputStream(new FileInputStream(scratchpadFile.toFile())))) {
 
                 final int fileVersion = in.readInt();
@@ -271,7 +267,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
         final Path temporaryFile = buildTemporaryFile(configuration);
-        try (final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(
+        try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 
             out.writeInt(fileVersion);

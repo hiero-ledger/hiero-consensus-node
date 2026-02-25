@@ -2,10 +2,14 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -29,10 +33,18 @@ public interface BlockTransactionPartsTranslator {
      * @param parts the parts of the transaction
      * @param baseTranslator the base translator
      * @param remainingStateChanges the state changes remaining to be processed
+     * @param tracesSoFar if not null, the traces up to this point of the transaction unit
+     * @param followingUnitTraces any additional trace data associated with the transaction unit
+     * @param executingHookId if not null, the hook execution id of this transaction
+     * @param hookMetadata if not null, the hook metadata for the transaction unit containing these parts
      * @return the translated record
      */
     SingleTransactionRecord translate(
             @NonNull BlockTransactionParts parts,
             @NonNull BaseTranslator baseTranslator,
-            @NonNull List<StateChange> remainingStateChanges);
+            @NonNull List<StateChange> remainingStateChanges,
+            @Nullable List<TraceData> tracesSoFar,
+            @NonNull List<ScopedTraceData> followingUnitTraces,
+            @Nullable HookId executingHookId,
+            @Nullable HookMetadata hookMetadata);
 }

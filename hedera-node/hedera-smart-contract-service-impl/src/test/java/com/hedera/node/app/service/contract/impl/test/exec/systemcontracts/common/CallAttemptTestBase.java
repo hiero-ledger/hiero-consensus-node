@@ -25,8 +25,9 @@ import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.mockito.Mock;
@@ -125,7 +126,7 @@ public class CallAttemptTestBase extends CallTestBase {
             @NonNull final String method, @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators) {
         return createHtsCallAttempt(
                 HTS_167_CONTRACT_ID,
-                Bytes.wrap(CommonUtils.unhex(method)),
+                Bytes.wrap(Objects.requireNonNull(CommonUtils.unhex(method))),
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 true,

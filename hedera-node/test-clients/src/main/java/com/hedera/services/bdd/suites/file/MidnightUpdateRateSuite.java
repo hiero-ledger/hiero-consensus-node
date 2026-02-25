@@ -34,7 +34,7 @@ public class MidnightUpdateRateSuite {
                 resetRatesOp,
                 cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS)),
                 // should be done just before midnight
-                UtilVerbs.waitUntil("23:58"),
+                UtilVerbs.waitUntil("23:58:00"),
                 fileUpdate(EXCHANGE_RATES)
                         .contents(spec -> {
                             ByteString newRates =

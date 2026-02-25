@@ -9,12 +9,15 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
  * hood. Calculates the amount of capacity that should be leaked from the bucket based on the amount of
  * elapsed nanoseconds since the last time {@link LeakyBucketThrottle#allow(long, long)} was
  * called.
+ * This class also alternatively handles burst capabilities where multiple seconds can share capacity.
  */
 public class LeakyBucketThrottle {
     private static final long TIME_TO_EMPTY = SECONDS_TO_NANOSECONDS;
+    public static final int DEFAULT_BURST_SECONDS = 1;
 
     private final DiscreteLeakyBucket bucket;
     private long lastAllowedUnits = 0L;
+    private final int burstSeconds;
 
     /**
      * Creates an instance of the throttle with the specified capacity.
@@ -22,7 +25,19 @@ public class LeakyBucketThrottle {
      * @param capacity - the capacity for the throttle
      */
     public LeakyBucketThrottle(final long capacity) {
-        this.bucket = new DiscreteLeakyBucket(capacity);
+        this(capacity, DEFAULT_BURST_SECONDS);
+    }
+
+    public LeakyBucketThrottle(final long capacity, final int burstSeconds) {
+        validateCapacityForRequested(capacity, burstSeconds);
+        this.burstSeconds = burstSeconds;
+        this.bucket = DiscreteLeakyBucket.ofFixedCapacity(capacity * burstSeconds);
+    }
+
+    private void validateCapacityForRequested(final long capacity, final int burstSeconds) {
+        if (productWouldOverflow(capacity, burstSeconds)) {
+            throw new IllegalArgumentException("Base bucket capacity calculation outside numeric range");
+        }
     }
 
     /**
@@ -37,7 +52,7 @@ public class LeakyBucketThrottle {
      */
     public boolean allow(final long txLimit, final long elapsedNanos) {
         leakFor(elapsedNanos);
-        if (bucket.capacityFree() >= txLimit) {
+        if (bucket.brimfulCapacityFree() >= txLimit) {
             bucket.useCapacity(txLimit);
             lastAllowedUnits += txLimit;
             return true;
@@ -50,6 +65,10 @@ public class LeakyBucketThrottle {
         bucket.leak(effectiveLeak(elapsedNanos));
     }
 
+    long capacityFree() {
+        return bucket.brimfulCapacityFree();
+    }
+
     /**
      * Returns the percent of the throttle bucket's capacity that is used, given some number of
      * nanoseconds have elapsed since the last capacity test.
@@ -58,8 +77,30 @@ public class LeakyBucketThrottle {
      * @return the percent of the bucket that is used
      */
     double percentUsed(final long givenElapsedNanos) {
+        return 100.0 * capacityUsed(givenElapsedNanos) / bucket.brimfulCapacity();
+    }
+
+    /**
+     * Returns the available free capacity of the throttle bucket, given some number of
+     * nanoseconds have elapsed since the last capacity test.
+     *
+     * @param givenElapsedNanos time since last test
+     * @return the free capacity of the bucket
+     */
+    long capacityFree(final long givenElapsedNanos) {
+        return bucket.brimfulCapacity() - capacityUsed(givenElapsedNanos);
+    }
+
+    /**
+     * Returns the throttle bucket's capacity that is used, given some number of
+     * nanoseconds have elapsed since the last capacity test.
+     *
+     * @param givenElapsedNanos time since last test
+     * @return the used capacity of the bucket
+     */
+    long capacityUsed(final long givenElapsedNanos) {
         final var used = bucket.capacityUsed();
-        return 100.0 * (used - Math.min(used, effectiveLeak(givenElapsedNanos))) / bucket.totalCapacity();
+        return (used - Math.min(used, effectiveLeak(givenElapsedNanos)));
     }
 
     /**
@@ -68,7 +109,7 @@ public class LeakyBucketThrottle {
      * @return the percent of the bucket that is used
      */
     double instantaneousPercentUsed() {
-        return 100.0 * bucket.capacityUsed() / bucket.totalCapacity();
+        return 100.0 * bucket.capacityUsed() / bucket.brimfulCapacity();
     }
 
     /**
@@ -79,7 +120,7 @@ public class LeakyBucketThrottle {
      */
     public long freeToUsedRatio() {
         final var used = bucket.capacityUsed();
-        return (used == 0) ? Long.MAX_VALUE : bucket.capacityFree() / used;
+        return (used == 0) ? Long.MAX_VALUE : bucket.brimfulCapacityFree() / used;
     }
 
     void resetLastAllowedUse() {
@@ -102,11 +143,11 @@ public class LeakyBucketThrottle {
 
     private long effectiveLeak(final long elapsedNanos) {
         if (elapsedNanos >= TIME_TO_EMPTY) {
-            return bucket.totalCapacity();
+            return bucket.brimfulCapacity();
         } else {
-            return productWouldOverflow(elapsedNanos, bucket.totalCapacity())
+            return productWouldOverflow(elapsedNanos, bucket.brimfulCapacity())
                     ? Long.MAX_VALUE / TIME_TO_EMPTY
-                    : elapsedNanos * bucket.totalCapacity() / TIME_TO_EMPTY;
+                    : elapsedNanos * bucket.brimfulCapacity() / burstSeconds / TIME_TO_EMPTY;
         }
     }
 }

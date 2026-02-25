@@ -250,32 +250,21 @@ FCOneToManyRelation<Integer, Long> uniqueOwnershipAssociations = new FCOneToMany
 ```
 
 This structure supports the `TokenGetAccountNftInfos` query logic by providing
-efficient iteration through the NFTs owned by a specific crypto account. (Note
-that when [`tokens.nfts.useTreasuryWildcards=true`](https://github.com/hashgraph/hedera-services/blob/f58e0220a2be5e7217789c9e6e362bd0b380e196/hedera-node/src/main/resources/bootstrap.properties#L89), this iteration is refined to
+efficient iteration through the NFTs owned by a specific crypto account.
+(Note that this iteration is refined to
 include _only_ the NFTs that account owns by virtue of a `CryptoTransfer`; it
 may _also_ own NFTs by virtue of serving as treasury for one or more unique tokens.)
 
 :gear:&nbsp;HAPI operations affect the `uniqueOwnershipAssociations` relation
-differently depending on the value of `tokens.nfts.useTreasuryWildcards`.
-- When `tokens.nfts.useTreasuryWildcards=true`, only `TokenAccountWipe` and
-`CryptoTransfer` can change this relation.
-- When `tokens.nfts.useTreasuryWildcards=false`, both `TokenMint` and `TokenBurn`
-can also change the `uniqueOwnershipAssociations` relation.
+Only `TokenAccountWipe` and `CryptoTransfer` can change this relation.
 
 #### Consistency audit
 
-:building_construction:&nbsp;**Rebuilding** this structure uses different
-logic based on the value of `tokens.nfts.useTreasuryWildcards`.
-- When `tokens.nfts.useTreasuryWildcards=true`, rebuilding consists of
+:building_construction:&nbsp;**Rebuilding** this structure consists of
 [iterating over the unique tokens in state and updating the relation for non-treasury
 owned NFTs](https://github.com/hashgraph/hedera-services/blob/01682-M-AuditRebuiltDataStructures/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L246).
-- When `tokens.nfts.useTreasuryWildcards=false`, rebuilding consists of
-[iterating over the unique tokens in state and updating the relation for all NFTs](https://github.com/hashgraph/hedera-services/blob/01682-M-AuditRebuiltDataStructures/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L242).
 
-:memo:&nbsp;**Maintaining** this structure again works differently based
-on the the value of `tokens.nfts.useTreasuryWildcards`.
-
-First, with `tokens.nfts.useTreasuryWildcards=true`,
+:memo:&nbsp;**Maintaining** this structure works as below.
 1. For `TokenAccountWipe`, the [`TypedTokenStore.persistToken()` method](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L304) uses [`TypedTokenStore.destroyRemoved()`](https://github.com/hashgraph/hedera-services/blob/f58e0220a2be5e7217789c9e6e362bd0b380e196/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L319)
 to simultaneously update the `uniqueTokens` FCM and `uniqueOwnershipAssociations`; where the
 actual mutation is done by [`UniqTokenViewsManager.wipeNotice()`](https://github.com/hashgraph/hedera-services/blob/01682-M-AuditRebuiltDataStructures/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L125).
@@ -283,18 +272,6 @@ actual mutation is done by [`UniqTokenViewsManager.wipeNotice()`](https://github
 `UniqTokenViewsManager` methods; here the `uniqueOwnershipAssociations` relation
 only changes on use of the [`UniqTokenViewsManager.exchangeNotice()` method](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L161), since treasury-owned
 tokens do not appear in the `uniqueOwnershipAssociations` relation.
-
-Second, with `tokens.nfts.useTreasuryWildcards=false`,
-1. For `TokenAccountWipe`, nothing is different.
-2. For `CryptoTransfer`, the [`HederaTokenStore.changeOwner()` method](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/HederaTokenStore.java#L356) still delegates to the
-`UniqTokenViewsManager` methods; but now the `uniqueOwnershipAssociations` relation
-not only changes on use of the [`UniqTokenViewsManager.exchangeNotice()` method](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L161),
-but _also_ on the [`UniqTokenViewsManager.treasuryReturnNotice()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L201) and
-[`UniqTokenViewsManager.treasuryExitNotice()` methods](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L179).
-3. For `TokenMint`, the `TypedTokenStore.persistToken()` method uses
-[`TypedTokenStore.persistMinted()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L332) to simultaneously update the state FCM and `uniqueOwnershipAssociations`.
-4. For `TokenBurn`, the `TypedTokenStore.persistToken()` method uses
-[`TypedTokenStore.destroyRemoved()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L319) to simultaneously update the state FCM and `uniqueOwnershipAssociations`.
 
 :no_entry:&nbsp;There is an atomicity failure with `CryptoTransfer` here.
 On the one hand, the `HederaTokenStore.changeOwner()` method **directly** updates the
@@ -311,38 +288,29 @@ the view and state will become inconsistent.
 FCOneToManyRelation<Integer, Long> uniqueTreasuryOwnershipAssociations = new FCOneToManyRelation<>();
 ```
 
-When `tokens.nfts.useTreasuryWildcards=true`, this structure supports the
-`TokenGetAccountNftInfos` query logic by providing efficient iteration through the NFTs
+This structure supports the `TokenGetAccountNftInfos` query logic
+by providing efficient iteration through the NFTs
 owned by a specific crypto account.
 
 :gear:&nbsp;HAPI operations affect the `uniqueTreasuryOwnershipAssociations` relation
-differently depending on the value of `tokens.nfts.useTreasuryWildcards`.
-- When `tokens.nfts.useTreasuryWildcards=false`, this relation is never used.
-- When `tokens.nfts.useTreasuryWildcards=true`, the `CryptoTransfer`, `TokenMint`, and `TokenBurn`
+The `CryptoTransfer`, `TokenMint`, and `TokenBurn`
 can all change the `uniqueTreasuryOwnershipAssociations`.
 
 #### Consistency audit
 
-:building_construction:&nbsp;**Rebuilding** this structure uses different
-logic based on the value of `tokens.nfts.useTreasuryWildcards`.
-- When `tokens.nfts.useTreasuryWildcards=false`, it is not used and not rebuilt.
-- When `tokens.nfts.useTreasuryWildcards=true`, rebuilding consists of
+:building_construction:&nbsp;**Rebuilding** this structure consists of
 [iterating over the unique tokens in state and updating the relation for all treasury-owned NFTs](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L228).
 
-:memo:&nbsp;**Maintaining** this structure again works differently based
-on the the value of `tokens.nfts.useTreasuryWildcards`. As noted above,
-it is simply not used when `tokens.nfts.useTreasuryWildcards=false`.
-When `tokens.nfts.useTreasuryWildcards=true`,
-
+:memo:&nbsp;**Maintaining** this structure works as below.
 1. For `CryptoTransfer`, the [`HederaTokenStore.changeOwner()` method](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/HederaTokenStore.java#L356) again delegates to the
-   `UniqTokenViewsManager` methods; here the `uniqueOwnershipAssociations` relation
-   only changes on use of the [`UniqTokenViewsManager.treasuryReturnNotice()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L201) and
-   [`UniqTokenViewsManager.treasuryExitNotice()` methods](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L179), since only treasury-owned
-   tokens appear in the `uniqueTreasuryOwnershipAssociations` relation.
+`UniqTokenViewsManager` methods; here the `uniqueOwnershipAssociations` relation
+only changes on use of the [`UniqTokenViewsManager.treasuryReturnNotice()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L201) and
+[`UniqTokenViewsManager.treasuryExitNotice()` methods](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/tokens/views/UniqTokenViewsManager.java#L179), since only treasury-owned
+tokens appear in the `uniqueTreasuryOwnershipAssociations` relation.
 2. For `TokenMint`, the `TypedTokenStore.persistToken()` method uses
-   [`TypedTokenStore.persistMinted()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L332) to simultaneously update the state FCM and `uniqueTreasuryOwnershipAssociations`.
+[`TypedTokenStore.persistMinted()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L332) to simultaneously update the state FCM and `uniqueTreasuryOwnershipAssociations`.
 3. For `TokenBurn`, the `TypedTokenStore.persistToken()` method uses
-   [`TypedTokenStore.destroyRemoved()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L319) to simultaneously update the state FCM and `uniqueTreasuryOwnershipAssociations`.
+[`TypedTokenStore.destroyRemoved()`](https://github.com/hashgraph/hedera-services/blob/master/hedera-node/src/main/java/com/hedera/services/store/TypedTokenStore.java#L319) to simultaneously update the state FCM and `uniqueTreasuryOwnershipAssociations`.
 
 :no_entry:&nbsp;Just as above, the `CryptoTransfer` implementation has an
 atomicity failure, since there is no mechanism to rollback changes to this

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -15,6 +16,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIV
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -26,35 +28,38 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class QueryPaymentSuite {
 
-    private static final String NODE = asEntityString(3);
+    private static final String NODE = "3";
 
     /*
      * 1. multiple payers pay amount to node as well as one more beneficiary. But node gets less query payment fee
      * 2. TransactionPayer will pay for query payment to node and payer has less balance
      * 3. Transaction payer is not involved in transfers for query payment to node and one or more have less balance
      */
-    @HapiTest
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"fees.simpleFeesEnabled"})
     final Stream<DynamicTest> queryPaymentsFailsWithInsufficientFunds() {
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("a").balance(500_000_000L),
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 cryptoCreate("d").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 2L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "a", "b", "c", 1_000L, 2L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", "b", "c", 5000, 200L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "d", "b", "c", 5000, 200L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", GENESIS, "c", 5000, 200L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "d", GENESIS, "c", 5000, 200L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -73,19 +78,19 @@ public class QueryPaymentSuite {
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1_000L, 200L)))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(OK),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 900, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 900, 200L)))
                         .setNode(NODE)
                         .payingWith("a")
                         .hasAnswerOnlyPrecheck(OK),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1200, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1200, 200L)))
                         .setNode(NODE)
                         .payingWith("a")
                         .fee(10L)
@@ -106,7 +111,8 @@ public class QueryPaymentSuite {
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003(spec, "a", "b", 1_000L)))
+                        .withPayment(
+                                cryptoTransfer(innerSpec -> multiAccountPaymentToNode003(innerSpec, "a", "b", 1_000L)))
                         .hasAnswerOnlyPrecheck(OK));
     }
 
@@ -118,7 +124,7 @@ public class QueryPaymentSuite {
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec -> invalidPaymentToNode(spec, "a", "b", "c", 1200))
+                        .withPayment(cryptoTransfer(innerSpec -> invalidPaymentToNode(innerSpec, "a", "b", "c", 1200))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .fee(10L)
@@ -129,7 +135,7 @@ public class QueryPaymentSuite {
         return TransferList.newBuilder()
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
-                .addAccountAmounts(adjust(asAccount(NODE), amount))
+                .addAccountAmounts(adjust(asAccount(spec, Long.parseLong(NODE)), amount))
                 .build();
     }
 
@@ -147,7 +153,7 @@ public class QueryPaymentSuite {
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(beneficiary), amount - queryFee))
-                .addAccountAmounts(adjust(asAccount(NODE), queryFee))
+                .addAccountAmounts(adjust(asAccount(spec, Long.parseLong(NODE)), queryFee))
                 .build();
     }
 

@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
 import com.swirlds.common.test.fixtures.stream.WriteToStreamConsumer;
@@ -19,9 +16,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,8 +46,7 @@ class QueueThreadObjectStreamTest {
     @BeforeEach
     void initLinkedObjectStreams() throws IOException {
         consumer = new WriteToStreamConsumer(
-                new SerializableDataOutputStreamImpl(new BufferedOutputStream(new ByteArrayOutputStream())),
-                initialHash);
+                new SerializableDataOutputStream(new BufferedOutputStream(new ByteArrayOutputStream())), initialHash);
 
         queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
                 .setForwardTo(consumer)

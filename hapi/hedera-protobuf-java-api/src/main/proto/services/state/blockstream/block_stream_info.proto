@@ -26,9 +26,9 @@ option java_multiple_files = true;
  * A message stored in state to maintain block stream parameters.<br/>
  * Nodes use this information for three purposes.
  * 1. To maintain hash chain continuity at restart and reconnect boundaries.
- * 1. To store historical hashes for implementation of the EVM `BLOCKHASH`
+ * 2. To store historical hashes for implementation of the EVM `BLOCKHASH`
  *    and `PREVRANDAO` opcodes.
- * 1. To track the amount of consensus time that has passed between blocks.
+ * 3. To track the amount of consensus time that has passed between blocks.
  *
  * This value MUST be updated for every block.<br/>
  * This value MUST be transmitted in the "state changes" section of
@@ -48,7 +48,8 @@ message BlockStreamInfo {
     /**
      * A consensus time for the current block.<br/>
      * This is the consensus time of the first round in the current block,
-     * and is used to determine if this block was the first across an
+     * which equates to the first contained transaction's consensus time.
+     * It is used to determine if this block was the first across an
      * important boundary in consensus time, such as UTC midnight.
      * This may also be used to purge entities expiring between the last
      * block time and this time.
@@ -83,7 +84,7 @@ message BlockStreamInfo {
 
     /**
      * A SHA2-384 hash value.<br/>
-     * This is the hash of the "input" subtree for this block.
+     * This is the final hash of the "input" subtree for this block.
      */
     bytes input_tree_root_hash = 5;
 
@@ -99,7 +100,7 @@ message BlockStreamInfo {
      * This SHALL count the number of output block items that _precede_
      * the state change that updates this singleton.
      */
-    uint32 num_preceding_output_items = 7;
+    uint64 num_preceding_state_changes_items = 7;
 
     /**
      * A concatenation of SHA2-384 hash values.<br/>
@@ -108,7 +109,7 @@ message BlockStreamInfo {
      * The subtree containing these hashes SHALL be constructed from all "output"
      * `BlockItem`s in this block that _precede_ the update to this singleton.
      */
-    repeated bytes rightmost_preceding_output_tree_hashes = 8;
+    repeated bytes rightmost_preceding_state_changes_tree_hashes = 8;
 
     /**
      * A block-end consensus time stamp.
@@ -148,4 +149,35 @@ message BlockStreamInfo {
      * at which a user transaction was handled.
      */
     proto.Timestamp last_handle_time = 13;
+
+    /**
+     * A SHA2-384 hash value.<br/>
+     * This is the final hash of the "consensus headers" subtree for this block.
+     */
+    bytes consensus_header_root_hash = 14;
+
+    /**
+     * A SHA2-384 hash value.<br/>
+       * This is the final hash of the "output" subtree for this block.
+     */
+    bytes output_item_root_hash = 15;
+
+    /**
+     * A SHA2-384 hash value.<br/>
+     * This is the final hash of the "trace data" subtree for this block.
+     */
+    bytes trace_data_root_hash = 16;
+
+    /**
+     * The intermediate hashes needed for subroot 2 in the block merkle
+     * tree structure. These hashes SHALL include the minimum required
+     * block root hashes needed to construct subroot 2's final state at
+     * the end of the previous block.
+     */
+    repeated bytes intermediate_previous_block_root_hashes = 17;
+
+    /**
+     * The number of leaves in the intermediate block roots subtree.
+     */
+    uint64 intermediate_block_roots_leaf_count = 18;
 }

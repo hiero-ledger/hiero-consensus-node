@@ -48,7 +48,6 @@ class DataFileCollectionCompactionHammerTest {
         Configurator.reconfigure();
     }
 
-    @SuppressWarnings("unchecked")
     @ParameterizedTest
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
@@ -83,7 +82,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
 
             final long start = System.currentTimeMillis();
@@ -115,7 +115,6 @@ class DataFileCollectionCompactionHammerTest {
                 Arguments.of(1000, 1_000_000));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
@@ -150,7 +149,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
             return null;
         });

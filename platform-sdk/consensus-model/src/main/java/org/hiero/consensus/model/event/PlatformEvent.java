@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -17,14 +16,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -61,23 +60,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
-     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
-     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
-     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
-     * higher number indicates the event is higher in the hashgraph). NGen will be
-     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
      */
-    private long nGen = EventConstants.GENERATION_UNDEFINED;
-
-    /**
-     * Construct a new instance from an unsigned event and a signature.
-     *
-     * @param unsignedEvent the unsigned event
-     * @param signature     the signature for the event
-     */
-    public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final byte[] signature) {
-        this(unsignedEvent, Bytes.wrap(signature));
-    }
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -93,7 +78,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(signature, "The signature must not be null"),
                         unsignedEvent.getTransactionsBytes(),
                         unsignedEvent.getParents()),
-                unsignedEvent.getMetadata());
+                unsignedEvent.getMetadata(),
+                // for a newly created event, the time received is the same as the time created
+                unsignedEvent.getTimeCreated());
     }
 
     /**
@@ -103,13 +90,19 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @throws NullPointerException if gossipEvent or any of its fields are null
      */
     public PlatformEvent(@NonNull final GossipEvent gossipEvent) {
-        this(Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"), new EventMetadata(gossipEvent));
+        this(
+                Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
+                new EventMetadata(gossipEvent),
+                Instant.now());
     }
 
-    private PlatformEvent(@NonNull final GossipEvent gossipEvent, @NonNull final EventMetadata metadata) {
+    private PlatformEvent(
+            @NonNull final GossipEvent gossipEvent,
+            @NonNull final EventMetadata metadata,
+            @NonNull final Instant timeReceived) {
         this.gossipEvent = gossipEvent;
         this.metadata = metadata;
-        this.timeReceived = Instant.now();
+        this.timeReceived = timeReceived;
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
@@ -160,12 +153,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getTimeCreated();
     }
 
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return gossipEvent.eventCore().version();
-    }
-
     /**
      * {{@inheritDoc}}
      */
@@ -182,27 +169,28 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Get the generation of the event.
+     * The non-deterministic generation of this event.
      *
-     * @return the generation of the event
-     */
-    public long getGeneration() {
-        return metadata.getGeneration();
-    }
-
-    /**
-     * Get the non-deterministic generation of the event.
-     *
-     * @return the non-deterministic generation of the event
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
      */
     public long getNGen() {
         return nGen;
     }
 
     /**
-     * Set the non-deterministic generation of the event.
+     * Checks if the non-deterministic generation for this event has been set.
      *
-     * @param nGen the nGen value to set
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
+    public boolean hasNGen() {
+        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
      */
     public void setNGen(final long nGen) {
         this.nGen = nGen;
@@ -347,19 +335,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Override the birth round for this event. This will only be called for events created in the software version
-     * right before the birth round migration. Parents of this event may also have their birth round overridden if their
-     * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
-     *
-     * @param birthRound                 the birth round that has been assigned to this event
-     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
-     *                                   round overridden
-     */
-    public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
-        metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
-    }
-
-    /**
      * Wait until all transactions have been prehandled for this event.
      */
     public void awaitPrehandleCompletion() {
@@ -384,6 +359,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @NonNull
     public List<EventDescriptorWrapper> getOtherParents() {
         return metadata.getOtherParents();
+    }
+
+    /**
+     * Check if the event has other parents.
+     *
+     * @return true if the event has other parents
+     */
+    public boolean hasOtherParents() {
+        return metadata.hasOtherParents();
     }
 
     /** @return a list of all parents, self parent (if any), + all other parents */
@@ -465,6 +449,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public Hash getHash() {
         return metadata.getHash();
+    }
+
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return new TypedIterator<>(metadata.getAllParents().iterator());
     }
 
     @Override

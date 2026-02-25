@@ -4,17 +4,15 @@ package com.swirlds.common.merkle.synchronization.task;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import java.io.IOException;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This lesson describes a leaf node.
  *
- * @param <T>
- * 		the type used by the view to represent a node
  */
-public class LeafDataLesson<T> implements SelfSerializable {
+public class LeafDataLesson implements SelfSerializable {
 
     private static final long CLASS_ID = 0xafbdd5560579cb02L;
 
@@ -22,9 +20,9 @@ public class LeafDataLesson<T> implements SelfSerializable {
         public static final int ORIGINAL = 1;
     }
 
-    private TeacherTreeView<T> teacherView;
-    private LearnerTreeView<T> learnerTreeView;
-    private T leaf;
+    private TeacherTreeView teacherView;
+    private LearnerTreeView learnerTreeView;
+    private Long leaf;
 
     /**
      * Zero arg constructor for constructable registry.
@@ -37,7 +35,7 @@ public class LeafDataLesson<T> implements SelfSerializable {
      * @param learnerTreeView
      * 		the view for the learner
      */
-    public LeafDataLesson(final LearnerTreeView<T> learnerTreeView) {
+    public LeafDataLesson(final LearnerTreeView learnerTreeView) {
         this.learnerTreeView = learnerTreeView;
     }
 
@@ -49,7 +47,7 @@ public class LeafDataLesson<T> implements SelfSerializable {
      * @param leaf
      * 		the leaf to send in the lesson
      */
-    public LeafDataLesson(final TeacherTreeView<T> teacherView, final T leaf) {
+    public LeafDataLesson(final TeacherTreeView teacherView, final Long leaf) {
         this.teacherView = teacherView;
         this.leaf = leaf;
     }
@@ -57,7 +55,7 @@ public class LeafDataLesson<T> implements SelfSerializable {
     /**
      * Get the leaf contained by this lesson.
      */
-    public T getLeaf() {
+    public Long getLeaf() {
         return leaf;
     }
 

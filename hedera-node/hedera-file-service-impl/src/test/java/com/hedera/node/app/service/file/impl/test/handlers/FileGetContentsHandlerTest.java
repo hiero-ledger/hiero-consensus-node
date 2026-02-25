@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -116,7 +117,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     @Test
     void returnsGenesisExchangeRatesIfMissing() {
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        given(genesisSchema.genesisExchangeRates(DEFAULT_CONFIG)).willReturn(contentsBytes);
+        given(genesisSchema.genesisExchangeRatesBytes(DEFAULT_CONFIG)).willReturn(contentsBytes);
 
         final var query = createGetFileContentQuery(
                 DEFAULT_CONFIG.getConfigData(FilesConfig.class).exchangeRates());
@@ -146,10 +147,26 @@ class FileGetContentsHandlerTest extends FileTestBase {
     }
 
     @Test
+    void returnsGenesisSimpleFeeSchedulesIfMissing() {
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(genesisSchema.genesisSimpleFeesSchedules(DEFAULT_CONFIG)).willReturn(contentsBytes);
+
+        final var query = createGetFileContentQuery(
+                DEFAULT_CONFIG.getConfigData(FilesConfig.class).simpleFeesSchedules());
+        given(context.query()).willReturn(query);
+        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
+
+        final var response = subject.findResponse(context, ResponseHeader.DEFAULT);
+        assertSame(
+                contentsBytes,
+                response.fileGetContentsOrThrow().fileContentsOrThrow().contents());
+    }
+
+    @Test
     void validatesQueryEvenWhenFileDeletedInState() {
         givenValidFile(true);
         readableFileState = readableFileState();
-        given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(readableFileState);
         readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetFileContentQuery(fileId);

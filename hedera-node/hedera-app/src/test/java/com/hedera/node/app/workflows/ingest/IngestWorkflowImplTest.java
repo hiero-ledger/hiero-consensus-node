@@ -13,7 +13,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,11 +25,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -41,6 +44,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -71,7 +75,7 @@ class IngestWorkflowImplTest extends AppTestBase {
     private final BufferedData responseBuffer = BufferedData.allocate(1024 * 6);
 
     /** The request transaction */
-    private Transaction transaction;
+    private SignedTransaction signedTx;
 
     /** The request transaction body */
     private TransactionBody transactionBody;
@@ -85,6 +89,9 @@ class IngestWorkflowImplTest extends AppTestBase {
 
     @Mock(strictness = LENIENT)
     IngestChecker ingestChecker;
+
+    @Mock
+    private TxPipelineTracker txPipelineTracker;
 
     @Mock(strictness = LENIENT)
     SubmissionManager submissionManager;
@@ -115,18 +122,28 @@ class IngestWorkflowImplTest extends AppTestBase {
         // TODO Mock out the metrics to return objects we can inspect later
 
         // Mock out the onset to always return a valid parsed object
-        transaction = Transaction.newBuilder().body(transactionBody).build();
+        signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(transactionBody))
+                .build();
         final var transactionInfo = new TransactionInfo(
-                transaction,
+                signedTx,
                 transactionBody,
                 SignatureMap.newBuilder().build(),
                 randomBytes(100), // Not used in this test, so random bytes is OK
                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
-                null);
-        when(ingestChecker.runAllChecks(state, requestBuffer, configuration)).thenReturn(transactionInfo);
+                SignedTransaction.PROTOBUF.toBytes(signedTx));
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, configProvider);
+        workflow = new IngestWorkflowImpl(
+                stateAccessor, ingestChecker, submissionManager, txPipelineTracker, configProvider);
     }
 
     @Test
@@ -141,7 +158,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
         assertThat(response.cost()).isZero();
         // And that the transaction and its bytes were actually passed to the submission manager
-        verify(submissionManager).submit(transactionBody, requestBuffer);
+        verify(submissionManager).submit(eq(transactionBody), any(), eq(false));
     }
 
     @Nested
@@ -169,7 +186,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
                 assertThat(response.cost()).isZero();
                 // And the transaction is not submitted to the platform
-                verify(submissionManager, never()).submit(any(), any());
+                verify(submissionManager, never()).submit(any(), any(), eq(false));
             }
         }
     }
@@ -195,7 +212,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("If the transaction fails WorkflowOnset, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a PreCheckException with the given failure reason
-            when(ingestChecker.runAllChecks(any(), any(), any())).thenThrow(new PreCheckException(failureReason));
+            doAnswer(invocationOnMock -> {
+                        throw new PreCheckException(failureReason);
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -206,15 +227,18 @@ class IngestWorkflowImplTest extends AppTestBase {
             // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
 
         @Test
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(ingestChecker.runAllChecks(any(), any(), any()))
-                    .thenThrow(new RuntimeException("parseAndCheck exception"));
+            doAnswer(invocationOnMock -> {
+                        throw new RuntimeException("parseAndCheck exception");
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -224,7 +248,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // And the cost will be zero
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
     }
 
@@ -244,8 +268,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("When ingest checks fail, the transaction should be rejected")
         void testIngestChecksFail(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
             // Given a throttle on CONSENSUS_CREATE_TOPIC transactions (i.e. it is time to throttle)
-            when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
-                    .thenThrow(new PreCheckException(failureReason));
+            doAnswer(invocationOnMock -> {
+                        throw new PreCheckException(failureReason);
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -256,15 +283,18 @@ class IngestWorkflowImplTest extends AppTestBase {
             // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
 
         @Test
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a ThrottleAccumulator that will throw a RuntimeException
-            when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
-                    .thenThrow(new RuntimeException("runAllChecks exception"));
+            doAnswer(invocationOnMock -> {
+                        throw new RuntimeException("runAllChecks exception");
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -275,7 +305,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // And the cost will be zero
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
     }
 
@@ -289,7 +319,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // Given a SubmissionManager that will fail the submit
             doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                     .when(submissionManager)
-                    .submit(any(), any());
+                    .submit(any(), any(), eq(false));
 
             // When we submit a transaction
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -307,7 +337,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // Given a SubmissionManager that will throw a RuntimeException from submit
             doThrow(new RuntimeException("submit exception"))
                     .when(submissionManager)
-                    .submit(any(), any());
+                    .submit(any(), any(), eq(false));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);

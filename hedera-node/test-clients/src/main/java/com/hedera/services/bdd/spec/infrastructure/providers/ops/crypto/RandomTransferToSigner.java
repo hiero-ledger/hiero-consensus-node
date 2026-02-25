@@ -16,6 +16,10 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.Optional;
 
 public class RandomTransferToSigner extends RandomTransfer {
+
+    private final ResponseCodeEnum[] permissiblePrechecks =
+            standardPrechecksAnd(PAYER_ACCOUNT_NOT_FOUND, ACCOUNT_DELETED, PAYER_ACCOUNT_DELETED);
+
     private final ResponseCodeEnum[] outcomes;
     private final String signer;
 
@@ -37,7 +41,7 @@ public class RandomTransferToSigner extends RandomTransfer {
                 .signedBy(signer)
                 .payingWith(signer)
                 .sigMapPrefixes(uniqueWithFullPrefixesFor(signer))
-                .hasPrecheckFrom(standardPrechecksAnd(PAYER_ACCOUNT_NOT_FOUND, ACCOUNT_DELETED, PAYER_ACCOUNT_DELETED))
+                .hasPrecheckFrom(permissiblePrechecks)
                 .hasKnownStatusFrom(outcomes)
                 .noLogging();
 

@@ -2,18 +2,17 @@
 package com.swirlds.platform.core.jmh;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.platform.event.hashing.EventHasher;
-import com.swirlds.platform.event.hashing.PbjStreamHasher;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -46,12 +45,12 @@ public class EventBenchmarks {
     public HasherType hasherType;
 
     private PlatformEvent event;
-    private MerkleDataOutputStream outStream;
-    private MerkleDataInputStream inStream;
+    private SerializableDataOutputStream outStream;
+    private SerializableDataInputStream inStream;
     private EventHasher eventHasher;
 
     @Setup
-    public void setup() throws IOException, ConstructableRegistryException {
+    public void setup() throws IOException {
         final Random random = new Random(seed);
 
         event = new TestingEventBuilder(random)
@@ -62,8 +61,8 @@ public class EventBenchmarks {
                 .build();
         final PipedInputStream inputStream = new PipedInputStream();
         final PipedOutputStream outputStream = new PipedOutputStream(inputStream);
-        outStream = new MerkleDataOutputStream(outputStream);
-        inStream = new MerkleDataInputStream(inputStream);
+        outStream = new SerializableDataOutputStream(outputStream);
+        inStream = new SerializableDataInputStream(inputStream);
         eventHasher = hasherType.newHasher();
     }
 

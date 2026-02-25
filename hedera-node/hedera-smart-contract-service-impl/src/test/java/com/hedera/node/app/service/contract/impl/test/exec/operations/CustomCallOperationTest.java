@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REQUIRED_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SYSTEM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -17,9 +18,10 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
@@ -78,7 +80,6 @@ class CustomCallOperationTest {
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected =
                     new Operation.OperationResult(REQUIRED_GAS, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
@@ -105,7 +106,6 @@ class CustomCallOperationTest {
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected =
                     new Operation.OperationResult(REQUIRED_GAS, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
@@ -120,8 +120,6 @@ class CustomCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
         given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        given(entityIdFactory.hexLongZero(0)).willReturn("1234");
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
         final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
@@ -134,9 +132,9 @@ class CustomCallOperationTest {
     void withNoValueRejectsMissingAddressIfAllowCallFeatureFlagOff() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWith(0L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, EIP_1014_ADDRESS, featureFlags))
                     .thenReturn(true);
@@ -155,8 +153,6 @@ class CustomCallOperationTest {
             given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS);
             given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(2l)));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
-            frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
             final var actual = subject.execute(frame, evm);
@@ -169,9 +165,9 @@ class CustomCallOperationTest {
     void withoutImplicitCreationEnabledRejectsMissingAddress() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, TestHelpers.EIP_1014_ADDRESS, featureFlags))
                     .thenReturn(true);
@@ -180,6 +176,24 @@ class CustomCallOperationTest {
             final var actual = subject.execute(frame, evm);
 
             assertSameResult(expected, actual);
+        }
+    }
+
+    @Test
+    void returnsOwnerAddressForSenderDuringHookExecution() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
+            frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
+            frameUtils
+                    .when(() -> FrameUtils.contractRequired(frame, TestHelpers.EIP_1014_ADDRESS, featureFlags))
+                    .thenReturn(true);
+            given(frame.getRecipientAddress()).willReturn(TestHelpers.HTS_HOOKS_CONTRACT_ADDRESS);
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
+            frameUtils.when(() -> FrameUtils.hookOwnerAddress(frame)).thenReturn(TestHelpers.SYSTEM_ADDRESS);
+
+            final var actual = subject.sender(frame);
+
+            assertEquals(TestHelpers.SYSTEM_ADDRESS, actual);
         }
     }
 

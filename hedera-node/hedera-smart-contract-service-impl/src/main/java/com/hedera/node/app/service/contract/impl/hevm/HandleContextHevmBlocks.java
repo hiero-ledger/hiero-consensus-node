@@ -10,6 +10,7 @@ import java.util.Objects;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.frame.BlockValues;
+import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
  * A {@link HederaEvmBlocks} implementation that uses the {@link HandleContext} to get
@@ -28,7 +29,7 @@ public class HandleContextHevmBlocks implements HederaEvmBlocks {
      * {@inheritDoc}
      */
     @Override
-    public Hash blockHashOf(final long blockNo) {
+    public Hash blockHashOf(final MessageFrame frame, final long blockNo) {
         final var hederaBlockHash = context.blockRecordInfo().blockHashByBlockNumber(blockNo);
         return hederaBlockHash == null ? UNAVAILABLE_BLOCK_HASH : ethHashFrom(hederaBlockHash);
     }

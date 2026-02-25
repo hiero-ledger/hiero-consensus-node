@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -10,8 +11,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -23,7 +25,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * The contract service component
@@ -40,7 +41,7 @@ public interface ContractServiceComponent {
          * @param instantSource the source of the current instant
          * @param signatureVerifier the verifier used for signature verification
          * @param verificationStrategies the current verification strategy to use
-         * @param addOnTracers all operation tracer callbacks
+         * @param addOnTracers all action sidecar content tracer callbacks
          * @param contractMetrics holds all metrics for the smart contract service
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
@@ -51,11 +52,12 @@ public interface ContractServiceComponent {
                 @BindsInstance InstantSource instantSource,
                 @BindsInstance SignatureVerifier signatureVerifier,
                 @BindsInstance VerificationStrategies verificationStrategies,
-                @BindsInstance @Nullable Supplier<List<OperationTracer>> addOnTracers,
+                @BindsInstance @Nullable Supplier<List<ActionSidecarContentTracer>> addOnTracers,
                 @BindsInstance ContractMetrics contractMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
-                @BindsInstance EntityIdFactory entityIdFactory);
+                @BindsInstance EntityIdFactory entityIdFactory,
+                @BindsInstance NativeLibVerifier nativeLibVerifier);
     }
 
     /**
@@ -67,6 +69,11 @@ public interface ContractServiceComponent {
      * @return contract metrics collection, instance
      */
     ContractMetrics contractMetrics();
+
+    /**
+     * @return the current instant source
+     */
+    NativeLibVerifier nativeLibVerifier();
 
     /**
      * @return method registry for system contracts

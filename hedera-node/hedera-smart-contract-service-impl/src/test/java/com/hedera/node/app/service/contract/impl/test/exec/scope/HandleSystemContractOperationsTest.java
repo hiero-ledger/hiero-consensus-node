@@ -24,8 +24,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleSystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -56,7 +56,7 @@ class HandleSystemContractOperationsTest {
     private HandleContext context;
 
     @Mock
-    private ContractCallStreamBuilder recordBuilder;
+    private ContractCallStreamBuilder streamBuilder;
 
     @Mock
     private ExchangeRateInfo exchangeRateInfo;
@@ -162,25 +162,31 @@ class HandleSystemContractOperationsTest {
     void externalizesPreemptedAsExpected() {
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CRYPTO_TRANSFER))
-                .willReturn(recordBuilder);
-        given(recordBuilder.transaction(any())).willReturn(recordBuilder);
-        given(recordBuilder.status(any())).willReturn(recordBuilder);
+                .willReturn(streamBuilder);
+        given(streamBuilder.signedTx(any())).willReturn(streamBuilder);
+        given(streamBuilder.status(any())).willReturn(streamBuilder);
 
         final var preemptedBuilder =
                 subject.externalizePreemptedDispatch(TransactionBody.DEFAULT, ACCOUNT_DELETED, CRYPTO_TRANSFER);
 
-        assertSame(recordBuilder, preemptedBuilder);
-        verify(recordBuilder).status(ACCOUNT_DELETED);
+        assertSame(streamBuilder, preemptedBuilder);
+        verify(streamBuilder).status(ACCOUNT_DELETED);
     }
 
     @Test
     void externalizeSuccessfulResultWithTransactionBodyTest() {
-        var transaction = Transaction.newBuilder()
-                .body(TransactionBody.newBuilder()
+        var transaction = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
-                        .build())
+                        .build()))
                 .build();
         var contractFunctionResult = SystemContractUtils.successResultOfZeroValueTraceable(
+                0,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                100L,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                AccountID.newBuilder().build());
+        var txResult = SystemContractUtils.txSuccessResultOfZeroValueTraceable(
                 0,
                 org.apache.tuweni.bytes.Bytes.EMPTY,
                 100L,
@@ -190,21 +196,21 @@ class HandleSystemContractOperationsTest {
         // given
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
-                .willReturn(recordBuilder);
-        given(recordBuilder.transaction(transaction)).willReturn(recordBuilder);
-        given(recordBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(recordBuilder);
+                .willReturn(streamBuilder);
+        given(streamBuilder.signedTx(transaction)).willReturn(streamBuilder);
+        given(streamBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(streamBuilder);
+        given(streamBuilder.contractCallResult(contractFunctionResult)).willReturn(streamBuilder);
 
         // when
-        subject.externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS, transaction);
+        subject.externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS, transaction, txResult);
 
         // then
-        verify(recordBuilder).status(ResponseCodeEnum.SUCCESS);
-        verify(recordBuilder).contractCallResult(contractFunctionResult);
+        verify(streamBuilder).status(ResponseCodeEnum.SUCCESS);
     }
 
     @Test
     void syntheticTransactionForHtsCallTest() {
-        assertNotNull(subject.syntheticTransactionForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
+        assertNotNull(subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
     }
 
     @Test

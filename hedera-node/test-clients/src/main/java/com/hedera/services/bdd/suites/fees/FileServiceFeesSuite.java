@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -12,10 +13,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -24,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class FileServiceFeesSuite {
     private static final String MEMO = "Really quite something!";
@@ -52,7 +56,10 @@ public class FileServiceFeesSuite {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateBasic"),
-                validateChargedUsd("fileCreateBasic", BASE_FEE_FILE_CREATE));
+                safeValidateChargedUsd(
+                        "fileCreateBasic",
+                        BASE_FEE_FILE_CREATE,
+                        BASE_FEE_FILE_CREATE + 196 * PROCESSING_BYTES_FEE_USD * 10));
     }
 
     @HapiTest
@@ -70,13 +77,16 @@ public class FileServiceFeesSuite {
                         .memo(MEMO)
                         .payingWith(CIVILIAN)
                         .via("fileUpdateBasic"),
-                validateChargedUsd("fileUpdateBasic", BASE_FEE_FILE_UPDATE));
+                safeValidateChargedUsd(
+                        "fileUpdateBasic",
+                        BASE_FEE_FILE_UPDATE,
+                        BASE_FEE_FILE_UPDATE + 156 * PROCESSING_BYTES_FEE_USD * 10));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file delete transaction")
+    @Tag(MATS)
     final Stream<DynamicTest> fileDeleteBaseUSDFee() {
-        String memo = "Really quite something!";
         return hapiTest(
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
@@ -114,11 +124,13 @@ public class FileServiceFeesSuite {
                         .content(contentBuilder.toString())
                         .payingWith(civilian)
                         .via(baseAppend),
-                validateChargedUsd(baseAppend, BASE_FEE_FILE_APPEND));
+                safeValidateChargedUsd(
+                        baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND + 100 * PROCESSING_BYTES_FEE_USD * 10));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file get content transaction")
+    @Tag(MATS)
     final Stream<DynamicTest> fileGetContentBaseUSDFee() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),

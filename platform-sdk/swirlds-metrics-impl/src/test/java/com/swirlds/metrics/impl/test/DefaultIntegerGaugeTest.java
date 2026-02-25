@@ -68,18 +68,50 @@ class DefaultIntegerGaugeTest {
     }
 
     @Test
+    @DisplayName("Test of get() and add()-operation")
+    void testGetAndAdd() {
+        // given
+        final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME).withInitialValue(2);
+        final IntegerGauge gauge = new DefaultIntegerGauge(config);
+
+        // when
+        gauge.set(5);
+
+        // then
+        assertEquals(5, gauge.get(), "Value should be 5");
+        assertEquals(5, gauge.get(VALUE), "Value should be 5");
+
+        // when
+        gauge.add(3);
+
+        // then
+        assertEquals(8, gauge.get(), "Value should be 8");
+        assertEquals(8, gauge.get(VALUE), "Value should be 8");
+
+        // when
+        gauge.add(-12);
+
+        // then
+        assertEquals(-4, gauge.get(), "Value should be -4");
+        assertEquals(-4, gauge.get(VALUE), "Value should be -4");
+    }
+
+    @Test
     void testSnapshot() {
         // given
         final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME).withInitialValue(2);
         final DefaultIntegerGauge gauge = new DefaultIntegerGauge(config);
 
+        gauge.set(3);
         // when
         final List<SnapshotEntry> snapshot = gauge.takeSnapshot();
 
+        gauge.set(4);
+
         // then
-        assertEquals(2, gauge.get(), "Value should be 2");
-        assertEquals(2, gauge.get(VALUE), "Value should be 2");
-        assertThat(snapshot).containsExactly(new SnapshotEntry(VALUE, 2));
+        assertEquals(4, gauge.get(), "Value should be 4");
+        assertEquals(4, gauge.get(VALUE), "Value should be 4");
+        assertThat(snapshot).containsExactly(new SnapshotEntry(VALUE, 3));
     }
 
     @Test

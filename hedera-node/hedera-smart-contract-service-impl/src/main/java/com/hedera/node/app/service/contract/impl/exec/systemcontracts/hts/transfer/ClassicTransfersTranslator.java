@@ -46,47 +46,48 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
      */
     public static final SystemContractMethod TRANSFER_TOKENS = SystemContractMethod.declare(
                     "transferTokens(address,address[],int64[])", ReturnTypes.INT_64)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferToken(address,address,address,int64) method.
      */
     public static final SystemContractMethod TRANSFER_TOKEN = SystemContractMethod.declare(
                     "transferToken(address,address,address,int64)", ReturnTypes.INT_64)
             .withVariants(Variant.FT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferNFTs(address,address[],address[],int64[]) method.
      */
     public static final SystemContractMethod TRANSFER_NFTS = SystemContractMethod.declare(
                     "transferNFTs(address,address[],address[],int64[])", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
     /**
      * Selector for transferNFT(address,address,address,int64) method.
      */
     public static final SystemContractMethod TRANSFER_NFT = SystemContractMethod.declare(
                     "transferNFT(address,address,address,int64)", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
     /**
      * Selector for transferFrom(address,address,address,uint256) method.
      */
     public static final SystemContractMethod TRANSFER_FROM = SystemContractMethod.declare(
                     "transferFrom(address,address,address,uint256)", ReturnTypes.INT_64)
             .withVariants(Variant.FT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferFromNFT(address,address,address,uint256) method.
      */
     public static final SystemContractMethod TRANSFER_NFT_FROM = SystemContractMethod.declare(
                     "transferFromNFT(address,address,address,uint256)", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
 
     private final ClassicTransfersDecoder decoder;
 
     /**
      * Constructor for injection.
+     *
      * @param decoder the decoder used to decode transfer calls
      */
     @Inject
@@ -148,21 +149,21 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
 
     private @Nullable TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
         if (attempt.isSelector(CRYPTO_TRANSFER)) {
-            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(CRYPTO_TRANSFER_V2)) {
-            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKENS)) {
-            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKEN)) {
-            return decoder.decodeTransferToken(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferToken(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFTS)) {
-            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFT)) {
-            return decoder.decodeTransferNft(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNft(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_FROM)) {
-            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt);
         } else {
-            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt);
         }
     }
 

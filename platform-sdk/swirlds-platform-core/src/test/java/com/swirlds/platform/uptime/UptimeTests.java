@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
-import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.addRandomRosterEntryToRoster;
-import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.dropRosterEntryFromRoster;
 import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.addRandomRosterEntryToRoster;
+import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.dropRosterEntryFromRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -17,9 +18,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,7 +32,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +83,7 @@ class UptimeTests {
         final ConsensusRound round =
                 new ConsensusRound(roster, events, mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
-        when(snapshot.consensusTimestamp()).thenReturn(CommonUtils.toPbjTimestamp(consensusTimestamp));
+        when(snapshot.consensusTimestamp()).thenReturn(toPbjTimestamp(consensusTimestamp));
         when(snapshot.round()).thenReturn(roundNum);
         when(round.getRoundNum()).thenReturn(roundNum);
         return round;
@@ -95,15 +94,14 @@ class UptimeTests {
     void roundScanTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -118,7 +116,7 @@ class UptimeTests {
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.handleRound(roundOne);
+        uptimeTracker.trackRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -165,7 +163,7 @@ class UptimeTests {
                 random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, noSecondRoundJudges);
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, roster, 2);
-        uptimeTracker.handleRound(roundTwo);
+        uptimeTracker.trackRound(roundTwo);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -210,15 +208,14 @@ class UptimeTests {
     void roundScanChangingRosterTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
@@ -240,7 +237,7 @@ class UptimeTests {
         });
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.handleRound(roundOne);
+        uptimeTracker.trackRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -287,7 +284,7 @@ class UptimeTests {
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, newRoster, 2);
 
-        uptimeTracker.handleRound(roundTwo);
+        uptimeTracker.trackRound(roundTwo);
 
         newRoster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -331,15 +328,14 @@ class UptimeTests {
     void degradedTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(3).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -356,7 +352,7 @@ class UptimeTests {
         });
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.handleRound(roundOne);
+        uptimeTracker.trackRound(roundOne);
 
         // Simulate a following round, but allow a long time to pass
         time.tick(Duration.ofSeconds(30));
@@ -367,7 +363,7 @@ class UptimeTests {
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, Set.of());
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, roster, 2);
-        uptimeTracker.handleRound(roundTwo);
+        uptimeTracker.trackRound(roundTwo);
 
         assertTrue(uptimeTracker.isSelfDegraded());
 
@@ -377,7 +373,7 @@ class UptimeTests {
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, Set.of(), Set.of());
 
         final ConsensusRound roundThree = mockRound(thirdRoundEvents, roster, 3);
-        uptimeTracker.handleRound(roundThree);
+        uptimeTracker.trackRound(roundThree);
 
         assertFalse(uptimeTracker.isSelfDegraded());
     }

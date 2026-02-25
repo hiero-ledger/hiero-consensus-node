@@ -13,10 +13,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.convertAccountToLog;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,19 +31,23 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 
 class Erc20TransfersCallTest extends CallTestBase {
     private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
     private static final Address TO_ADDRESS =
-            ConversionUtils.asHeadlongAddress(asEvmAddress(shard, realm, B_NEW_ACCOUNT_ID.accountNumOrThrow()));
+            ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
     @Mock
     private AddressIdConverter addressIdConverter;
@@ -57,16 +59,13 @@ class Erc20TransfersCallTest extends CallTestBase {
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    private ContractCallStreamBuilder recordBuilder;
+    private ContractCallStreamBuilder streamBuilder;
 
     @Mock
     private SystemContractGasCalculator systemContractGasCalculator;
 
     @Mock
     private SpecialRewardReceivers specialRewardReceivers;
-
-    @Mock
-    private ProxyWorldUpdater worldUpdater;
 
     private Erc20TransfersCall subject;
 
@@ -99,13 +98,14 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
-        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
         subject = subjectForTransfer(1L);
 
@@ -113,6 +113,15 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        // check that events was added
+        assertEquals(1, logs.size());
+        assertEquals(3, logs.getFirst().getTopics().size());
+        assertEquals(
+                convertAccountToLog(OWNER_ACCOUNT), logs.getFirst().getTopics().get(1));
+        assertEquals(
+                convertAccountToLog(ALIASED_RECEIVER),
+                logs.getFirst().getTopics().get(2));
+        assertEquals(1L, UInt256.fromBytes(logs.getFirst().getData()).toLong());
     }
 
     @Test
@@ -123,13 +132,12 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
+                .willReturn(streamBuilder);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(A_NEW_ACCOUNT_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
-        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
 
         subject = subjectForTransferFrom(1L);
 
@@ -148,8 +156,8 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
-        given(recordBuilder.status()).willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
 
         subject = subjectForTransfer(1L);
 

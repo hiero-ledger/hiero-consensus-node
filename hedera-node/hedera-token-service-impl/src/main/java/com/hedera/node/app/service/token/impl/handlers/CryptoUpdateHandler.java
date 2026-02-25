@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -12,12 +13,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.node.app.hapi.fees.pricing.BaseOperationUsage.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
@@ -30,6 +35,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -57,7 +63,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,6 +80,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Default constructor for injection.
+     *
      * @param waivers the {@link CryptoSignatureWaivers} to use for checking signature waivers
      */
     @Inject
@@ -91,6 +97,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        validateHookDuplicates(op.hookCreationDetails());
+        if (!op.hookIdsToDelete().isEmpty()) {
+            final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
+            validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
     }
 
     @Override
@@ -123,6 +134,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * This method is called during the handle workflow. It executes the actual transaction.
+     *
      * @param context the {@link HandleContext} which collects all information
      * @throws HandleException if any of the checks fail
      * @throws NullPointerException if any of the arguments are null
@@ -151,6 +163,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (targetAccount.expiredAndPendingRemoval()) {
             builder.expiredAndPendingRemoval(false);
         }
+        // Update hooks if any
+        updateHooks(context, targetAccount, op, builder);
 
         // Add account to the modifications in state
         accountStore.put(builder.build());
@@ -160,7 +174,43 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     /**
+     * Update hooks if any in the transaction. This includes dispatching hook creations and deletions.
+     * This method also updates the firstHookId and numberHooksInUse in the account builder.
+     *
+     * @param context the handle context
+     * @param targetAccount the account to be updated
+     * @param op the crypto update transaction body
+     * @param builder the account builder to update firstHookId and numberHooksInUse
+     */
+    private void updateHooks(
+            final @NonNull HandleContext context,
+            final Account targetAccount,
+            final CryptoUpdateTransactionBody op,
+            final Account.Builder builder) {
+        final var hookEntityId = HookEntityId.newBuilder()
+                .accountId(op.accountIDToUpdateOrThrow())
+                .build();
+        var headAfterDeletes = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
+        if (!op.hookIdsToDelete().isEmpty()) {
+            headAfterDeletes = dispatchHookDeletions(context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var updatedSlots =
+                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
+            builder.numberEvmHookStorageSlots(targetAccount.numberEvmHookStorageSlots() + updatedSlots);
+        }
+        // If there are creations, the updated account's first hook id is the first creation no matter what deletions
+        if (!op.hookCreationDetails().isEmpty()) {
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+        } else if (!op.hookIdsToDelete().isEmpty()) {
+            // Otherwise the first hook id is the head after deletions; or zero if none are left
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
+        }
+    }
+
+    /**
      * Add a builder from {@link CryptoUpdateTransactionBody} to create {@link Account.Builder} object.
+     *
      * @param op Crypto update transaction body
      * @return builder
      */
@@ -208,12 +258,19 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 builder.stakedNodeId(op.stakedNodeId());
             }
         }
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            final var currentHooks = currentAccount.numberHooksInUse();
+            builder.numberHooksInUse(currentHooks
+                    - op.hookIdsToDelete().size()
+                    + op.hookCreationDetails().size());
+        }
         return builder;
     }
 
     /**
      * Validate semantics of the transaction. This method is called during the handle workflow.
      * It validates any fields of the transaction that involves state or config.
+     *
      * @param context handle context
      * @param updateAccount account to be updated
      * @param op crypto update transaction body
@@ -244,7 +301,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.hasExpirationTime() ? op.expirationTime().seconds() : NA,
                 op.hasAutoRenewPeriod() ? op.autoRenewPeriod().seconds() : NA,
                 null);
-        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta, false);
+        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta);
 
         // If an account is detached and pending removal, it cannot be updated
         // It can only be updated to extend expiration time
@@ -278,6 +335,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Validate basic fields of the transaction that involves state or config.
+     *
      * @param op crypto update transaction body
      * @param context handle context
      * @param accountStore account store
@@ -300,7 +358,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
 
         StakingValidator.validateStakedIdForUpdate(
-                context.configuration().getConfigData(StakingConfig.class).isEnabled(),
                 op.hasDeclineReward(),
                 op.stakedId().kind().name(),
                 op.stakedAccountId(),
@@ -312,6 +369,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * Currently, it just duplicates all the logic from mono-service
+     *
      * @param feeContext the {@link FeeContext} with all information needed for the calculation
      * @return the calculated fees
      */
@@ -332,6 +390,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the base size of the cryptoUpdate transaction.
      * This is the duplicated code as in mono-service
+     *
      * @param txBody the {@link CryptoUpdateTransactionBody}
      * @param keySize the size of the key
      * @return the calculated base size
@@ -349,6 +408,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction auto-renew information.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
@@ -365,11 +425,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction related to memo and keys.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
     private static int currentNonBaseBytes(final Account account) {
-        return account.memo().getBytes(StandardCharsets.UTF_8).length
+        // TODO: should this part be a new utility method so we don't repeat it over and over?
+        final var accountMemoSize = (account == null || account.memo() == null)
+                ? 0
+                : account.memo().getBytes(StandardCharsets.UTF_8).length;
+
+        return accountMemoSize
                 + getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
                 + (account.maxAutoAssociations() == 0 ? 0 : INT_SIZE);
     }
@@ -377,6 +443,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * This can also be used for lazy account creation logic in AutoAccountCreator class in future PRs
+     *
      * @param body the {@link TransactionBody}
      * @param feeCalculator the {@link FeeCalculator}
      * @param accountStore the {@link ReadableAccountStore}
@@ -430,10 +497,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 Math.max(explicitAutoAssocSlotLifetime, oldLifetime),
                 newSlotsUsage,
                 Math.max(explicitAutoAssocSlotLifetime, newLifetime));
-        return feeCalculator
+        final var fees = feeCalculator
                 .addBytesPerTransaction(baseSize)
                 .addRamByteSeconds(rbsDelta > 0 ? rbsDelta : 0)
-                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0)
-                .calculate();
+                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0);
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            // Using SBS here because this part us not used in other calculations. It is a per hour cost
+            // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+            fees.addStorageBytesSeconds(
+                    (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
+        }
+        return fees.calculate();
     }
 }

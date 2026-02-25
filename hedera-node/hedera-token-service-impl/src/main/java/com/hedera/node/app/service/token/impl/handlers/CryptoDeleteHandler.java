@@ -12,8 +12,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion;
 import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -22,7 +22,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -71,8 +70,8 @@ public class CryptoDeleteHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) {
         requireNonNull(context);
-        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var op = context.body().cryptoDeleteOrThrow();
+        final var accountNodeRelStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
                 .deleteAndTransfer(
@@ -80,7 +79,7 @@ public class CryptoDeleteHandler implements TransactionHandler {
                         op.transferAccountIDOrThrow(),
                         context.expiryValidator(),
                         context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class),
-                        accountsConfig.releaseAliasAfterDeletion() ? FreeAliasOnDeletion.YES : FreeAliasOnDeletion.NO);
+                        accountNodeRelStore);
     }
 
     @NonNull

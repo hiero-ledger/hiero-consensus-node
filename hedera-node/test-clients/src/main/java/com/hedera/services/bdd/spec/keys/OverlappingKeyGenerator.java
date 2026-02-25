@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class OverlappingKeyGenerator implements KeyGenerator {
     private static final Logger log = LogManager.getLogger(OverlappingKeyGenerator.class);

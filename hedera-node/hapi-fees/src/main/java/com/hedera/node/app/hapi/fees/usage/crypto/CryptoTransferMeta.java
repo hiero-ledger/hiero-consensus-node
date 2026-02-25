@@ -13,6 +13,7 @@ public class CryptoTransferMeta {
     private int customFeeTokensInvolved;
     private int customFeeHbarTransfers;
     private int customFeeTokenTransfers;
+    private int numHookInvocations;
 
     public CryptoTransferMeta(
             int tokenMultiplier, int numTokensInvolved, int numFungibleTokenTransfers, int numNftOwnershipChanges) {
@@ -64,6 +65,14 @@ public class CryptoTransferMeta {
 
     public int getNumNftOwnershipChanges() {
         return numNftOwnershipChanges;
+    }
+
+    public int getNumHookInvocations() {
+        return numHookInvocations;
+    }
+
+    public void setNumHookInvocations(final int numHookInvocations) {
+        this.numHookInvocations = numHookInvocations;
     }
 
     public SubType getSubType() {

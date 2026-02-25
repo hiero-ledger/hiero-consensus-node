@@ -3,14 +3,14 @@ package com.swirlds.platform.test.fixtures.stream;
 
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 

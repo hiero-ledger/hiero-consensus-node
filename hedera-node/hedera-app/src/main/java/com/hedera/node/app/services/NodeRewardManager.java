@@ -4,12 +4,12 @@ package com.hedera.node.app.services;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
-import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toMap;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -18,10 +18,11 @@ import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.metrics.NodeMetrics;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
@@ -32,10 +33,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,12 +41,15 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
  * Manages the node rewards for the network. This includes tracking the number of rounds in the current staking
@@ -58,6 +59,7 @@ import org.apache.logging.log4j.Logger;
  */
 @Singleton
 public class NodeRewardManager {
+
     private static final Logger log = LogManager.getLogger(NodeRewardManager.class);
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
@@ -116,9 +118,10 @@ public class NodeRewardManager {
      * @param state the state
      */
     public void updateJudgesOnEndRound(State state) {
-        // Track missing judges in this round
-        missingJudgesInLastRoundOf(state).forEach(nodeId -> missedJudgeCounts.merge(nodeId, 1L, Long::sum));
         roundsThisStakingPeriod++;
+        // Track missing judges in this round
+        missingJudgesInLastRoundOf(state)
+                .forEach(nodeId -> missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? 1 : v + 1));
     }
 
     /**
@@ -196,6 +199,7 @@ public class NodeRewardManager {
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
         // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
+            log.info("Considering paying node rewards for the last staking period at {}", asTimestamp(now));
             // Identify the nodes active in the last staking period
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var currentRoster =
@@ -275,8 +279,8 @@ public class NodeRewardManager {
      */
     private @NonNull NodeRewards nodeRewardInfoFrom(@NonNull final State state) {
         final var nodeRewardInfoState =
-                state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_KEY);
-        return requireNonNull(nodeRewardInfoState.get());
+                state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
+        return Optional.ofNullable(nodeRewardInfoState.get()).orElse(NodeRewards.DEFAULT);
     }
 
     /**
@@ -290,7 +294,7 @@ public class NodeRewardManager {
      */
     private void updateNodeRewardState(@NonNull final State state, final long nodeFeesCollected) {
         final var writableTokenState = state.getWritableStates(TokenService.NAME);
-        final var nodeRewardsState = writableTokenState.<NodeRewards>getSingleton(NODE_REWARDS_KEY);
+        final var nodeRewardsState = writableTokenState.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
         final var nodeActivities = missedJudgeCounts.entrySet().stream()
                 .map(entry -> NodeActivity.newBuilder()
                         .nodeId(entry.getKey())
@@ -315,7 +319,7 @@ public class NodeRewardManager {
      */
     private List<Long> missingJudgesInLastRoundOf(@NonNull final State state) {
         final var readablePlatformState =
-                state.getReadableStates(PlatformStateService.NAME).<PlatformState>getSingleton(PLATFORM_STATE_KEY);
+                state.getReadableStates(PlatformStateService.NAME).<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
         final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
         final var judges = requireNonNull(readablePlatformState.get()).consensusSnapshot().judgeIds().stream()
                 .map(JudgeId::creatorId)

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -19,8 +19,9 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
-import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.systemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 public class ExtCodeSizeOperationSuite {
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistence() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
@@ -92,6 +94,7 @@ public class ExtCodeSizeOperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> testExtCodeSizeWithSystemAccounts() {
         final var contract = "ExtCodeOperationsChecker";
         final var sizeOf = "sizeOf";
@@ -99,13 +102,14 @@ public class ExtCodeSizeOperationSuite {
         final var opsArray = new HapiSpecOperation[systemAccounts.size() * 2];
 
         for (int i = 0; i < systemAccounts.size(); i++) {
+            final var index = i;
             // add contract call for all accounts in the list
-            opsArray[i] = contractCall(contract, sizeOf, mirrorAddrWith(systemAccounts.get(i)))
+            opsArray[i] = contractCall(contract, sizeOf, mirrorAddrParamFunction(systemAccounts.get(index)))
                     .hasKnownStatus(SUCCESS);
 
             // add contract call local for all accounts in the list
             opsArray[systemAccounts.size() + i] = contractCallLocal(
-                            contract, sizeOf, mirrorAddrWith(systemAccounts.get(i)))
+                            contract, sizeOf, mirrorAddrParamFunction(systemAccounts.get(index)))
                     .has(ContractFnResultAsserts.resultWith()
                             .resultThruAbi(
                                     getABIFor(FUNCTION, sizeOf, contract),

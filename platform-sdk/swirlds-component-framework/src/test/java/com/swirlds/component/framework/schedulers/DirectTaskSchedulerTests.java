@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

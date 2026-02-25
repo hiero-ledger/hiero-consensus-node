@@ -4,7 +4,6 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.benchmark")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("org.hiero.gradle.feature.test-time-consuming")
     id("org.hiero.gradle.feature.test-timing-sensitive")
 }
 
@@ -14,19 +13,20 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-deprecation,-exports,-removal,-varargs")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo {
     requires("org.apache.logging.log4j.core")
     requires("org.apache.commons.lang3")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.logging.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("jakarta.inject")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 timingSensitiveModuleInfo {
@@ -37,6 +37,8 @@ timingSensitiveModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     runtimeOnly("com.swirlds.common.test.fixtures")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 jmhModuleInfo {

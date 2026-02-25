@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows;
 
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
@@ -14,13 +13,11 @@ import com.hedera.node.app.workflows.query.QueryWorkflowInjectionModule;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import javax.inject.Singleton;
 
 /**
@@ -45,16 +42,13 @@ public interface WorkflowsInjectionModule {
     @Singleton
     @BackendThrottle
     static ThrottleAccumulator provideBackendThrottleAccumulator(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final ConfigProvider configProvider, @NonNull final Metrics metrics) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,
                 configProvider::getConfiguration,
                 BACKEND_THROTTLE,
                 throttleMetrics,
-                ThrottleAccumulator.Verbose.YES,
-                softwareVersionFactory);
+                ThrottleAccumulator.Verbose.YES);
     }
 }

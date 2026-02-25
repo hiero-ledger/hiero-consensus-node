@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureD
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateUpgradeArtifactsProperty;
 
 import com.hedera.node.app.Hedera;
+import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.AbstractLocalNode;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
@@ -63,13 +64,17 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         System.setProperty(
                 "bootstrap.nodeAdminKeys.path",
                 getExternalPath(NODE_ADMIN_KEYS_JSON).toAbsolutePath().toString());
+        System.setProperty(
+                "bootstrap.hapiPermissions.path",
+                getExternalPath(DATA_CONFIG_DIR)
+                        .resolve("api-permission.properties")
+                        .toAbsolutePath()
+                        .toString());
         System.setProperty("hedera.profiles.active", "DEV");
 
         // We get the shard/realm from the metadata account which is coming from the property file
-        var shard = metadata().accountId().shardNum();
-        var realm = metadata().accountId().realmNum();
-        System.setProperty("hedera.shard", String.valueOf(shard));
-        System.setProperty("hedera.realm", String.valueOf(realm));
+        System.setProperty("hedera.shard", String.valueOf(metadata().accountId().shardNum()));
+        System.setProperty("hedera.realm", String.valueOf(metadata().accountId().realmNum()));
 
         final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
         if (isForShared(log4j2ConfigLoc)) {
@@ -82,8 +87,8 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     }
 
     @Override
-    public @NonNull EmbeddedNode initWorkingDir(@NonNull final String configTxt) {
-        super.initWorkingDir(configTxt);
+    public @NonNull EmbeddedNode initWorkingDir(@NonNull final Network network) {
+        super.initWorkingDir(network);
         updateUpgradeArtifactsProperty(getExternalPath(APPLICATION_PROPERTIES), getExternalPath(UPGRADE_ARTIFACTS_DIR));
         return this;
     }

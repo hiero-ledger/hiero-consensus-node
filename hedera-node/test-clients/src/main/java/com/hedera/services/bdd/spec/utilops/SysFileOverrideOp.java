@@ -29,6 +29,7 @@ public class SysFileOverrideOp extends UtilOp {
      */
     public enum Target {
         FEES(111L),
+        SIMPLE_FEES(113L),
         EXCHANGE_RATES(112L),
         THROTTLES(123L),
         PERMISSIONS(122L);
@@ -75,12 +76,7 @@ public class SysFileOverrideOp extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        var fileNumber = String.format(
-                "%s.%s.%s",
-                spec.startupProperties().getLong("hedera.shard"),
-                spec.startupProperties().getLong("hedera.realm"),
-                target.number());
-
+        final var fileNumber = String.valueOf(target.number());
         allRunFor(spec, getFileContents(fileNumber).consumedBy(bytes -> this.originalContents = bytes));
         log.info("Took snapshot of {}", target);
         final var styledContents = overrideSupplier.get();
@@ -110,11 +106,7 @@ public class SysFileOverrideOp extends UtilOp {
     public void restoreContentsIfNeeded(@NonNull final HapiSpec spec) {
         requireNonNull(spec);
         if (originalContents != null) {
-            final var fileNumber = String.format(
-                    "%s.%s.%s",
-                    spec.startupProperties().getLong("hedera.shard"),
-                    spec.startupProperties().getLong("hedera.realm"),
-                    target.number());
+            final var fileNumber = String.valueOf(target.number());
 
             allRunFor(
                     spec,

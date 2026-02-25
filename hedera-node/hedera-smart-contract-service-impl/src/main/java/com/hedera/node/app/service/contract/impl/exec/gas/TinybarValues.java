@@ -8,7 +8,6 @@ import static com.hedera.node.app.spi.workflows.FunctionalityResourcePrices.PREP
 
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
-import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -32,9 +31,8 @@ public class TinybarValues {
      * @param exchangeRate the current exchange rate
      * @return a query-appropriate instance of {@link TinybarValues}
      */
-    public static TinybarValues forQueryWith(
-            @NonNull final ExchangeRate exchangeRate, @NonNull final ContractsConfig contractsConfig) {
-        return new TinybarValues(exchangeRate, contractsConfig, PREPAID_RESOURCE_PRICES, null);
+    public static TinybarValues forQueryWith(@NonNull final ExchangeRate exchangeRate) {
+        return new TinybarValues(exchangeRate, PREPAID_RESOURCE_PRICES, null);
     }
 
     /**
@@ -48,15 +46,13 @@ public class TinybarValues {
      */
     public static TinybarValues forTransactionWith(
             @NonNull final ExchangeRate exchangeRate,
-            @NonNull final ContractsConfig contractsConfig,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
-        return new TinybarValues(exchangeRate, contractsConfig, topLevelResourcePrices, childTransactionResourcePrices);
+        return new TinybarValues(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
     private TinybarValues(
             @NonNull final ExchangeRate exchangeRate,
-            @NonNull final ContractsConfig contractsConfig,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
         this.exchangeRate = Objects.requireNonNull(exchangeRate);

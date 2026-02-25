@@ -7,6 +7,7 @@ import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.HAPI_PROTO_V
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.RECORD_STREAM_ITEMS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.SIDECARS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.START_OBJECT_RUNNING_HASH;
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6.VERSION_6;
@@ -14,9 +15,9 @@ import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWri
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
@@ -28,9 +29,6 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.stream.Signer;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -48,7 +46,9 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signer;
 
 /**
  * An incremental file-based {@link BlockRecordWriter} that writes a single {@link RecordStreamItem} at a time. It also
@@ -74,7 +74,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private final Signer signer;
     /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
-    /** Whether to compress the record file and sidecar files. */
     /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
@@ -134,14 +133,14 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
      *
      * @param config The configuration to be used for writing this block. Since this cannot change in the middle of
      *               writing a file, we just need the config, not a config provider.
-     * @param nodeInfo The node info for the node writing this file. This is used to get the node-specific directory
+     * @param nodeAccountId The account ID for the node writing this file. This is used to get the node-specific directory
      *                 where the file will be written.
      * @param signer The signer to use to sign the file bytes to produce the signature file
      * @param fileSystem The file system to use to write the file
      */
     public BlockRecordWriterV6(
             @NonNull final BlockRecordStreamConfig config,
-            @NonNull final NodeInfo nodeInfo,
+            @NonNull final AccountID nodeAccountId,
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem) {
 
@@ -159,13 +158,15 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             throw new IllegalArgumentException("Configuration signature file version is not 6!");
         }
 
+        requireNonNull(nodeAccountId, "Node account id should not be null");
+
         this.state = State.UNINITIALIZED;
         this.signer = requireNonNull(signer);
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;
 
         // Compute directories for record and sidecar files
         final Path recordDir = fileSystem.getPath(config.logDir());
-        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeInfo.accountId()));
+        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeAccountId));
         nodeScopedSidecarDir = nodeScopedRecordDir.resolve(config.sidecarDir());
 
         // Create parent directories if needed for the record file itself
@@ -376,17 +377,38 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                 sidecarFileWriter.close();
                 // get the sidecar hash
                 final Bytes sidecarHash = sidecarFileWriter.fileHash();
-                // create and add sidecar metadata to record file
+                // create and add sidecar metadata to the record file
                 if (sidecarMetadata == null) sidecarMetadata = new ArrayList<>();
                 sidecarMetadata.add(new SidecarMetadata(
                         new HashObject(HashAlgorithm.SHA_384, (int) sidecarHash.length(), sidecarHash),
                         sidecarFileWriter.id(),
                         sidecarFileWriter.types()));
+                // Add a marker file for the sidecar when it is closed
+                writeSidecarMarkerFile();
             }
         } catch (final IOException e) {
             // NOTE: Writing sidecar files really is best-effort, if it doesn't happen, we're OK with just logging the
             // warning and moving on.
             logger.warn("Error closing sidecar file", e);
+        }
+    }
+
+    /**
+     * Write a marker file for the sidecar file.
+     * This is used to indicate that the sidecar file has been closed and is ready to be uploaded.
+     * The marker file is named the same as the sidecar file, but with a .mf extension.
+     * The contents of the marker file are the hash of the sidecar file.
+     *
+     * @throws IOException if there was a problem writing the marker file
+     */
+    private void writeSidecarMarkerFile() throws IOException {
+        final Path sidecarPath = getSidecarFilePath(sidecarFileWriter.id());
+        final Path markerPath =
+                sidecarPath.resolveSibling(sidecarPath.getFileName().toString().replace(".rcd.gz", ".mf"));
+        if (Files.exists(markerPath)) {
+            logger.debug("Side‑car marker already exists: {}", markerPath);
+        } else {
+            Files.createFile(markerPath);
         }
     }
 

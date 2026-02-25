@@ -2,7 +2,6 @@
 package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -29,7 +28,7 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * @param delegate The delegate. Must not be null.
      */
     public WrappedWritableKVState(@NonNull final WritableKVState<K, V> delegate) {
-        super(delegate.getStateKey());
+        super(delegate.getStateId(), null);
         this.delegate = Objects.requireNonNull(delegate);
     }
 
@@ -49,13 +48,6 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     @Override
     protected V readFromDataSource(@NonNull K key) {
         return delegate.get(key);
-    }
-
-    /** {@inheritDoc} */
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return delegate.keys();
     }
 
     /** {@inheritDoc} */

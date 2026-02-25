@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import java.util.Optional;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public abstract class HapiBaseCall<T extends HapiTxnOp<T>> extends HapiTxnOp<T> {
 

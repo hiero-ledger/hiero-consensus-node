@@ -7,6 +7,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 public class FakeFeeCalculator implements FeeCalculator {
     @Override
@@ -43,6 +44,12 @@ public class FakeFeeCalculator implements FeeCalculator {
         return this;
     }
 
+    @NonNull
+    @Override
+    public FeeCalculator addGas(final long amount) {
+        return this;
+    }
+
     @Override
     @NonNull
     public Fees calculate() {
@@ -64,5 +71,10 @@ public class FakeFeeCalculator implements FeeCalculator {
     @NonNull
     public FakeFeeCalculator resetUsage() {
         return this;
+    }
+
+    @Override
+    public @NonNull FeeSchedule getSimpleFeesSchedule() {
+        return FeeSchedule.DEFAULT;
     }
 }

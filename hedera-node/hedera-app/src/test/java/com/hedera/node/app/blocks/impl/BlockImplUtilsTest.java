@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.hapi.block.stream.output.StateIdentifier;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 class BlockImplUtilsTest {
     @Test
@@ -50,87 +45,174 @@ class BlockImplUtilsTest {
         assertNotEquals(new String(combinedHash1), new String(combinedHash2));
     }
 
+    @SuppressWarnings("DataFlowIssue")
     @Test
     void testCombineWithNull() {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(null, new byte[0]));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(new byte[0], null));
     }
 
-    @ParameterizedTest
-    @MethodSource("stateIdsByName")
-    void stateIdsByNameAsExpected(@NonNull final String stateName, @NonNull final StateIdentifier stateId) {
-        final var parts = stateName.split("\\.");
-        assertThat(BlockImplUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashLeafByteArrayWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((byte[]) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (byte[]) null));
     }
 
-    public static Stream<Arguments> stateIdsByName() {
-        return Arrays.stream(StateIdentifier.values()).map(stateId -> Arguments.of(nameOf(stateId), stateId));
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashLeafBytesWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((Bytes) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (Bytes) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(null, Bytes.EMPTY));
     }
 
-    private static String nameOf(@NonNull final StateIdentifier stateId) {
-        return switch (stateId) {
-            case STATE_ID_NODES -> "AddressBookService.NODES";
-            case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
-            case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
-            case STATE_ID_BLOCK_STREAM_INFO -> "BlockStreamService.BLOCK_STREAM_INFO";
-            case STATE_ID_CONGESTION_STARTS -> "CongestionThrottleService.CONGESTION_LEVEL_STARTS";
-            case STATE_ID_THROTTLE_USAGE -> "CongestionThrottleService.THROTTLE_USAGE_SNAPSHOTS";
-            case STATE_ID_TOPICS -> "ConsensusService.TOPICS";
-            case STATE_ID_CONTRACT_BYTECODE -> "ContractService.BYTECODE";
-            case STATE_ID_CONTRACT_STORAGE -> "ContractService.STORAGE";
-            case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
-            case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
-            case STATE_ID_FILES -> "FileService.FILES";
-            case STATE_ID_UPGRADE_DATA_150 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=150]]";
-            case STATE_ID_UPGRADE_DATA_151 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=151]]";
-            case STATE_ID_UPGRADE_DATA_152 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=152]]";
-            case STATE_ID_UPGRADE_DATA_153 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=153]]";
-            case STATE_ID_UPGRADE_DATA_154 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=154]]";
-            case STATE_ID_UPGRADE_DATA_155 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=155]]";
-            case STATE_ID_UPGRADE_DATA_156 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=156]]";
-            case STATE_ID_UPGRADE_DATA_157 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=157]]";
-            case STATE_ID_UPGRADE_DATA_158 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=158]]";
-            case STATE_ID_UPGRADE_DATA_159 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=159]]";
-            case STATE_ID_UPGRADE_FILE -> "FileService.UPGRADE_FILE";
-            case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
-            case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
-            case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
-            case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
-            case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
-            case STATE_ID_TRANSACTION_RECEIPTS_QUEUE -> "RecordCache.TransactionReceiptQueue";
-            case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
-            case STATE_ID_SCHEDULES_BY_EXPIRY -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
-            case STATE_ID_SCHEDULES_BY_ID -> "ScheduleService.SCHEDULES_BY_ID";
-            case STATE_ID_SCHEDULE_ID_BY_EQUALITY -> "ScheduleService.SCHEDULE_ID_BY_EQUALITY";
-            case STATE_ID_SCHEDULED_COUNTS -> "ScheduleService.SCHEDULED_COUNTS";
-            case STATE_ID_SCHEDULED_ORDERS -> "ScheduleService.SCHEDULED_ORDERS";
-            case STATE_ID_SCHEDULED_USAGES -> "ScheduleService.SCHEDULED_USAGES";
-            case STATE_ID_ACCOUNTS -> "TokenService.ACCOUNTS";
-            case STATE_ID_ALIASES -> "TokenService.ALIASES";
-            case STATE_ID_NFTS -> "TokenService.NFTS";
-            case STATE_ID_PENDING_AIRDROPS -> "TokenService.PENDING_AIRDROPS";
-            case STATE_ID_STAKING_INFO -> "TokenService.STAKING_INFOS";
-            case STATE_ID_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
-            case STATE_ID_TOKEN_RELATIONS -> "TokenService.TOKEN_RELS";
-            case STATE_ID_TOKENS -> "TokenService.TOKENS";
-            case STATE_ID_TSS_MESSAGES -> "TssBaseService.TSS_MESSAGES";
-            case STATE_ID_TSS_VOTES -> "TssBaseService.TSS_VOTES";
-            case STATE_ID_TSS_ENCRYPTION_KEYS -> "TssBaseService.TSS_ENCRYPTION_KEYS";
-            case STATE_ID_TSS_STATUS -> "TssBaseService.TSS_STATUS";
-            case STATE_ID_HINTS_KEY_SETS -> "HintsService.HINTS_KEY_SETS";
-            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINT_CONSTRUCTION";
-            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINT_CONSTRUCTION";
-            case STATE_ID_PREPROCESSING_VOTES -> "HintsService.PREPROCESSING_VOTES";
-            case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
-            case STATE_ID_LEDGER_ID -> "HistoryService.LEDGER_ID";
-            case STATE_ID_PROOF_KEY_SETS -> "HistoryService.PROOF_KEY_SETS";
-            case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
-            case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
-            case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
-            case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
-            case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
-            case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
-            case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
-        };
+    @Test
+    void hashLeafAppendsLeafPrefix() throws NoSuchAlgorithmException {
+        final Bytes expected = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");
+
+        final MessageDigest digest = MessageDigest.getInstance("SHA-384");
+        final Bytes data = Bytes.fromHex("2a120816120c08d9d5d2c90610ffa8bba5033a00");
+        digest.update(BlockImplUtils.LEAF_PREFIX);
+        final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
+        // Precondition: verify expected matches computed value
+        assertEquals(expected, computed);
+
+        // Test the Bytes overload
+        final Bytes actual = BlockImplUtils.hashLeaf(data);
+        assertEquals(expected, actual);
+
+        // Test the byte array overload
+        final byte[] actualArray = BlockImplUtils.hashLeaf(data.toByteArray());
+        assertArrayEquals(expected.toByteArray(), actualArray);
+
+        // Test byte array + digest overload
+        digest.reset(); // Not necessary, but specifies intent
+        final byte[] actualWithDigest = BlockImplUtils.hashLeaf(digest, data.toByteArray());
+        assertArrayEquals(expected.toByteArray(), actualWithDigest);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeSingleChildWithNullParamThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNodeSingleChild(null));
+    }
+
+    @Test
+    void hashInternalNodeSingleChildAppendsSingleNodePrefix() {
+        final Bytes expected = Bytes.fromHex(
+                "25eeda015d2d5506ca98944d615c7502baede45e5d03725184b9516c923485738c0bba382a6ef4840a02c6bb3c27c452");
+
+        final MessageDigest digest = sha384DigestOrThrow();
+        final Bytes data = Bytes.fromHex(
+                "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
+        // Precondition: verify expected matches computed value
+        assertEquals(expected, computed);
+
+        final Bytes actual = BlockImplUtils.hashInternalNodeSingleChild(data);
+        assertEquals(expected, actual);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeBytesWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (Bytes) null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeByteArrayWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((byte[]) null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(new byte[0], null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeMixedWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((Bytes) null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (byte[]) null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeWithDigestWithNullParamsThrows() {
+        final var digest = sha384DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, new byte[0], new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, new byte[0], null));
+    }
+
+    @Test
+    void hashInternalNodeAppendsInternalNodePrefix() {
+        final Bytes expected = Bytes.fromHex(
+                "754ceb6301824804cd0488b2ed7a32e4594302f274c8363aa6696b427b3f586438ee367ba99320320e8df2d896425cd7");
+
+        final MessageDigest digest = sha384DigestOrThrow();
+        final Bytes data1 = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");
+        final Bytes data2 = Bytes.fromHex(
+                "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
+        BlockImplUtils.INTERNAL_NODE_PREFIX_BYTES.writeTo(digest);
+        data1.writeTo(digest);
+        data2.writeTo(digest);
+        final Bytes computed = Bytes.wrap(digest.digest());
+        // Precondition: verify expected matches computed value
+        assertEquals(expected, computed);
+
+        // Test the Bytes overload
+        final Bytes actualFromBytes = BlockImplUtils.hashInternalNode(data1, data2);
+        assertEquals(expected, actualFromBytes);
+
+        // Test the byte arrays overload
+        final byte[] data1Array = data1.toByteArray();
+        final byte[] data2Array = data2.toByteArray();
+        final byte[] actualFromArrays = BlockImplUtils.hashInternalNode(data1Array, data2Array);
+        assertArrayEquals(expected.toByteArray(), actualFromArrays);
+
+        // Test the explicit digest overload
+        digest.reset(); // Not necessary, but specifies intent
+        final byte[] actual = BlockImplUtils.hashInternalNode(digest, data1Array, data2Array);
+        assertArrayEquals(expected.toByteArray(), actual);
+    }
+
+    @Test
+    void hashedUnprefixedDoesNotMatchHashedPrefixed() {
+        final var digest = sha384DigestOrThrow();
+        final Bytes data = Bytes.wrap(new byte[] {9, 8, 7, 6});
+        data.writeTo(digest);
+        // e2fd3dfb508f0f533c7ecc813acb62f09b6a7675f18649eb06f2caea9296abb0cb68c73b324cafd1fc342e6b6380c7da
+        final var computedNoPrefix = Bytes.wrap(digest.digest());
+
+        digest.update(BlockImplUtils.LEAF_PREFIX);
+        // 65832cbdef5675a6d51999ad0361dbbec33255afc88a781ea4355349465d5a8a5f1d6748b44a6fa99af518ff019a226e
+        final var computedLeafPrefix = Bytes.wrap(digest.digest(data.toByteArray()));
+        final var actualLeafPrefix = BlockImplUtils.hashLeaf(data);
+        assertEquals(computedLeafPrefix, actualLeafPrefix);
+        assertNotEquals(computedNoPrefix, actualLeafPrefix);
+
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        // 264184f6b083b2927d15d0a36395c653b98c4ea679e9e5df3c50848728015338d0a6a2649058a8e4671194843034b51f
+        data.writeTo(digest);
+        final var computedSingleChildPrefix = Bytes.wrap(digest.digest());
+        final var actualSingleChildPrefix = BlockImplUtils.hashInternalNodeSingleChild(data);
+        assertEquals(computedSingleChildPrefix, actualSingleChildPrefix);
+        assertNotEquals(computedNoPrefix, actualSingleChildPrefix);
+
+        digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
+        // The internal node hash calculation requires two inputs, so use data twice
+        data.writeTo(digest);
+        data.writeTo(digest);
+        // bd9a83a398a4cda37293296ad8a2e533233ea682cd6f53e5edcfbfaa53e648b229e82fc216f07cb8a8f2a98f1afcfc0f
+        final var computedInternalNodePrefix = Bytes.wrap(digest.digest());
+        final var actualInternalNodePrefix = BlockImplUtils.hashInternalNode(data, data);
+        assertEquals(computedInternalNodePrefix, actualInternalNodePrefix);
+        assertNotEquals(computedNoPrefix, actualInternalNodePrefix);
+
+        // Test the mixed param types variant
+        final var actualInternalMixedPrefix = BlockImplUtils.hashInternalNode(data, data.toByteArray());
+        // Only equality check needed, as previous checks already guarantee the no prefix case is different
+        assertEquals(computedInternalNodePrefix, actualInternalMixedPrefix);
     }
 }

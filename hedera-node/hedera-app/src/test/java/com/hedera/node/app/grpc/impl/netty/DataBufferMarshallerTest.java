@@ -22,7 +22,10 @@ import org.mockito.Mockito;
 final class DataBufferMarshallerTest {
     private static final int MAX_MESSAGE_SIZE = 6144;
     private static final int BUFFER_CAPACITY = 133120;
+    private static final int JUMBO_MAX_MESSAGE_SIZE = 133120;
     private final DataBufferMarshaller marshaller = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
+    private final DataBufferMarshaller jumboMarshaller =
+            new DataBufferMarshaller(JUMBO_MAX_MESSAGE_SIZE + 1, JUMBO_MAX_MESSAGE_SIZE);
 
     @Test
     void nullBufferThrows() {
@@ -143,5 +146,92 @@ final class DataBufferMarshallerTest {
                 assertEquals(b, buf.readByte());
             }
         }
+    }
+
+    @Test
+    @DisplayName("Constructor throws when buffer capacity is less than max message size")
+    void constructorThrowsWhenBufferCapacityLessThanMaxMessageSize() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new DataBufferMarshaller(100, 200),
+                "Buffer capacity must be greater than or equal to the maximum message size.");
+    }
+
+    @Test
+    @DisplayName("Constructor accepts buffer capacity equal to max message size")
+    void constructorAcceptsEqualCapacityAndMaxSize() {
+        final var m = new DataBufferMarshaller(100, 100);
+        assertNotNull(m);
+    }
+
+    @Test
+    @DisplayName("Constructor accepts buffer capacity greater than max message size")
+    void constructorAcceptsGreaterCapacityThanMaxSize() {
+        final var m = new DataBufferMarshaller(200, 100);
+        assertNotNull(m);
+    }
+
+    @Test
+    @DisplayName("Jumbo marshaller can parse stream within jumbo size limit")
+    void jumboMarshallerParsesWithinLimit() {
+        // Create a stream that is larger than regular limit but within jumbo limit
+        final var arr = TestUtils.randomBytes(MAX_MESSAGE_SIZE + 1000);
+        final var stream = new ByteArrayInputStream(arr);
+        final var buf = jumboMarshaller.parse(stream);
+
+        // Should read all bytes since it's within jumbo limit
+        assertEquals(arr.length, buf.remaining());
+        for (byte b : arr) {
+            assertEquals(b, buf.readByte());
+        }
+    }
+
+    @Test
+    @DisplayName("Jumbo marshaller truncates stream exceeding jumbo size limit")
+    void jumboMarshallerTruncatesExceedingLimit() {
+        // Create a stream larger than jumbo limit
+        final var arr = TestUtils.randomBytes(JUMBO_MAX_MESSAGE_SIZE + 5000);
+        final var stream = new ByteArrayInputStream(arr);
+        final var buff = jumboMarshaller.parse(stream);
+
+        // Should truncate to jumbo max size + 1
+        assertThat(buff.length()).isEqualTo(JUMBO_MAX_MESSAGE_SIZE + 1);
+    }
+
+    @Test
+    @DisplayName("Regular marshaller truncates at regular limit while jumbo allows larger")
+    void regularMarshallerTruncatesWhileJumboAllows() {
+        // Create a stream that exceeds regular limit but is within jumbo limit
+        final int size = MAX_MESSAGE_SIZE + 1000;
+        final var arr = TestUtils.randomBytes(size);
+
+        // Regular marshaller should truncate
+        final var regularStream = new ByteArrayInputStream(arr);
+        final var regularBuff = marshaller.parse(regularStream);
+        assertThat(regularBuff.length()).isEqualTo(MAX_MESSAGE_SIZE + 1);
+
+        // Jumbo marshaller should accept full size
+        final var jumboStream = new ByteArrayInputStream(arr);
+        final var jumboBuff = jumboMarshaller.parse(jumboStream);
+        assertThat(jumboBuff.length()).isEqualTo(size);
+    }
+
+    @Test
+    @DisplayName("Marshaller with capacity equal to max size plus one (NettyGrpcServerManager pattern)")
+    void marshallerWithNettyGrpcServerManagerPattern() {
+        final int maxTxnSize = 6144;
+        final var m = new DataBufferMarshaller(MAX_MESSAGE_SIZE + 1, MAX_MESSAGE_SIZE);
+
+        // Parse a stream exactly at the limit
+        final var exactArr = TestUtils.randomBytes(MAX_MESSAGE_SIZE);
+        final var exactStream = new ByteArrayInputStream(exactArr);
+        final var exactBuff = m.parse(exactStream);
+        assertEquals(MAX_MESSAGE_SIZE, exactBuff.remaining());
+
+        // Parse a stream one byte over the limit - should read MAX_MESSAGE_SIZE + 1 bytes
+        final var overArr = TestUtils.randomBytes(MAX_MESSAGE_SIZE + 100);
+        final var overStream = new ByteArrayInputStream(overArr);
+        final var overBuff = m.parse(overStream);
+        assertThat(overBuff.length()).isEqualTo(maxTxnSize + 1);
     }
 }

@@ -2,30 +2,38 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbBuilderTest {
 
-    private static Path testDirectory;
+    private static final long INITIAL_SIZE = 1_000_000;
 
     @BeforeAll
-    static void setup() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbBuilderTest", CONFIGURATION);
+    static void setup() throws Exception {
+        ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
+        registry.registerConstructables("com.swirlds.merkledb");
+        registry.registerConstructables("com.swirlds.virtualmap");
     }
 
     @AfterEach
@@ -34,31 +42,24 @@ class MerkleDbBuilderTest {
         assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
     }
 
-    private MerkleDbTableConfig createTableConfig() {
+    final MerkleDbDataSourceBuilder createDefaultBuilder() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        return new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, INITIAL_SIZE, merkleDbConfig.hashesRamToDiskThreshold());
     }
 
-    private MerkleDbTableConfig createTableConfig(final long maxNumOfKeys, final long hashesRamToDiskThreshold) {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        return new MerkleDbTableConfig((short) 1, DigestType.SHA_384, maxNumOfKeys, hashesRamToDiskThreshold);
-    }
-
-    @Test
+    @ParameterizedTest
+    @CsvSource({"100,0", "100,100", "1000000,1024", "1000000,9223372036854775807"})
     @DisplayName("Test table config is passed to data source")
-    public void testTableConfig() throws IOException {
-        final MerkleDbTableConfig tableConfig = createTableConfig();
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+    public void testTableConfig(final long initialCapacity, final long hashesRamToDiskThreshold) throws IOException {
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, initialCapacity, hashesRamToDiskThreshold);
         VirtualDataSource dataSource = null;
         try {
-            dataSource = builder.build("test1", false);
+            dataSource = builder.build("test1", null, false, false);
             assertTrue(dataSource instanceof MerkleDbDataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
-            assertEquals(tableConfig, merkleDbDataSource.getTableConfig());
+            assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
+            assertEquals(hashesRamToDiskThreshold, merkleDbDataSource.getHashesRamToDiskThreshold());
         } finally {
             if (dataSource != null) {
                 dataSource.close();
@@ -66,60 +67,89 @@ class MerkleDbBuilderTest {
         }
     }
 
-    @Test
-    @DisplayName("Test data source config defaults")
-    public void testBuilderDefaults() throws IOException {
-        final MerkleDbTableConfig tableConfig = createTableConfig();
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
-        final MerkleDb defaultDatabase = MerkleDb.getDefaultInstance(CONFIGURATION);
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("Test compaction flag is passed to data source")
+    public void testCompactionConfig(final boolean compactionEnabled) throws IOException {
+        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024, 0);
         VirtualDataSource dataSource = null;
         try {
-            dataSource = builder.build("test2", false);
-            assertTrue(dataSource instanceof MerkleDbDataSource);
+            dataSource = builder.build("test2", null, compactionEnabled, false);
+            assertInstanceOf(MerkleDbDataSource.class, dataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
-            assertEquals(
-                    defaultDatabase
-                            .getStorageDir()
-                            .resolve("tables")
-                            .resolve("test2-" + merkleDbDataSource.getTableId()),
-                    merkleDbDataSource.getStorageDir());
-
-            final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-            final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-            assertFalse(merkleDbDataSource.isPreferDiskBasedIndexes());
-            assertEquals(merkleDbConfig.maxNumOfKeys(), merkleDbDataSource.getMaxNumberOfKeys());
-            assertEquals(merkleDbConfig.hashesRamToDiskThreshold(), merkleDbDataSource.getHashesRamToDiskThreshold());
-            // set explicitly above
-            assertFalse(merkleDbDataSource.isCompactionEnabled());
+            assertEquals(compactionEnabled, merkleDbDataSource.isCompactionEnabled());
         } finally {
-            if (dataSource != null) {
-                dataSource.close();
-            }
+            dataSource.close();
         }
     }
 
     @Test
-    @DisplayName("Test custom table config values")
-    public void testCustomTableConfig() throws IOException {
-        final MerkleDbTableConfig tableConfig = createTableConfig(1999, Integer.MAX_VALUE >> 4);
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
-        final Path defaultDbPath = testDirectory.resolve("defaultDatabasePath");
-        MerkleDb.setDefaultPath(defaultDbPath);
+    void testSnapshot() throws IOException {
+        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024, 1024);
         VirtualDataSource dataSource = null;
         try {
-            dataSource = builder.build("test3", true);
-            MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
-            assertEquals(
-                    defaultDbPath.resolve("tables").resolve("test3-" + merkleDbDataSource.getTableId()),
-                    merkleDbDataSource.getStorageDir());
-            assertEquals(1999, merkleDbDataSource.getMaxNumberOfKeys());
-            assertEquals(Integer.MAX_VALUE >> 4, merkleDbDataSource.getHashesRamToDiskThreshold());
-            // set explicitly above
-            assertTrue(merkleDbDataSource.isCompactionEnabled());
+            final String label = "testSnapshot";
+            dataSource = builder.build(label, null, false, false);
+            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            builder.snapshot(tmpDir, dataSource);
+            assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
         } finally {
-            if (dataSource != null) {
-                dataSource.close();
+            dataSource.close();
+        }
+    }
+
+    @Test
+    void testSnapshotRestore() throws IOException {
+        final int hashesRamToDiskThreshold = 4096;
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, 10_000, hashesRamToDiskThreshold);
+        VirtualDataSource dataSource = null;
+        try {
+            final String label = "testSnapshotRestore";
+            dataSource = builder.build(label, null, false, false);
+            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            builder.snapshot(tmpDir, dataSource);
+            assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
+            VirtualDataSource restored = null;
+            try {
+                restored = builder.build(label, tmpDir, false, false);
+                assertNotNull(restored);
+                assertInstanceOf(MerkleDbDataSource.class, restored);
+                final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
+                assertEquals(hashesRamToDiskThreshold, merkleDbRestored.getHashesRamToDiskThreshold());
+            } finally {
+                restored.close();
             }
+        } finally {
+            dataSource.close();
+        }
+    }
+
+    /*
+     * This test simulates the following scenario. First, a signed state for round N is selected
+     * to be flushed to disk (periodic snapshot). Before it's done, the node is disconnected from
+     * network and starts a reconnect. Reconnect is successful for a different round M (M > N),
+     * and snapshot for round M is written to disk. Now the node has all signatures for the old
+     * round N, and that old signed state is finally written to disk.
+     */
+    @Test
+    void testSnapshotAfterReconnect() throws Exception {
+        final MerkleDbDataSourceBuilder dsBuilder = createDefaultBuilder();
+        final VirtualDataSource original = dsBuilder.build("vm", null, false, false);
+        // Simulate reconnect as a learner
+        final Path snapshotPath = dsBuilder.snapshot(null, original);
+        final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true, false);
+
+        try {
+            final Path snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            dsBuilder.snapshot(snapshotDir, copy);
+
+            final Path oldSnapshotDir =
+                    LegacyTemporaryFileBuilder.buildTemporaryDirectory("oldSnapshot", CONFIGURATION);
+            assertDoesNotThrow(() -> dsBuilder.snapshot(oldSnapshotDir, original));
+        } finally {
+            original.close();
+            copy.close();
         }
     }
 }

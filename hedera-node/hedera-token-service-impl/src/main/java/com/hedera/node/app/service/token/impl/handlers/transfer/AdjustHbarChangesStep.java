@@ -6,7 +6,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -14,9 +16,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,6 +33,7 @@ import java.util.Map;
 public class AdjustHbarChangesStep extends BaseTokenHandler implements TransferStep {
     private final CryptoTransferTransactionBody op;
     private final AccountID topLevelPayer;
+    private EntityIdFactory entityIdFactory;
 
     /**
      * Constructs the step with the operation and the top level payer account.
@@ -36,11 +41,14 @@ public class AdjustHbarChangesStep extends BaseTokenHandler implements TransferS
      * @param topLevelPayer - the top level payer account
      */
     public AdjustHbarChangesStep(
-            @NonNull final CryptoTransferTransactionBody op, @NonNull final AccountID topLevelPayer) {
+            @NonNull final CryptoTransferTransactionBody op,
+            @NonNull final AccountID topLevelPayer,
+            @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(op);
         requireNonNull(topLevelPayer);
         this.op = op;
         this.topLevelPayer = topLevelPayer;
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -57,6 +65,15 @@ public class AdjustHbarChangesStep extends BaseTokenHandler implements TransferS
             netHbarTransfers.merge(aa.accountID(), aa.amount(), Long::sum);
             if (aa.isApproval() && aa.amount() < 0) {
                 allowanceTransfers.merge(aa.accountID(), aa.amount(), Long::sum);
+            }
+
+            // Verify that no credits are going to the fee collection account
+            final var accountsConfig =
+                    transferContext.getHandleContext().configuration().getConfigData(AccountsConfig.class);
+            final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+            if (aa.amount() > 0) {
+                validateFalse(
+                        aa.accountID().equals(feeCollectionAccount), TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
             }
         }
 

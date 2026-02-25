@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
-import static com.swirlds.common.utility.NonCryptographicHashing.hash64;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

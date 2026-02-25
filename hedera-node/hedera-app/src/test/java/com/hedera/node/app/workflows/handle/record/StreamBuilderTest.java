@@ -3,7 +3,9 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static java.util.Collections.emptyList;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -15,6 +17,8 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
@@ -24,8 +28,11 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.ContractActions;
@@ -41,7 +48,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.List;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -59,10 +66,34 @@ public class StreamBuilderTest {
     public static final long TOPIC_SEQUENCE_NUMBER = 928782L;
     public static final long TOPIC_RUNNING_HASH_VERSION = 153513L;
     public static final long NEW_TOTAL_SUPPLY = 34134546L;
+    public static final long HIGH_VOLUME_PRICING_MULTIPLIER = 4L;
     public static final String MEMO = "Yo Memo";
-    private @Mock Transaction transaction;
+    private static final Bytes FAKE_BODY_BYTES = Bytes.wrap("body-bytes");
+    private static final SignatureMap FAKE_SIG_MAP = SignatureMap.newBuilder()
+            .sigPair(SignaturePair.newBuilder()
+                    .pubKeyPrefix(Bytes.wrap("prefix"))
+                    .ed25519(Bytes.wrap("signature"))
+                    .build())
+            .build();
+    private static final SignedTransaction LEGACY_SIGNED_TX = SignedTransaction.newBuilder()
+            .useSerializedTxMessageHashAlgorithm(true)
+            .bodyBytes(FAKE_BODY_BYTES)
+            .sigMap(FAKE_SIG_MAP)
+            .build();
+
+    private static final Transaction WRAPPED_LEGACY_TX = Transaction.newBuilder()
+            .bodyBytes(LEGACY_SIGNED_TX.bodyBytes())
+            .sigMap(LEGACY_SIGNED_TX.sigMap())
+            .build();
+    private static final SignedTransaction NORMAL_SIGNED_TX = SignedTransaction.newBuilder()
+            .bodyBytes(FAKE_BODY_BYTES)
+            .sigMap(FAKE_SIG_MAP)
+            .build();
+    private static final Bytes SERIALIZED_NORMAL_SIGNED_TX = SignedTransaction.PROTOBUF.toBytes(NORMAL_SIGNED_TX);
+    private static final Transaction WRAPPED_NORMAL_TX = Transaction.newBuilder()
+            .signedTransactionBytes(SERIALIZED_NORMAL_SIGNED_TX)
+            .build();
     private @Mock TransactionID transactionID;
-    private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock ContractFunctionResult contractCallResult;
     private @Mock ContractFunctionResult contractCreateResult;
     private @Mock TransferList transferList;
@@ -70,7 +101,6 @@ public class StreamBuilderTest {
     private @Mock ScheduleID scheduleRef;
     private @Mock AssessedCustomFee assessedCustomFee;
     private @Mock TokenAssociation tokenAssociation;
-    private @Mock Bytes alias;
     private @Mock Bytes ethereumHash;
     private @Mock Bytes prngBytes;
     private @Mock AccountAmount accountAmount;
@@ -103,12 +133,11 @@ public class StreamBuilderTest {
         final List<Long> serialNumbers = List.of(1L, 2L, 3L);
 
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
         singleTransactionRecordBuilder
                 .parentConsensus(PARENT_CONSENSUS_TIME)
-                .transaction(transaction)
-                .transactionBytes(transactionBytes)
+                .signedTx(LEGACY_SIGNED_TX)
                 .transactionID(transactionID)
                 .memo(MEMO)
                 .transactionFee(TRANSACTION_FEE)
@@ -138,7 +167,8 @@ public class StreamBuilderTest {
                 .serialNumbers(serialNumbers)
                 .contractStateChanges(List.of(new AbstractMap.SimpleEntry<>(contractStateChanges, false)))
                 .addContractActions(contractActions, false)
-                .addContractBytecode(contractBytecode, false);
+                .addContractBytecode(contractBytecode, false)
+                .highVolumePricingMultiplier(HIGH_VOLUME_PRICING_MULTIPLIER);
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             singleTransactionRecordBuilder.entropyBytes(prngBytes);
@@ -152,7 +182,7 @@ public class StreamBuilderTest {
         assertEquals(
                 HapiUtils.asTimestamp(PARENT_CONSENSUS_TIME),
                 singleTransactionRecord.transactionRecord().parentConsensusTimestamp());
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_LEGACY_TX, singleTransactionRecord.transaction());
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             assertTrue(singleTransactionRecord.transactionRecord().hasPrngBytes());
@@ -166,7 +196,8 @@ public class StreamBuilderTest {
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            transactionHash = Bytes.wrap(digest.digest(transactionBytes.toByteArray()));
+            final var wrappedBytes = Transaction.PROTOBUF.toBytes(WRAPPED_LEGACY_TX);
+            transactionHash = Bytes.wrap(digest.digest(wrappedBytes.toByteArray()));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -195,6 +226,9 @@ public class StreamBuilderTest {
         assertEquals(
                 paidStakingRewards, singleTransactionRecord.transactionRecord().paidStakingRewards());
         assertEquals(evmAddress, singleTransactionRecord.transactionRecord().evmAddress());
+        assertEquals(
+                HIGH_VOLUME_PRICING_MULTIPLIER,
+                singleTransactionRecord.transactionRecord().highVolumePricingMultiplier());
 
         assertTransactionReceiptProps(
                 singleTransactionRecord.transactionRecord().receipt(), serialNumbers);
@@ -235,16 +269,16 @@ public class StreamBuilderTest {
     @Test
     void testTopLevelRecordBuilder() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
-        singleTransactionRecordBuilder.transaction(transaction);
+        singleTransactionRecordBuilder.signedTx(NORMAL_SIGNED_TX).serializedSignedTx(SERIALIZED_NORMAL_SIGNED_TX);
 
         assertNull(singleTransactionRecordBuilder.parentConsensusTimestamp());
         assertEquals(ResponseCodeEnum.OK, singleTransactionRecordBuilder.status());
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder.build();
 
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_NORMAL_TX, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());
@@ -257,10 +291,11 @@ public class StreamBuilderTest {
     @Test
     void testBuilderWithAddMethods() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder
-                .transaction(transaction)
+                .signedTx(NORMAL_SIGNED_TX)
+                .serializedSignedTx(SERIALIZED_NORMAL_SIGNED_TX)
                 .addTokenTransferList(tokenTransfer)
                 .addAssessedCustomFee(assessedCustomFee)
                 .addAutomaticTokenAssociation(tokenAssociation)
@@ -271,7 +306,7 @@ public class StreamBuilderTest {
                 .addContractBytecode(contractBytecode, false)
                 .build();
 
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_NORMAL_TX, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());
@@ -312,5 +347,47 @@ public class StreamBuilderTest {
                         false,
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, contractBytecode)));
         assertEquals(expectedTransactionSidecarRecords, singleTransactionRecord.transactionSidecarRecords());
+    }
+
+    @Test
+    void testContractResultsLogsClearedInRecord() {
+        // Create mocks for contract function results with logs and bloom
+        final var contractFunctionResult = new ContractFunctionResult(
+                ContractID.DEFAULT,
+                Bytes.EMPTY,
+                "",
+                Bytes.wrap("bloom data"), // set bloom data
+                0L,
+                List.of(ContractLoginfo.DEFAULT), // set log info
+                List.of(ContractID.DEFAULT),
+                Bytes.EMPTY,
+                0L,
+                0L,
+                Bytes.EMPTY,
+                AccountID.DEFAULT,
+                List.of(ContractNonceInfo.DEFAULT),
+                0L);
+
+        // Test contract call result clearing
+        final var callBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
+                .contractCallResult(contractFunctionResult);
+        callBuilder.nullOutSideEffectFields();
+        final var callRecord = callBuilder.build();
+        assertThat(callRecord.transactionRecord().contractCallResult().bloom()).isEqualTo(Bytes.EMPTY);
+        assertThat(callRecord.transactionRecord().contractCallResult().logInfo())
+                .isEqualTo(emptyList());
+
+        // Test contract create result clearing
+        final var createBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
+                .createdContractID(ContractID.DEFAULT)
+                .contractCallResult(contractFunctionResult);
+        createBuilder.nullOutSideEffectFields();
+        final var createRecord = createBuilder.build();
+        assertThat(createRecord.transactionRecord().contractCreateResult().bloom())
+                .isEqualTo(Bytes.EMPTY);
+        assertThat(createRecord.transactionRecord().contractCreateResult().logInfo())
+                .isEqualTo(emptyList());
     }
 }

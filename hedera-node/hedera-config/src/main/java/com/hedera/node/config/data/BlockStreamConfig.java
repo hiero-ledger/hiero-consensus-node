@@ -7,7 +7,6 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
@@ -15,30 +14,29 @@ import java.time.Duration;
  * Configuration for the block stream.
  * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
  * @param writerMode if we are writing to a file or gRPC stream
- * @param shutdownNodeOnNoBlockNodes whether to shutdown the consensus node if there are no block node connections
  * @param blockFileDir directory to store block files
- * @param blockNodeConnectionFileDir directory to get the block node configuration file
- * @param compressFilesOnCreation whether to compress files on creation
  * @param hashCombineBatchSize the number of items to hash in a batch
  * @param roundsPerBlock the number of rounds per block
- * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
- * @param grpcAddress the address of the gRPC server
- * @param grpcPort the port of the gRPC server
+ * @param blockPeriod the block period
+ * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
+ * @param maxReadDepth the max allowed depth of nested protobuf messages
+ * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "BOTH") @NetworkProperty StreamMode streamMode,
-        @ConfigProperty(defaultValue = "FILE") @NodeProperty BlockStreamWriterMode writerMode,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean shutdownNodeOnNoBlockNodes,
+        @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty BlockStreamWriterMode writerMode,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty String blockFileDir,
-        @ConfigProperty(defaultValue = "/opt/hgcapp/data/config") @NodeProperty String blockNodeConnectionFileDir,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
-        @ConfigProperty(defaultValue = "0") @Min(0) @NetworkProperty Duration blockPeriod,
-        @ConfigProperty(defaultValue = "2") @NetworkProperty long waitPeriodForActiveConnection,
-        @ConfigProperty(defaultValue = "localhost") String grpcAddress,
-        @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort) {
+        @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
+        @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
+        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration,
+        @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty int maxConsecutiveScheduleSecondsToProbe,
+        @ConfigProperty(defaultValue = "1s") @Min(1) @NodeProperty Duration quiescedHeartbeatInterval,
+        @ConfigProperty(defaultValue = "512") @NodeProperty int maxReadDepth,
+        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enableStateProofs) {
 
     /**
      * Whether to stream to block nodes.

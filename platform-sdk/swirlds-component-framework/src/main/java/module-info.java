@@ -14,11 +14,13 @@ module com.swirlds.component.framework {
     exports com.swirlds.component.framework.wires.output;
 
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.consensus.metrics;
     requires com.swirlds.logging;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

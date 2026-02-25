@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.common.utility.Threshold.STRONG_MINORITY;
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static org.hiero.base.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.STRONG_MINORITY;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

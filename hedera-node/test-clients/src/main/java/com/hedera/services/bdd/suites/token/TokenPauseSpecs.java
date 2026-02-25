@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -40,6 +41,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Unpaused;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -60,6 +62,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenPauseSpecs {
     private static final String PAUSE_KEY = "pauseKey";
     private static final String SUPPLY_KEY = "supplyKey";
@@ -95,6 +98,16 @@ public class TokenPauseSpecs {
                 .given(newKeyNamed(PAUSE_KEY), newKeyNamed(OTHER_KEY))
                 .when(tokenCreate(PRIMARY).pauseKey(PAUSE_KEY))
                 .then(tokenPause(PRIMARY).signedBy(DEFAULT_PAYER, OTHER_KEY).hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cannotUnpauseWithInvalidPauseKey() {
+        return hapiTest(
+                newKeyNamed(PAUSE_KEY),
+                newKeyNamed(OTHER_KEY),
+                tokenCreate(PRIMARY).pauseKey(PAUSE_KEY),
+                tokenPause(PRIMARY).signedBy(DEFAULT_PAYER, PAUSE_KEY),
+                tokenUnpause(PRIMARY).signedBy(DEFAULT_PAYER, OTHER_KEY).hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest
@@ -365,6 +378,16 @@ public class TokenPauseSpecs {
                         tokenUnpause(NON_FUNGIBLE_UNIQUE_PRIMARY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> unpauseDeletedToken() {
+        return hapiTest(
+                cryptoCreate(PAUSE_KEY),
+                cryptoCreate(ADMIN_KEY),
+                tokenCreate(PRIMARY).adminKey(ADMIN_KEY).pauseKey(PAUSE_KEY),
+                tokenDelete(PRIMARY),
+                tokenUnpause(PRIMARY).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     public static class TokenIdOrderingAsserts extends BaseErroringAssertsProvider<List<TokenTransferList>> {

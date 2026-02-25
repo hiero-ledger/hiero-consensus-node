@@ -274,6 +274,11 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "spender",
         "type": "address"
       },
@@ -368,29 +373,6 @@
     "name": "tokenURI",
     "outputs": [],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "nftToken",
-        "type": "address"
-      },
-      {
-        "internalType": "int64[]",
-        "name": "serialNumbers",
-        "type": "int64[]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_newMetadata",
-        "type": "bytes"
-      }
-    ],
-    "name": "updateNFTsMetadata",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

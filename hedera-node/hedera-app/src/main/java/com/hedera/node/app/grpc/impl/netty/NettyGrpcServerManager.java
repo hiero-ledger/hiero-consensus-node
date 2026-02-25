@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.GrpcServerManager;
+import com.hedera.node.app.grpc.impl.usage.GrpcUsageTracker;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -74,6 +75,11 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     private static final List<String> SUPPORTED_PROTOCOLS = List.of("TLSv1.2", "TLSv1.3");
 
     /**
+     * The max transaction size in bytes supported by gRPC.
+     */
+    public static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
+
+    /**
      * The set of {@link ServiceDescriptor}s for services that the gRPC server will expose
      */
     private final Set<ServerServiceDefinition> services;
@@ -100,6 +106,11 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * The node operator gRPC server listening on localhost port
      */
     private Server nodeOperatorServer;
+
+    /**
+     * Utility to collect and periodically log gRPC usage data.
+     */
+    private final GrpcUsageTracker usageTracker;
 
     /**
      * Create a new instance.
@@ -150,6 +161,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                     operatorQueryWorkflow,
                     metrics);
         }
+
+        usageTracker = new GrpcUsageTracker(configProvider);
     }
 
     @Override
@@ -347,6 +360,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         } catch (final Exception unexpected) {
             logger.info("Unexpected exception initializing Netty", unexpected);
         }
+
+        if (builder != null) {
+            // attach logging interceptor
+            builder.intercept(usageTracker);
+        }
+
         return builder;
     }
 
@@ -409,15 +428,15 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
-        final var maxTxnSize = configProvider
+        final int maxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
-        final var isJumboEnabled = configProvider
+        final boolean isJumboEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(JumboTransactionsConfig.class)
                 .isEnabled();
-        final var jumboMaxTxnSize = isJumboEnabled
+        final int jumboMaxTxnSize = isJumboEnabled
                 ? configProvider
                         .getConfiguration()
                         .getConfigData(JumboTransactionsConfig.class)
@@ -427,7 +446,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var dataBufferMarshaller = new DataBufferMarshaller(MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()

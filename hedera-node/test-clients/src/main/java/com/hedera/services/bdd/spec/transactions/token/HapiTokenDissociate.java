@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static java.util.stream.Collectors.toList;
 
@@ -78,7 +78,7 @@ public class HapiTokenDissociate extends HapiTxnOp<HapiTokenDissociate> {
         if (referenceType == ReferenceType.REGISTRY_NAME) {
             aId = TxnUtils.asId(account, spec);
         } else {
-            aId = spec.registry().keyAliasIdFor(alias);
+            aId = spec.registry().keyAliasIdFor(spec, alias);
             account = asAccountString(aId);
         }
         final TokenDissociateTransactionBody opBody = spec.txns()

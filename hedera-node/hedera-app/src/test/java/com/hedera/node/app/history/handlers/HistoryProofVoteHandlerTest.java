@@ -12,11 +12,13 @@ import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBod
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.ProofController;
 import com.hedera.node.app.history.impl.ProofControllers;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +55,12 @@ class HistoryProofVoteHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private TssConfig tssConfig;
+
     private HistoryProofVoteHandler subject;
 
     @BeforeEach
@@ -69,25 +77,29 @@ class HistoryProofVoteHandlerTest {
     @Test
     void handleIsNoopWithoutActiveConstruction() {
         givenVoteWith(1L, HistoryProofVote.DEFAULT);
+        given(context.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L);
+        verify(controllers).getInProgressById(1L, tssConfig);
         verifyNoMoreInteractions(context);
     }
 
     @Test
     void handleForwardsVoteWithActiveConstruction() {
         givenVoteWith(1L, HistoryProofVote.DEFAULT);
-        given(controllers.getInProgressById(1L)).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(1L, tssConfig)).willReturn(Optional.of(controller));
         given(context.creatorInfo()).willReturn(nodeInfo);
+        given(context.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L);
+        verify(controllers).getInProgressById(1L, tssConfig);
         verifyNoMoreInteractions(context);
     }
 

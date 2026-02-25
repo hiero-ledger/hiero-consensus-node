@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.state.spi.WritableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A simple implementation of {@link com.swirlds.state.spi.WritableKVState} backed by a
@@ -17,22 +17,26 @@ import java.util.Objects;
  * some strange case, or in some other way work with the backing map directly.
  *
  * <p>A convenient {@link Builder} is provided to create the map (since there are no map literals in
- * Java). The {@link #builder(String)} method can be used to create the builder.
+ * Java). The {@link #builder(int, String)} method can be used to create the builder.
  *
  * @param <K> The key type
  * @param <V> The value type
  */
 public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
-    /** Represents the backing storage for this state */
+
+    /**
+     * Represents the backing storage for this state
+     */
     private final Map<K, V> backingStore;
 
     /**
      * Create an instance using a HashMap as the backing store.
      *
-     * @param stateKey The state key for this state
+     * @param stateId The state ID
+     * @param label The state label
      */
-    public MapWritableKVState(@NonNull final String stateKey) {
-        this(stateKey, new HashMap<>());
+    public MapWritableKVState(final int stateId, @NonNull final String label) {
+        this(stateId, label, new HashMap<>());
     }
 
     /**
@@ -40,23 +44,18 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * pre-populate the map, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param stateKey The state key for this state
+     * @param stateId      The state ID
+     * @param label        The service label
      * @param backingStore The backing store to use
      */
-    public MapWritableKVState(@NonNull final String stateKey, @NonNull final Map<K, V> backingStore) {
-        super(stateKey);
-        this.backingStore = Objects.requireNonNull(backingStore);
+    public MapWritableKVState(final int stateId, final String label, @NonNull final Map<K, V> backingStore) {
+        super(stateId, requireNonNull(label));
+        this.backingStore = requireNonNull(backingStore);
     }
 
     @Override
     protected V readFromDataSource(@NonNull K key) {
         return backingStore.get(key);
-    }
-
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return backingStore.keySet().iterator();
     }
 
     @Override
@@ -69,7 +68,18 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
         backingStore.remove(key);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Get the backing store for this state. This is only for testing purposes added to {@link MapWritableKVState}
+     *
+     * @return The backing store for this state
+     */
+    public Map<K, V> getBackingStore() {
+        return backingStore;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public long sizeOfDataSource() {
@@ -85,13 +95,14 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * Create a new {@link Builder} for building a {@link MapWritableKVState}. The builder has
      * convenience methods for pre-populating the map.
      *
-     * @param stateKey The state key
+     * @param stateId  The state ID
+     * @param label    The state label
+     * @param <K>      The key type
+     * @param <V>      The value type
      * @return A {@link Builder} to be used for creating a {@link MapWritableKVState}.
-     * @param <K> The key type
-     * @param <V> The value type
      */
-    public static <K, V> Builder<K, V> builder(@NonNull final String stateKey) {
-        return new Builder<>(stateKey);
+    public static <K, V> Builder<K, V> builder(final int stateId, @NonNull final String label) {
+        return new Builder<>(stateId, requireNonNull(label));
     }
 
     /**
@@ -99,18 +110,21 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * MapWritableKVState}.
      */
     public static final class Builder<K, V> {
-        private final Map<K, V> backingStore = new HashMap<>();
-        private final String stateKey;
 
-        public Builder(@NonNull final String stateKey) {
-            this.stateKey = stateKey;
+        private final int stateId;
+        private final String label;
+        private final Map<K, V> backingStore = new HashMap<>();
+
+        public Builder(final int stateId, @NonNull final String label) {
+            this.stateId = stateId;
+            this.label = requireNonNull(label);
         }
 
         /**
          * Add a key/value pair to the state's backing map. This is used to pre-initialize the
          * backing map. The created state will be "clean" with no modifications.
          *
-         * @param key The key
+         * @param key   The key
          * @param value The value
          * @return a reference to this builder
          */
@@ -125,7 +139,7 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
          * @return an instance of the state, preloaded with whatever key-value pairs were defined.
          */
         public MapWritableKVState<K, V> build() {
-            return new MapWritableKVState<>(stateKey, new HashMap<>(backingStore));
+            return new MapWritableKVState<>(stateId, label, new HashMap<>(backingStore));
         }
     }
 }

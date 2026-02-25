@@ -18,10 +18,11 @@ public class ResourcePricesPojo {
         pojo.setSbh(prices.getSbh());
         pojo.setSbpr(prices.getSbpr());
         pojo.setVpt(prices.getVpt());
+        pojo.setTv(prices.getTv());
         return pojo;
     }
 
-    long constant, bpt, vpt, rbh, sbh, gas, bpr, sbpr, min, max;
+    long constant, bpt, vpt, rbh, sbh, gas, bpr, sbpr, min, max, tv;
 
     public long getConstant() {
         return constant;
@@ -45,6 +46,14 @@ public class ResourcePricesPojo {
 
     public void setVpt(long vpt) {
         this.vpt = vpt;
+    }
+
+    public long getTv() {
+        return tv;
+    }
+
+    public void setTv(long tv) {
+        this.tv = tv;
     }
 
     public long getRbh() {

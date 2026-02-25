@@ -2,14 +2,14 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.util.Random;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.state.signed.SignedState;
 
 public class SignedStateUtils {
 
@@ -18,20 +18,18 @@ public class SignedStateUtils {
     }
 
     public static SignedState randomSignedState(Random random) {
-        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        MerkleNodeState root = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(root);
-        randomPlatformState(random, root, platformStateFacade);
+        VirtualMapState root = createTestState();
+        TestingAppStateInitializer.initPlatformState(root);
+        randomPlatformState(random, root);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 root,
                 "test",
                 shouldSaveToDisk,
                 false,
-                false,
-                platformStateFacade);
+                false);
         signedState.getState().setHash(CryptoRandomUtils.randomHash(random));
         return signedState;
     }

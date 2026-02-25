@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.file;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.api.extensions.handler.LogHandler;
 import com.swirlds.logging.api.extensions.handler.LogHandlerFactory;
@@ -20,7 +19,6 @@ import java.util.ServiceLoader;
  * @see ServiceLoader
  * @see Configuration
  */
-@AutoService(LogHandlerFactory.class)
 public class FileHandlerFactory implements LogHandlerFactory {
 
     /**

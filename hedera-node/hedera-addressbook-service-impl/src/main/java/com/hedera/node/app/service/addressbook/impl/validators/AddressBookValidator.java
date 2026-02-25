@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.validators;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FQDN_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
@@ -14,6 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
@@ -21,6 +24,7 @@ import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCert
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -28,6 +32,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -93,9 +102,6 @@ public class AddressBookValidator {
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxGossipEndpoint(), GOSSIP_ENDPOINTS_EXCEEDED_LIMIT);
-        // for phase 2: The first in the list is used as the Internal IP address in config.txt,
-        // the second in the list is used as the External IP address in config.txt
-        validateFalse(endpointList.size() < 2, INVALID_GOSSIP_ENDPOINT);
 
         for (final var endpoint : endpointList) {
             validateFalse(
@@ -146,7 +152,28 @@ public class AddressBookValidator {
                 !requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
     }
 
-    private void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+    public Account validateAccount(
+            @NonNull final AccountID accountId,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
+            @NonNull final ExpiryValidator expiryValidator) {
+        requireNonNull(accountId);
+        requireNonNull(accountStore);
+        requireNonNull(accountNodeRelStore);
+        requireNonNull(expiryValidator);
+
+        final var account = accountStore.getAccountById(accountId);
+        validateTrue(account != null, INVALID_NODE_ACCOUNT_ID);
+        validateFalse(account.deleted(), ACCOUNT_DELETED);
+        final var expiryStatus = expiryValidator.expirationStatus(
+                EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance());
+        validateTrue(expiryStatus == OK, expiryStatus);
+        validateTrue(accountNodeRelStore.get(accountId) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
+
+        return account;
+    }
+
+    public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
         requireNonNull(nodesConfig);
 
@@ -155,8 +182,27 @@ public class AddressBookValidator {
         validateFalse(addressLen == 0 && endpoint.domainName().trim().isEmpty(), INVALID_ENDPOINT);
         validateFalse(
                 addressLen != 0 && !endpoint.domainName().trim().isEmpty(), IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT);
-        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
+        validateFqdnSize(endpoint, nodesConfig);
         validateFalse(addressLen != 0 && addressLen != 4, INVALID_IPV4_ADDRESS);
+    }
+
+    /**
+     * Validates that a {@code ServiceEndpoint} <b>only</b> contains a valid FQDN (with no IPv4 address)
+     *
+     * @param endpoint the endpoint to validate
+     * @param nodesConfig the nodes configuration
+     */
+    public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoint);
+        requireNonNull(nodesConfig);
+
+        validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateFqdnSize(endpoint, nodesConfig);
+        validateFalse(endpoint.ipAddressV4().length() > 0, INVALID_SERVICE_ENDPOINT);
+    }
+
+    private void validateFqdnSize(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
     }
 
     /**

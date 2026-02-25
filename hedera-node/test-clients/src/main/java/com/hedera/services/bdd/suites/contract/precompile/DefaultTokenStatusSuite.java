@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -47,6 +48,7 @@ public class DefaultTokenStatusSuite {
     private static final String GET_TOKEN_DEFAULT_KYC = "getTokenDefaultKyc";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenDefaultFreezeStatus() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -89,6 +91,7 @@ public class DefaultTokenStatusSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenDefaultKycStatus() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<TokenID> noKycTokenId = new AtomicReference<>();

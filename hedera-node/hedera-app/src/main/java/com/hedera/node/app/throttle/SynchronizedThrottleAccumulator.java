@@ -13,13 +13,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
  * Keeps track of the amount of usage of different TPS throttle categories and gas, and returns whether a given
  * transaction or query should be throttled based on that.
- * Meant to be used in multithreaded context
+ * Meant to be used in multithreaded context. This is thread-safe ingest wrapper.
  */
 @Singleton
 public class SynchronizedThrottleAccumulator {
@@ -44,11 +45,18 @@ public class SynchronizedThrottleAccumulator {
      *
      * @param txnInfo the transaction to update the throttle requirements for
      * @param state the current state of the node
+     * @param throttleUsages a list to accumulate throttle usages during the decision
      * @return whether the transaction should be throttled
      */
-    public synchronized boolean shouldThrottle(@NonNull TransactionInfo txnInfo, State state) {
+    public synchronized boolean shouldThrottle(
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final State state,
+            @NonNull final List<ThrottleUsage> throttleUsages) {
+        requireNonNull(txnInfo);
+        requireNonNull(state);
+        requireNonNull(throttleUsages);
         setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state);
+        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages, false);
     }
 
     /**
@@ -74,5 +82,20 @@ public class SynchronizedThrottleAccumulator {
 
     private void setDecisionTime(@NonNull final Instant time) {
         lastDecisionTime = time.isBefore(lastDecisionTime) ? lastDecisionTime : time;
+    }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
+     *
+     * <p>This is used for HIP-1313 high-volume pricing curve calculation.
+     *
+     * @param function the functionality to get the utilization for
+     * @return the utilization percentage in hundredths of one percent (0 to 10,000),
+     *         or 0 if no high-volume throttle exists for the functionality
+     */
+    public synchronized int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+        return frontendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, instantSource.instant());
     }
 }

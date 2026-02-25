@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,13 +10,8 @@ import static org.mockito.Mockito.mock;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -25,6 +21,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +34,8 @@ import java.nio.LongBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Random;
@@ -48,9 +47,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashBuilder;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 
+@ConstructableIgnored
 @SuppressWarnings("unused")
 public class MerkleDbTestUtils {
 
@@ -84,7 +90,7 @@ public class MerkleDbTestUtils {
         // run test in background thread
         final ExecutorService executorService = Executors.newSingleThreadExecutor();
         final var future = executorService.submit(callable);
-        future.get(60, TimeUnit.MINUTES);
+        future.get(300, TimeUnit.SECONDS);
         executorService.shutdown();
         // Check we did not leak direct memory now that the thread is shut down so thread locals
         // should be released
@@ -340,5 +346,25 @@ public class MerkleDbTestUtils {
         }
 
         return metric.orElse(null);
+    }
+
+    /**
+     * Asserts that all databases are closed within a certain time frame.
+     */
+    public static void assertAllDatabasesClosed() {
+        assertSomeDatabasesStillOpen(0L);
+    }
+
+    /**
+     * Asserts that the number of open databases matches the expected count within a specified time frame.
+     *
+     * @param expectedOpenCount The expected number of open databases to validate.
+     */
+    public static void assertSomeDatabasesStillOpen(@NonNull final Long expectedOpenCount) {
+        assertEventuallyEquals(
+                expectedOpenCount,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "Expected " + expectedOpenCount + " open databases.");
     }
 }

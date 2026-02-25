@@ -13,15 +13,10 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import java.util.Optional;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomScheduleSign implements OpProvider {
-    static final Logger log = LogManager.getLogger(RandomScheduleSign.class);
 
     public static final int DEFAULT_CEILING_NUM = 10_000;
-
-    private int ceilingNum = DEFAULT_CEILING_NUM;
 
     private final RegistrySourcedNameProvider<ScheduleID> schedules;
     private final RegistrySourcedNameProvider<AccountID> accounts;
@@ -33,11 +28,6 @@ public class RandomScheduleSign implements OpProvider {
             RegistrySourcedNameProvider<ScheduleID> schedules, RegistrySourcedNameProvider<AccountID> accounts) {
         this.schedules = schedules;
         this.accounts = accounts;
-    }
-
-    public RandomScheduleSign ceiling(int n) {
-        ceilingNum = n;
-        return this;
     }
 
     @Override

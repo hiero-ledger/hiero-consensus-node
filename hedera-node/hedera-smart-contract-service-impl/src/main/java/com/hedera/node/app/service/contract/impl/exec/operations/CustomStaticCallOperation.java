@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
+
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
@@ -60,5 +63,14 @@ public class CustomStaticCallOperation extends StaticCallOperation implements Ba
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
         return BasicCustomCallOperation.super.executeChecked(frame, evm);
+    }
+
+    @Override
+    public Address sender(final MessageFrame frame) {
+        if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            // For HTS hooks, the sender is the owner of the hook, not the HTS hooks contract itself
+            return FrameUtils.hookOwnerAddress(frame);
+        }
+        return super.sender(frame);
     }
 }

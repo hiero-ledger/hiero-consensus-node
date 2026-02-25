@@ -150,6 +150,7 @@ public interface Configuration {
 
     /**
      * Returns a {@link Set} of string elements of the property with the given name.
+     * The set has a stable iteration order.
      *
      * @param propertyName the name of the property
      * @return a {@link Set} of elements of the property with the given name
@@ -162,6 +163,7 @@ public interface Configuration {
 
     /**
      * Returns a {@link Set} of string elements of the property with the given name or the given default {@link Set}.
+     * The set has a stable iteration order.
      *
      * @param propertyName the name of the property
      * @param defaultValue the default {@link Set}
@@ -174,6 +176,7 @@ public interface Configuration {
 
     /**
      * Returns a {@link Set} of elements of the property with the given name.
+     * The set has a stable iteration order.
      *
      * @param propertyName the name of the property
      * @param propertyType the type of the elements
@@ -189,6 +192,7 @@ public interface Configuration {
 
     /**
      * Returns a {@link Set} of elements of the property with the given name or the given default {@link Set}.
+     * The set has a stable iteration order.
      *
      * @param propertyName the name of the property
      * @param propertyType the type of the elements

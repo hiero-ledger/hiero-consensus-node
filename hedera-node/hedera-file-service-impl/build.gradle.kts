@@ -14,7 +14,9 @@ testModuleInfo {
     requires("com.hedera.node.config.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("com.hedera.node.app.service.entityid.impl")
     runtimeOnly("com.swirlds.config.extensions.test.fixtures")
 }

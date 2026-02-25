@@ -53,7 +53,6 @@ class BalanceOfCallTest extends CallTestBase {
                         DEFAULT_HEDERA_CONFIG.realm(),
                         tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 

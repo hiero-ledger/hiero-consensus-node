@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.metrics.api.Metrics;
@@ -16,7 +14,10 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 public abstract class AbstractFakePlatform implements Platform {
     private static final Signature TOY_SIGNATURE = new Signature(SignatureType.RSA, new byte[384]);
@@ -63,6 +64,9 @@ public abstract class AbstractFakePlatform implements Platform {
     public Signature sign(@NonNull final byte[] data) {
         return TOY_SIGNATURE;
     }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {}
 
     @NonNull
     @Override

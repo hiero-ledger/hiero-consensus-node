@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
+
 /**
  * Describes various status that the event creator may be in.
  */
@@ -27,10 +29,20 @@ public enum EventCreationStatus {
      */
     PLATFORM_STATUS,
     /**
+     * Event creation is paused due to network being quiet
+     */
+    QUIESCENCE,
+    /**
      * Event creation is not permitted because this node is currently overloaded and is not keeping up with the required
      * work load.
      */
     OVERLOADED,
+    /**
+     * Event creation is not permitted because this node is currently lagging behind median latest round of peers by
+     * more than configured amount of rounds
+     * {@link EventCreationConfig#maxAllowedSyncLag()}
+     */
+    ROUND_LAG,
     /**
      * Event creation has not yet been started.
      */

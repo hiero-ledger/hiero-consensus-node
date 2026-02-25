@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -16,9 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public final class CommonUpgradeResources {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
-    public static final String DEFAULT_UPGRADE_FILE_ID = String.format("%s.%s.150", SHARD, REALM);
+    public static final String DEFAULT_UPGRADE_FILE_ID = "150";
     public static final String DEFAULT_UPGRADE_FILE_PATH = "testfiles/poeticUpgrade.zip";
     // This file is inside the pretend ZIP and PREPARE_UPGRADE should put it in the current artifacts directory
     public static final String FAKE_UPGRADE_FILE_NAME = "MrBleaney.txt";

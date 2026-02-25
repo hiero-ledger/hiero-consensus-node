@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
+import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -22,6 +28,14 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTraceData;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
+import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
+import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -39,6 +53,10 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -46,12 +64,10 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
-import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.blocks.BlockItemsTranslator;
 import com.hedera.node.app.blocks.impl.contexts.AirdropOpContext;
 import com.hedera.node.app.blocks.impl.contexts.BaseOpContext;
@@ -74,6 +90,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBui
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -83,6 +100,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -100,7 +118,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -110,11 +127,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * An implementation of {@link BlockStreamBuilder} that produces block items for a single user or
  * synthetic transaction; that is, the "input" block item with a {@link Transaction} and "output" block items
- * with a {@link TransactionResult} and, optionally, {@link TransactionOutput}.
+ * with a {@link TransactionResult} and, optionally, {@link TransactionOutput} and {@link TraceData}.
  */
 public class BlockStreamBuilder
         implements StreamBuilder,
@@ -144,7 +164,11 @@ public class BlockStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
+
+    private static final Logger log = LogManager.getLogger(BlockStreamBuilder.class);
+
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenIdOrThrow().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNumOrThrow());
@@ -155,13 +179,13 @@ public class BlockStreamBuilder
     /**
      * The transaction "owning" the stream items we are building.
      */
-    private Transaction transaction;
+    private SignedTransaction signedTx;
     /**
-     * If set, the serialized form of the transaction; if not set, it will be serialized from the transaction.
+     * If set, the serialized form of the SignedTransaction; if not set, it will be serialized from the signedTx.
      * (We already have this pre-serialized when the transaction came from an event.)
      */
     @Nullable
-    private Bytes serializedTransaction;
+    private Bytes serializedSignedTx;
 
     // --- Fields used to build the TranslationContext ---
     /**
@@ -268,6 +292,12 @@ public class BlockStreamBuilder
      */
     private final List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
 
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private Long nextHookId;
+
     // --- Fields used to build the TransactionOutput(s) ---
     /**
      * Enumerates the types of contract operations that may have a result.
@@ -298,23 +328,55 @@ public class BlockStreamBuilder
      * The type of contract operation that was performed.
      */
     private ContractOpType contractOpType = null;
+
     /**
-     * The result of a contract function call or creation.
+     * The result of an EVM transaction, if any.
      */
-    private ContractFunctionResult contractFunctionResult;
+    @Nullable
+    private EvmTransactionResult evmTransactionResult;
+
     /**
-     * The contract state changes resulting from the transaction.
+     * If set, the nonce of the signer after the transaction.
      */
-    private final List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges =
-            new LinkedList<>();
+    @Nullable
+    private Long senderNonce;
+
+    /**
+     * If set, the ids of contracts that had their nonce changed during the call.
+     */
+    @Nullable
+    private List<ContractNonceInfo> changedNonceInfos;
+
+    /**
+     * If set, the ids of contracts that were created in the EVM transaction.
+     */
+    @Nullable
+    private List<ContractID> createdContractIds;
+
+    /**
+     * If set, the EVM logs resulting from the transaction.
+     */
+    @Nullable
+    private List<EvmTransactionLog> logs;
+
+    /**
+     * If set, the contract slot usages resulting from the transaction.
+     */
+    @Nullable
+    private List<ContractSlotUsage> slotUsages;
+
     /**
      * The contract actions resulting from the transaction.
      */
-    private final List<AbstractMap.SimpleEntry<ContractActions, Boolean>> contractActions = new LinkedList<>();
+    @Nullable
+    private List<ContractAction> contractActions;
+
     /**
-     * The contract bytecodes resulting from the transaction.
+     * The contract initcode for this builder's EVM transaction or internal creation.
      */
-    private final List<AbstractMap.SimpleEntry<ContractBytecode, Boolean>> contractBytecodes = new LinkedList<>();
+    @Nullable
+    private ExecutedInitcode initcode;
+
     /**
      * The hash of the Ethereum payload if relevant to the transaction.
      */
@@ -337,6 +399,12 @@ public class BlockStreamBuilder
      * The id of a schedule created or deleted by the transaction.
      */
     private ScheduleID scheduleId;
+
+    /**
+     * Test to use to determine if two map change keys are logically identical.
+     */
+    @Nullable
+    private Predicate<Object> logicallyIdentical;
 
     // --- Fields used to build the StateChanges items ---
     /**
@@ -372,12 +440,15 @@ public class BlockStreamBuilder
     /**
      * How the transaction should be customized before externalization to the stream.
      */
-    private final TransactionCustomizer customizer;
+    private final SignedTxCustomizer customizer;
+
+    private boolean isContractCreate;
 
     /**
-     * The builder {@link EventTransaction}'s role in a state changes "group".
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
      */
-    private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
+    private int deltaStorageSlotsUpdated;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -387,7 +458,7 @@ public class BlockStreamBuilder
      */
     public BlockStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         this.reversingBehavior = requireNonNull(reversingBehavior);
         this.customizer = requireNonNull(customizer);
@@ -401,7 +472,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -474,20 +546,34 @@ public class BlockStreamBuilder
                 for (int k = i; k < j; k++) {
                     outputs[k - i] = blockItems.get(k).transactionOutput();
                 }
+                List<EvmTransactionLog> logs = null;
+                for (final var item : blockItems.subList(j, n)) {
+                    if (item.hasTraceData()) {
+                        final var traceData = item.traceDataOrThrow();
+                        if (traceData.hasEvmTraceData()) {
+                            if (logs == null) {
+                                logs = new ArrayList<>();
+                            }
+                            logs.addAll(traceData.evmTraceDataOrThrow().logs());
+                        }
+                    }
+                }
                 return (T)
                         switch (view) {
-                            case RECEIPT -> new RecordSource.IdentifiedReceipt(
-                                    translationContext.txnId(),
-                                    translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, outputs);
+                            case RECEIPT ->
+                                new RecordSource.IdentifiedReceipt(
+                                        translationContext.txnId(),
+                                        translator.translateReceipt(translationContext, result, outputs));
+                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
                         };
             } else {
                 return (T)
                         switch (view) {
-                            case RECEIPT -> new RecordSource.IdentifiedReceipt(
-                                    translationContext.txnId(),
-                                    translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result);
+                            case RECEIPT ->
+                                new RecordSource.IdentifiedReceipt(
+                                        translationContext.txnId(),
+                                        translator.translateReceipt(translationContext, result));
+                            case RECORD -> translator.translateRecord(translationContext, result, null);
                         };
             }
         }
@@ -496,19 +582,188 @@ public class BlockStreamBuilder
     /**
      * Builds the list of block items with their translation contexts.
      *
+     * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
+     * @param groupStateChanges if not null, the state changes for the group-containing tx owning this builder
      * @return the list of block items
      */
-    public Output build() {
+    public Output build(final boolean topLevel, @Nullable final List<StateChange> groupStateChanges) {
         final var blockItems = new ArrayList<BlockItem>();
-        blockItems.add(BlockItem.newBuilder()
-                .eventTransaction(EventTransaction.newBuilder()
-                        .applicationTransaction(getSerializedTransaction())
-                        .transactionGroupRole(role)
-                        .build())
-                .build());
+        // Construct the context here to capture any additional Ethereum transaction details needed
+        // for the legacy record before they are removed from the block stream output item
+        final var translationContext = translationContext();
+        // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
+        // can be inferred from the parent transaction.
+        if (category != BATCH_INNER) {
+            if (customizer != null) {
+                signedTx = customizer.apply(signedTx);
+                // Right now only ContractService sets a customizer, and leaves serializedSignedTx as null;
+                // but to future proof, we null out the serialized bytes so they definitely get recreated
+                // from the _customized_ signed transaction in the block below
+                serializedSignedTx = null;
+            }
+            // The serialized bytes can only be null here if the transaction was synthetic (not submitted via HAPI)
+            if (serializedSignedTx == null) {
+                serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+            }
+            blockItems.add(
+                    BlockItem.newBuilder().signedTransaction(serializedSignedTx).build());
+        }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (!stateChanges.isEmpty()) {
+        if (slotUsages != null || contractActions != null || initcode != null || logs != null) {
+            final var builder = EvmTraceData.newBuilder();
+            if (slotUsages != null) {
+                final boolean traceExplicitWrites = logicallyIdentical == null;
+                if (traceExplicitWrites) {
+                    // When writes are traced explicitly in ContractSlotUsage#writtenSlotKeys, we index the reads
+                    // to their corresponding writes; so in the case of a reverted transaction, we need to swap
+                    // the indexes back to the original keys before output
+                    if (status == REVERTED_SUCCESS) {
+                        slotUsages = slotUsages.stream()
+                                .map(usage -> {
+                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                                            .keys();
+                                    var reads = usage.slotReads();
+                                    if (!writtenKeys.isEmpty()) {
+                                        final List<SlotRead> explicitReads = new ArrayList<>(reads.size());
+                                        for (final var read : reads) {
+                                            if (read.hasIndex()) {
+                                                explicitReads.add(read.copyBuilder()
+                                                        .key(writtenKeys.get(read.indexOrThrow()))
+                                                        .build());
+                                            } else {
+                                                explicitReads.add(read);
+                                            }
+                                        }
+                                        reads = explicitReads;
+                                    }
+                                    return usage.copyBuilder()
+                                            .slotReads(reads)
+                                            .writtenSlotKeys((WrittenSlotKeys) null)
+                                            .build();
+                                })
+                                .toList();
+                    }
+                    // Nothing else to do if these slot usages already traced their written keys explicitly
+                    builder.contractSlotUsages(slotUsages);
+                } else {
+                    // If writes are implicit as the non-identical slot updates in the state changes list,
+                    // we need to index the corresponding reads to minimize the size of the output stream
+                    final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
+                    final var relevantStateChanges = groupStateChanges != null ? groupStateChanges : stateChanges;
+                    for (final var stateChange : relevantStateChanges) {
+                        if (stateChange.stateId() == STATE_ID_STORAGE.protoOrdinal()) {
+                            SlotKey slotKey = null;
+                            if (stateChange.hasMapUpdate()
+                                    && !stateChange.mapUpdateOrThrow().identical()) {
+                                slotKey = stateChange
+                                        .mapUpdateOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
+                            } else if (stateChange.hasMapDelete()) {
+                                slotKey = stateChange
+                                        .mapDeleteOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
+                            }
+                            if (slotKey != null) {
+                                // Each contract id gets its own implicit list of writes
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
+                                indexes.put(slotKey.key(), indexes.size());
+                            }
+                        } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
+                            SlotKey slotKey = null;
+                            if (stateChange.hasMapUpdate()
+                                    && !stateChange.mapUpdateOrThrow().identical()) {
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapUpdateOrThrow()
+                                                .keyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
+                                                .key());
+                            } else if (stateChange.hasMapDelete()) {
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapDeleteOrThrow()
+                                                .keyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
+                                                .key());
+                            }
+                            if (slotKey != null) {
+                                // Hook contract has default placeholder id
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
+                                indexes.put(slotKey.key(), indexes.size());
+                            }
+                        }
+                    }
+                    final List<ContractSlotUsage> indexedSlotUsages = new ArrayList<>(slotUsages.size());
+                    for (final var slotUsage : slotUsages) {
+                        final var reads = slotUsage.slotReads();
+                        if (reads.isEmpty()) {
+                            indexedSlotUsages.add(slotUsage);
+                        } else {
+                            var contractId = slotUsage.contractIdOrThrow();
+                            if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
+                                contractId = ContractID.DEFAULT;
+                            }
+                            final var writeIndexes = implicitWriteIndexes.get(contractId);
+                            if (writeIndexes != null) {
+                                final List<SlotRead> indexedReads = new ArrayList<>(reads.size());
+                                for (final var read : reads) {
+                                    var key = read.keyOrThrow();
+                                    if (contractId == ContractID.DEFAULT) {
+                                        key = WritableEvmHookStore.minimalKey(key);
+                                    }
+                                    final var index = writeIndexes.get(key);
+                                    if (index != null) {
+                                        indexedReads.add(new SlotRead(new OneOf<>(INDEX, index), read.readValue()));
+                                    } else {
+                                        indexedReads.add(read);
+                                    }
+                                }
+                                indexedSlotUsages.add(
+                                        new ContractSlotUsage(slotUsage.contractIdOrThrow(), null, indexedReads));
+                            } else {
+                                indexedSlotUsages.add(slotUsage);
+                            }
+                        }
+                    }
+                    builder.contractSlotUsages(indexedSlotUsages);
+                }
+            }
+            if (contractActions != null) {
+                builder.contractActions(contractActions);
+            }
+            // No reason to externalize top-level initcode because a stream consumer must be able to compute it
+            if (initcode != null && !topLevel) {
+                builder.executedInitcode(initcode);
+            }
+            if (logs != null) {
+                builder.logs(logs);
+            }
+            blockItems.add(BlockItem.newBuilder()
+                    .traceData(TraceData.newBuilder().evmTraceData(builder))
+                    .build());
+        }
+
+        // Add trace data for batch inner transaction fields, that are normally computed by state changes
+        if (groupStateChanges != null) {
+            // message submit trace data
+            if (sequenceNumber > 0 || runningHash != Bytes.EMPTY) {
+                final var builder = SubmitMessageTraceData.newBuilder()
+                        .sequenceNumber(sequenceNumber)
+                        .runningHash(runningHash);
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().submitMessageTraceData(builder))
+                        .build());
+            }
+        }
+
+        if (!stateChanges.isEmpty() || topLevel) {
             blockItems.add(BlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
                             .consensusTimestamp(asTimestamp(consensusNow))
@@ -516,18 +771,29 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext());
-    }
-
-    @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        this.role = requireNonNull(role);
+        return new Output(blockItems, translationContext);
     }
 
     @Override
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         this.stateChanges.addAll(stateChanges);
         return this;
+    }
+
+    @Override
+    public List<StateChange> getStateChanges() {
+        return stateChanges;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        logicallyIdentical = requireNonNull(test);
+        return this;
+    }
+
+    @Override
+    public @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return logicallyIdentical;
     }
 
     @Override
@@ -568,6 +834,11 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant at) {
+        return parentConsensus(at);
+    }
+
+    @Override
     @NonNull
     public BlockStreamBuilder consensusTimestamp(@NonNull final Instant now) {
         this.consensusNow = requireNonNull(now, "consensus time must not be null");
@@ -580,20 +851,14 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public BlockStreamBuilder transaction(@NonNull final Transaction transaction) {
-        this.transaction = requireNonNull(transaction);
+    public BlockStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        this.signedTx = requireNonNull(signedTx);
         return this;
     }
 
     @Override
-    public StreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        this.serializedTransaction = serializedTransaction;
-        return this;
-    }
-
-    @Override
-    @NonNull
-    public BlockStreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
+    public BlockStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        this.serializedSignedTx = serializedSignedTx;
         return this;
     }
 
@@ -613,7 +878,7 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder syncBodyIdFromRecordId() {
-        this.transaction = StreamBuilder.transactionWith(
+        this.signedTx = StreamBuilder.signedTxWith(
                 inProgressBody().copyBuilder().transactionID(transactionId).build());
         return this;
     }
@@ -623,12 +888,6 @@ public class BlockStreamBuilder
     public BlockStreamBuilder memo(@NonNull final String memo) {
         this.memo = requireNonNull(memo);
         return this;
-    }
-
-    @Override
-    @NonNull
-    public Transaction transaction() {
-        return transaction;
     }
 
     @Override
@@ -660,8 +919,35 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCallResult(@Nullable final ContractFunctionResult contractCallResult) {
-        this.contractFunctionResult = contractCallResult;
-        if (contractCallResult != null) {
+        throw new UnsupportedOperationException("Use concise EVM transaction result");
+    }
+
+    @NonNull
+    @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(final long senderNonce) {
+        this.senderNonce = senderNonce;
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        this.changedNonceInfos = requireNonNull(nonceInfos);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        this.createdContractIds = requireNonNull(contractIds);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+        this.evmTransactionResult = result;
+        if (result != null) {
             if (contractOpType != ContractOpType.ETH_THROTTLED) {
                 contractOpType = ContractOpType.CALL;
             } else {
@@ -671,11 +957,24 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        this.logs = requireNonNull(logs);
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        this.contractFunctionResult = contractCreateResult;
-        if (contractCreateResult != null) {
+        throw new UnsupportedOperationException("Use concise EVM transaction result");
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable final EvmTransactionResult result) {
+        this.evmTransactionResult = result;
+        if (result != null) {
             if (contractOpType != ContractOpType.ETH_THROTTLED) {
                 contractOpType = ContractOpType.CREATE;
             } else {
@@ -822,12 +1121,12 @@ public class BlockStreamBuilder
 
     @Override
     public boolean hasContractResult() {
-        return this.contractFunctionResult != null;
+        return this.evmTransactionResult != null;
     }
 
     @Override
     public long getGasUsedForContractTxn() {
-        return this.contractFunctionResult.gasUsed();
+        return requireNonNull(this.evmTransactionResult).gasUsed();
     }
 
     @Override
@@ -852,6 +1151,30 @@ public class BlockStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public BlockStreamBuilder createdContractID(@Nullable ContractID contractID) {
+        this.isContractCreate = true;
+        contractID(contractID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder createdEvmAddress(@Nullable Bytes evmAddress) {
+        if (evmAddress != null) {
+            this.evmAddress = requireNonNull(evmAddress);
+        }
+        return this;
+    }
+
     @NonNull
     @Override
     public BlockStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -866,6 +1189,13 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder congestionMultiplier(final long congestionMultiplier) {
         transactionResultBuilder.congestionPricingMultiplier(congestionMultiplier);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        transactionResultBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
         return this;
     }
 
@@ -960,8 +1290,14 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
-        requireNonNull(contractStateChanges, "contractStateChanges must not be null");
-        this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
+        throw new UnsupportedOperationException("Add slot usages directly");
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        requireNonNull(slotUsages);
+        this.slotUsages = slotUsages;
         return this;
     }
 
@@ -969,8 +1305,13 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractActions(
             @NonNull final ContractActions contractActions, final boolean isMigration) {
-        requireNonNull(contractActions, "contractActions must not be null");
-        this.contractActions.add(new AbstractMap.SimpleEntry<>(contractActions, isMigration));
+        throw new UnsupportedOperationException("Add actions directly");
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        this.contractActions = requireNonNull(actions);
         return this;
     }
 
@@ -978,8 +1319,17 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
-        requireNonNull(contractBytecode, "contractBytecode must not be null");
-        contractBytecodes.add(new AbstractMap.SimpleEntry<>(contractBytecode, isMigration));
+        throw new UnsupportedOperationException("Add initcode directly");
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
+        requireNonNull(initcode);
+        if (this.initcode != null) {
+            log.warn("Overwriting existing initcode {} with new initcode {}", this.initcode, initcode);
+        }
+        this.initcode = initcode;
         return this;
     }
 
@@ -1004,12 +1354,6 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public ContractFunctionResult contractFunctionResult() {
-        return contractFunctionResult;
-    }
-
-    @Override
-    @NonNull
     public TransactionBody transactionBody() {
         return inProgressBody();
     }
@@ -1024,6 +1368,31 @@ public class BlockStreamBuilder
     @NonNull
     public HandleContext.TransactionCategory category() {
         return category;
+    }
+
+    @Override
+    public void nextHookId(final Long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public Long getNextHookId() {
+        return nextHookId;
+    }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return requireNonNull(evmTransactionResult).resultData();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
     }
 
     @Override
@@ -1044,7 +1413,9 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
-        contractId = null;
+        if (isContractCreate) {
+            contractId = null;
+        }
         fileId = null;
         tokenId = null;
         topicId = null;
@@ -1053,9 +1424,7 @@ public class BlockStreamBuilder
             scheduleId = null;
             scheduledTransactionId = null;
         }
-
         evmAddress = Bytes.EMPTY;
-        ethereumHash = Bytes.EMPTY;
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
         runningHashVersion = 0L;
@@ -1078,9 +1447,7 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(
-                    transaction.signedTransactionBytes().toReadableSequentialData());
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
@@ -1090,32 +1457,26 @@ public class BlockStreamBuilder
         if (utilPrngOutputItem != null) {
             items.add(utilPrngOutputItem);
         }
-        if (contractFunctionResult != null || ethereumHash != Bytes.EMPTY) {
-            final var sidecars = getSidecars();
+        if (evmTransactionResult != null || ethereumHash.length() > 0) {
             final var builder = TransactionOutput.newBuilder();
             switch (requireNonNull(contractOpType)) {
-                case CREATE -> builder.contractCreate(CreateContractOutput.newBuilder()
-                        .contractCreateResult(contractFunctionResult)
-                        .sidecars(sidecars)
-                        .build());
-                case CALL -> builder.contractCall(CallContractOutput.newBuilder()
-                        .contractCallResult(contractFunctionResult)
-                        .sidecars(sidecars)
-                        .build());
-                case ETH_CALL -> builder.ethereumCall(EthereumOutput.newBuilder()
-                        .ethereumCallResult(contractFunctionResult)
-                        .ethereumHash(ethereumHash)
-                        .sidecars(sidecars)
-                        .build());
-                case ETH_CREATE -> builder.ethereumCall(EthereumOutput.newBuilder()
-                        .ethereumCreateResult(contractFunctionResult)
-                        .ethereumHash(ethereumHash)
-                        .sidecars(sidecars)
-                        .build());
-                case ETH_THROTTLED -> builder.ethereumCall(EthereumOutput.newBuilder()
-                        .ethereumHash(ethereumHash)
-                        .sidecars(sidecars)
-                        .build());
+                case CREATE ->
+                    builder.contractCreate(CreateContractOutput.newBuilder()
+                            .evmTransactionResult(evmTransactionResult)
+                            .build());
+                case CALL ->
+                    builder.contractCall(CallContractOutput.newBuilder()
+                            .evmTransactionResult(evmTransactionResult)
+                            .build());
+                case ETH_CALL ->
+                    builder.ethereumCall(EthereumOutput.newBuilder()
+                            .evmCallTransactionResult(ethEvmTransactionResult())
+                            .build());
+                case ETH_CREATE ->
+                    builder.ethereumCall(EthereumOutput.newBuilder()
+                            .evmCreateTransactionResult(ethEvmTransactionResult())
+                            .build());
+                case ETH_THROTTLED -> builder.ethereumCall(EthereumOutput.DEFAULT);
             }
             items.add(itemWith(builder));
         }
@@ -1140,37 +1501,25 @@ public class BlockStreamBuilder
         }
     }
 
-    private List<TransactionSidecarRecord> getSidecars() {
-        final var timestamp = asTimestamp(consensusNow);
-        // create list of sidecar records
-        final List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
-        contractStateChanges.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        timestamp,
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
-        contractActions.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        timestamp,
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.ACTIONS, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
-        contractBytecodes.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        timestamp,
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
-        return transactionSidecarRecords;
-    }
-
-    private Bytes getSerializedTransaction() {
-        if (customizer != null) {
-            transaction = customizer.apply(transaction);
-            return Transaction.PROTOBUF.toBytes(transaction);
+    /**
+     * If the Ethereum call data was hydrated from a file, and we have the function parameters available,
+     * returns a copy of the {@link EvmTransactionResult} with the internal call context cleared except for
+     * the call data.
+     * <p>
+     * Otherwise returns a {@link EvmTransactionResult} with its internal context cleared.
+     * @return the {@link EvmTransactionResult} appropriate for an {@link EthereumOutput} item
+     */
+    private @Nullable EvmTransactionResult ethEvmTransactionResult() {
+        if (evmTransactionResult == null) {
+            return null;
         }
-        return serializedTransaction != null ? serializedTransaction : Transaction.PROTOBUF.toBytes(transaction);
+        if (!evmTransactionResult.hasInternalCallContext()) {
+            return evmTransactionResult;
+        }
+        return evmTransactionResult
+                .copyBuilder()
+                .internalCallContext((InternalCallContext) null)
+                .build();
     }
 
     private BlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
@@ -1184,35 +1533,74 @@ public class BlockStreamBuilder
      */
     private TranslationContext translationContext() {
         return switch (requireNonNull(functionality)) {
-            case CONTRACT_CALL,
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
                     CONTRACT_CREATE,
                     CONTRACT_DELETE,
                     CONTRACT_UPDATE,
-                    ETHEREUM_TRANSACTION -> new ContractOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, contractId);
-            case CRYPTO_CREATE, CRYPTO_UPDATE -> new CryptoOpContext(
-                    memo,
-                    translationContextExchangeRates,
-                    transactionId,
-                    transaction,
-                    functionality,
-                    accountId,
-                    evmAddress);
-            case FILE_CREATE -> new FileOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, fileId);
-            case NODE_CREATE -> new NodeOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, nodeId);
-            case SCHEDULE_DELETE -> new ScheduleOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, scheduleId);
-            case CONSENSUS_SUBMIT_MESSAGE -> new SubmitOpContext(
-                    memo,
-                    translationContextExchangeRates,
-                    transactionId,
-                    transaction,
-                    functionality,
-                    runningHash,
-                    runningHashVersion,
-                    sequenceNumber);
+                    ETHEREUM_TRANSACTION ->
+                new ContractOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        contractId,
+                        evmAddress.length() > 0 ? evmAddress : null,
+                        changedNonceInfos,
+                        createdContractIds,
+                        senderNonce,
+                        evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
+                        ethereumHash,
+                        serializedSignedTx);
+            case CRYPTO_CREATE, CRYPTO_UPDATE ->
+                new CryptoOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        accountId,
+                        evmAddress,
+                        serializedSignedTx);
+            case FILE_CREATE ->
+                new FileOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        fileId,
+                        serializedSignedTx);
+            case NODE_CREATE ->
+                new NodeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        nodeId,
+                        serializedSignedTx);
+            case SCHEDULE_DELETE ->
+                new ScheduleOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        scheduleId,
+                        serializedSignedTx);
+            case CONSENSUS_SUBMIT_MESSAGE ->
+                new SubmitOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        runningHash,
+                        runningHashVersion,
+                        sequenceNumber,
+                        serializedSignedTx);
             case TOKEN_AIRDROP -> {
                 if (!pendingAirdropRecords.isEmpty()) {
                     pendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
@@ -1221,26 +1609,56 @@ public class BlockStreamBuilder
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
-                        pendingAirdropRecords);
+                        pendingAirdropRecords,
+                        serializedSignedTx);
             }
-            case TOKEN_MINT -> new MintOpContext(
-                    memo,
-                    translationContextExchangeRates,
-                    transactionId,
-                    transaction,
-                    functionality,
-                    serialNumbers,
-                    newTotalSupply);
-            case TOKEN_BURN, TOKEN_ACCOUNT_WIPE -> new SupplyChangeOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, newTotalSupply);
-            case TOKEN_CREATE -> new TokenOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, tokenId);
-            case CONSENSUS_CREATE_TOPIC -> new TopicOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality, topicId);
-            default -> new BaseOpContext(
-                    memo, translationContextExchangeRates, transactionId, transaction, functionality);
+            case TOKEN_MINT ->
+                new MintOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        serialNumbers,
+                        newTotalSupply,
+                        serializedSignedTx);
+            case TOKEN_BURN, TOKEN_ACCOUNT_WIPE ->
+                new SupplyChangeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        newTotalSupply,
+                        serializedSignedTx);
+            case TOKEN_CREATE ->
+                new TokenOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        tokenId,
+                        serializedSignedTx);
+            case CONSENSUS_CREATE_TOPIC ->
+                new TopicOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        topicId,
+                        serializedSignedTx);
+            default ->
+                new BaseOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        serializedSignedTx);
         };
     }
 }

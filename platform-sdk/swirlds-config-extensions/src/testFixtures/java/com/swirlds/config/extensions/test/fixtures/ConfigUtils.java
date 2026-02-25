@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.extensions.test.fixtures;
-// SPDX-License-Identifier: Apache-2.0
+
 import com.swirlds.config.api.ConfigData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.github.classgraph.ClassGraph;

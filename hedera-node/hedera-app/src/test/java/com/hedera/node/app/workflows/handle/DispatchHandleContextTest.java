@@ -9,26 +9,33 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -50,21 +57,23 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
@@ -72,13 +81,17 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.fixtures.Scenarios;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -91,7 +104,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -104,12 +117,11 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -126,6 +138,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -145,6 +158,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class DispatchHandleContextTest extends StateTestBase implements Scenarios {
+
     private static final Fees FEES = new Fees(1L, 2L, 3L);
     public static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final AccountID PAYER_ACCOUNT_ID =
@@ -163,13 +177,21 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
             .build();
     private static final TransactionInfo CRYPTO_TRANSFER_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, CRYPTO_TRANSFER_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+            SignedTransaction.DEFAULT,
+            CRYPTO_TRANSFER_TXN_BODY,
+            SignatureMap.DEFAULT,
+            Bytes.EMPTY,
+            CRYPTO_TRANSFER,
+            null);
 
     @Mock
     private AppKeyVerifier verifier;
 
     @Mock
     private FeeAccumulator feeAccumulator;
+
+    @Mock
+    private FeeCharging feeCharging;
 
     @Mock
     private TransactionChecker transactionChecker;
@@ -249,6 +271,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Mock
     private DeduplicationCache deduplicationCache;
 
+    @Mock
+    private PreHandleWorkflow preHandleWorkflow;
+
     private ServiceApiFactory apiFactory;
     private ReadableStoreFactory readableStoreFactory;
     private StoreFactoryImpl storeFactory;
@@ -268,12 +293,14 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     private static final TransactionBody txBody = asTxn(transferBody, payerId, CONSENSUS_NOW);
     private final Configuration configuration = HederaTestConfigBuilder.createConfig();
     private final RecordStreamBuilder childRecordBuilder =
-            new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
     private final TransactionBody txnBodyWithoutId = TransactionBody.newBuilder()
             .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.DEFAULT)
             .build();
     private static final TransactionInfo txnInfo = new TransactionInfo(
-            Transaction.newBuilder().body(txBody).build(),
+            SignedTransaction.newBuilder()
+                    .bodyBytes(TransactionBody.PROTOBUF.toBytes(txBody))
+                    .build(),
             txBody,
             SignatureMap.DEFAULT,
             Bytes.EMPTY,
@@ -286,12 +313,42 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @BeforeEach
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
-        readableStoreFactory = new ReadableStoreFactory(baseState);
-        apiFactory = new ServiceApiFactory(stack, configuration);
+        readableStoreFactory = new ReadableStoreFactoryImpl(baseState);
+        apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
 
         mockNeeded();
+    }
+
+    @Test
+    void delegatesFeeChargingForPayer() {
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 0L, 123L))))
+                .willReturn(new Fees(0, 123L, 0));
+        assertTrue(subject.tryToChargePayer(123L));
+    }
+
+    @Test
+    void failsFastOnNegativeAmounts() {
+        assertThrows(IllegalArgumentException.class, () -> subject.tryToChargePayer(-123L));
+        assertThrows(IllegalArgumentException.class, () -> subject.refundBestEffort(payerId, -123L));
+    }
+
+    @Test
+    void delegatesFeeChargingForOtherAccount() {
+        final var overridePayerId = AccountID.newBuilder().accountNum(12345).build();
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 0, 123L))))
+                .willReturn(new Fees(0, 122L, 0));
+        assertFalse(subject.tryToCharge(overridePayerId, 123L));
+    }
+
+    @Test
+    void delegatesRefunding() {
+        subject.refundBestEffort(payerId, 123L);
+
+        verify(feeCharging).refund(payerId, subject, new Fees(0, 123L, 0));
     }
 
     @Test
@@ -373,6 +430,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             blockRecordManager,
             resourcePriceCalculator,
             feeManager,
+            feeCharging,
             storeFactory,
             payerId,
             verifier,
@@ -389,14 +447,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             feeAccumulator,
             EMPTY_METADATA,
             transactionChecker,
-            List.of(result)
+            List.of(result),
+            preHandleWorkflow,
+            USER
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
-            // Skip signatureMapSize, payerKey, and preHandleResults
-            if (index == 2 || index == 4 || index == 24) {
+            // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
+            if (index == 2 || index == 4 || index == 25 || index == 26) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -421,6 +481,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         assertThat(subject.storeFactory()).isEqualTo(storeFactory);
         assertThat(subject.entityNumGenerator()).isEqualTo(entityNumGenerator);
         assertThat(subject.keyVerifier()).isEqualTo(verifier);
+    }
+
+    @Test
+    void getsReadableStoreFactory() {
+        assertThat(subject.readableStoreFactory()).isEqualTo(storeFactory.asReadOnly());
     }
 
     @Nested
@@ -500,7 +565,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
 
@@ -514,7 +579,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
     }
@@ -531,7 +596,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     final class DispatcherTest {
         private static final Predicate<Key> VERIFIER_CALLBACK = key -> true;
         private static final String FOOD_SERVICE = "FOOD_SERVICE";
-        private static final Map<String, String> BASE_DATA = Map.of(
+        private static final Map<ProtoBytes, ProtoBytes> BASE_DATA = Map.of(
                 A_KEY, APPLE,
                 B_KEY, BANANA,
                 C_KEY, CHERRY,
@@ -548,15 +613,17 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @BeforeEach
         void setup() {
-            final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+            final var baseKVState =
+                    new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA));
             final var writableStates =
                     MapWritableStates.builder().state(baseKVState).build();
             final var readableStates = MapReadableStates.builder()
-                    .state(new MapReadableKVState(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
+                    .state(new MapReadableKVState(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA)))
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>("ACCOUNTS");
+            final var accountsState =
+                    new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -566,7 +633,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                         final var childStack = (SavepointStackImpl) childContext.savepointStack();
                         childStack
                                 .getWritableStates(FOOD_SERVICE)
-                                .get(FRUIT_STATE_KEY)
+                                .get(FRUIT_STATE_ID)
                                 .put(A_KEY, ACAI);
                         return null;
                     })
@@ -585,7 +652,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             StreamBuilder.class,
                             StakingRewards.ON,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES)))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> subject.dispatch(subDispatch(
@@ -596,7 +663,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             null,
                             StakingRewards.ON,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES)))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -613,10 +680,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             StreamBuilder.class,
                             StakingRewards.OFF,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
-                    Arguments.of((Consumer<HandleContext>) context -> context.dispatch(
-                            setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, NOOP_FEE_CHARGING)))));
+                    Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
+                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING)))));
         }
 
         @ParameterizedTest
@@ -651,7 +718,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @Test
         void testDispatchPrecedingWithChangedDataDoesntFail() {
             final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            final Map<String, String> newData = new HashMap<>(BASE_DATA);
+            final Map<ProtoBytes, ProtoBytes> newData = new HashMap<>(BASE_DATA);
             newData.put(B_KEY, BLUEBERRY);
 
             assertThatNoException()
@@ -681,7 +748,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
             Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
 
-            context.dispatch(setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, NOOP_FEE_CHARGING));
+            context.dispatch(
+                    setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
             verify(stack, never()).commitFullStack();
@@ -713,7 +781,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     StreamBuilder.class,
                     StakingRewards.ON,
                     UsePresetTxnId.NO,
-                    NOOP_FEE_CHARGING,
+                    UNIVERSAL_NOOP_FEE_CHARGING,
                     PropagateFeeChargingStrategy.YES));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
@@ -756,7 +824,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         final TransactionInfo txnInfo = new TransactionInfo(
-                Transaction.newBuilder().body(txBody).build(),
+                SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txBody))
+                        .build(),
                 txBody,
                 SignatureMap.DEFAULT,
                 Bytes.EMPTY,
@@ -775,6 +845,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 blockRecordManager,
                 resourcePriceCalculator,
                 feeManager,
+                feeCharging,
                 storeFactory,
                 payerId,
                 verifier,
@@ -791,7 +862,117 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                results);
+                results,
+                preHandleWorkflow,
+                category);
+    }
+
+    @Test
+    void tryToCharge_bypassesFeeChargingStrategy_whenEnabled_returnsTrue() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 123L;
+        given(feeAccumulator.chargeFee(eq(payerId), eq(amount), any())).willReturn(new Fees(0, amount, 0));
+
+        final var result = subject.tryToCharge(payerId, amount);
+
+        assertTrue(result);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(amount), any());
+        verify(feeCharging, never()).charge(any(), any(), any());
+    }
+
+    @Test
+    void tryToCharge_bypassesFeeChargingStrategy_whenEnabled_returnsFalseIfNotFullyCharged() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 123L;
+        given(feeAccumulator.chargeFee(eq(payerId), eq(amount), any())).willReturn(new Fees(0, amount - 1, 0));
+
+        final var result = subject.tryToCharge(payerId, amount);
+
+        assertFalse(result);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(amount), any());
+        verify(feeCharging, never()).charge(any(), any(), any());
+    }
+
+    @Test
+    void refundBestEffort_bypassesFeeChargingStrategy_whenEnabled() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 321L;
+
+        subject.refundBestEffort(payerId, amount);
+
+        verify(feeAccumulator).refundFee(payerId, amount);
+        verify(feeCharging, never()).refund(any(), any());
+    }
+
+    @Test
+    void readableStore_delegatesToStoreFactory() throws Exception {
+        @SuppressWarnings("unchecked")
+        final Class<Object> storeInterface =
+                (Class<Object>) Class.forName("com.hedera.node.app.service.token.ReadableAccountStore");
+        final var store = subject.readableStore(storeInterface);
+        assertThat(store).isNotNull();
+        assertTrue(storeInterface.isInstance(store));
+    }
+
+    @Test
+    void creatorInfo_exposesInjectedNodeInfo() {
+        assertSame(creatorInfo, subject.creatorInfo());
+    }
+
+    @Test
+    void dispatchMetadata_exposesInjectedMetadata() {
+        assertSame(EMPTY_METADATA, subject.dispatchMetadata());
+    }
+
+    @Test
+    void payerId_exposesPrimaryPayer() {
+        assertSame(payerId, subject.payerId());
+    }
+
+    @Test
+    void nodeAccountId_comesFromCreatorInfo() {
+        given(creatorInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        assertSame(NODE_ACCOUNT_ID, subject.nodeAccountId());
+    }
+
+    @Test
+    void charge_withoutNode_delegatesToFeeAccumulator() {
+        final ObjLongConsumer<AccountID> cb = (id, amt) -> {};
+        given(feeAccumulator.chargeFee(eq(payerId), eq(FEES.totalFee()), any())).willReturn(FEES);
+
+        final var charged = subject.charge(payerId, FEES, cb);
+
+        assertSame(FEES, charged);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(FEES.totalFee()), any());
+    }
+
+    @Test
+    void charge_withNode_delegatesToFeeAccumulator() {
+        final ObjLongConsumer<AccountID> cb = (id, amt) -> {};
+        given(feeAccumulator.chargeFees(eq(payerId), eq(NODE_ACCOUNT_ID), eq(FEES), any()))
+                .willReturn(FEES);
+
+        final var charged = subject.charge(payerId, FEES, NODE_ACCOUNT_ID, cb);
+
+        assertSame(FEES, charged);
+        verify(feeAccumulator).chargeFees(eq(payerId), eq(NODE_ACCOUNT_ID), eq(FEES), any());
+    }
+
+    @Test
+    void refund_withoutNode_delegatesToFeeAccumulator() {
+        subject.refund(payerId, FEES);
+        verify(feeAccumulator).refundFee(eq(payerId), eq(FEES.totalFee()));
+    }
+
+    @Test
+    void refund_withNode_delegatesToFeeAccumulator() {
+        subject.refund(payerId, FEES, NODE_ACCOUNT_ID);
+        verify(feeAccumulator).refundFees(eq(payerId), eq(FEES), eq(NODE_ACCOUNT_ID));
+    }
+
+    @Test
+    void category_isChild_forFeeChargingContext() {
+        assertThat(subject.category()).isEqualTo(CHILD);
     }
 
     private void mockNeeded() {
@@ -803,11 +984,13 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder("ACCOUNTS").build())
-                        .state(MapWritableKVState.builder("ALIASES").build())
+                        .state(MapWritableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
+                                .build())
+                        .state(MapWritableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                                .build())
                         .build());
-        lenient().when(writableStates.<EntityNumber>getSingleton(anyString())).thenReturn(entityNumberState);
-        lenient().when(writableStates.<EntityCounts>getSingleton(anyString())).thenReturn(entityCountsState);
+        lenient().when(writableStates.<EntityNumber>getSingleton(anyInt())).thenReturn(entityNumberState);
+        lenient().when(writableStates.<EntityCounts>getSingleton(anyInt())).thenReturn(entityCountsState);
         lenient().when(stack.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
         lenient().when(stack.getReadableStates(TokenService.NAME)).thenReturn(defaultTokenReadableStates());
         lenient().when(exchangeRateManager.exchangeRateInfo(any())).thenReturn(exchangeRateInfo);

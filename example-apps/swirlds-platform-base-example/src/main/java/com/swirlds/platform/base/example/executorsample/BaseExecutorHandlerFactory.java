@@ -2,13 +2,13 @@
 package com.swirlds.platform.base.example.executorsample;
 
 import com.swirlds.base.internal.BaseExecutorFactory;
-import com.swirlds.common.metrics.extensions.BaseExecutorFactoryMetrics;
 import com.swirlds.platform.base.example.ext.BaseContext;
 import com.swirlds.platform.base.example.server.HttpHandlerDefinition;
 import com.swirlds.platform.base.example.server.HttpHandlerRegistry;
 import com.swirlds.platform.base.example.server.PostTriggerHandler;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.BaseExecutorFactoryMetrics;
 
 public class BaseExecutorHandlerFactory implements HttpHandlerRegistry {
 

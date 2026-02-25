@@ -2,8 +2,8 @@
 package com.hedera.node.app.throttle;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_KEY;
-import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_KEY;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_ID;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
@@ -37,6 +37,10 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Manages the throttling service for the node.
+ * This is a service orchestrator for rebuild/reset/snapshot operations.
+ */
 @Singleton
 public class ThrottleServiceManager {
     private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);
@@ -71,20 +75,24 @@ public class ThrottleServiceManager {
      *
      * @param state the state to use
      * @param throttleDefinitions the serialized throttle definitions
+     * @param genesis true if this is the genesis state
      */
-    public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
+    public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions, final boolean genesis) {
         requireNonNull(state);
-        // Apply configuration for gas and bytes throttles
+        // Apply configuration for gas, bytes and ops duration throttles
         applyGasConfig();
         applyBytesConfig();
+        applyOpsDurationConfig();
         // Create backend/frontend throttles from the configured system file
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
         congestionMultipliers.resetExpectations();
-        // Rehydrate the internal state of the throttling service (no-op if at genesis)
-        final var serviceStates = state.getReadableStates(CongestionThrottleService.NAME);
-        resetThrottlesFromUsageSnapshots(serviceStates);
-        syncFromCongestionLevelStarts(serviceStates);
+        // Rehydrate the internal state of the throttling service if not at genesis
+        if (!genesis) {
+            final var serviceStates = state.getReadableStates(CongestionThrottleService.NAME);
+            resetThrottlesFromUsageSnapshots(serviceStates);
+            syncFromCongestionLevelStarts(serviceStates);
+        }
     }
 
     /**
@@ -116,6 +124,7 @@ public class ThrottleServiceManager {
     public void refreshThrottleConfiguration() {
         applyGasConfig();
         applyBytesConfig();
+        applyOpsDurationConfig();
         congestionMultipliers.resetExpectations();
     }
 
@@ -150,7 +159,7 @@ public class ThrottleServiceManager {
     }
 
     private void saveThrottleSnapshotsTo(@NonNull final WritableStates serviceStates) {
-        final var hapiThrottles = backendThrottle.allActiveThrottles();
+        final var hapiThrottles = backendThrottle.allActiveThrottlesIncludingHighVolume();
         final List<ThrottleUsageSnapshot> hapiThrottleSnapshots;
         if (hapiThrottles.isEmpty()) {
             hapiThrottleSnapshots = emptyList();
@@ -163,15 +172,18 @@ public class ThrottleServiceManager {
 
         final var gasThrottle = backendThrottle.gasLimitThrottle();
         final var gasThrottleSnapshot = gasThrottle.usageSnapshot();
+        final var opsDurationThrottle = backendThrottle.opsDurationThrottle();
+        final var opsDurationThrottleSnapshot = opsDurationThrottle.usageSnapshot();
 
         final WritableSingletonState<ThrottleUsageSnapshots> throttleSnapshots =
-                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        throttleSnapshots.put(new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot));
+                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
+        throttleSnapshots.put(
+                new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot, opsDurationThrottleSnapshot));
     }
 
     private void saveCongestionLevelStartsTo(@NonNull final WritableStates serviceStates) {
         final WritableSingletonState<CongestionLevelStarts> congestionLevelStarts =
-                serviceStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_KEY);
+                serviceStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID);
         congestionLevelStarts.put(new CongestionLevelStarts(
                 translateToList(congestionMultipliers.entityUtilizationCongestionStarts()),
                 translateToList(congestionMultipliers.gasThrottleMultiplierCongestionStarts())));
@@ -194,9 +206,13 @@ public class ThrottleServiceManager {
         ingestThrottle.applyBytesConfig();
     }
 
+    private void applyOpsDurationConfig() {
+        backendThrottle.applyDurationConfig();
+    }
+
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {
         final var congestionStarts =
-                CongestionStarts.from(serviceStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_KEY));
+                CongestionStarts.from(serviceStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID));
         // No matter if the congestion level starts are empty in state because
         // we're at genesis; or because that's the actual configuration, there's
         // nothing to do here.
@@ -211,21 +227,29 @@ public class ThrottleServiceManager {
 
     private void resetThrottlesFromUsageSnapshots(@NonNull final ReadableStates serviceStates) {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
-                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
+                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        safeResetThrottles(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        safeResetThrottles(
+                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
+        }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
         }
     }
 
     public void resetThrottlesUnconditionally(@NonNull final ReadableStates serviceStates) {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
-                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
+                serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        resetUnconditionally(
+                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
+        }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
         }
     }
 
@@ -307,5 +331,28 @@ public class ThrottleServiceManager {
             }
         }
         return starts;
+    }
+
+    /**
+     * Chooses the set of throttles to restore from snapshots.
+     * Legacy snapshots only contain normal TPS throttles; newer snapshots include
+     * both normal and high-volume TPS throttles.
+     */
+    private static List<DeterministicThrottle> selectedThrottlesFor(
+            @NonNull final ThrottleAccumulator throttleAccumulator,
+            @NonNull final List<ThrottleUsageSnapshot> snapshots) {
+        final var allThrottles = throttleAccumulator.allActiveThrottlesIncludingHighVolume();
+        if (allThrottles.size() == snapshots.size()) {
+            return allThrottles;
+        }
+        log.info(
+                "Snapshot size {} does not match all throttles size {}, using normal throttles",
+                snapshots.size(),
+                allThrottles.size());
+        final var normalThrottles = throttleAccumulator.allActiveThrottles();
+        if (normalThrottles.size() == snapshots.size()) {
+            return normalThrottles;
+        }
+        return allThrottles;
     }
 }

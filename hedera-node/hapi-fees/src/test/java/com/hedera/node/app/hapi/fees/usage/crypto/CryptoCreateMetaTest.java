@@ -16,7 +16,8 @@ class CryptoCreateMetaTest {
 
     @Test
     void allGettersAndToStringWork() {
-        final var expected = "CryptoCreateMeta{baseSize=1234, lifeTime=123456789, maxAutomaticAssociations=123}";
+        final var expected =
+                "CryptoCreateMeta{baseSize=1234, lifeTime=123456789, maxAutomaticAssociations=123, numHooks=0}";
 
         final var subject = new CryptoCreateMeta.Builder()
                 .baseSize(1_234)

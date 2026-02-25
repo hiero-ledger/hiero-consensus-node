@@ -9,23 +9,20 @@ import java.util.Set;
 
 @ConfigData("contracts")
 public record ContractsConfig(
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean itemizeStorageFees,
         @ConfigProperty(defaultValue = "1062787,1461860") Set<Long> permittedDelegateCallers,
-        @ConfigProperty(defaultValue = "31536000") @NetworkProperty long referenceSlotLifetime,
-        @ConfigProperty(defaultValue = "100") @NetworkProperty int freeStorageTierLimit,
-        @ConfigProperty(defaultValue = "0til100M,2000til450M") @NetworkProperty String storageSlotPriceTiers,
-        @ConfigProperty(defaultValue = "7890000") @NetworkProperty long defaultLifetime,
-        // @ConfigProperty(defaultValue = "") KnownBlockValues knownBlockHash,
         @ConfigProperty(value = "keys.legacyActivations", defaultValue = "1058134by[1062784]")
                 String keysLegacyActivations,
         @ConfigProperty(value = "localCall.estRetBytes", defaultValue = "4096") @NetworkProperty
                 int localCallEstRetBytes,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean allowCreate2,
-        @ConfigProperty(defaultValue = "0") @NetworkProperty long maxNumWithHapiSigsAccess,
         @ConfigProperty(value = "nonces.externalization.enabled", defaultValue = "true") @NetworkProperty
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty
@@ -37,30 +34,17 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
                 Set<SidecarType> sidecars,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
-        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
+        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "false") @NetworkProperty
                 boolean throttleThrottleByGas,
-        @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
-        @ConfigProperty(defaultValue = "5000000") @NetworkProperty long scheduleThrottleMaxGasLimit,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean redirectTokenCalls,
+        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "true") @NetworkProperty
+                boolean throttleThrottleByOpsDuration,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
                 long precompileExchangeRateGasCost,
         @ConfigProperty(value = "precompile.htsDefaultGasCost", defaultValue = "10000") @NetworkProperty
                 long precompileHtsDefaultGasCost,
-
-        // Default value of `sigVerificationCost` from fee schedule's CryptoTransfer servicedata vpt field
-        // FUTURE: Fees for system contracts need to be in the fee schedule
-        @ConfigProperty(value = "precompile.sigVerificationCost", defaultValue = "605466012") @NetworkProperty
-                long sigVerificationCostInFeeScheduleUnits,
-        @ConfigProperty(value = "precompile.exportRecordResults", defaultValue = "true") @NetworkProperty
-                boolean precompileExportRecordResults,
-        @ConfigProperty(value = "precompile.htsEnableTokenCreate", defaultValue = "true") @NetworkProperty
-                boolean precompileHtsEnableTokenCreate,
-        // @ConfigProperty(value = "precompile.unsupportedCustomFeeReceiverDebits", defaultValue = "")
-        // Set<CustomFeeType> precompileUnsupportedCustomFeeReceiverDebits,
         @ConfigProperty(value = "precompile.atomicCryptoTransfer.enabled", defaultValue = "true") @NetworkProperty
                 boolean precompileAtomicCryptoTransferEnabled,
-        @ConfigProperty(value = "precompile.hrcFacade.associate.enabled", defaultValue = "true") @NetworkProperty
-                boolean precompileHrcFacadeAssociateEnabled,
         @ConfigProperty(value = "precompile.disabled", defaultValue = "") @NetworkProperty
                 Set<Integer> disabledPrecompiles,
         @ConfigProperty(value = "systemContract.accountService.enabled", defaultValue = "true") @NetworkProperty
@@ -81,6 +65,9 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleNativeEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractScheduleCallEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractAccountServiceIsAuthorizedRawEnabled,
@@ -110,7 +97,9 @@ public record ContractsConfig(
                 boolean chargeGasOnEvmHandleException,
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.67") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
+                boolean nativeLibVerificationHaltEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty

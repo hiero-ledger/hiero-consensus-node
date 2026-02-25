@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.isNumericLiteral;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 
@@ -31,12 +34,21 @@ public class BaseErroringAssertsProvider<T> implements ErroringAssertsProvider<T
         });
     }
 
+    protected <R> void registerIdLookupAssert(String key, Function<T, R> getActual, Class<R> cls, String err) {
+        registerIdLookupAssert(() -> key, getActual, cls, err);
+    }
+
     /* Helper for asserting something about a ContractID, FileID, AccountID, etc. */
     @SuppressWarnings("unchecked")
-    protected <R> void registerIdLookupAssert(String key, Function<T, R> getActual, Class<R> cls, String err) {
+    protected <R> void registerIdLookupAssert(
+            Supplier<String> key, Function<T, R> getActual, Class<R> cls, String err) {
         registerProvider((spec, o) -> {
-            R expected =
-                    isIdLiteral(key) ? parseIdByType(key, cls) : spec.registry().getId(key, cls);
+            final var keyToUse = isNumericLiteral(key.get())
+                    ? asEntityString(spec.shard(), spec.realm(), Long.parseLong(key.get()))
+                    : key.get();
+            R expected = isIdLiteral(keyToUse)
+                    ? parseIdByType(keyToUse, cls)
+                    : spec.registry().getId(keyToUse, cls);
             R actual = getActual.apply((T) o);
             Assertions.assertEquals(expected, actual, err);
         });

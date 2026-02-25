@@ -3,18 +3,24 @@ package com.hedera.services.bdd.junit.extensions;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirVersion;
 import static com.hedera.services.bdd.spec.HapiSpec.doTargetSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAllLogsAfter;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.platform.commons.support.AnnotationSupport.isAnnotated;
 
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
+import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
@@ -24,9 +30,11 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -34,12 +42,15 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -54,8 +65,10 @@ import org.junit.jupiter.api.extension.ExtensionContext;
  */
 public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachCallback {
     private static final String SPEC_NAME = "<RESTART>";
+    private static final Logger logger = LogManager.getLogger(NetworkTargetingExtension.class);
 
     public static final AtomicReference<HederaNetwork> SHARED_NETWORK = new AtomicReference<>();
+    public static final AtomicReference<BlockNodeNetwork> SHARED_BLOCK_NODE_NETWORK = new AtomicReference<>();
     public static final AtomicReference<RepeatableKeyGenerator> REPEATABLE_KEY_GENERATOR = new AtomicReference<>();
 
     @Override
@@ -95,9 +108,57 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     }
                 }
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
+            } else if (isAnnotated(method, HapiBlockNode.class)) {
+                logger.info("HapiBlockNode annotation found on method: " + method.getName());
+                final var annotation = method.getAnnotation(HapiBlockNode.class);
+                final SubProcessNetwork targetNetwork =
+                        (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
+
+                final BlockNodeNetwork targetBlockNodeNetwork = new BlockNodeNetwork();
+                targetNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(targetBlockNodeNetwork::configureBlockNodeConnectionInformation);
+                // Configure block node communication log level to DEBUG for better diagnostics
+                targetNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(node -> targetNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+
+                // Configure block node mode based on annotation
+                for (final BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
+                    targetBlockNodeNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
+                    targetBlockNodeNetwork
+                            .getBlockNodeHighLatencyById()
+                            .put(blockNodeConfig.nodeId(), blockNodeConfig.highLatency());
+                }
+
+                for (final SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
+                    targetBlockNodeNetwork
+                            .getBlockNodeIdsBySubProcessNodeId()
+                            .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodeIds());
+                    targetBlockNodeNetwork
+                            .getBlockNodePrioritiesBySubProcessNodeId()
+                            .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodePriorities());
+                    if (subProcessNodeConfig.applicationPropertiesOverrides().length > 0) {
+                        targetNetwork
+                                .getApplicationPropertyOverrides()
+                                .put(
+                                        subProcessNodeConfig.nodeId(),
+                                        Arrays.asList(subProcessNodeConfig.applicationPropertiesOverrides()));
+                    }
+                }
+
+                targetBlockNodeNetwork.start();
+                SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
+                targetNetwork.start();
+                SHARED_NETWORK.set(targetNetwork);
+
+                // Set both the thread-local and the static shared network reference
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
+                HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
                 ensureEmbeddedNetwork(extensionContext);
                 HapiSpec.TARGET_NETWORK.set(SHARED_NETWORK.get());
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(SHARED_BLOCK_NODE_NETWORK.get());
                 // If there are properties to preserve or system files to override and restore, bind that info to the
                 // thread before executing the test factory
                 if (isAnnotated(method, LeakyHapiTest.class)) {
@@ -116,10 +177,50 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
 
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
-        HapiSpec.TARGET_NETWORK.remove();
-        HapiSpec.FEES_OVERRIDE.remove();
-        HapiSpec.THROTTLES_OVERRIDE.remove();
-        HapiSpec.PROPERTIES_TO_PRESERVE.remove();
+        hapiTestMethodOf(extensionContext).ifPresent(method -> {
+            if (isAnnotated(method, HapiBlockNode.class)) {
+                // If a per-method network exists, run validation and terminate it
+                try {
+                    // Create a temporary HapiSpec to run the validation against the per-method network
+                    // Validate logs after a short delay to ensure all log entries are flushed
+                    final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
+                    final var streamValidationOp = validateStreams();
+                    final var validationSpec = new HapiSpec(
+                            "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
+                    validationSpec.setTargetNetwork(
+                            requireNonNull(SHARED_NETWORK.get(), "Shared network cannot be null"));
+                    validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
+                    // Execute the validation spec
+                    try {
+                        validationSpec.execute();
+                    } catch (final Throwable e) {
+                        throw new RuntimeException(e);
+                    }
+                } catch (final Exception e) {
+                    System.err.println("Error during post-test log and stream validation: " + e.getMessage());
+                } finally {
+                    // Ensure network termination even if validation fails
+                    SHARED_NETWORK.get().terminate();
+                    SHARED_BLOCK_NODE_NETWORK.get().terminate();
+                    // Clear the static shared network reference as the per-method network is gone
+                    SHARED_NETWORK.set(null);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
+                    // Default cleanup if no per-method network was found
+                    HapiSpec.TARGET_NETWORK.remove();
+                    HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
+                    HapiSpec.FEES_OVERRIDE.remove();
+                    HapiSpec.THROTTLES_OVERRIDE.remove();
+                    HapiSpec.PROPERTIES_TO_PRESERVE.remove();
+                }
+            } else {
+                // Default cleanup if no per-method network was found
+                HapiSpec.TARGET_NETWORK.remove();
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
+                HapiSpec.FEES_OVERRIDE.remove();
+                HapiSpec.THROTTLES_OVERRIDE.remove();
+                HapiSpec.PROPERTIES_TO_PRESERVE.remove();
+            }
+        });
     }
 
     /**
@@ -204,8 +305,8 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         doTargetSpec(spec, targetNetwork);
         try {
             spec.execute();
-        } catch (Throwable e) {
-            throw new IllegalStateException(e);
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
         }
         final SavedStateSpec savedStateSpec;
         try {

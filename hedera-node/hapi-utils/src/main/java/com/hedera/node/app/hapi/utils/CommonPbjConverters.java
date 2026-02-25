@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
 import static java.util.Objects.requireNonNull;
 
@@ -14,10 +15,12 @@ import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -46,6 +49,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public class CommonPbjConverters {
+    public static final int MAX_PBJ_RECORD_SIZE = 33554432;
+
     public static @NonNull com.hederahashgraph.api.proto.java.Query fromPbj(@NonNull Query query) {
         requireNonNull(query);
         try {
@@ -54,6 +59,11 @@ public class CommonPbjConverters {
         } catch (InvalidProtocolBufferException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static @NonNull com.hederahashgraph.api.proto.java.HookCall fromPbj(@NonNull final HookCall hookCall) {
+        requireNonNull(hookCall);
+        return pbjToProto(hookCall, HookCall.class, com.hederahashgraph.api.proto.java.HookCall.class);
     }
 
     @NonNull
@@ -144,10 +154,12 @@ public class CommonPbjConverters {
      *
      * @param responseType the PBJ {@link ResponseType} to convert
      * @return the converted {@link com.hederahashgraph.api.proto.java.ResponseType} if valid
+     * @throws IllegalArgumentException if UNRECOGNIZED
      */
     public static @NonNull com.hederahashgraph.api.proto.java.ResponseType fromPbjResponseType(
             @NonNull final ResponseType responseType) {
         return switch (requireNonNull(responseType)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized responseType");
             case ANSWER_ONLY -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
             case ANSWER_STATE_PROOF -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
             case COST_ANSWER -> com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
@@ -232,6 +244,15 @@ public class CommonPbjConverters {
                 .build();
     }
 
+    public static @NonNull ScheduleID toPbj(@NonNull com.hederahashgraph.api.proto.java.ScheduleID tokenID) {
+        requireNonNull(tokenID);
+        return ScheduleID.newBuilder()
+                .shardNum(tokenID.getShardNum())
+                .realmNum(tokenID.getRealmNum())
+                .scheduleNum(tokenID.getScheduleNum())
+                .build();
+    }
+
     public static @NonNull AccountID toPbj(@NonNull com.hederahashgraph.api.proto.java.AccountID accountID) {
         requireNonNull(accountID);
         final var builder =
@@ -242,6 +263,11 @@ public class CommonPbjConverters {
             builder.accountNum(accountID.getAccountNum());
         }
         return builder.build();
+    }
+
+    public static @NonNull ContractID toPbj(@NonNull com.hederahashgraph.api.proto.java.ContractID contractID) {
+        requireNonNull(contractID);
+        return protoToPbj(contractID, ContractID.class);
     }
 
     public static @NonNull EntityNumber toPbj(@NonNull com.hederahashgraph.api.proto.java.EntityNumber entityNumber) {
@@ -284,6 +310,8 @@ public class CommonPbjConverters {
             case TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES -> SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
             case SCHEDULE_CREATE_CONTRACT_CALL -> SubType.SCHEDULE_CREATE_CONTRACT_CALL;
             case TOPIC_CREATE_WITH_CUSTOM_FEES -> SubType.TOPIC_CREATE_WITH_CUSTOM_FEES;
+            case SUBMIT_MESSAGE_WITH_CUSTOM_FEES -> SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES;
+            case CRYPTO_TRANSFER_WITH_HOOKS -> SubType.CRYPTO_TRANSFER_WITH_HOOKS;
             case UNRECOGNIZED -> throw new IllegalArgumentException("Unknown subType UNRECOGNIZED");
         };
     }
@@ -414,7 +442,8 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
-            return TransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+            return TransactionBody.PROTOBUF.parse(
+                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

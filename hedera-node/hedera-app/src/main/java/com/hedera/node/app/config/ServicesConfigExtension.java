@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.config;
 
-import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
@@ -24,29 +23,33 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
 import com.hedera.node.config.data.AtomicBatchConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
+import com.hedera.node.config.data.BlockBufferConfig;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.CryptoCreateWithAliasConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -55,7 +58,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.data.TraceabilityConfig;
 import com.hedera.node.config.data.TssConfig;
-import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
@@ -67,14 +69,12 @@ import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.config.api.validation.ConfigValidator;
-import com.swirlds.platform.config.AddressBookConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
  * Sets up configuration for services.
  */
-@AutoService(ConfigurationExtension.class)
 public class ServicesConfigExtension implements ConfigurationExtension {
 
     @NonNull
@@ -82,27 +82,26 @@ public class ServicesConfigExtension implements ConfigurationExtension {
 
         return Set.of(
                 AccountsConfig.class,
-                AddressBookConfig.class,
                 NodesConfig.class,
                 ApiPermissionConfig.class,
-                AutoCreationConfig.class,
                 AutoRenew2Config.class,
                 AutoRenewConfig.class,
                 BalancesConfig.class,
                 BlockRecordStreamConfig.class,
                 BlockStreamConfig.class,
+                BlockNodeConnectionConfig.class,
+                BlockBufferConfig.class,
                 BootstrapConfig.class,
                 CacheConfig.class,
                 ConsensusConfig.class,
                 ContractsConfig.class,
-                CryptoCreateWithAliasConfig.class,
+                HooksConfig.class,
                 EntitiesConfig.class,
                 ExpiryConfig.class,
                 FeesConfig.class,
                 FilesConfig.class,
                 GrpcConfig.class,
                 HederaConfig.class,
-                LazyCreationConfig.class,
                 LedgerConfig.class,
                 NettyConfig.class,
                 NetworkAdminConfig.class,
@@ -113,11 +112,14 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 TokensConfig.class,
                 TopicsConfig.class,
                 TraceabilityConfig.class,
-                UtilPrngConfig.class,
                 AtomicBatchConfig.class,
                 VersionConfig.class,
                 TssConfig.class,
-                JumboTransactionsConfig.class);
+                QuiescenceConfig.class,
+                JumboTransactionsConfig.class,
+                GovernanceTransactionsConfig.class,
+                GrpcUsageTrackerConfig.class,
+                OpsDurationConfig.class);
     }
 
     @NonNull

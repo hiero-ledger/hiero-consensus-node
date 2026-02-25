@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.openzeppelin;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class ERC721ContractInteractions {
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> callsERC721ContractInteractions() {
         final var CONTRACT = "GameItem";
         final var nftId = BigInteger.ONE;
@@ -42,7 +44,7 @@ public class ERC721ContractInteractions {
                 contractCreate(CONTRACT)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .hasKnownStatus(SUCCESS)
-                        .gas(500_000L)
+                        .gas(2_500_000L)
                         .via(CREATE_TX),
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_CONTRACT_SENDER, DEFAULT_CONTRACT_RECEIVER, 10 * ONE_HBAR))
                         .payingWith(DEFAULT_CONTRACT_SENDER),

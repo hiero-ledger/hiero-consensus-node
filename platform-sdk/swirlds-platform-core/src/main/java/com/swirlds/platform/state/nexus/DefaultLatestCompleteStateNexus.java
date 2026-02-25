@@ -4,14 +4,15 @@ package com.swirlds.platform.state.nexus;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * The default implementation of {@link LatestCompleteStateNexus}.
@@ -66,10 +67,23 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
      * {@inheritDoc}
      */
     @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        if (PlatformStatus.FREEZING.equals(platformStatus)) {
+            synchronized (this) {
+                currentState.close();
+                currentState = null;
+            }
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public synchronized void updateEventWindow(@NonNull final EventWindow eventWindow) {
         // Any state older than this is unconditionally removed, even if it is the latest
         final long earliestPermittedRound =
-                eventWindow.getLatestConsensusRound() - stateConfig.roundsToKeepForSigning() + 1;
+                eventWindow.latestConsensusRound() - stateConfig.roundsToKeepForSigning() + 1;
 
         // Is the latest complete round older than the earliest permitted round?
         if (getRound() < earliestPermittedRound) {

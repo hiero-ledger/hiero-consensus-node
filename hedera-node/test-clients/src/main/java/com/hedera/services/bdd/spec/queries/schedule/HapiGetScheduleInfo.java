@@ -7,31 +7,39 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.getRelativeExpiry;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.ScheduleGetInfoQuery;
+import com.hederahashgraph.api.proto.java.ScheduleInfo;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
 
 public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     private static final Logger LOG = LogManager.getLogger(HapiGetScheduleInfo.class);
@@ -45,10 +53,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         this.schedule = schedule;
     }
 
-    boolean shouldBeExecuted = false;
-    boolean shouldNotBeExecuted = false;
-    boolean shouldNotBeDeleted = false;
-    boolean checkForRecordedScheduledTxn = false;
+    private boolean shouldBeExecuted = false;
+    private boolean shouldNotBeExecuted = false;
+    private boolean shouldBeDeleted = false;
+    private boolean shouldNotBeDeleted = false;
+    private boolean checkForRecordedScheduledTxn = false;
     Optional<String> deletionTxn = Optional.empty();
     Optional<String> executionTxn = Optional.empty();
     Optional<String> expectedScheduleId = Optional.empty();
@@ -60,10 +69,19 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     Optional<String> expectedAdminKey = Optional.empty();
     Optional<String> expectedEntityMemo = Optional.empty();
     Optional<List<String>> expectedSignatories = Optional.empty();
+    private List<BiConsumer<HapiSpec, List<CustomFeeLimit>>> expectedCustomFeeLimits = new ArrayList<>();
     private long expectedExpiry = -1;
+
+    @Nullable
+    private Consumer<ScheduleInfo> onInfo;
 
     public HapiGetScheduleInfo hasScheduledTxnIdSavedBy(String creation) {
         expectedScheduledTxnId = Optional.of(creation);
+        return this;
+    }
+
+    public HapiGetScheduleInfo exposingInfoTo(@NonNull final Consumer<ScheduleInfo> onInfo) {
+        this.onInfo = requireNonNull(onInfo);
         return this;
     }
 
@@ -74,6 +92,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
 
     public HapiGetScheduleInfo isNotExecuted() {
         shouldNotBeExecuted = true;
+        return this;
+    }
+
+    public HapiGetScheduleInfo isDeleted() {
+        shouldBeDeleted = true;
         return this;
     }
 
@@ -142,6 +165,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         return this;
     }
 
+    public HapiGetScheduleInfo hasCustomFeeLimit(BiConsumer<HapiSpec, List<CustomFeeLimit>> limitAssertion) {
+        expectedCustomFeeLimits.add(limitAssertion);
+        return this;
+    }
+
     public HapiGetScheduleInfo hasSignatories(String... s) {
         expectedSignatories = Optional.of(List.of(s));
         return this;
@@ -151,6 +179,8 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     @SuppressWarnings("java:S5960")
     protected void assertExpectationsGiven(HapiSpec spec) {
         var actualInfo = response.getScheduleGetInfo().getScheduleInfo();
+
+        Optional.ofNullable(onInfo).ifPresent(info -> info.accept(actualInfo));
 
         expectedScheduledTxnId.ifPresent(n -> assertEquals(
                 spec.registry().getTxnId(correspondingScheduledTxnId(n)),
@@ -173,20 +203,29 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         }
 
         if (shouldBeExecuted) {
-            Assertions.assertTrue(actualInfo.hasExecutionTime(), "Wasn't already executed!");
+            assertTrue(actualInfo.hasExecutionTime(), "Wasn't already executed!");
         }
 
         if (shouldNotBeExecuted) {
-            Assertions.assertFalse(actualInfo.hasExecutionTime(), "Was already executed!");
+            assertFalse(actualInfo.hasExecutionTime(), "Was already executed!");
+        }
+
+        if (shouldBeDeleted) {
+            assertTrue(actualInfo.hasDeletionTime(), "Wasn't already deleted!");
         }
 
         if (shouldNotBeDeleted) {
-            Assertions.assertFalse(actualInfo.hasDeletionTime(), "Was already deleted!");
+            assertFalse(actualInfo.hasDeletionTime(), "Was already deleted!");
         }
 
         if (deletionTxn.isPresent()) {
             assertTimestampMatches(
                     deletionTxn.get(), 0, actualInfo.getDeletionTime(), "Wrong consensus deletion time!", spec);
+        }
+
+        final var actualLimits = actualInfo.getScheduledTransactionBody().getMaxCustomFeesList();
+        for (var expectedFee : expectedCustomFeeLimits) {
+            expectedFee.accept(spec, actualLimits);
         }
 
         var registry = spec.registry();
@@ -219,7 +258,7 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         assertFor(
                 actualInfo.getAdminKey(),
                 expectedAdminKey,
-                (n, r) -> r.getAdminKey(schedule),
+                (n, r) -> r.getRoleKey(schedule, KeyRole.ADMIN),
                 "Wrong schedule admin key!",
                 registry);
 

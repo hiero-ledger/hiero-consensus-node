@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static org.hiero.base.utility.CompareTo.isLessThanOrEqualTo;
+import static org.hiero.base.CompareTo.isLessThanOrEqualTo;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.OVERLOADED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;

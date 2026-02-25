@@ -56,6 +56,10 @@ public class TransferListAsserts extends BaseErroringAssertsProvider<TransferLis
         return new SpecificDeductionAsserts(from, amount);
     }
 
+    public static TransferListAsserts includingHbarCredit(String from, long amount) {
+        return new SpecificCreditAsserts(from, amount);
+    }
+
     public static TransferListAsserts includingDeduction(String desc, String payer) {
         return new QualifyingDeductionAssert(desc, payer);
     }
@@ -92,11 +96,10 @@ class ExactParticipantsAssert extends TransferListAsserts {
 
 class ExplicitTransferAsserts extends TransferListAsserts {
     public ExplicitTransferAsserts(List<Function<HapiSpec, TransferList>> providers) {
-        providers.stream()
-                .forEach(provider -> registerProvider((spec, o) -> {
-                    TransferList expected = provider.apply(spec);
-                    assertInclusion(expected, (TransferList) o);
-                }));
+        providers.forEach(provider -> registerProvider((spec, o) -> {
+            TransferList expected = provider.apply(spec);
+            assertInclusion(expected, (TransferList) o);
+        }));
     }
 }
 
@@ -136,6 +139,20 @@ class SpecificDeductionAsserts extends TransferListAsserts {
                             .anyMatch(aa -> aa.getAmount() == -amount
                                     && aa.getAccountID().equals(payer)),
                     String.format("No deduction of -%d tinyBars from %s detected!", amount, account));
+        });
+    }
+}
+
+class SpecificCreditAsserts extends TransferListAsserts {
+    public SpecificCreditAsserts(String account, long amount) {
+        registerProvider((spec, o) -> {
+            TransferList transfers = (TransferList) o;
+            AccountID beneficiary = asId(account, spec);
+            Assertions.assertTrue(
+                    transfers.getAccountAmountsList().stream()
+                            .anyMatch(aa -> aa.getAmount() == amount
+                                    && aa.getAccountID().equals(beneficiary)),
+                    String.format("No credit of %d tinyBars to %s detected!", amount, account));
         });
     }
 }

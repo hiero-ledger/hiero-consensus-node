@@ -2,9 +2,10 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,7 +37,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.crypto.CryptographyProvider;
+import org.hiero.base.crypto.CryptographyProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,7 +121,7 @@ class FileGetInfoTest extends FileTestBase {
     void validatesQueryIfDeletedFile() {
         givenValidFile(true);
         readableFileState = readableFileState();
-        given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(readableFileState);
         readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetFileInfoQuery(fileId);

@@ -2,9 +2,9 @@
 package com.swirlds.common.merkle.synchronization.task;
 
 import java.io.IOException;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * When the teacher submits a query of "do you have this node", the learner replies with a QueryResponse.

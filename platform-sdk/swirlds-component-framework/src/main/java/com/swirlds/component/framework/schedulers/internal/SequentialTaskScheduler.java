@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers.internal;
 
-import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -12,6 +11,7 @@ import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
 
 /**
  * A {@link TaskScheduler} that guarantees that tasks are executed sequentially in the order they are received.
@@ -28,7 +28,6 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
     private final FractionalTimer busyTimer;
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ForkJoinPool pool;
     private final long capacity;
 
@@ -63,10 +62,16 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.SEQUENTIAL, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.SEQUENTIAL,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.busyTimer = Objects.requireNonNull(busyTimer);
@@ -117,7 +122,8 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
         // organizes tasks into a linked list. Tasks in this linked list are executed one at a time in order.
         // When execution of one task is completed, execution of the next task is scheduled on the pool.
 
-        final SequentialTask nextTask = new SequentialTask(pool, offRamp, busyTimer, uncaughtExceptionHandler, false);
+        final SequentialTask nextTask =
+                new SequentialTask(pool, offRamp, busyTimer, getUncaughtExceptionHandler(), false);
         SequentialTask currentTask;
         do {
             currentTask = nextTaskPlaceholder.get();

@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
-import com.swirlds.virtualmap.VirtualValue;
-
-/**
- * Abstract base class for our fixed and variable size example virtual values. This allows tests to handle them the
- * same way.
- */
-public abstract class ExampleByteArrayVirtualValue implements VirtualValue {
+public abstract class ExampleByteArrayVirtualValue {
 
     public abstract int getId();
 

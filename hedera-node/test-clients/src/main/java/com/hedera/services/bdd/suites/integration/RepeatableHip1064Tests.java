@@ -1,38 +1,55 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.blockFrom;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static java.util.Comparator.comparing;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -40,17 +57,28 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
+import org.hiero.base.concurrent.interrupt.Uninterruptable;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -69,12 +97,104 @@ public class RepeatableHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
                 nodeUpdate("2").declineReward(false),
                 nodeUpdate("3").declineReward(false));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @Order(1)
+    final Stream<DynamicTest> rewardsDontExceedRewardAccountBalance() {
+        final AtomicLong preCollectionNodeFees = new AtomicLong(0);
+        final AtomicLong additionalNodeFees = new AtomicLong(0);
+        final AtomicLong expectedNodeRewards = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+        return hapiTest(
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
+                                // We expect two node rewards payments in this test.
+                                // But first staking period all nodes are inactive and minReward is 0.
+                                // So no synthetic node rewards payment is expected.
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                nodeUpdate("0").declineReward(true),
+                // Start a new period
+                waitUntilStartOfNextStakingPeriod(1),
+                // First get any node fees already collected at the end of this block
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                cryptoCreate(CIVILIAN_PAYER),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        (nodeRewards) -> preCollectionNodeFees.set(nodeRewards.nodeFeesCollected())),
+                fileCreate("something")
+                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("notFree"),
+                // Validate all network fees go to 0.0.801
+                validateRecordFees("notFree", List.of(3L, 801L)),
+                // Get the additional fee node fee collected
+                getTxnRecord("notFree")
+                        .exposingTo(r -> additionalNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
+                doWithStartupConfig(
+                        "nodes.targetYearlyNodeRewardsUsd",
+                        target -> doWithStartupConfig(
+                                "nodes.numPeriodsToTargetUsd",
+                                numPeriods -> doingContextual(spec -> {
+                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
+                                            / Integer.parseInt(numPeriods);
+                                    final long targetTinybars =
+                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
+                                    final long prePaidRewards =
+                                            (preCollectionNodeFees.get() + additionalNodeFees.get()) / 4;
+                                    expectedNodeRewards.set(targetTinybars - prePaidRewards);
+                                }))),
+                sleepForBlockPeriod(),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Start a new period and leave only node1 as inactive
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(4, nodeRewards.nodeActivities().size());
+                    final long expectedNodeFees = preCollectionNodeFees.get() + additionalNodeFees.get();
+                    assertEquals(
+                            expectedNodeFees, nodeRewards.nodeFeesCollected(), "Node fees collected did not match");
+                    // Update node 1 to have missed more than 10% of rounds
+                    return nodeRewards
+                            .copyBuilder()
+                            .nodeActivities(NodeActivity.newBuilder()
+                                    .nodeId(1)
+                                    .numMissedJudgeRounds(3)
+                                    .build())
+                            .build();
+                }),
+                getAccountBalance(NODE_REWARD)
+                        .exposingBalanceTo(nodeRewardBalance::set)
+                        .logged(),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Trigger another round with a transaction with no fees (superuser payer)
+                // so the network should pay rewards
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
@@ -92,26 +212,33 @@ public class RepeatableHip1064Tests {
      * </ol>
      */
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    @Order(1)
+    @Order(2)
     final Stream<DynamicTest> paysAdjustedFeesToAllEligibleActiveAccountsAtStartOfNewPeriod() {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                nodeRewardsValidator(expectedNodeRewards::get),
+                                nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
                                 // But first staking period all nodes are inactive and minReward is 0.
                                 // So no synthetic node rewards payment is expected.
                                 1,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(aa ->
-                                                aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)),
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
                         Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -139,107 +266,31 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
+                sleepForBlockPeriod(),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    // Update node 1 to have missed more than 10% of rounds
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
+                getAccountBalance(NODE_REWARD)
+                        .exposingBalanceTo(nodeRewardBalance::set)
+                        .logged(),
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
-    }
-
-    /**
-     * Given,
-     * <ol>
-     *     <li>All nodes except {@code node0} have non-system accounts; So node0 will declineRewards and,</li>
-     *     <li>All nodes except {@code node1} were active in a period {@code P}; and,</li>
-     *     <li>Fees of amount {@code C} were collected by node accounts in {@code P}; and,</li>
-     *     <li>The target node reward payment for 365 periods in USD is {@code T}.</li>
-     * </ol>
-     * Then, at the start of period {@code P+1},
-     * <ol>
-     *     <li>{@code node2} and {@code node3} each receive {@code (T in tinybar) / 365 - (C / 4)}; and,</li>
-     *     <li>Neither {@code node0} and {@code node1} receive any rewards.</li>
-     * </ol>
-     */
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"nodes.adjustNodeFees"})
-    @Order(3)
-    final Stream<DynamicTest> paysNonAdjustedFeesToAllEligibleActiveAccountsAtStartOfNewPeriod() {
-        final AtomicLong expectedNodeFees = new AtomicLong(0);
-        final AtomicLong expectedNodeRewards = new AtomicLong(0);
-        return hapiTest(
-                overriding("nodes.adjustNodeFees", "false"),
-                recordStreamMustIncludePassFrom(
-                        selectedItems(
-                                nodeRewardsValidator(expectedNodeRewards::get),
-                                // We expect two node rewards payments in this test.
-                                // But first staking period all nodes are inactive and minReward is 0.
-                                // So no synthetic node rewards payment is expected.
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(aa ->
-                                                aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)),
-                        Duration.ofSeconds(1)),
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
-                nodeUpdate("0").declineReward(true),
-                // Start a new period
-                waitUntilStartOfNextStakingPeriod(1),
-                // Collect some node fees with a non-system payer
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("something")
-                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("notFree"),
-                getAccountInfo(NODE_REWARD).logged(),
-                // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree")
-                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                                .findFirst()
-                                .orElseThrow()
-                                .getAmount())),
-                doWithStartupConfig(
-                        "nodes.targetYearlyNodeRewardsUsd",
-                        target -> doWithStartupConfig(
-                                "nodes.numPeriodsToTargetUsd",
-                                numPeriods -> doingContextual(spec -> {
-                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
-                                            / Integer.parseInt(numPeriods);
-                                    final long targetTinybars =
-                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
-                                    // node fees are not deducted
-                                    final long prePaidRewards = 0;
-                                    expectedNodeRewards.set(targetTinybars - prePaidRewards);
-                                }))),
-                // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
-                    assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(2)
-                                    .build())
-                            .build();
-                }),
-                waitUntilStartOfNextStakingPeriod(1),
-                // Trigger another round with a transaction with no fees (superuser payer)
-                // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
@@ -260,14 +311,16 @@ public class RepeatableHip1064Tests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"nodes.minPerPeriodNodeRewardUsd"})
-    @Order(2)
+    @Order(3)
     final Stream<DynamicTest> inactiveNodesPaidWhenMinRewardsGreaterThanZero() {
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong expectedMinNodeReward = new AtomicLong(0);
         return hapiTest(
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
-                recordStreamMustIncludePassFrom(
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorWithInactiveNodes(
                                         expectedNodeRewards::get, expectedMinNodeReward::get),
@@ -276,8 +329,11 @@ public class RepeatableHip1064Tests {
                                 // Second staking period, two nodes are active and one node is inactive
                                 2,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(aa ->
-                                                aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)),
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
                         Duration.ofSeconds(1)),
                 nodeUpdate("0").declineReward(true),
                 cryptoTransfer(TokenMovement.movingHbar(10000000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
@@ -314,49 +370,157 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                     expectedMinNodeReward.set(minRewardTinybars);
                                 }))),
+                sleepForBlockPeriod(),
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
+    /**
+     * Given,
+     * <ol>
+     *     <li>All nodes except {@code node0} have non-system accounts; So node0 will declineRewards and,</li>
+     *     <li>All nodes except {@code node1} were active in a period {@code P}; and,</li>
+     *     <li>Fees of amount {@code C} were collected by node accounts in {@code P}; and,</li>
+     *     <li>The target node reward payment for 365 periods in USD is {@code T}.</li>
+     * </ol>
+     * Then, at the start of period {@code P+1},
+     * <ol>
+     *     <li>{@code node2} and {@code node3} each receive {@code (T in tinybar) / 365 - (C / 4)}; and,</li>
+     *     <li>Neither {@code node0} and {@code node1} receive any rewards.</li>
+     * </ol>
+     */
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"nodes.preserveMinNodeRewardBalance"})
+            overrides = {"nodes.adjustNodeFees"})
     @Order(4)
-    final Stream<DynamicTest> preserveNodeRewardBalanceHasEffectWhenFeatureEnabled() {
+    final Stream<DynamicTest> paysNonAdjustedFeesToAllEligibleActiveAccountsAtStartOfNewPeriod() {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
-                overriding("nodes.preserveMinNodeRewardBalance", "false"),
-                recordStreamMustIncludePassFrom(
+                overriding("nodes.adjustNodeFees", "false"),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                nodeRewardsValidator(expectedNodeRewards::get),
+                                nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
                                 // But first staking period all nodes are inactive and minReward is 0.
                                 // So no synthetic node rewards payment is expected.
                                 1,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(aa ->
-                                                aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)),
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
                         Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Collect some node fees with a non-system payer
+                cryptoCreate(CIVILIAN_PAYER),
+                fileCreate("something")
+                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("notFree"),
+                getAccountInfo(NODE_REWARD).logged(),
+                // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
+                doWithStartupConfig(
+                        "nodes.targetYearlyNodeRewardsUsd",
+                        target -> doWithStartupConfig(
+                                "nodes.numPeriodsToTargetUsd",
+                                numPeriods -> doingContextual(spec -> {
+                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
+                                            / Integer.parseInt(numPeriods);
+                                    final long targetTinybars =
+                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
+                                    // node fees are not deducted
+                                    final long prePaidRewards = 0;
+                                    expectedNodeRewards.set(targetTinybars - prePaidRewards);
+                                }))),
+                sleepForBlockPeriod(),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Start a new period and leave only node1 as inactive
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(4, nodeRewards.nodeActivities().size());
+                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    return nodeRewards
+                            .copyBuilder()
+                            .nodeActivities(NodeActivity.newBuilder()
+                                    .nodeId(1)
+                                    .numMissedJudgeRounds(3)
+                                    .build())
+                            .build();
+                }),
+                getAccountBalance(NODE_REWARD)
+                        .exposingBalanceTo(nodeRewardBalance::set)
+                        .logged(),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Trigger another round with a transaction with no fees (superuser payer)
+                // so the network should pay rewards
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            overrides = {"nodes.preserveMinNodeRewardBalance"})
+    @Order(5)
+    final Stream<DynamicTest> preserveNodeRewardBalanceHasEffectWhenFeatureEnabled() {
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+        final AtomicLong expectedNodeFees = new AtomicLong(0);
+        final AtomicLong expectedNodeRewards = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        return hapiTest(
+                overriding("nodes.preserveMinNodeRewardBalance", "false"),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
+                                // We expect two node rewards payments in this test.
+                                // But first staking period all nodes are inactive and minReward is 0.
+                                // So no synthetic node rewards payment is expected.
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                nodeUpdate("0").declineReward(true),
+                // Start a new period
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -384,23 +548,248 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
+                sleepForBlockPeriod(),
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
+                getAccountBalance(NODE_REWARD)
+                        .exposingBalanceTo(nodeRewardBalance::set)
+                        .logged(),
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            overrides = {"nodes.minNodeRewardBalance"})
+    @Order(6)
+    final Stream<DynamicTest> distributesFeesWhenRewardBalanceIsHigh() {
+        final AtomicLong expectedNodeFees = new AtomicLong(0);
+        final AtomicLong expectedNodeRewards = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+        return hapiTest(
+                overriding("nodes.minNodeRewardBalance", "1000000000000"),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
+                                // We expect two node rewards payments in this test.
+                                // But first staking period all nodes are inactive and minReward is 0.
+                                // So no synthetic node rewards payment is expected.
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                nodeUpdate("0").declineReward(true),
+                // Start a new period
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Collect some node fees with a non-system payer
+                cryptoCreate(CIVILIAN_PAYER),
+                fileCreate("something")
+                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("notFree"),
+                // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
+                // validate all network fees go to 0.0.801
+                validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
+                doWithStartupConfig(
+                        "nodes.targetYearlyNodeRewardsUsd",
+                        target -> doWithStartupConfig(
+                                "nodes.numPeriodsToTargetUsd",
+                                numPeriods -> doingContextual(spec -> {
+                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
+                                            / Integer.parseInt(numPeriods);
+                                    final long targetTinybars =
+                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
+                                    final long prePaidRewards = expectedNodeFees.get() / 4;
+                                    expectedNodeRewards.set(targetTinybars - prePaidRewards);
+                                }))),
+                sleepForBlockPeriod(),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Start a new period and leave only node1 as inactive
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(4, nodeRewards.nodeActivities().size());
+                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    // Update node 1 to have missed more than 10% of rounds
+                    return nodeRewards
+                            .copyBuilder()
+                            .nodeActivities(NodeActivity.newBuilder()
+                                    .nodeId(1)
+                                    .numMissedJudgeRounds(3)
+                                    .build())
+                            .build();
+                }),
+                getAccountBalance(NODE_REWARD)
+                        .exposingBalanceTo(nodeRewardBalance::set)
+                        .logged(),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Trigger another round with a transaction with no fees (superuser payer)
+                // so the network should pay rewards
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    @Order(7)
+    @RepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
+        return hapiTest(
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                nodeUpdate("0").declineReward(false),
+                sleepForBlockPeriod(),
+                setAllNodesActive(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
+                // Move into a new staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                setAllNodesActive(),
+                // Simulate a few transactions to close a block, whose only chance of exporting a NodeStakeUpdate is the
+                // node reward payment
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        exposeLatestNBlockTxnResults(
+                                5,
+                                list -> {
+                                    if (list.isEmpty()) {
+                                        Assertions.fail("No transaction results found!");
+                                    }
+                                    final var rewardPayment = list.getLast();
+                                    final var hasNodeRewardDebit =
+                                            requireNonNull(rewardPayment.transferListOrThrow())
+                                                    .accountAmounts()
+                                                    .stream()
+                                                    .anyMatch(aa -> aa.amount() < 0
+                                                            && aa.accountIDOrThrow()
+                                                                            .accountNumOrThrow()
+                                                                    == 801L);
+                                    assertTrue(
+                                            hasNodeRewardDebit, "Node rewards payment should be present in the block");
+                                },
+                                Duration.ofSeconds(1)))));
+    }
+
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    Stream<DynamicTest> nodeMissingSingleRoundStillActive() {
+        final int minActivePercent = 90;
+        return hapiTest(
+                overriding("nodes.activeRoundsPercent", Integer.toString(minActivePercent)),
+                waitUntilStartOfNextStakingPeriod(1),
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .numRoundsInStakingPeriod(10)
+                        .nodeActivities(List.of(
+                                NodeActivity.newBuilder()
+                                        .nodeId(0)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(1)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()))
+                        .build()),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, nodeRewards -> {
+                    final long rounds = nodeRewards.numRoundsInStakingPeriod();
+                    final long maxMissed = (rounds * (100 - minActivePercent)) / 100;
+                    assertEquals(1L, maxMissed, "Test setup should allow one missed round");
+                    final var missedCounts = nodeRewards.nodeActivities().stream()
+                            .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+                    assertEquals(1L, missedCounts.get(1L));
+                    assertTrue(missedCounts.get(1L) <= maxMissed, "Node1 should remain active after missing one round");
+                }));
+    }
+
+    private static SpecOperation setAllNodesActive() {
+        return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                .copyBuilder()
+                .nodeActivities(List.of(
+                        NodeActivity.newBuilder()
+                                .nodeId(0)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(1)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(2)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(3)
+                                .numMissedJudgeRounds(0)
+                                .build()))
+                .build());
+    }
+
+    static SpecOperation exposeLatestNBlockTxnResults(
+            int numBlocks, Consumer<List<TransactionResult>> crs, Duration after) {
+        return doingContextual((spec) -> {
+            Uninterruptable.tryToSleep(after);
+            final List<Block> latestNBlocksUF = new ArrayList<>();
+            try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
+                // take files snapshot (so we don't include other block files that may be coming through)
+                final var blockPathsSnapshot = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .sorted(comparing(BlockStreamAccess::extractBlockNumber))
+                        .toList();
+                final var numFiles = Math.min(blockPathsSnapshot.size(), numBlocks);
+                for (int i = blockPathsSnapshot.size() - numFiles; i < blockPathsSnapshot.size(); i++) {
+                    latestNBlocksUF.add(blockFrom(blockPathsSnapshot.get(i)));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            final List<TransactionResult> latestNTxnResults = latestNBlocksUF.stream()
+                    .flatMap(b -> b.items().stream())
+                    .filter(item -> item.hasTransactionResult())
+                    .map(item -> item.transactionResultOrThrow())
+                    .toList();
+
+            // Finally, call accept on the list
+            crs.accept(latestNTxnResults);
+        });
     }
 
     static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {
@@ -409,10 +798,10 @@ public class RepeatableHip1064Tests {
             allRunFor(spec, fileCreate);
             var response = fileCreate.getResponseRecord();
             assertEquals(
+                    1,
                     response.getTransferList().getAccountAmountsList().stream()
                             .filter(aa -> aa.getAmount() < 0)
-                            .count(),
-                    1);
+                            .count());
             // When the feature is disabled the node fees go to node. Network fee is split between 98, 800 and 801
             assertEquals(
                     expectedFeeAccounts,
@@ -424,7 +813,8 @@ public class RepeatableHip1064Tests {
         });
     }
 
-    static VisibleItemsValidator nodeRewardsValidator(@NonNull final LongSupplier expectedPerNodeReward) {
+    static VisibleItemsValidator nodeRewardsValidator(
+            @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No reward payments found");
@@ -432,18 +822,27 @@ public class RepeatableHip1064Tests {
             final var payment = items.getFirst();
             assertEquals(CryptoTransfer, payment.function());
             final var op = payment.body().getCryptoTransfer();
-            final long expectedPerNode = expectedPerNodeReward.getAsLong();
+            long expectedPerNode = expectedPerNodeReward.getAsLong();
             final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
                     .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
             assertEquals(3, bodyAdjustments.size());
             // node2 and node3 only expected to receive (node0 is system, node1 was inactive)
-            final long expectedDebit = -2 * expectedPerNode;
+            long expectedDebit = -2 * expectedPerNode;
+            if (Math.abs(expectedDebit) > nodeRewardBalance.getAsLong()) {
+                expectedPerNode = nodeRewardBalance.getAsLong() / 2;
+                expectedDebit = 2 * -expectedPerNode;
+            }
+            final long nodeRewardDebit =
+                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
             assertEquals(
-                    expectedDebit, bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount")));
+                    expectedDebit,
+                    nodeRewardDebit,
+                    "Expected node reward debit was " + expectedDebit + ", but was " + nodeRewardDebit
+                            + " (expectedPerNode = " + expectedPerNode + ")");
             // node2 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(5L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(5L), "Node 2 reward is not as expected");
             // node3 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(6L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(6L), "Node 3 reward is not as expected");
         };
     }
 

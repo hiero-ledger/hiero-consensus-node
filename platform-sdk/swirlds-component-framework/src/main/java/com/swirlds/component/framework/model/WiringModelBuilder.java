@@ -2,8 +2,10 @@
 package com.swirlds.component.framework.model;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
@@ -25,6 +27,7 @@ public class WiringModelBuilder {
     private final Metrics metrics;
     private final Time time;
     private Duration healthyReportThreshold = Duration.ofSeconds(1);
+    private UncaughtExceptionHandler taskSchedulerExceptionHandler = null;
 
     /**
      * Create a new builder.
@@ -63,53 +66,49 @@ public class WiringModelBuilder {
     }
 
     /**
-     * Set if deterministic mode should be enabled. If enabled, the wiring model will be deterministic (and much
+     * Set the deterministic mode to enabled. If enabled, the wiring model will be deterministic (and much
      * slower). Suitable for simulations and testing. Default false.
      *
-     * @param deterministicModeEnabled whether to enable deterministic mode
      * @return this
      */
     @NonNull
-    public WiringModelBuilder withDeterministicModeEnabled(final boolean deterministicModeEnabled) {
-        this.deterministicModeEnabled = deterministicModeEnabled;
+    public WiringModelBuilder deterministic() {
+        this.deterministicModeEnabled = true;
         return this;
     }
 
     /**
-     * Set if the health monitor should be enabled. Default is true.
+     * disables the health monitor.
      *
-     * @param healthMonitorEnabled whether to enable the health monitor
      * @return this
      */
     @NonNull
-    public WiringModelBuilder withHealthMonitorEnabled(final boolean healthMonitorEnabled) {
-        this.healthMonitorEnabled = healthMonitorEnabled;
+    public WiringModelBuilder disableHealthMonitor() {
+        this.healthMonitorEnabled = false;
         return this;
     }
 
     /**
-     * Set if hard backpressure should be enabled. Default is false.
+     * Sets hard backpressure to enable. Default is false.
      *
-     * @param hardBackpressureEnabled whether to enable hard backpressure
      * @return this
      */
     @NonNull
-    public WiringModelBuilder withHardBackpressureEnabled(final boolean hardBackpressureEnabled) {
-        this.hardBackpressureEnabled = hardBackpressureEnabled;
+    public WiringModelBuilder enableHardBackpressure() {
+        this.hardBackpressureEnabled = true;
         return this;
     }
 
     /**
-     * Set if the JVM anchor should be enabled. Default is false. If enabled and {@link WiringModel#start()} has been
+     * Set the JVM anchor to be enabled. Default is false. If enabled and {@link WiringModel#start()} has been
      * called, the JVM will not automatically exit due to lack of non-daemon threads until {@link WiringModel#stop()} is
      * called.
      *
-     * @param jvmAnchorEnabled whether to enable the JVM anchor
      * @return this
      */
     @NonNull
-    public WiringModelBuilder withJvmAnchorEnabled(final boolean jvmAnchorEnabled) {
-        this.jvmAnchorEnabled = jvmAnchorEnabled;
+    public WiringModelBuilder enableJvmAnchor() {
+        this.jvmAnchorEnabled = true;
         return this;
     }
 
@@ -175,6 +174,38 @@ public class WiringModelBuilder {
     }
 
     /**
+     * Set the global {@link UncaughtExceptionHandler}. Default is {@code null}. Allows to set a global uncaught
+     * exception handler for all threads created by the wiring model. This is useful for tests and during development
+     * while in production the default handler should be used.
+     *
+     * @param taskSchedulerExceptionHandler the global uncaught exception handler
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withUncaughtExceptionHandler(
+            @NonNull final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
+        this.taskSchedulerExceptionHandler = Objects.requireNonNull(taskSchedulerExceptionHandler);
+        return this;
+    }
+
+    /**
+     * Applies the configuration contained in the {@link WiringConfig} instance.
+     *
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withWiringConfig(@NonNull final WiringConfig wiringConfig) {
+        Objects.requireNonNull(wiringConfig);
+        if (!wiringConfig.healthMonitorEnabled()) this.disableHealthMonitor();
+        if (wiringConfig.hardBackpressureEnabled()) this.enableHardBackpressure();
+        return this.withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
+                .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
+                .withHealthLogThreshold(wiringConfig.healthLogThreshold())
+                .withHealthLogPeriod(wiringConfig.healthLogPeriod())
+                .withHealthyReportThreshold(wiringConfig.healthyReportThreshold());
+    }
+
+    /**
      * Build the wiring model.
      *
      * @param <T> the type of wiring model
@@ -184,7 +215,7 @@ public class WiringModelBuilder {
     @NonNull
     public <T extends WiringModel> T build() {
         if (deterministicModeEnabled) {
-            return (T) new DeterministicWiringModel(metrics, time);
+            return (T) new DeterministicWiringModel(metrics, time, taskSchedulerExceptionHandler);
         } else {
             return (T) new StandardWiringModel(this);
         }
@@ -295,5 +326,15 @@ public class WiringModelBuilder {
     @NonNull
     Duration getHealthyReportThreshold() {
         return healthyReportThreshold;
+    }
+
+    /**
+     * Get the global {@link UncaughtExceptionHandler}.
+     *
+     * @return the global {@code UncaughtExceptionHandler}
+     */
+    @NonNull
+    UncaughtExceptionHandler getTaskSchedulerExceptionHandler() {
+        return taskSchedulerExceptionHandler;
     }
 }

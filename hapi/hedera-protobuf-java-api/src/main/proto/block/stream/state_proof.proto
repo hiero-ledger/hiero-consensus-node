@@ -1,0 +1,155 @@
+/**
+ * # State Proof
+ * A state proof that cryptographically proves one of more nodes in the block
+ * merkle tree.<br/>
+ * Those nodes can represent state, block items or anything else
+ * in the tree.
+ *
+ * All state proofs MUST include the `TimeStamp` leaf at the top of the
+ * block merkle tree so that the point in time that applies to this proof is
+ * also proven.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "block/stream/record_file_item.proto";
+import "block/stream/tss_signed_block_proof.proto";
+
+message StateProof {
+    /**
+     * The merkle paths that prove the nodes in the block merkle tree.
+     * This field SHALL contain, in the following order:
+     * - The merkle path from the previous block root (the "left-most"
+     *   node on level 5) to it's (single) internal node parent (on level
+     *   1, adjacent to the block's consensus timestamp).
+     * - The merkle path from the consensus timestamp leaf to the root.
+     * - The merkle path of the root of the entire block merkle tree.
+     */
+    repeated MerklePath paths = 1;
+
+    oneof proof {
+        /**
+         * A proof containing a TSS signature for a single block. This field
+         * SHALL contain the proof of a block with a block number greater
+         * than or equal to the current block; otherwise this field MUST be
+         * omitted.
+         */
+        TssSignedBlockProof signed_block_proof = 2;
+    }
+}
+
+/**
+ * A path from a node in a Merkle tree to the root of that tree.
+ *
+ * MerklePath represents a section of a merkle path from a leaf node to merkle
+ * tree root. There are 3 kinds of merkle paths.
+ * 1. Merkle paths starting from a leaf. Depending on the byte content, one of
+ *    `timestampLeaf`, `stateItemLeaf`, or `blockItemLeaf` fields is set.
+ * 2. Merkle paths starting from an internal node hash like for proving a
+ *    block root hash. For these the `hash` field is set.
+ * 3. Merkle paths in the middle between another merkle path and the root. For
+ *    these, none of the fields are set.
+ * Merkle paths can only include sibling nodes for binary internal nodes. If
+ * there is a unary node in the path a new MerklePath must be started.
+ */
+message MerklePath {
+
+    /**
+     * Array of sibling nodes ordered from bottom of tree to top
+     */
+    repeated SiblingNode siblings = 1;
+
+    /**
+     * The next parent path of this path going up the tree. Expressed as an index
+     * into the array of MerklePaths in the StatePoof. For example 0 being first
+     * in list etc. If this is the root path then the value is UINT32_MAX
+     * (this is `-1` in Java; 0xFFFFFFFF).
+     */
+    uint32 next_path_index = 2;
+
+    oneof content {
+        /**
+         * Optional hash content for a path with no leaf that hashes paths below
+         * it. Needed for cases like proving a block root hash from another block.
+         */
+        bytes hash = 3;
+
+        /**
+         * A {@code StateItem} leaf, if this path starts at a state item.
+         */
+        bytes state_item_leaf = 4;
+
+        /**
+         * A {@code BlockItem} leaf, if this path starts from a block item
+         */
+        bytes block_item_leaf = 5;
+
+        /**
+         * A {@code proto.Timestamp} Leaf, if this path starts from a timestamp
+         */
+        bytes timestamp_leaf = 6;
+    }
+}
+
+/**
+ * Sibling Node, this represents the hash of a sibling node in a MerklePath
+ */
+message SiblingNode {
+    /**
+     * True when this sibling is on the left of the merkle path, False if on
+     * the right side of the merkle path
+     */
+    bool is_left = 1;
+
+    /**
+     * The hash of the sibling node that can be combined with the merkle path
+     * computed hashes as the proof is validated.
+     */
+    bytes hash = 2;
+}
+
+/**
+ * A hash of a "sibling" to an entry in a Merkle tree.
+ *
+ * When constructing a binary merkle tree, each internal node is a hash
+ * constructed from the hash of two "descendant" nodes. Those two nodes
+ * are "siblings" and the order (first, second) in which the two hash values
+ * are combined affects the parent hash.<br/>
+ * This may be used to reconstruct a portion of a merkle tree starting from
+ * a node of interest up to the root of the tree.
+ */
+message MerkleSiblingHash {
+    /**
+     * A flag for the position of this sibling.
+     * <p>
+     * If this is set then this sibling MUST be the first hash in the pair of
+     * sibling hashes of a binary merkle tree.<br/>
+     * If this is unset, then this sibling MUST be the second hash in the pair
+     * of sibling hashes of a binary merkle tree.
+     */
+    bool is_first = 1;
+
+    /**
+     * A byte array of a sibling hash.<br/>
+     * This is the hash for the sibling at this point in the merkle tree.
+     * <p>
+     * The algorithm for this hash SHALL match the algorithm for the block that
+     * contains this sibling.<br/>
+     * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
+     */
+    bytes sibling_hash = 2;
+}

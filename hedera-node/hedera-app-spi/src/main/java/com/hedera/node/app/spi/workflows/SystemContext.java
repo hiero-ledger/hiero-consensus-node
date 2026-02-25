@@ -2,8 +2,8 @@
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.function.Consumer;
@@ -63,4 +63,10 @@ public interface SystemContext {
      */
     @NonNull
     Instant now();
+
+    /**
+     * Checks if there are any dispatches remaining in the current context.
+     * @return true if there are dispatches remaining, false otherwise
+     */
+    boolean hasDispatchesRemaining();
 }

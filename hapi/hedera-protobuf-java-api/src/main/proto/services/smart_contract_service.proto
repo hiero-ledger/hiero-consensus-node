@@ -171,4 +171,9 @@ service SmartContractService {
      * is less than this "floor" amount.
      */
     rpc callEthereum (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update zero or more slots of an EVM hook's storage.
+     */
+    rpc hookStore (Transaction) returns (TransactionResponse);
 }

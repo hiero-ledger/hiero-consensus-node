@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -17,7 +15,7 @@ public interface BlockItemWriter {
      *
      * @param blockNumber the number of the block to open
      */
-    void openBlock(long blockNumber);
+    void openBlock(final long blockNumber);
 
     /**
      * Writes an item and/or its serialized bytes to the destination stream.
@@ -25,18 +23,7 @@ public interface BlockItemWriter {
      * @param item the item to write
      * @param bytes the serialized item to write
      */
-    default void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(item);
-        requireNonNull(bytes);
-        writeItem(bytes.toByteArray());
-    }
-
-    /**
-     * Writes a serialized item to the destination stream.
-     *
-     * @param bytes the serialized item to write
-     */
-    void writeItem(@NonNull byte[] bytes);
+    void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes);
 
     /**
      * Writes a PBJ item to the destination stream.
@@ -56,7 +43,9 @@ public interface BlockItemWriter {
     void flushPendingBlock(@NonNull PendingProof pendingProof);
 
     /**
-     * Performs any actions that need to be done before the block proof is complete.
+     * Jumps to a specific block number after a freeze event.
+     *
+     * @param blockNumber the block number to jump to after freeze
      */
-    void writePreBlockProofItems();
+    void jumpToBlockAfterFreeze(final long blockNumber);
 }

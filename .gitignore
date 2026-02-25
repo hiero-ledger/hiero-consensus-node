@@ -968,6 +968,7 @@ FodyWeavers.xsd
 
 ### Gradle template
 .gradle
+.gradle-local/
 **/build/
 !src/**/build/
 
@@ -1076,3 +1077,13 @@ hedera-node/test-clients/rcdiff/diff.txt
 ### Ignore binary files in Test-Clients root
 hedera-node/test-clients/*.bin
 
+### Ignore validator files
+hedera-state-validator/slack_report.json
+hedera-state-validator/validator.log
+hedera-state-validator/state-analysis.log
+
+### Snyk Files
+.dccache
+snyk-code.html
+snyk-code.json
+snyk/

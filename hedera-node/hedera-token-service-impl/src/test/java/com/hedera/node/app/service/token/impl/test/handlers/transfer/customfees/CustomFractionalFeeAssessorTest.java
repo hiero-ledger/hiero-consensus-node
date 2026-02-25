@@ -32,6 +32,7 @@ import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFractionalFeeAssessor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.math.BigInteger;
 import java.util.List;
@@ -166,11 +167,16 @@ public class CustomFractionalFeeAssessorTest {
         subject.assessFractionalFees(token, payer, result);
 
         // firstExpectedFee = 5000 * 1 / 100 = 50
-        final var firstExpectedFee = subject.amountOwed(vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee());
-        final var secondExpectedFee =
-                subject.amountOwed(vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee());
+        final var firstExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee())
+                .amount();
+        final var secondExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee())
+                .amount();
 
-        final var netFee = subject.amountOwed(vanillaTriggerAmount, fractionalCustomFeeNetOfTransfers.fractionalFee());
+        final var netFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, fractionalCustomFeeNetOfTransfers.fractionalFee())
+                .amount();
         final var fixedFee = withFixedFee(
                 FixedFee.newBuilder()
                         .denominatingTokenId(tokenWithFractionalFee)
@@ -194,9 +200,13 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor).assessFixedFee(token, payer, fixedFee, result);
 
-        assertThat(result.getAssessedCustomFees()).isNotEmpty();
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee1);
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee2);
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+        final var deltas = result.getItemizedAssessedFees();
+
+        final var assessedFees =
+                deltas.stream().map(ItemizedAssessedFee::assessedCustomFee).toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
+        assertThat(assessedFees).contains(expectedAssessedFee2);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -209,12 +219,17 @@ public class CustomFractionalFeeAssessorTest {
         subject.assessFractionalFees(token, payer, result);
 
         // firstExpectedFee = 5000 * 1 / 100 = 50
-        final var firstExpectedFee = subject.amountOwed(vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee());
+        final var firstExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee())
+                .amount();
         // secondExpectedFee = 5000 * 1 / 10 = 500
-        final var secondExpectedFee =
-                subject.amountOwed(vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee());
+        final var secondExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee())
+                .amount();
         // netFee = 5000 * 2 / 101 = 99
-        final var netFee = subject.amountOwed(vanillaTriggerAmount, fractionalCustomFeeNetOfTransfers.fractionalFee());
+        final var netFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, fractionalCustomFeeNetOfTransfers.fractionalFee())
+                .amount();
         final var totalReclaimedFees = firstExpectedFee + secondExpectedFee;
         final var fixedFee = withFixedFee(
                 FixedFee.newBuilder()
@@ -234,8 +249,11 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(token, payer, fixedFee, result);
-        assertThat(result.getAssessedCustomFees()).hasSize(1);
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee1);
+        assertThat(result.getItemizedAssessedFees()).hasSize(1);
+        final var assessedFees = result.getItemizedAssessedFees().stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -257,8 +275,9 @@ public class CustomFractionalFeeAssessorTest {
 
         // firstExpectedFee is ignored due to the fee collector being same as the payer
         // secondExpectedFee = 5000 * 1 / 10 = 500
-        final var secondExpectedFee =
-                subject.amountOwed(vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee());
+        final var secondExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee())
+                .amount();
 
         // first assessed fee for fee collector is fraction of credit amounts 4000, 1000. So it is 50
         final var expectedAssessedFee1 = AssessedCustomFee.newBuilder()
@@ -270,8 +289,11 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFees()).hasSize(1);
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee1);
+        assertThat(result.getItemizedAssessedFees()).hasSize(1);
+        final var assessedFees = result.getItemizedAssessedFees().stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -292,7 +314,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFees()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -315,7 +337,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFees()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -337,7 +359,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFees()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -347,7 +369,8 @@ public class CustomFractionalFeeAssessorTest {
                 tokenWithFractionalFee, List.of(asAccountAmount(payer, -1), asAccountAmount(firstReclaimedAcount, 1)));
         result = new AssessmentResult(List.of(triggerTransferList), List.of());
         // two custom fees set. First sender is exempt from fees
-        final Token token = withCustomToken(List.of(nonsenseCustomFee, secondFractionalCustomFee), FUNGIBLE_COMMON);
+        final Token token = withCustomToken(
+                List.of(nonsenseCustomFee, firstFractionalCustomFee, secondFractionalCustomFee), FUNGIBLE_COMMON);
 
         assertThatThrownBy(() -> subject.assessFractionalFees(token, payer, result))
                 .isInstanceOf(HandleException.class)
@@ -402,20 +425,24 @@ public class CustomFractionalFeeAssessorTest {
 
     @Test
     void computesCheckingAmountOwned() {
-        assertThat(subject.amountOwed(vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee()))
-                .isEqualTo(vanillaTriggerAmount / firstDenominator);
+        assertThat(subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee()))
+                .isEqualTo(new CustomFractionalFeeAssessor.NonNetAssessment(
+                        vanillaTriggerAmount / firstDenominator, false));
     }
 
     @Test
     void enforcesMax() {
-        assertThat(subject.amountOwed(maxApplicableTriggerAmount, firstFractionalCustomFee.fractionalFee()))
-                .isEqualTo(firstMaxAmountOfFractionalFee);
+        assertThat(subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, maxApplicableTriggerAmount, firstFractionalCustomFee.fractionalFee()))
+                .isEqualTo(new CustomFractionalFeeAssessor.NonNetAssessment(firstMaxAmountOfFractionalFee, false));
     }
 
     @Test
     void enforcesMin() {
-        assertThat(subject.amountOwed(minApplicableTriggerAmount, firstFractionalCustomFee.fractionalFee()))
-                .isEqualTo(firstMinAmountOfFractionalFee);
+        assertThat(subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, minApplicableTriggerAmount, firstFractionalCustomFee.fractionalFee()))
+                .isEqualTo(new CustomFractionalFeeAssessor.NonNetAssessment(firstMinAmountOfFractionalFee, true));
     }
 
     @Test
@@ -424,31 +451,20 @@ public class CustomFractionalFeeAssessorTest {
                 tokenWithFractionalFee,
                 List.of(
                         asAccountAmount(payer, -vanillaTriggerAmount),
-                        asAccountAmount(firstReclaimedAcount, firstCreditAmount + 12_345L),
-                        asAccountAmount(secondReclaimedAcount, secondCreditAmount + 2_345L)));
+                        asAccountAmount(firstReclaimedAcount, firstCreditAmount),
+                        asAccountAmount(secondReclaimedAcount, secondCreditAmount)));
         result = new AssessmentResult(List.of(triggerTransferList), List.of());
         final Token token =
                 withCustomToken(List.of(firstFractionalCustomFee, secondFractionalCustomFee), FUNGIBLE_COMMON);
 
         subject.assessFractionalFees(token, payer, result);
 
-        // firstExpectedFee = 5000 * 1 / 100 = 50
-        // Amount to reclaim is 50. The amount to reclaim from credits is 19690 (16345 + 3345).
-        // The claims happen from the first credit amount is 50 * (16345/19690) = 41
-        // The claims happen from the second credit amount is 50 * (3345/19690) = 8
-        // So 1 is left to reclaim, which is the remainder.So, we go through credits again and reclaim 1 from the first
-        final var firstExpectedFee = subject.amountOwed(vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee());
-        final var secondExpectedFee =
-                subject.amountOwed(vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee());
-
-        final var netFee = subject.amountOwed(vanillaTriggerAmount, fractionalCustomFeeNetOfTransfers.fractionalFee());
-        final var fixedFee = withFixedFee(
-                FixedFee.newBuilder()
-                        .denominatingTokenId(tokenWithFractionalFee)
-                        .amount(netFee)
-                        .build(),
-                netOfTransfersFeeCollector,
-                true);
+        final var firstExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, firstFractionalCustomFee.fractionalFee())
+                .amount();
+        final var secondExpectedFee = subject.assessNonNetOfTransferForDebit(
+                        1L, 1L, vanillaTriggerAmount, secondFractionalCustomFee.fractionalFee())
+                .amount();
 
         final var expectedAssessedFee1 = AssessedCustomFee.newBuilder()
                 .feeCollectorAccountId(firstFractionalFeeCollector)
@@ -465,9 +481,13 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
 
-        assertThat(result.getAssessedCustomFees()).isNotEmpty();
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee1);
-        assertThat(result.getAssessedCustomFees()).contains(expectedAssessedFee2);
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+
+        final var assessedFees = result.getItemizedAssessedFees().stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
+        assertThat(assessedFees).contains(expectedAssessedFee2);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -490,7 +510,7 @@ public class CustomFractionalFeeAssessorTest {
         subject.assessFractionalFees(token, payer, result);
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFees()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 

@@ -10,8 +10,8 @@ import java.time.Instant;
  * @param round                         the round of the state saved to disk
  * @param freezeState                   true if the state was freeze state, false otherwise
  * @param consensusTimestamp            the consensus timestamp of the state saved to disk
- * @param oldestMinimumGenerationOnDisk as part of the state saving operation, old states are deleted from disk. This
- *                                      value represents the minimum generation non-ancient of the oldest state on disk
+ * @param oldestMinimumBirthRoundOnDisk as part of the state saving operation, old states are deleted from disk. This
+ *                                      value represents the minimum birth round non-ancient of the oldest state on disk
  */
 public record StateSavingResult(
-        long round, boolean freezeState, @NonNull Instant consensusTimestamp, long oldestMinimumGenerationOnDisk) {}
+        long round, boolean freezeState, @NonNull Instant consensusTimestamp, long oldestMinimumBirthRoundOnDisk) {}

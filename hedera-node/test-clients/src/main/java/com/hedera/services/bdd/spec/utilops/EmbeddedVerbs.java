@@ -1,28 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
+import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -35,6 +42,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStakingInfosOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateTokenOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewContractOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewMappingValueOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
@@ -55,6 +63,7 @@ import java.util.function.UnaryOperator;
  * Contains operations that are usable only with an {@link EmbeddedNetwork}.
  */
 public final class EmbeddedVerbs {
+
     private EmbeddedVerbs() {
         throw new UnsupportedOperationException();
     }
@@ -125,43 +134,54 @@ public final class EmbeddedVerbs {
     }
 
     /**
+     * Returns an operation that allows the test author to view a hook's state.
+     * @param hookId the ID of the hook to view
+     * @param observer the mutation to apply to the account
+     * @return the operation that will mutate the account
+     */
+    public static ViewMappingValueOp<HookId, EvmHookState> viewHook(
+            @NonNull final HookId hookId, @NonNull final Consumer<EvmHookState> observer) {
+        return new ViewMappingValueOp<>(ContractService.NAME, EVM_HOOK_STATES_STATE_ID, hookId, observer);
+    }
+
+    public static ViewContractOp viewContract(@NonNull final String name, @NonNull final Consumer<Account> observer) {
+        return new ViewContractOp(name, observer);
+    }
+
+    /**
      * Returns an operation that allows the test author to view a singleton record in an embedded state.
      * @param serviceName the name of the service that manages the record
-     * @param stateKey the key of the record in the state
+     * @param stateId the ID of the record in the state
      * @param observer the observer that will receive the record
      * @return the operation that will expose the record to the observer
      * @param <T> the type of the record
      */
     public static <T> ViewSingletonOp<T> viewSingleton(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Consumer<T> observer) {
+            @NonNull final String serviceName, final int stateId, @NonNull final Consumer<T> observer) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         requireNonNull(observer);
-        return new ViewSingletonOp<>(serviceName, stateKey, observer);
+        return new ViewSingletonOp<>(serviceName, stateId, observer);
     }
 
     /**
      * Returns an operation that allows the test author to mutate a singleton record in an embedded state.
      * @param serviceName the name of the service that manages the record
-     * @param stateKey the key of the record in the state
+     * @param stateId the ID of the record in the state
      * @param mutator the observer that will receive the record
      * @return the operation that will expose the record to the mutator
      * @param <T> the type of the record
      */
     public static <T> MutateSingletonOp<T> mutateSingleton(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final UnaryOperator<T> mutator) {
+            @NonNull final String serviceName, final int stateId, @NonNull final UnaryOperator<T> mutator) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         requireNonNull(mutator);
-        return new MutateSingletonOp<>(serviceName, stateKey, mutator);
+        return new MutateSingletonOp<>(serviceName, stateId, mutator);
     }
 
     /**
      * Returns an operation that allows the test author to view a key/value state an embedded state.
      * @param serviceName the name of the service that manages the mapping
-     * @param stateKey the mapping state key
+     * @param stateId the mapping state ID
      *
      * @param observer the observer that will receive the key/value state
      * @return the operation that will expose the mapped value to the observer
@@ -170,18 +190,17 @@ public final class EmbeddedVerbs {
      */
     public static <K, V> ViewKVStateOp<K, V> viewKVState(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             @NonNull final Consumer<ReadableKVState<K, V>> observer) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         requireNonNull(observer);
-        return new ViewKVStateOp<>(serviceName, stateKey, observer);
+        return new ViewKVStateOp<>(serviceName, stateId, observer);
     }
 
     /**
      * Returns an operation that allows the test author to mutate a key/value state an embedded state.
      * @param serviceName the name of the service that manages the mapping
-     * @param stateKey the mapping state key
+     * @param stateId the mapping state ID
      *
      * @param observer the consumer that will receive the key/value state
      * @return the operation that will expose the mapped value to the observer
@@ -190,18 +209,17 @@ public final class EmbeddedVerbs {
      */
     public static <K, V> MutateKVStateOp<K, V> mutateKVState(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             @NonNull final Consumer<WritableKVState<K, V>> observer) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         requireNonNull(observer);
-        return new MutateKVStateOp<>(serviceName, stateKey, observer);
+        return new MutateKVStateOp<>(serviceName, stateId, observer);
     }
 
     /**
      * Returns an operation that allows the test author to view a key's mapped value in an embedded state.
      * @param serviceName the name of the service that manages the mapping
-     * @param stateKey the mapping state key
+     * @param stateId the mapping state ID
      *
      * @param observer the observer that will receive the value
      * @return the operation that will expose the mapped value to the observer
@@ -210,14 +228,13 @@ public final class EmbeddedVerbs {
      */
     public static <K, V> ViewMappingValueOp<K, V> viewMappedValue(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             @NonNull final K key,
             @NonNull final Consumer<V> observer) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         requireNonNull(key);
         requireNonNull(observer);
-        return new ViewMappingValueOp<>(serviceName, stateKey, key, observer);
+        return new ViewMappingValueOp<>(serviceName, stateId, key, observer);
     }
 
     /**
@@ -260,8 +277,7 @@ public final class EmbeddedVerbs {
             final var throttleAccumulator = new ThrottleAccumulator(
                     hedera.configProvider()::getConfiguration,
                     capacityUtilization::asApproxCapacitySplit,
-                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
-                    v -> new ServicesSoftwareVersion());
+                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
             throttleAccumulator.applyGasConfig();
             throttleAccumulator.applyBytesConfig();
             throttleAccumulator.rebuildFor(hedera.activeThrottleDefinitions());
@@ -272,7 +288,7 @@ public final class EmbeddedVerbs {
                     .accountNum(properties.getLong("accounts.lastThrottleExempt") + 1)
                     .build();
             final var txnInfo = new TransactionInfo(
-                    Transaction.DEFAULT,
+                    SignedTransaction.DEFAULT,
                     TransactionBody.DEFAULT,
                     TransactionID.DEFAULT,
                     throttledPayerId,
@@ -281,7 +297,7 @@ public final class EmbeddedVerbs {
                     pbjFunction,
                     null);
             int numSchedulable = 0;
-            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state); numSchedulable++) {
+            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state, null, false); numSchedulable++) {
                 // Count until we are throttled
             }
             observer.accept(numSchedulable);
@@ -332,8 +348,9 @@ public final class EmbeddedVerbs {
                 final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
                 if (streamMode == RECORDS) {
                     // Mark the migration records as not streamed
-                    final var writableStates = fakeState.getWritableStates("BlockRecordService");
-                    final var blockInfo = writableStates.<BlockInfo>getSingleton("BLOCKS");
+                    final var writableStates = fakeState.getWritableStates(BlockRecordService.NAME);
+                    final var blockInfo =
+                            writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
                     blockInfo.put(requireNonNull(blockInfo.get())
                             .copyBuilder()
                             .migrationRecordsStreamed(false)
@@ -342,8 +359,9 @@ public final class EmbeddedVerbs {
                     // Ensure the next transaction is in a new round with ConcurrentEmbeddedHedera
                     spec.sleepConsensusTime(Duration.ofMillis(10L));
                 } else {
-                    final var writableStates = fakeState.getWritableStates("BlockStreamService");
-                    final var state = writableStates.<BlockStreamInfo>getSingleton("BLOCK_STREAM_INFO");
+                    final var writableStates = fakeState.getWritableStates(BlockStreamService.NAME);
+                    final var state = writableStates.<BlockStreamInfo>getSingleton(
+                            V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID);
                     final var blockStreamInfo = requireNonNull(state.get());
                     state.put(blockStreamInfo
                             .copyBuilder()

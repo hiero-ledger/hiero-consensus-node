@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.leaky;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -43,6 +44,7 @@ public class LeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + 27
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;
@@ -83,6 +85,7 @@ public class LeakyEthereumTestsSuite {
      * if there is no free bit available for this information, as in values like 11155111.
      */
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     /* default */ final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155WithChainIdHavingExtraByteForSign() {
         final var deposit = "deposit";
         final var depositAmount = 20_000L;
@@ -122,6 +125,7 @@ public class LeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + CHAIN_ID * 2 + 35
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> legacyEtxAfterEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
-import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,15 +20,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.SignedStateInvalidException;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
@@ -41,21 +33,22 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateInvalidException;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("State Signing Tests")
 class StateSigningTests {
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
 
     @AfterEach
     void tearDown() {
@@ -358,6 +351,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setState(createTestState())
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -376,8 +370,8 @@ class StateSigningTests {
 
         assertTrue(signedState.isComplete());
 
-        final Hash newHash = randomHash();
-        signedState.getState().setHash(newHash);
+        changeStateHashRandomly(signedState);
+
         signedState.pruneInvalidSignatures();
 
         assertEquals(0, sigSet.size());
@@ -422,8 +416,7 @@ class StateSigningTests {
         final List<RosterEntry> newRosterEntries = new ArrayList<>(nodeCount);
 
         for (final RosterEntry originalNode : roster.rosterEntries()) {
-            final X509Certificate certificate =
-                    PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId()).getCertificate();
+            final X509Certificate certificate = PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId());
             final RosterEntry newNode = originalNode
                     .copyBuilder()
                     .gossipCaCertificate(Bytes.wrap(certificate.getEncoded()))
@@ -502,32 +495,5 @@ class StateSigningTests {
         assertEquals(0, sigSet.size());
         assertEquals(0, signedState.getSigningWeight());
         assertFalse(signedState.isComplete());
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("Recovery State Is Complete Test")
-    void recoveryStateIsCompleteTest(final boolean evenWeighting) {
-        final Random random = getRandomPrintSeed();
-
-        final int nodeCount = random.nextInt(10, 20);
-
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
-
-        final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setRoster(roster)
-                .setSignatures(new HashMap<>())
-                .build();
-
-        assertFalse(signedState.isComplete());
-
-        signedState.markAsRecoveryState();
-
-        // Recovery states are considered to be complete regardless of signature count
-        assertTrue(signedState.isComplete());
     }
 }

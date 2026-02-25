@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -18,6 +19,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
@@ -33,6 +35,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -40,10 +44,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -52,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
     public static final String TESTMEMO = "testmemo";
+    public static final Double EXPECTED_PRICE_USD = 0.01;
 
     @HapiTest
     final Stream<DynamicTest> adminKeyIsValidated() {
@@ -71,10 +81,10 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> autoRenewAccountIsValidated() {
         return hapiTest(createTopic("testTopic")
-                .autoRenewAccountId("1.2.3")
+                // Intentionally use a bogus shard and realm
+                .autoRenewAccountId("999.999.3")
                 .signedBy(GENESIS)
                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT));
     }
@@ -164,7 +174,6 @@ public class TopicCreateSuite {
     // TOPIC_RENEW_5
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer_ECDSA() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 newKeyNamed("autoRenewAccountKey").shape(KeyShape.SECP256K1),
                 cryptoCreate("autoRenewAccount").key("autoRenewAccountKey").balance(ONE_HBAR),
@@ -176,13 +185,22 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
                 createTopic("noAdminKeyExplicitAutoRenewAccount")
@@ -193,13 +211,22 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayerPrivateTopic() {
-        final var expectedPriceUsd = 0.0105;
         return hapiTest(
                 newKeyNamed("submitKey"),
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
@@ -212,7 +239,19 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 10);
+                    }
+                }));
     }
 
     @HapiTest
@@ -267,27 +306,32 @@ public class TopicCreateSuite {
                 createTopic("testTopic")
                         .payingWith("payer")
                         .signedBy("wrongKey")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasPrecheck(INVALID_SIGNATURE),
                 // But contracts without admin keys will get INVALID_SIGNATURE (can't sign!)
                 createTopic("NotToBe")
                         .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatusFrom(INVALID_SIGNATURE),
                 // Auto-renew account should sign if set on a topic
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("autoRenewAccount")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasPrecheck(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
                         .adminKeyName("adminKey")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
@@ -295,6 +339,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from auto-renew account's key. */
                         .signedBy("payer", "adminKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "adminKey"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
@@ -302,6 +347,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer", "autoRenewAccount")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "autoRenewAccount"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // In hedera-app, we'll allow contracts with admin keys to be auto-renew accounts
                 createTopic("withContractAutoRenew").adminKeyName("adminKey").autoRenewAccountId(contractWithAdminKey),
@@ -326,6 +372,7 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCase() {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -490,6 +537,7 @@ public class TopicCreateSuite {
 
     // TOPIC_RENEW_21
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithHollowAccountForAutoRenewAccount() {
         final String accountAlias = "accountAlias";
         final String TOKEN_TREASURY = "tokenTreasury";

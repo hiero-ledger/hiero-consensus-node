@@ -9,15 +9,14 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.node.app.spi.throttle.Throttle;
-import com.swirlds.common.crypto.Signature;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
 
 /**
  * Gives context to {@link Service} implementations on how the application workflows will do
@@ -215,10 +215,10 @@ public interface AppContext {
     Supplier<Metrics> metricsSupplier();
 
     /**
-     * The application's strategy for creating {@link Throttle} instances.
+     * The application's strategy for creating {@link ScheduleThrottle} instances.
      * @return the throttle factory
      */
-    Throttle.Factory throttleFactory();
+    ScheduleThrottle.Factory throttleFactory();
 
     /**
      * Supplier of the application's strategy for charging fees.

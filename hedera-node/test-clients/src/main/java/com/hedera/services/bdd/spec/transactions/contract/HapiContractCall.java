@@ -18,7 +18,6 @@ import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractCallTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -41,7 +40,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
     public static final String DEFAULT_ID_SENTINEL = "<DEFAULT_ID>";
@@ -199,10 +198,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
         this.params = Optional.of(params);
     }
 
-    public String getTxnName() {
-        return txnName;
-    }
-
     public Optional<Long> getGas() {
         return gas;
     }
@@ -238,10 +233,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     public Optional<String> getCustomTxnId() {
         return customTxnId;
-    }
-
-    public Optional<AccountID> getNode() {
-        return node;
     }
 
     public OptionalDouble getUsdFee() {

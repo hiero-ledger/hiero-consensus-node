@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
@@ -58,6 +59,7 @@ public class ContractGetBytecodeSuite {
             HapiSpecSetup.getDefaultInstance().invalidContractName();
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         final var contract = "Multipurpose";
         return hapiTest(
@@ -128,8 +130,7 @@ public class ContractGetBytecodeSuite {
             final var actualBytecode = spec.registry().getBytes(key);
             ContractID contractId = TxnUtils.asContractId(contract, spec);
             final byte[] expectedBytecode = redirectBytecodeFunction
-                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
-                            contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))))
+                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(contractId.getContractNum()))))
                     .toArray();
             Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
         });

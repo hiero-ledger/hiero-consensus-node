@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsToTinybars;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -35,6 +41,16 @@ public interface FeeContext {
     @NonNull
     FeeCalculatorFactory feeCalculatorFactory();
 
+    SimpleFeeCalculator getSimpleFeeCalculator();
+
+    /**
+     * Returns the readable store factory for accessing readable stores.
+     *
+     * @return the readable store factory
+     */
+    @NonNull
+    ReadableStoreFactory readableStoreFactory();
+
     /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *
@@ -63,10 +79,21 @@ public interface FeeContext {
 
     /**
      * Returns the number of signatures provided for the transaction.
+     * This is typically the size of the signature map ({@code txInfo.signatureMap().sigPair().size()}).
      * <p>NOTE: this property should not be used for queries</p>
      * @return the number of signatures
      */
     int numTxnSignatures();
+
+    /**
+     * Returns the size of the full transaction in bytes.
+     * This is the length of the serialized Transaction message (signedTransactionBytes),
+     * which includes the transaction body, signatures, and all other transaction data.
+     * This represents the actual bytes received and processed by the node.
+     * <p>NOTE: this property should not be used for queries</p>
+     * @return the full transaction size in bytes
+     */
+    int numTxnBytes();
 
     /**
      * Dispatches the computation of fees for the given transaction body and synthetic payer ID.
@@ -75,4 +102,40 @@ public interface FeeContext {
      * @return the computed fees
      */
     Fees dispatchComputeFees(@NonNull TransactionBody txBody, @NonNull AccountID syntheticPayerId);
+
+    /**
+     * Returns the active Exchange Rate.
+     * @return the active exchange rate
+     */
+    ExchangeRate activeRate();
+
+    /**
+     * Returns the gas price in tinycents.
+     * @return the gas price in tinycents
+     */
+    long getGasPriceInTinycents();
+
+    HederaFunctionality functionality();
+
+    /**
+     * Gets the number of tinybars equivalent to the given number of tinycents.
+     *
+     * @param amount the amount in tinycents
+     * @return the amount in tinybars
+     */
+    default long tinybarsFromTinycents(final long amount) {
+        return tinycentsToTinybars(amount, fromPbj(activeRate()));
+    }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (basis points, 0 to 10,000), where 10,000 = 100%.
+     *
+     * <p>This is used for HIP-1313 high-volume pricing curve calculation.
+     *
+     * @param functionality the functionality to get the utilization for
+     * @return the utilization percentage in hundredths of one percent (basis points, 0 to 10,000),
+     * or 0 if no high-volume throttle exists for the functionality or if not available
+     */
+    int getHighVolumeThrottleUtilization(HederaFunctionality functionality);
 }

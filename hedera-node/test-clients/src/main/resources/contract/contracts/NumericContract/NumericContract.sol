@@ -9,14 +9,6 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*               Non-static Simple HTS functions              */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function updateNFTsMetadata(address nftToken, int64[] memory serialNumbers, bytes memory _newMetadata) public {
-        (bool success, bytes memory result) = address(0x167)
-            .call(abi.encodeWithSignature("updateNFTsMetadata(address,int64[],bytes)", nftToken, serialNumbers, _newMetadata));
-
-        int32 responseCode = abi.decode(result, (int32));
-        require(responseCode == SUCCESS_CODE);
-    }
-
     function approveRedirect(address token, address account, uint256 amount) public {
         (bool success, bytes memory result) = address(token).call(abi.encodeWithSignature("approve(address,uint256)", account, amount));
 
@@ -103,8 +95,8 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    Static HTS functions                    */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function getTokenKey(address token, uint keyType) public view {
-        (bool success, bytes memory result) = address(0x167).staticcall(abi.encodeWithSignature("getTokenKey(address,uint)", token, keyType));
+    function getTokenKey(address token, uint256 keyType) public view {
+        (bool success, bytes memory result) = address(0x167).staticcall(abi.encodeWithSignature("getTokenKey(address,uint256)", token, keyType));
 
         if (success == false) {
             revert();
@@ -158,8 +150,8 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    HАS functions                    */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function hbarApproveProxy(address spender, int256 amount) external {
-        (bool success, bytes memory result) = address(0x167).call(abi.encodeWithSignature("hbarApprove(address,int256)", spender, amount));
+    function hbarApproveProxy(address owner, address spender, int256 amount) external {
+        (bool success, bytes memory result) = address(owner).call(abi.encodeWithSignature("hbarApprove(address,int256)", spender, amount));
 
         if (success == false) {
             revert();
@@ -167,7 +159,7 @@ contract NumericContract {
     }
 
     function hbarApprove(address owner, address spender, int256 amount) external {
-        (bool success, bytes memory result) = address(0x167).call(abi.encodeWithSignature("hbarApprove(address,address,int256)", owner, spender, amount));
+        (bool success, bytes memory result) = address(0x16a).call(abi.encodeWithSignature("hbarApprove(address,address,int256)", owner, spender, amount));
 
         if (success == false) {
             revert();
@@ -178,7 +170,7 @@ contract NumericContract {
     /*                    Exchange Rate functions                    */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
     function convertTinycentsToTinybars(uint256 tinycents) external {
-        (bool success, bytes memory result) = address(0x167).call(abi.encodeWithSignature("convertTinycentsToTinybars(uint256)", tinycents));
+        (bool success, bytes memory result) = address(0x168).call(abi.encodeWithSignature("tinycentsToTinybars(uint256)", tinycents));
 
         if (success == false) {
             revert();
@@ -186,7 +178,7 @@ contract NumericContract {
     }
 
     function convertTinybarsToTinycents(uint256 tinybars) external {
-        (bool success, bytes memory result) = address(0x167).call(abi.encodeWithSignature("convertTinybarsToTinycents(uint256)", tinybars));
+        (bool success, bytes memory result) = address(0x168).call(abi.encodeWithSignature("tinybarsToTinycents(uint256)", tinybars));
 
         if (success == false) {
             revert();

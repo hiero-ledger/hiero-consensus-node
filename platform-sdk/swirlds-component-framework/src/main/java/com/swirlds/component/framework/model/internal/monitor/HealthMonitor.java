@@ -2,8 +2,8 @@
 package com.swirlds.component.framework.model.internal.monitor;
 
 import static java.util.Objects.isNull;
-import static org.hiero.base.utility.CompareTo.isGreaterThan;
-import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.CompareTo.isGreaterThan;
+import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.TaskScheduler;

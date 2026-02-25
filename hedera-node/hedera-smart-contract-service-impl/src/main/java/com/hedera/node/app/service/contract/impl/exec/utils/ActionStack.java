@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.utils.OpcodeUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -99,8 +98,8 @@ public class ActionStack {
      *
      * @return a view of this stack ready to be put in a sidecar
      */
-    public @NonNull ContractActions asContractActions() {
-        return new ContractActions(allActions.stream().map(ActionWrapper::get).toList());
+    public @NonNull List<ContractAction> asContractActions() {
+        return allActions.stream().map(ActionWrapper::get).toList();
     }
 
     /**
@@ -215,7 +214,13 @@ public class ActionStack {
                     final var haltReason = maybeHaltReason.get();
                     builder.error(Bytes.wrap(haltReason.name().getBytes(UTF_8)));
                     if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
-                        allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(frame)));
+                        final var invalidAddressContext = FrameUtils.invalidAddressContext(frame);
+                        // Only create the synth action if the invalid address was actually a call target
+                        if (InvalidAddressContext.InvalidAddressType.InvalidCallTarget.equals(
+                                invalidAddressContext.type())) {
+                            allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(
+                                    frame, invalidAddressContext.culpritAddress())));
+                        }
                     }
                 } else {
                     builder.error(Bytes.EMPTY);
@@ -259,6 +264,10 @@ public class ActionStack {
                         frame.getCurrentOperation().getOpcode()))
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
+    }
+
+    public boolean isEmpty() {
+        return actionsStack.isEmpty();
     }
 
     private void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {

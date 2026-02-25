@@ -2,7 +2,6 @@
 package com.hedera.node.app.state.recordcache;
 
 import com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema;
-import com.hedera.node.app.state.recordcache.schemas.V0540RecordCacheSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * marketed to the world.
  */
 public class RecordCacheService implements Service {
+
     /** The record cache service name */
     public static final String NAME = "RecordCache";
 
@@ -27,6 +27,5 @@ public class RecordCacheService implements Service {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490RecordCacheSchema());
-        registry.register(new V0540RecordCacheSchema());
     }
 }

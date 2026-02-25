@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_I
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SYSTEM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,12 +26,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.airdrops.TokenAirdropDecoder;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,10 +53,10 @@ public class TokenAirdropDecoderTest {
     private Configuration configuration;
 
     @Mock
-    private TokensConfig tokensConfig;
+    private LedgerConfig ledgerConfig;
 
     @Mock
-    private LedgerConfig ledgerConfig;
+    private HederaNativeOperations hederaNativeOperations;
 
     private TokenAirdropDecoder subject;
 
@@ -112,6 +113,8 @@ public class TokenAirdropDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -137,6 +140,8 @@ public class TokenAirdropDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -231,7 +236,6 @@ public class TokenAirdropDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(TOKEN_AIRDROP.encodeCall(Tuple.singleton(tuple)));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -251,6 +255,8 @@ public class TokenAirdropDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -274,6 +280,8 @@ public class TokenAirdropDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -304,7 +312,6 @@ public class TokenAirdropDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(TOKEN_AIRDROP.encodeCall(Tuple.singleton(tuple)));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);

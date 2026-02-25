@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWithAllowance;
+import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.nftTransferWithAllowance;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -16,6 +17,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.AccountCryptoAllowance;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -59,7 +61,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         final var replacedOp = getReplacedOp();
-        adjustHbarChangesStep = new AdjustHbarChangesStep(replacedOp, payerId);
+        adjustHbarChangesStep = new AdjustHbarChangesStep(replacedOp, payerId, idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -91,7 +93,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -115,12 +117,69 @@ class AdjustHbarChangesStepTest extends StepsBase {
     }
 
     @Test
+    void doesHbarBalanceChangesWithLeftoverAllowances() {
+        // setups transaction with allowance of 1000 and transfer of 900
+        // resulting in leftover allowance of 100
+        final var amount = 900;
+        final var leftover = 100;
+        body = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(aaWithAllowance(ownerId, -amount), aaWith(unknownAliasedId, amount))
+                        .build())
+                .tokenTransfers(
+                        TokenTransferList.newBuilder()
+                                .expectedDecimals(1000)
+                                .token(fungibleTokenId)
+                                .transfers(
+                                        List.of(aaWithAllowance(ownerId, -1_0000), aaWith(unknownAliasedId1, +1_0000)))
+                                .build(),
+                        TokenTransferList.newBuilder()
+                                .token(nonFungibleTokenId)
+                                .nftTransfers(nftTransferWithAllowance(ownerId, unknownAliasedId1, 1))
+                                .build())
+                .build();
+        givenTxn(body, spenderId);
+
+        ensureAliasesStep = new EnsureAliasesStep(body);
+        replaceAliasesWithIDsInOp = new ReplaceAliasesWithIDsInOp();
+        associateTokenRecepientsStep = new AssociateTokenRecipientsStep(body);
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+
+        final var receiver = asAccount(0L, 0L, hbarReceiver);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        final var replacedOp = getReplacedOp();
+        adjustHbarChangesStep =
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
+
+        final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
+        final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
+
+        assertThat(senderAccount.tinybarBalance()).isEqualTo(10000L);
+        assertThat(receiverAccount.tinybarBalance()).isEqualTo(10000L);
+
+        assertThat(senderAccount.cryptoAllowances()).hasSize(1);
+
+        adjustHbarChangesStep.doIn(transferContext);
+
+        // see numPositiveBalances and numOwnedNfts change
+        final var senderAccountAfter = writableAccountStore.getAliasedAccountById(ownerId);
+        final var receiverAccountAfter = writableAccountStore.getAliasedAccountById(receiver);
+
+        assertThat(senderAccountAfter.tinybarBalance()).isEqualTo(senderAccount.tinybarBalance() - amount);
+        assertThat(receiverAccountAfter.tinybarBalance()).isEqualTo(receiverAccount.tinybarBalance() + amount);
+        // Total allowance has leftover, so allowance is not removed from map
+        assertThat(senderAccountAfter.cryptoAllowances()).hasSize(1);
+        assertThat(senderAccountAfter.cryptoAllowances().get(0).amount()).isEqualTo(leftover);
+    }
+
+    @Test
     void allowanceWithGreaterThanAllowedAllowanceFails() {
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWithAllowance(ownerId, -1_0000), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);
@@ -133,7 +192,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -152,7 +211,6 @@ class AdjustHbarChangesStepTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWith(ownerId, -1_0001), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);
@@ -165,7 +223,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);

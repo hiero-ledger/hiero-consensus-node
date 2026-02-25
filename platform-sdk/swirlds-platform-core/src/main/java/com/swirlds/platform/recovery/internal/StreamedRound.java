@@ -7,11 +7,11 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * An implementation of a {@link Round} used by streaming classes.

@@ -17,21 +17,19 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Utility class to unzip a zip file.
- * <p>
- * This class was copied from hedera-mono-service/src/main/java/com/hedera/node/app/service/mono/utils/UnzipUtility.java
- * Once we are wholly migrated to the modularized services, we can remove the other location.
  * */
 public final class UnzipUtility {
     private static final Logger log = LogManager.getLogger(UnzipUtility.class);
 
     private static final int BUFFER_SIZE = 4096;
 
-    // these constants are used to prevent Zip Bomb Attacks
-    private static final int THRESHOLD_ENTRIES = 10000; // max # of entries to allow in zip files
-    private static final int THRESHOLD_ZIP_SIZE = 1000000000; // 1 GB - max allowed total size of all uncompressed files
-    private static final int THRESHOLD_ENTRY_SIZE = 100000000; // 100 MB - max allowed size of one uncompressed file
-    // max allowed ratio between uncompressed and compressed file size
-    private static final double THRESHOLD_RATIO = 100;
+    /** Hard limits to reduce Zip Slip / zip-bomb risk during extraction. */
+    private static final int MAX_ENTRIES = 10_000;
+
+    private static final long MAX_TOTAL_EXTRACTED_BYTES = 10L * 1024L * 1024L * 1024L; // 10 GiB
+    private static final int MAX_DEPTH = 20;
+    private static final int MAX_NAME_LENGTH = 4096;
+    private static final long MAX_ENTRY_BYTES = 2L * 1024L * 1024L * 1024L; // 2 GiB
 
     private UnzipUtility() {}
 
@@ -45,25 +43,45 @@ public final class UnzipUtility {
         requireNonNull(bytes);
         requireNonNull(dstDir);
 
-        int totalSizeArchive = 0; // total size of the zip archive once uncompressed
-        int totalEntryArchive = 0; // total number of entries in the zip archive
-
         try (final var zipIn = new ZipInputStream(new ByteArrayInputStream(bytes))) {
-            ZipEntry entry = zipIn.getNextEntry();
+            // Normalize the destination directory to avoid inconsistencies in containment checks.
+            final Path resolvedDstDir = dstDir.toAbsolutePath().normalize();
+            // Canonicalize once for defense-in-depth against symlink-based escapes.
+            final Path canonicalDstDir =
+                    resolvedDstDir.toFile().getCanonicalFile().toPath();
 
+            ZipEntry entry = zipIn.getNextEntry();
             if (entry == null) {
                 throw new IOException("No zip entry found in bytes");
             }
+
+            int entryCount = 0;
+            long totalExtractedBytes = 0L;
             while (entry != null) {
-                totalEntryArchive++;
-                if (totalEntryArchive > THRESHOLD_ENTRIES) {
-                    throw new IOException("Zip file entry count exceeds threshold: " + THRESHOLD_ENTRIES);
+                entryCount++;
+                if (entryCount > MAX_ENTRIES) {
+                    throw new IOException("Zip archive contains too many entries (>" + MAX_ENTRIES + ")");
                 }
-                Path filePath = dstDir.resolve(entry.getName());
+
+                final String entryName = entry.getName();
+                validateEntryName(entryName);
+
+                final int depth = normalizedRelativePathDepth(entryName);
+                if (depth > MAX_DEPTH) {
+                    throw new IOException("Zip entry is nested too deeply (depth=" + depth + ", max=" + MAX_DEPTH
+                            + "): " + entryName);
+                }
+
+                final Path filePath = resolvedDstDir.resolve(entryName).normalize();
+                if (!filePath.startsWith(resolvedDstDir)) {
+                    // Prevent Zip Slip attacks (normalized absolute-path containment check)
+                    throw new IOException("Zip file entry is outside of the destination directory: " + filePath);
+                }
+
                 final File fileOrDir = filePath.toFile();
-                final String canonicalPath = fileOrDir.getCanonicalPath();
-                if (!canonicalPath.startsWith(dstDir.toFile().getCanonicalPath())) {
-                    // prevent Zip Slip attack
+                final Path canonicalFilePath = fileOrDir.getCanonicalFile().toPath();
+                if (!canonicalFilePath.startsWith(canonicalDstDir)) {
+                    // Defense-in-depth against symlink tricks where normalized paths still appear contained.
                     throw new IOException("Zip file entry is outside of the destination directory: " + filePath);
                 }
                 final File directory = fileOrDir.getParentFile();
@@ -72,10 +90,9 @@ public final class UnzipUtility {
                 }
 
                 if (!entry.isDirectory()) {
-                    totalSizeArchive += extractSingleFile(zipIn, filePath, entry.getCompressedSize());
-                    if (totalSizeArchive > THRESHOLD_ZIP_SIZE) {
-                        throw new IOException("Zip file size exceeds threshold: " + THRESHOLD_ZIP_SIZE);
-                    }
+                    final long remainingTotal = MAX_TOTAL_EXTRACTED_BYTES - totalExtractedBytes;
+                    final long written = extractSingleFileWithLimits(zipIn, filePath, MAX_ENTRY_BYTES, remainingTotal);
+                    totalExtractedBytes += written;
                     log.info(" - Extracted update file {}", filePath);
                 } else {
                     if (!fileOrDir.exists() && !fileOrDir.mkdirs()) {
@@ -94,33 +111,91 @@ public final class UnzipUtility {
      *
      * @param inputStream Input stream of zip file content
      * @param filePath Output file name
-     * @param compressedSize Size of this zip entry while still compressed in bytes
-     * @return Size of this zip entry once uncompressed
      * @throws IOException if the file can't be written
      */
-    public static int extractSingleFile(
-            @NonNull ZipInputStream inputStream, @NonNull Path filePath, long compressedSize) throws IOException {
+    public static void extractSingleFile(@NonNull ZipInputStream inputStream, @NonNull Path filePath)
+            throws IOException {
         requireNonNull(inputStream);
         requireNonNull(filePath);
-        int totalSizeEntry = 0; // size of this zip entry once uncompressed
 
+        extractSingleFileWithLimits(inputStream, filePath, MAX_ENTRY_BYTES, Long.MAX_VALUE);
+    }
+
+    private static long extractSingleFileWithLimits(
+            @NonNull final ZipInputStream inputStream,
+            @NonNull final Path filePath,
+            final long maxEntryBytes,
+            final long remainingTotalBytes)
+            throws IOException {
+        long written = 0L;
         try (var bos = new BufferedOutputStream(new FileOutputStream(filePath.toFile()))) {
             final var bytesIn = new byte[BUFFER_SIZE];
             int read;
             while ((read = inputStream.read(bytesIn)) != -1) {
-                totalSizeEntry += read;
-                if (totalSizeEntry > THRESHOLD_ENTRY_SIZE) {
-                    // the uncompressed file size is too large, could be a zip bomb attack
-                    throw new IOException("Zip bomb attack detected, aborting unzip!");
+                if (written + read > maxEntryBytes) {
+                    throw new IOException(
+                            "Zip entry exceeds max allowed size (" + maxEntryBytes + " bytes): " + filePath);
                 }
-                if ((double) totalSizeEntry / compressedSize > THRESHOLD_RATIO) {
-                    // the uncompressed file size is too large compared to the compressed size,
-                    // could be a zip bomb attack
-                    throw new IOException("Zip bomb attack detected, aborting unzip!");
+                if (written + read > remainingTotalBytes) {
+                    throw new IOException("Zip archive exceeds max allowed extracted size (" + MAX_TOTAL_EXTRACTED_BYTES
+                            + " bytes): " + filePath);
                 }
                 bos.write(bytesIn, 0, read);
+                written += read;
+            }
+        } catch (IOException e) {
+            // Best-effort cleanup of partially written output
+            try {
+                final var f = filePath.toFile();
+                if (f.exists() && !f.delete()) {
+                    log.warn("Unable to delete partially extracted file {}", filePath);
+                }
+            } catch (Exception ignored) {
+                // ignore cleanup failures
+            }
+            throw e;
+        }
+        return written;
+    }
+
+    private static void validateEntryName(final String name) throws IOException {
+        if (name == null || name.isEmpty()) {
+            throw new IOException("Zip entry has an empty name");
+        }
+        if (name.length() > MAX_NAME_LENGTH) {
+            throw new IOException("Zip entry name is too long (>" + MAX_NAME_LENGTH + " chars)");
+        }
+
+        // Reject null bytes and control characters (including newlines, tabs, DEL).
+        for (int i = 0; i < name.length(); i++) {
+            final char c = name.charAt(i);
+            if (c == 0 || Character.isISOControl(c)) {
+                throw new IOException("Zip entry name contains a control character");
             }
         }
-        return totalSizeEntry;
+
+        // Reject absolute paths and Windows drive-letter paths.
+        if (name.startsWith("/") || name.startsWith("\\") || name.matches("^[A-Za-z]:[\\\\/].*")) {
+            throw new IOException("Zip entry name is an absolute path");
+        }
+
+        // Reject backslashes to avoid platform-specific traversal quirks.
+        if (name.indexOf('\\') != -1) {
+            throw new IOException("Zip entry name contains invalid path separator");
+        }
+
+        // Reject obvious traversal attempts early (Zip Slip is also blocked via canonical-path check).
+        if (name.equals("..") || name.startsWith("../") || name.contains("/../") || name.endsWith("/..")) {
+            throw new IOException("Zip entry name contains path traversal");
+        }
+    }
+
+    private static int normalizedRelativePathDepth(final String entryName) throws IOException {
+        final var normalized = Path.of(entryName).normalize();
+        if (normalized.isAbsolute()) {
+            // Should already be handled by validateEntryName(), but keep this as defense-in-depth.
+            throw new IOException("Zip entry name is an absolute path");
+        }
+        return normalized.getNameCount();
     }
 }

@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.simulated;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

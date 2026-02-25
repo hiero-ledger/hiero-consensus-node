@@ -8,11 +8,11 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +56,9 @@ class HintsControllersTest {
     @Mock
     private HintsContext context;
 
+    @Mock
+    private OnHintsFinished onHintsFinished;
+
     private HintsControllers subject;
 
     @BeforeEach
@@ -67,35 +70,39 @@ class HintsControllersTest {
                 submissions,
                 context,
                 selfNodeInfoSupplier,
-                HederaTestConfigBuilder::createConfig);
+                HederaTestConfigBuilder::createConfig,
+                onHintsFinished);
     }
 
     @Test
     void getsAndCreatesInertControllersAsExpected() {
-        given(activeRosters.transitionWeights()).willReturn(weights);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
 
         final var twoConstruction =
                 HintsConstruction.newBuilder().constructionId(2L).build();
 
         assertTrue(subject.getInProgressById(2L).isEmpty());
-        final var firstController = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore);
+        final var firstController =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
         assertTrue(subject.getInProgressById(1L).isEmpty());
         assertTrue(subject.getInProgressById(2L).isEmpty());
         assertInstanceOf(InertHintsController.class, firstController);
-        final var secondController = subject.getOrCreateFor(activeRosters, twoConstruction, hintsStore);
+        final var secondController =
+                subject.getOrCreateFor(activeRosters, twoConstruction, hintsStore, HintsConstruction.DEFAULT);
         assertNotSame(firstController, secondController);
         assertInstanceOf(InertHintsController.class, secondController);
     }
 
     @Test
     void returnsActiveControllerWhenSourceNodesHaveTargetThresholdWeight() {
-        given(activeRosters.transitionWeights()).willReturn(weights);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
         given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(Bytes.EMPTY);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
 
-        final var controller = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore);
+        final var controller =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
 
         assertInstanceOf(HintsControllerImpl.class, controller);
 

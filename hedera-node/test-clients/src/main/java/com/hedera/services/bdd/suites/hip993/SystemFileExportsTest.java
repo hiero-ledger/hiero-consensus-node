@@ -4,11 +4,11 @@ package com.hedera.services.bdd.suites.hip993;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -31,6 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -42,6 +44,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingD
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -49,7 +52,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -59,7 +61,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static java.util.stream.Collectors.toSet;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,10 +88,10 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.text.Normalizer;
@@ -96,16 +99,15 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.Spliterators;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Asserts the synthetic file creations stipulated by HIP-993 match the file contents returned by the gRPC
@@ -127,6 +129,7 @@ public class SystemFileExportsTest {
                         nodeDetailsExportValidator(grpcCertHashes, gossipCertificates),
                         1,
                         sysFileUpdateTo("files.nodeDetails"))),
+                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
@@ -354,6 +357,7 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -404,13 +408,16 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
-    final Stream<DynamicTest> syntheticFileCreationsMatchQueries() {
+    @Tag(MATS)
+    final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 eventuallyAssertingExplicitPassWithReplay(
-                        selectedItems(validatorFor(preGenesisContents), 17, (ignore, item) -> item.getRecord()
-                                .getReceipt()
-                                .hasFileID()),
+                        selectedItems(
+                                validatorFor(preGenesisContents),
+                                19,
+                                (ignore, item) -> item.getRecord().getReceipt().hasFileID()
+                                        || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
                 getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
@@ -459,7 +466,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -478,6 +487,16 @@ public class SystemFileExportsTest {
         };
     }
 
+    private static VisibleItemsValidator uniqueConsTimesValidator() {
+        return (spec, records) -> {
+            final var items = records.get(ALL_TX_IDS);
+            final var uniqueConsTimes = items.entries().stream()
+                    .map(RecordStreamEntry::consensusTime)
+                    .collect(toSet());
+            assertEquals(items.size(), uniqueConsTimes.size(), "Expected all entries to have unique consensus times");
+        };
+    }
+
     private static VisibleItemsValidator nodeDetailsExportValidator(
             @NonNull final byte[][] grpcCertHashes,
             @NonNull final AtomicReference<Map<Long, X509Certificate>> gossipCertificates) {
@@ -491,7 +510,9 @@ public class SystemFileExportsTest {
                     .orElseThrow();
             final var synthOp = updateItem.body().getFileUpdate();
             final var nodeDetailsId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
             assertEquals(nodeDetailsId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -534,7 +555,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -544,7 +567,9 @@ public class SystemFileExportsTest {
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
             final var synthOp = updateItem.body().getFileUpdate();
             final var addressBookId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             assertEquals(addressBookId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -583,95 +608,33 @@ public class SystemFileExportsTest {
                 SysFileLookups.allSystemFileNums(spec).boxed().toList();
         assertEquals(Map.of(SUCCESS, systemFileNums.size()), histogram.get(FileCreate));
         final var postGenesisContents = SysFileLookups.getSystemFileContents(spec, fileNum -> true);
-        items.entries().forEach(item -> {
-            final var fileId = item.createdFileId();
+        items.entries().stream().filter(e -> e.function() == FileCreate).forEach(entry -> {
+            final var fileId = entry.createdFileId();
             final var preContents = requireNonNull(
-                    preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);
+                    preGenesisContents.get(entry.createdFileId()), "No pre-genesis contents for " + fileId);
             final var postContents = requireNonNull(
-                    postGenesisContents.get(item.createdFileId()), "No post-genesis contents for " + fileId);
+                    postGenesisContents.get(entry.createdFileId()), "No post-genesis contents for " + fileId);
             final var exportedContents =
-                    fromByteString(item.body().getFileCreate().getContents());
-            if (fileId.fileNum()
-                    != 102) { // for nodedetail, the node's weight changed between preContent and exportedContents
+                    fromByteString(entry.body().getFileCreate().getContents());
+            if (fileId.fileNum() != 102) {
+                //  The node's weight in node details can change between preContent and exportedContents
                 assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
             }
             assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");
         });
     }
 
-    private static VisibleItemsValidator validatorSpecificSysFileFor(
-            @NonNull final AtomicReference<Bytes> fileContent,
-            @NonNull final String fileNumProperty,
-            @NonNull final String specTxnIds) {
-        return (spec, records) ->
-                specificSysFileValidator(spec, records, fileContent.get(), fileNumProperty, specTxnIds);
-    }
-
-    private static void specificSysFileValidator(
-            @NonNull final HapiSpec spec,
-            @NonNull final Map<String, VisibleItems> genesisRecords,
-            @NonNull final Bytes fileContent,
-            @NonNull final String fileNumProperty,
-            @NonNull final String specTxnIds) {
-        final var items = requireNonNull(genesisRecords.get(specTxnIds));
-        final long fileNumb = spec.startupProperties().getLong(fileNumProperty);
-        final var histogram = statusHistograms(items.entries());
-        final var systemFileNums =
-                SysFileLookups.allSystemFileNums(spec).boxed().toList();
-        assertEquals(Map.of(SUCCESS, systemFileNums.size()), histogram.get(FileCreate));
-        // Also check we export a node stake update at genesis
-        assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
-        final var fileItem = items.entries().stream()
-                .filter(item -> item.function() == FileCreate)
-                .filter(item -> item.createdFileId().equals(new FileID(shard, realm, fileNumb)))
-                .findFirst()
-                .orElse(null);
-
-        assertNotNull(fileItem, "No create item for " + fileNumProperty + " found in " + specTxnIds + " txn");
-        final var fileCreateContents = fileItem.body().getFileCreate().getContents();
-        assertNotNull(
-                fileCreateContents, "No create content for " + fileNumProperty + " found in " + specTxnIds + " txn");
-        if (fileNumProperty.equals("files.nodeDetails")) {
-            try {
-                final var addressBook = NodeAddressBook.PROTOBUF.parse(fileContent);
-                final var updatedAddressBook =
-                        NodeAddressBook.PROTOBUF.parse(Bytes.wrap(fileCreateContents.toByteArray()));
-                assertEquals(
-                        addressBook.nodeAddress().size(),
-                        updatedAddressBook.nodeAddress().size(),
-                        "address book size mismatch");
-
-                for (int i = 0;
-                        i < addressBook.nodeAddress().size();
-                        i++) { // only stake not matching because of recalculating
-                    final var address = updatedAddressBook.nodeAddress().get(i);
-                    final var updatedAddress = updatedAddressBook.nodeAddress().get(i);
-                    assertEquals(address.nodeId(), updatedAddress.nodeId(), "nodeId mismatch");
-                    assertEquals(address.nodeAccountId(), updatedAddress.nodeAccountId(), "nodeAccountId mismatch");
-                    assertEquals(address.nodeCertHash(), updatedAddress.nodeCertHash(), "nodeCertHash mismatch");
-                    assertEquals(address.description(), updatedAddress.description(), "description mismatch");
-                    assertEquals(address.rsaPubKey(), updatedAddress.rsaPubKey(), "rsaPubKey mismatch");
-                    assertEquals(
-                            address.serviceEndpoint(), updatedAddress.serviceEndpoint(), "serviceEndpoint mismatch");
-                }
-            } catch (ParseException e) {
-                Assertions.fail("Update contents was not protobuf " + e.getMessage());
-            }
-        } else {
-            assertEquals(
-                    fileContent, fromByteString(fileCreateContents), fileNumb + " contents don't match genesis query");
-        }
-    }
-
     private static Map<Long, X509Certificate> generateCertificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
-                .withRealKeysEnabled(true)
-                .build();
-        final var nextNodeId = new AtomicLong();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toMap(cert -> nextNodeId.getAndIncrement(), cert -> cert));
+        final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
+
+        try {
+            final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
+            return nodeIds.stream()
+                    .collect(
+                            toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static byte[] derEncoded(final X509Certificate cert) {

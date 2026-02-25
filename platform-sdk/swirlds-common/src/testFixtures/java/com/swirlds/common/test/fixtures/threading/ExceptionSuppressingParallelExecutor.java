@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.threading;
 
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.util.concurrent.Callable;
+import org.hiero.base.concurrent.ThrowingRunnable;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 
 /**
- * Parallel executor that suppressed all exceptions.
+ * Parallel executor that suppresses all exceptions.
  */
 public class ExceptionSuppressingParallelExecutor implements ParallelExecutor {
 
@@ -19,13 +20,15 @@ public class ExceptionSuppressingParallelExecutor implements ParallelExecutor {
     }
 
     @Override
-    public <T> T doParallel(final Callable<T> task1, final Callable<Void> task2) throws ParallelExecutionException {
+    public <T> T doParallelWithHandler(
+            final Runnable errorHandler, final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks)
+            throws ParallelExecutionException {
         try {
-            return executor.doParallel(task1, task2);
+            return executor.doParallelWithHandler(errorHandler, foregroundTask, backgroundTasks);
         } catch (final ParallelExecutionException e) {
             // suppress exceptions
-            return null;
         }
+        return null;
     }
 
     /**

@@ -10,12 +10,7 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
-import java.time.Instant;
-import java.util.Collection;
-import java.util.Collections;
-import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -126,33 +121,5 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
         assertThat(actual.schedulerAccountId()).isEqualTo(expected.schedulerAccountId());
         assertThat(actual.waitForExpiry()).isEqualTo(expected.waitForExpiry());
         assertThat(actual.scheduleValidStart()).isEqualTo(expected.scheduleValidStart());
-    }
-
-    private Timestamp timestampFromInstant(final Instant valueToConvert) {
-        return new Timestamp(valueToConvert.getEpochSecond(), valueToConvert.getNano());
-    }
-
-    /**
-     * AssertJ condition to match.
-     * AssertJ is extremely bad at generic capture, forcing everything at least one superclass
-     * up.  As a result this is required to match {@code Condition<?>} rather than the known collection
-     * type.
-     * <p>
-     * The consequence is that the condition fails confusingly for results that are different types, rather than
-     * the compiler detecting a change.
-     *
-     * @param <T> the type of the Collection this condition is expected to support.
-     */
-    private static class ContainsAllElements<T> extends Condition<Collection<?>> {
-        private final Collection<T> valuesToMatch;
-
-        public ContainsAllElements(@Nullable final Collection<T> expected) {
-            valuesToMatch = expected;
-        }
-
-        @Override
-        public boolean matches(final Collection<?> value) {
-            return !(Collections.disjoint(value, valuesToMatch));
-        }
     }
 }

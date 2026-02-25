@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -21,6 +23,20 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
     public StorageAccess {
         requireNonNull(key, "Key cannot be null");
         requireNonNull(value, "Current value cannot be null");
+    }
+
+    /**
+     * Returns the key as a {@link Bytes} object, trimmed of leading zeros.
+     */
+    public Bytes trimmedKeyBytes() {
+        return tuweniToPbjBytes(key.toBytes().trimLeadingZeros());
+    }
+
+    /**
+     * Returns the value as a {@link Bytes} object, trimmed of leading zeros.
+     */
+    public Bytes trimmedValueBytes() {
+        return tuweniToPbjBytes(value.toBytes().trimLeadingZeros());
     }
 
     /**
@@ -53,6 +69,14 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
      */
     public boolean isRemoval() {
         return writtenValue != null && writtenValue.isZero() && !value.isZero();
+    }
+
+    /**
+     * Returns true if this access represents a logical change that would be externalized
+     * in a legacy state changes sidecar.
+     */
+    public boolean isLogicalChange() {
+        return isUpdate() && !isZeroIntoEmptySlot();
     }
 
     /**

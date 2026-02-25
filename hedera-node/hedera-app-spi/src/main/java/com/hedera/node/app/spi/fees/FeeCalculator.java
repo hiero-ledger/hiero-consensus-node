@@ -6,6 +6,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Used to help calculate the fees for a given transaction. The calculator is available on the {@link HandleContext},
@@ -66,6 +67,14 @@ public interface FeeCalculator {
     @NonNull
     FeeCalculator addVerificationsPerTransaction(long amount);
 
+    /**
+     * Adds to the "gas" component the amount of gas used by the transaction.
+     * @param amount The amount of gas. Must not be negative.
+     * @return {@code this} for fluent usage.
+     */
+    @NonNull
+    FeeCalculator addGas(long amount);
+
     @NonNull
     Fees legacyCalculate(@NonNull final Function<SigValueObj, FeeData> callback);
 
@@ -80,8 +89,11 @@ public interface FeeCalculator {
 
     /**
      * Resets the usage of all components to zero.
-     * @return
+     * @return {@code this} for fluent usage.
      */
     @NonNull
     FeeCalculator resetUsage();
+
+    @NonNull
+    FeeSchedule getSimpleFeesSchedule();
 }

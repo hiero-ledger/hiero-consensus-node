@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import static com.swirlds.common.crypto.VerificationStatus.VALID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.VerificationStatus.VALID;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * A {@link Future} that waits on a {@link TransactionSignature} to complete signature checks, and yields a

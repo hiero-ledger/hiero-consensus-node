@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -50,8 +51,8 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Gas Integrity Tests for Token Contracts")
-@Disabled
 @HapiTestLifecycle
+@Disabled
 public class GasCalculationIntegrityTest {
 
     @Contract(contract = "NumericContract", creationGas = 1_000_000L)
@@ -139,6 +140,7 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using nft via redirect proxy contract")
+    @Tag(MATS)
     public Stream<DynamicTest> approveViaProxyNft() {
         final AtomicLong gasUsed = new AtomicLong();
         return testCases.flatMap(rates -> hapiTest(
@@ -154,6 +156,7 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using fungible token hts system contract")
+    @Tag(MATS)
     public Stream<DynamicTest> approveFungibleToken() {
         final AtomicLong gasUsed = new AtomicLong();
         return testCases.flatMap(rates -> hapiTest(
@@ -351,17 +354,21 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using transferFrom")
-    public Stream<DynamicTest> useTransferFrom() {
+    public Stream<DynamicTest> useTransferFrom(final @NonNull @FungibleToken SpecFungibleToken token) {
         final AtomicLong gasUsed = new AtomicLong();
         // Cannot be tested directly as it requires associate from previous test
         return testCases.flatMap(rates -> hapiTest(
+                token.treasury().approveTokenAllowance(token, numericContractComplex, 100L),
+                alice.associateTokens(token),
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
-                        .call("transferFrom", fungibleToken, fungibleToken.treasury(), alice, BigInteger.ONE)
+                        .call("transferFrom", token, token.treasury(), alice, BigInteger.ONE)
                         .via("transferFrom")
                         .gas(42_364L)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
+                alice.transferUnitsTo(token.treasury(), 1L, token),
+                alice.dissociateTokens(token),
                 getTxnRecord("transferFrom").logged()));
     }
 
@@ -383,19 +390,25 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using transferFromNFT")
-    public Stream<DynamicTest> useTransferNFTFrom() {
+    public Stream<DynamicTest> useTransferNFTFrom(
+            final @NonNull @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nonFungibleToken) {
         final AtomicLong gasUsed = new AtomicLong();
         // Cannot be tested directly as it requires associate from previous test
         return testCases.flatMap(rates -> hapiTest(
+                alice.associateTokens(nonFungibleToken),
+                nonFungibleToken
+                        .treasury()
+                        .approveNFTAllowance(nonFungibleToken, numericContractComplex, true, List.of(1L)),
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
-                        .call("transferFromNFT", nft, nft.treasury(), alice, BigInteger.TWO)
+                        .call("transferFromNFT", nonFungibleToken, nonFungibleToken.treasury(), alice, BigInteger.ONE)
                         .via("transferFromNFT")
                         .gas(42_363L)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 getTxnRecord("transferFromNFT").logged(),
-                restoreOriginalRates(),
-                alice.transferNFTsTo(nft.treasury(), nft, 2L)));
+                alice.transferNFTsTo(nonFungibleToken.treasury(), nonFungibleToken, 1L),
+                alice.dissociateTokens(nonFungibleToken),
+                restoreOriginalRates()));
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)

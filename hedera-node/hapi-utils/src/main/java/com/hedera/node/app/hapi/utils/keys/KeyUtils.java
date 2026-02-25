@@ -12,12 +12,15 @@ import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.DrbgParameters;
 import java.security.NoSuchAlgorithmException;
@@ -25,7 +28,6 @@ import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.SecureRandom;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PKCS8Generator;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -35,6 +37,8 @@ import org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8EncryptorBuilder;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
 import org.bouncycastle.pkcs.PKCSException;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemReader;
 
 /**
  * Utility class for working with algorithm-agnostic cryptographic keys
@@ -44,10 +48,12 @@ public final class KeyUtils {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     public static final String TEST_CLIENTS_PREFIX = "hedera-node" + File.separator + "test-clients" + File.separator;
 
-    static final Provider BC_PROVIDER = new BouncyCastleProvider();
+    public static final Provider BC_PROVIDER = new BouncyCastleProvider();
 
     private static final int ENCRYPTOR_ITERATION_COUNT = 10_000;
     private static final String RESOURCE_PATH_SEGMENT = "src/main/resource";
+    private static final int MAX_PEM_BYTES = 64 * 1024;
+    public static final String ENCRYPTED_PRIVATE_KEY = "ENCRYPTED PRIVATE KEY";
 
     private KeyUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -83,12 +89,45 @@ public final class KeyUtils {
             final File pem, final String passphrase, final Provider pemKeyProvider) {
         final var relocatedPem = KeyUtils.relocatedIfNotPresentInWorkingDir(pem);
         try (final var in = new FileInputStream(relocatedPem)) {
+            return readKeyFrom(in, passphrase, pemKeyProvider);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    /**
+     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 encrypted private key.
+     * @param in the input stream containing the PEM-encoded private key
+     * @param passphrase the passphrase used to decrypt the private key
+     * @param pemKeyProvider the provider to use for PEM key conversion
+     * @return the decrypted private key
+     * @param <T> the type of the private key, extending {@link PrivateKey}
+     */
+    public static <T extends PrivateKey> T readKeyFrom(
+            @NonNull final InputStream in, @NonNull final String passphrase, @NonNull final Provider pemKeyProvider) {
+        try {
             final var decryptProvider = new JceOpenSSLPKCS8DecryptorProviderBuilder()
                     .setProvider(BC_PROVIDER)
                     .build(passphrase.toCharArray());
             final var converter = new JcaPEMKeyConverter().setProvider(pemKeyProvider);
-            try (final var parser = new PEMParser(new InputStreamReader(in))) {
-                final var encryptedPrivateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) parser.readObject();
+            final byte[] pemBytes = in.readNBytes(MAX_PEM_BYTES + 1);
+            if (pemBytes.length > MAX_PEM_BYTES) {
+                throw new IllegalArgumentException("PEM input too large");
+            }
+            try (var pemReader =
+                    new PemReader(new InputStreamReader(new ByteArrayInputStream(pemBytes), StandardCharsets.UTF_8))) {
+                final PemObject pemObject = pemReader.readPemObject();
+                if (pemObject == null) {
+                    throw new IllegalArgumentException("No PEM object found");
+                }
+                if (!ENCRYPTED_PRIVATE_KEY.equals(pemObject.getType())) {
+                    throw new IllegalArgumentException("Unexpected PEM type: " + pemObject.getType());
+                }
+                if (pemReader.readPemObject() != null) {
+                    throw new IllegalArgumentException("Multiple PEM objects not allowed");
+                }
+
+                final var encryptedPrivateKeyInfo = new PKCS8EncryptedPrivateKeyInfo(pemObject.getContent());
                 final var info = encryptedPrivateKeyInfo.decryptPrivateKeyInfo(decryptProvider);
                 return (T) converter.getPrivateKey(info);
             }

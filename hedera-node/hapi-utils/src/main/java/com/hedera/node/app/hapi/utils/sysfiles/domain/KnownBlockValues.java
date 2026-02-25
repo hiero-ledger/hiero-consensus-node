@@ -4,7 +4,7 @@ package com.hedera.node.app.hapi.utils.sysfiles.domain;
 import com.google.common.primitives.Longs;
 import com.hedera.node.app.hapi.utils.sysfiles.ParsingUtils;
 import java.util.Arrays;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public record KnownBlockValues(byte[] hash, long number) {
     private static final int KECCAK256_HASH_LENGTH = 32;

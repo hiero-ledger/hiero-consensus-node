@@ -14,8 +14,6 @@ import java.util.concurrent.ConcurrentMap;
  * @param <V> The value type
  */
 public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V> {
-    /** The state key, which cannot be null */
-    private final String stateKey;
 
     /**
      * A cache of all values read from this {@link ReadableKVState}. If the same value is read
@@ -31,33 +29,38 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
 
     private static final Object marker = new Object();
 
+    /** The state ID */
+    protected final int stateId;
+
     /**
      * Create a new StateBase.
      *
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
+     * @param label The state label
      */
-    protected ReadableKVStateBase(@NonNull String stateKey) {
-        this(stateKey, new ConcurrentHashMap<>());
+    protected ReadableKVStateBase(final int stateId, final String label) {
+        this(stateId, label, new ConcurrentHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
+     * @param label The state label
      * @param readCache A map that is used to init the cache.
      */
     // This constructor is used by some consumers of the API that are outside of this repository.
-    protected ReadableKVStateBase(@NonNull String stateKey, @NonNull ConcurrentMap<K, V> readCache) {
-        this.stateKey = Objects.requireNonNull(stateKey);
+    @SuppressWarnings("unused")
+    protected ReadableKVStateBase(final int stateId, final String label, @NonNull ConcurrentMap<K, V> readCache) {
+        this.stateId = stateId;
         this.readCache = Objects.requireNonNull(readCache);
         this.unmodifiableReadKeys = Collections.unmodifiableSet(readCache.keySet());
     }
 
     /** {@inheritDoc} */
     @Override
-    @NonNull
-    public final String getStateKey() {
-        return stateKey;
+    public final int getStateId() {
+        return stateId;
     }
 
     /** {@inheritDoc} */
@@ -85,13 +88,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
         return unmodifiableReadKeys;
     }
 
-    /** {@inheritDoc} */
-    @NonNull
-    @Override
-    public Iterator<K> keys() {
-        return iterateFromDataSource();
-    }
-
     /** Clears all cached data, including the set of all read keys. */
     /*@OverrideMustCallSuper*/
     public void reset() {
@@ -106,14 +102,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      * @return The value read from the underlying data source. May be null.
      */
     protected abstract V readFromDataSource(@NonNull K key);
-
-    /**
-     * Gets an iterator from the data source that iterates over all keys.
-     *
-     * @return An iterator over all keys in the data source.
-     */
-    @NonNull
-    protected abstract Iterator<K> iterateFromDataSource();
 
     /**
      * Records the given key and associated value were read.

@@ -2,32 +2,24 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
@@ -39,14 +31,8 @@ import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
  *
  * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
  * learner side.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements TeacherTreeView<Long> {
+public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
 
@@ -55,20 +41,15 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor<K, V> records;
-
-    /**
-     * This latch counts down when the view is fully initialized and ready for use.
-     */
-    private final CountDownLatch ready = new CountDownLatch(1);
+    private final RecordAccessor records;
 
     /**
      * Create a new {@link TeacherPullVirtualTreeView}.
      *
      * @param threadManager
      * 		responsible for creating and managing threads
-     * @param root
-     * 		The root node on the teacher side of the saved state that we are going to reconnect.
+     * @param map
+     * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
      * 		The state of the virtual tree that we are synchronizing.
      * @param pipeline
@@ -77,21 +58,13 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     public TeacherPullVirtualTreeView(
             final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final VirtualStateAccessor state,
-            final VirtualPipeline<K, V> pipeline) {
+            final VirtualMap map,
+            final VirtualMapMetadata state,
+            final VirtualPipeline pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(root, state, state);
+        super(map, state, state);
         this.reconnectConfig = reconnectConfig;
-        new ThreadConfiguration(threadManager)
-                .setRunnable(() -> {
-                    records = pipeline.pausePipelineAndRun("copy", root::detach);
-                    ready.countDown();
-                })
-                .setComponent("virtualmap")
-                .setThreadName("detacher")
-                .build()
-                .start();
+        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
     }
 
     @Override
@@ -99,9 +72,8 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<TeacherSubtree> subtrees) {
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream) {
         final AsyncOutputStream<PullVirtualTreeResponse> out =
                 teachingSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
@@ -137,7 +109,7 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
             out.writeLong(reconnectState.getLastLeafPath());
         }
         if (!isClean && isLeaf(path) && (reconnectState.getFirstLeafPath() > 0)) {
-            out.writeSerializable(records.findLeafRecord(path, false), false);
+            VirtualReconnectUtils.writeLeafRecord(out, records.findLeafRecord(path));
         }
     }
 
@@ -149,22 +121,6 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     public Hash loadHash(final long path) {
         return records.findHash(path);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void waitUntilReady() throws InterruptedException {
-        ready.await();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getRoot() {
-        return ROOT_PATH;
     }
 
     /**
@@ -256,23 +212,11 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
      * {@inheritDoc}
      */
     @Override
-    public boolean isCustomReconnectRoot(final Long node) {
-        return node == ROOT_PATH;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         try {
-            waitUntilReady();
-            records.getDataSource().close();
+            records.close();
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Failed to close data source properly", e);
-            Thread.currentThread().interrupt();
         }
     }
 }

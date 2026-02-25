@@ -3,7 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -12,6 +11,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LongSummaryStatistics;
 import java.util.function.IntConsumer;
+import org.hiero.consensus.metrics.FunctionGauge;
 
 /**
  * This class is responsible for updating statistics for a MerkleDb instance.
@@ -132,7 +132,7 @@ public class MerkleDbStatisticsUpdater {
         }
         if (dataSource.getHashStoreRam() != null) {
             totalOffHeapMemoryConsumption +=
-                    updateOffHeapStat(dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
+                    updateOffHeapStat((OffHeapUser) dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
         }
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }

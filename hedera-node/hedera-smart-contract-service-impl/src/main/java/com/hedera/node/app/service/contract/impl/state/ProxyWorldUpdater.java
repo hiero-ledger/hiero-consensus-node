@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -52,15 +53,16 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     private static final String CANNOT_CREATE = "Cannot create ";
 
     /**
-     * The factory used to create new {@link EvmFrameState} instances; used once in the
-     * constructor, and then again in {@link #updater()} if that is called.
-     */
-    private final EvmFrameStateFactory evmFrameStateFactory;
-    /**
      * The parent {@link WorldUpdater}, or null if this is the root updater.
      */
     @Nullable
     private final WorldUpdater parent;
+
+    /**
+     * The factory used to create new {@link EvmFrameState} instances; used once in the
+     * constructor, and then again in {@link #updater()} if that is called.
+     */
+    protected final EvmFrameStateFactory evmFrameStateFactory;
 
     /**
      * The {@link EvmFrameState} managing this {@code ProxyWorldUpdater}'s state.
@@ -153,7 +155,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return entityIdFactory().newContractId(pendingCreation.number());
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(entityIdFactory(), address)
+                    return isLongZero(address)
                             ? asNumberedContractId(entityIdFactory(), address)
                             : asEvmContractId(entityIdFactory(), address);
                 }
@@ -186,15 +188,15 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectGasFee(@NonNull final AccountID payerId, final long amount, final boolean withNonceIncrement) {
         requireNonNull(payerId);
-        enhancement.operations().collectFee(payerId, amount);
+        enhancement.operations().collectGasFee(payerId, amount, withNonceIncrement);
     }
 
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
-        enhancement.operations().refundFee(payerId, amount);
+        enhancement.operations().refundGasFee(payerId, amount);
     }
 
     /**
@@ -221,6 +223,14 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             return maybeHaltReason;
         }
         frame.decrementRemainingGas(gasCost);
+
+        final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
+        final var opsDurationSchedule = opsDurationCounter.schedule();
+        final var opsDurationCost = gasCost
+                * opsDurationSchedule.accountLazyCreationOpsDurationMultiplier()
+                / opsDurationSchedule.multipliersDenominator();
+        opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
+
         return Optional.empty();
     }
 
@@ -287,8 +297,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public @NonNull List<StorageAccesses> pendingStorageUpdates() {
-        return evmFrameState.getStorageChanges();
+    public @NonNull TxStorageUsage getTxStorageUsage() {
+        throw new UnsupportedOperationException("Only root updater can summarize transaction storage usage");
     }
 
     /**
@@ -308,7 +318,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         evmFrameState.trackSelfDestructBeneficiary(deleted, beneficiary, frame);
     }
-    ;
 
     /**
      * {@inheritDoc}
@@ -345,16 +354,11 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number,
-                            requireNonNull(pendingCreation.body()),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                            number, requireNonNull(pendingCreation.body()), pendingCreation.aliasIfApplicable());
         } else {
             enhancement
                     .operations()
-                    .createContract(
-                            number,
-                            pendingCreation.parentNumber(),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                    .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
@@ -364,7 +368,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
-        if (isLongZero(entityIdFactory(), address)) {
+        if (isLongZero(address)) {
             enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
         } else {
             enhancement.operations().deleteAliasedContract(aliasFrom(address));
@@ -501,7 +505,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @Nullable final Address alias) {
         final var number = enhancement.operations().peekNextEntityNumber();
         pendingCreation = new PendingCreation(
-                alias == null ? asLongZeroAddress(entityIdFactory(), number) : alias,
+                alias == null ? asLongZeroAddress(number) : alias,
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);

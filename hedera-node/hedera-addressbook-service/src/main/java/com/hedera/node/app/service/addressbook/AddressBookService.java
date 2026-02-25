@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook;
 
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.ServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
@@ -35,7 +35,7 @@ public interface AddressBookService extends RpcService {
      */
     @NonNull
     static AddressBookService getInstance() {
-        return RpcServiceFactory.loadService(AddressBookService.class, ServiceLoader.load(AddressBookService.class));
+        return ServiceFactory.loadService(AddressBookService.class, ServiceLoader.load(AddressBookService.class));
     }
 
     /**

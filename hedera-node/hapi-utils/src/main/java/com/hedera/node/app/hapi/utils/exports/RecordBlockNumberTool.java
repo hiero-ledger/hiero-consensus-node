@@ -4,12 +4,11 @@ package com.hedera.node.app.hapi.utils.exports;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.services.stream.proto.RecordStreamFile;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -20,6 +19,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 
 /**
  * This is a standalone utility tool to read record stream file and check if block number is
@@ -48,7 +49,7 @@ public class RecordBlockNumberTool {
     public static void prepare() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.consensus");
+        registry.registerConstructables("org.hiero");
 
         LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
         // if we are parsing new record stream files,
@@ -74,7 +75,9 @@ public class RecordBlockNumberTool {
 
     private static Pair<Integer, Optional<RecordStreamFile>> readRecordStreamFile(final String fileLoc)
             throws IOException {
-        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(fileLoc);
+        final var parent = Path.of(fileLoc).toAbsolutePath().normalize().getParent();
+        final var authorizedDir = parent == null ? Path.of("").toAbsolutePath() : parent;
+        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(authorizedDir, fileLoc);
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
         final var recordStreamFile = RecordStreamFile.parseFrom(

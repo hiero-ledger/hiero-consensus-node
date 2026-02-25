@@ -3,8 +3,8 @@ package com.hedera.node.app.throttle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_KEY;
-import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_KEY;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID;
+import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_ID;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -17,6 +17,7 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,10 +36,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ThrottleServiceManagerTest {
+
     private static final Bytes MOCK_ENCODED_THROTTLE_DEFS = Bytes.wrap("NOPE");
     private static final ThrottleDefinitions MOCK_THROTTLE_DEFS = ThrottleDefinitions.DEFAULT;
     private static final ThrottleUsageSnapshots MOCK_THROTTLE_USAGE_SNAPSHOTS = new ThrottleUsageSnapshots(
-            List.of(new ThrottleUsageSnapshot(123L, EPOCH)), new ThrottleUsageSnapshot(456L, EPOCH));
+            List.of(new ThrottleUsageSnapshot(123L, EPOCH)),
+            new ThrottleUsageSnapshot(456L, EPOCH),
+            new ThrottleUsageSnapshot(789L, EPOCH));
     private static final CongestionLevelStarts MOCK_CONGESTION_LEVEL_STARTS =
             new CongestionLevelStarts(List.of(new Timestamp(1L, 2), EPOCH), List.of(new Timestamp(3L, 4), EPOCH));
     private static final ThrottleUsageSnapshot MOCK_USAGE_SNAPSHOT =
@@ -87,6 +91,9 @@ class ThrottleServiceManagerTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
+
+    @Mock
     private DeterministicThrottle cryptoTransferThrottle;
 
     private ThrottleServiceManager subject;
@@ -111,7 +118,7 @@ class ThrottleServiceManagerTest {
                 gasThrottle,
                 bytesThrottle);
 
-        subject.init(state, MOCK_ENCODED_THROTTLE_DEFS);
+        subject.init(state, MOCK_ENCODED_THROTTLE_DEFS, false);
 
         inOrder.verify(ingestThrottle).applyGasConfig();
         inOrder.verify(backendThrottle).applyGasConfig();
@@ -135,6 +142,8 @@ class ThrottleServiceManagerTest {
         givenWritableThrottleState();
         givenThrottleMocks();
         given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        given(backendThrottle.opsDurationThrottle()).willReturn(opsDurationThrottle);
+        given(opsDurationThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(congestionMultipliers.entityUtilizationCongestionStarts())
                 .willReturn(asNullTerminatedInstants(
                         MOCK_CONGESTION_LEVEL_STARTS.genericLevelStarts().getFirst()));
@@ -145,7 +154,8 @@ class ThrottleServiceManagerTest {
         subject.saveThrottleSnapshotsAndCongestionLevelStartsTo(state);
 
         verify(writableThrottleSnapshots)
-                .put(new ThrottleUsageSnapshots(List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT));
+                .put(new ThrottleUsageSnapshots(
+                        List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT, MOCK_USAGE_SNAPSHOT));
         verify(writableLevelStarts).put(MOCK_CONGESTION_LEVEL_STARTS);
     }
 
@@ -181,9 +191,10 @@ class ThrottleServiceManagerTest {
     }
 
     private void givenThrottleMocks() {
-        given(backendThrottle.allActiveThrottles()).willReturn(List.of(cryptoTransferThrottle));
+        given(backendThrottle.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(cryptoTransferThrottle));
         given(cryptoTransferThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(backendThrottle.gasLimitThrottle()).willReturn(gasThrottle);
+        given(backendThrottle.opsDurationThrottle()).willReturn(opsDurationThrottle);
     }
 
     private void givenMockThrottleDefs() {
@@ -194,19 +205,19 @@ class ThrottleServiceManagerTest {
     private void givenReadableThrottleState() {
         given(state.getReadableStates(CongestionThrottleService.NAME)).willReturn(throttleReadableStates);
         given(throttleUsageSnapshots.get()).willReturn(MOCK_THROTTLE_USAGE_SNAPSHOTS);
-        given(throttleReadableStates.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY))
+        given(throttleReadableStates.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID))
                 .willReturn(throttleUsageSnapshots);
         given(congestionLevelStarts.get()).willReturn(MOCK_CONGESTION_LEVEL_STARTS);
         given(throttleReadableStates.<CongestionLevelStarts>getSingleton(
-                        V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_KEY))
+                        V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID))
                 .willReturn(congestionLevelStarts);
     }
 
     private void givenWritableThrottleState() {
         given(state.getWritableStates(CongestionThrottleService.NAME)).willReturn(writableStates);
-        given(writableStates.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY))
+        given(writableStates.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID))
                 .willReturn(writableThrottleSnapshots);
-        given(writableStates.<CongestionLevelStarts>getSingleton(CONGESTION_LEVEL_STARTS_STATE_KEY))
+        given(writableStates.<CongestionLevelStarts>getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID))
                 .willReturn(writableLevelStarts);
     }
 }

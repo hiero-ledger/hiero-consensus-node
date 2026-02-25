@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -60,12 +60,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -79,7 +80,7 @@ import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -89,8 +90,8 @@ public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
-    public static final String ACCOUNT_ID = asEntityString(10);
-    public static final String STAKED_ACCOUNT_ID = asEntityString(3);
+    public static final long ACCOUNT_ID = 10;
+    public static final long STAKED_ACCOUNT_ID = 3;
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
     public static final String SHORT_KEY = "shortKey";
@@ -160,7 +161,7 @@ public class CryptoCreateSuite {
     @HapiTest
     @DisplayName("canonical EVM addresses are determined by aliases")
     final Stream<DynamicTest> canonicalEvmAddressesDeterminedByAliases(
-            @Contract(contract = "MakeCalls") SpecContract makeCalls) {
+            @Contract(contract = "MakeCalls", creationGas = 3_000_000) SpecContract makeCalls) {
         return hapiTest(
                 newKeyNamed("oneKey").shape(SECP256K1_ON),
                 newKeyNamed("twoKey").shape(SECP256K1_ON),
@@ -227,11 +228,11 @@ public class CryptoCreateSuite {
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
                                 .stakedAccountId(ACCOUNT_ID)),
-                /* --- sentiel values throw */
+                /* --- sentinel values throw */
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
-                        .stakedAccountId("0.0.0")
+                        .stakedAccountId("0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
@@ -263,7 +264,9 @@ public class CryptoCreateSuite {
                 sourcing(() -> getTxnRecord(creation).logged()));
     }
 
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
         return hapiTest(
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE_VALUE),
@@ -308,15 +311,11 @@ public class CryptoCreateSuite {
     final Stream<DynamicTest> createAnAccountEmptyKeyList() {
         KeyShape shape = listOf(0);
         long initialBalance = 10_000L;
-        ShardID shardID = ShardID.newBuilder().build();
-        RealmID realmID = RealmID.newBuilder().build();
 
         return hapiTest(
                 cryptoCreate(NO_KEYS)
                         .keyShape(shape)
                         .balance(initialBalance)
-                        .shardId(shardID)
-                        .realmId(realmID)
                         .logged()
                         .hasPrecheck(KEY_REQUIRED)
                 // In modular code this error is thrown in handle, but it is fixed using dynamic property
@@ -1017,5 +1016,24 @@ public class CryptoCreateSuite {
                     .hasPrecheck(INVALID_ALIAS_KEY);
             allRunFor(spec, op);
         }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> accountsWithDifferentShardOrRealmNotCreated() {
+        final String key = "key";
+        return hapiTest(
+                newKeyNamed(key),
+                cryptoCreate("control").key(key).balance(1L).hasKnownStatus(SUCCESS),
+                cryptoCreate("differentShard")
+                        .key(key)
+                        .balance(1L)
+                        .shardId(ShardID.newBuilder().setShardNum(3).build())
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
+                // expected realm is 2
+                cryptoCreate("differentRealm")
+                        .key(key)
+                        .balance(1L)
+                        .realmId(RealmID.newBuilder().setRealmNum(4).build())
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 }

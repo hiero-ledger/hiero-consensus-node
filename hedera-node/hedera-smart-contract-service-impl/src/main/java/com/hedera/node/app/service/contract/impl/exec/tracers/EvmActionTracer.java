@@ -8,11 +8,12 @@ import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_EXECUTING;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
 
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -79,7 +80,7 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
     }
 
     @Override
-    public @NonNull ContractActions contractActions() {
+    public @NonNull List<ContractAction> contractActions() {
         return actionStack.asContractActions();
     }
 
@@ -96,7 +97,8 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
         // reason is present, since that means creation failed before executing the frame's
         // code, and tracePostExecution() will never be called; so this is our only chance
         // to keep the action stack in sync with the message frame stack.
-        if (hasActionSidecarsEnabled(frame) && haltReason.isPresent()) {
+        // We skip finalizing for empty action stack, as those produce warnings.
+        if (hasActionSidecarsEnabled(frame) && haltReason.isPresent() && !actionStack.isEmpty()) {
             actionStack.finalizeLastAction(frame, stackValidationChoice(frame));
         }
     }

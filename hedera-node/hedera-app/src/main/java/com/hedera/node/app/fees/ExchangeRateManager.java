@@ -64,22 +64,16 @@ public final class ExchangeRateManager {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
-    public void init(@NonNull final State state, @NonNull final Bytes bytes) {
-        requireNonNull(state, "state must not be null");
-        requireNonNull(bytes, "bytes must not be null");
-
+    public void init(
+            @NonNull final State state, @NonNull final Bytes bytes, @NonNull final ExchangeRateSet midnightRateSet) {
+        requireNonNull(state);
+        requireNonNull(bytes);
+        requireNonNull(midnightRateSet);
         // Re-use the same code path to set the active rates as does the SystemFileUpdateFacility
         // IMPORTANT - if we first initialized the midnight rates, we couldn't reuse this code path
         // because it overwrites the midnight rates with the current rates
         systemUpdate(bytes);
-
-        // Now fix the midnight rates to what is in state (note that all post-initialization
-        // Services states must have a non-null midnight rates set, even at genesis, as
-        // FeeService schema migrate() creates them in that case)
-        midnightRates = state.getReadableStates(FeeService.NAME)
-                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_KEY)
-                .get();
-        requireNonNull(midnightRates, "an initialized state must have a midnight rates set");
+        midnightRates = midnightRateSet;
         log.info(
                 "Initializing exchange rates with midnight rates {} and active rates {}",
                 midnightRates,
@@ -160,7 +154,7 @@ public final class ExchangeRateManager {
     public void updateMidnightRates(@NonNull final State state) {
         midnightRates = currentExchangeRateInfo.exchangeRates();
         final var singleton = state.getWritableStates(FeeService.NAME)
-                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_KEY);
+                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID);
         singleton.put(midnightRates);
         log.info("Updated midnight rates to {}", midnightRates);
     }

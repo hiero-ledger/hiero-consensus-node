@@ -24,12 +24,10 @@ import java.util.function.Function;
  * for other threads) on a single thread, this class would be as simple as a
  * single {@link ThreadLocal} object. This is not the case, unfortunately. For
  * example, when HDHM background reading threads read buckets from disk, buckets
- * are requested from the pool by {@link BucketSerializer} as a part of data
- * file collection read call. Then buckets are updated and put to a queue, which
- * is processed on a different thread, virtual pipeline (aka lifecycle) thread.
- * Only after that buckets can be reused. This is why the pool is implemented as
- * an array of buckets with fast concurrent read/write access from multiple
- * threads.
+ * are requested from the pool. Then buckets are updated and then stored to
+ * disk on a different thread. After that buckets can be reused. This is why the
+ * pool is implemented as an array of buckets with fast concurrent read/write
+ * access from multiple threads.
  */
 public class ReusableBucketPool {
 

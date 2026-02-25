@@ -9,4 +9,6 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+
+    opensTo("org.apache.commons.lang3") // allow using 'reflectionEquals'
 }

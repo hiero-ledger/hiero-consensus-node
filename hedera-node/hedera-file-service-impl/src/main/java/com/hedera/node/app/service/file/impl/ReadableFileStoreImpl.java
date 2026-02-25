@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.file.FileMetadata;
 import com.hedera.node.app.service.file.ReadableFileStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +34,7 @@ public class ReadableFileStoreImpl extends FileStore implements ReadableFileStor
      */
     public ReadableFileStoreImpl(
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
-        this.fileState = requireNonNull(states.get(BLOBS_KEY));
+        this.fileState = requireNonNull(states.get(FILES_STATE_ID));
         this.entityCounters = requireNonNull(entityCounters);
     }
 

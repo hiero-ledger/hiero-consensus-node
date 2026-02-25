@@ -12,6 +12,7 @@ import com.hederahashgraph.api.proto.java.ContractLoginfo;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Assertions;
 
 public class ContractLogAsserts extends BaseErroringAssertsProvider<ContractLoginfo> {
@@ -40,7 +41,7 @@ public class ContractLogAsserts extends BaseErroringAssertsProvider<ContractLogi
     public ContractLogAsserts ecdsaAliasStartingAt(String aliasKey, int start) {
         registerProvider((spec, o) -> {
             byte[] data = dataFrom(o);
-            ByteString alias = spec.registry().keyAliasIdFor(aliasKey).getAlias();
+            ByteString alias = spec.registry().keyAliasIdFor(spec, aliasKey).getAlias();
             byte[] expected = recoverAddressFromPubKey(alias.substring(2).toByteArray());
             byte[] actual = Arrays.copyOfRange(data, start, start + 20);
             Assertions.assertArrayEquals(expected, actual, "Bad alias in log data, starting at byte " + start);
@@ -83,6 +84,11 @@ public class ContractLogAsserts extends BaseErroringAssertsProvider<ContractLogi
     }
 
     public ContractLogAsserts contract(final String contract) {
+        contract(() -> contract);
+        return this;
+    }
+
+    public ContractLogAsserts contract(final Supplier<String> contract) {
         registerIdLookupAssert(contract, ContractLoginfo::getContractID, ContractID.class, "Bad contract");
         return this;
     }
@@ -93,13 +99,17 @@ public class ContractLogAsserts extends BaseErroringAssertsProvider<ContractLogi
         return this;
     }
 
-    public ContractLogAsserts withTopicsInOrder(List<ByteString> expectedTopics) {
+    public ContractLogAsserts withTopicsInOrder(final List<ByteString> expectedTopics) {
+        return withTopicsInOrder(() -> expectedTopics);
+    }
+
+    public ContractLogAsserts withTopicsInOrder(final Supplier<List<ByteString>> expectedTopics) {
         registerProvider((spec, o) -> {
             List<ByteString> actualTopics = topicsFrom(o);
             Assertions.assertEquals(
-                    expectedTopics,
+                    expectedTopics.get(),
                     actualTopics,
-                    "Topics mismatch! Expected:" + expectedTopics.toString() + ", actual: " + actualTopics);
+                    "Topics mismatch! Expected:" + expectedTopics.get().toString() + ", actual: " + actualTopics);
         });
         return this;
     }

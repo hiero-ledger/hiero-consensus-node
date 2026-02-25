@@ -3,12 +3,14 @@ package com.hedera.node.app.service.contract.impl.test.exec.tracers;
 
 import static com.hedera.hapi.streams.ContractActionType.CALL;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import java.util.List;
@@ -18,7 +20,6 @@ import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class AddOnEvmActionTracerTest {
     private EvmActionTracer evmActionTracer;
 
     @Mock
-    private OperationTracer addOnTracer;
+    private ActionSidecarContentTracer addOnTracer;
 
     @Mock
     private MessageFrame messageFrame;
@@ -57,24 +58,28 @@ class AddOnEvmActionTracerTest {
     void delegatesTraceOriginAction() {
         subject.traceOriginAction(messageFrame);
         verify(evmActionTracer).traceOriginAction(messageFrame);
+        verify(addOnTracer).traceOriginAction(messageFrame);
     }
 
     @Test
     void delegatesSanitizeTracedActions() {
         subject.sanitizeTracedActions(messageFrame);
         verify(evmActionTracer).sanitizeTracedActions(messageFrame);
+        verify(addOnTracer).sanitizeTracedActions(messageFrame);
     }
 
     @Test
     void delegatesTracePrecompileResult() {
         subject.tracePrecompileResult(messageFrame, CALL);
         verify(evmActionTracer).tracePrecompileResult(messageFrame, CALL);
+        verify(addOnTracer).tracePrecompileResult(messageFrame, CALL);
     }
 
     @Test
     void delegatesContractActions() {
-        given(evmActionTracer.contractActions()).willReturn(ContractActions.DEFAULT);
-        assertSame(ContractActions.DEFAULT, subject.contractActions());
+        final var actions = List.of(ContractAction.DEFAULT);
+        given(evmActionTracer.contractActions()).willReturn(actions);
+        assertSame(actions, subject.contractActions());
     }
 
     @Test
@@ -118,8 +123,9 @@ class AddOnEvmActionTracerTest {
 
     @Test
     void delegatesTraceEndTransaction() {
-        subject.traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, 2L);
-        verify(addOnTracer).traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, 2L);
+        subject.traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, emptySet(), 2L);
+        verify(addOnTracer)
+                .traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, emptySet(), 2L);
     }
 
     @Test

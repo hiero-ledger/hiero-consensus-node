@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.WAITING_FOR_ADOPTING_FIN
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
-import static com.hedera.node.app.roster.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -24,7 +24,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -40,6 +40,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -68,6 +69,7 @@ public class HintsControllerImpl implements HintsController {
     private final Map<Long, PreprocessingVote> votes = new ConcurrentHashMap<>();
     private final NavigableMap<Instant, CompletableFuture<Validation>> validationFutures = new TreeMap<>();
     private final Supplier<Configuration> configurationSupplier;
+    private final OnHintsFinished onHintsFinished;
     /**
      * The future that resolves to the final updated CRS for the network.
      * This will be null until the first node has contributed to the CRS update.
@@ -120,7 +122,8 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<Configuration> configuration,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final OnHintsFinished onHintsFinished) {
         this.selfId = selfId;
         this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
@@ -130,6 +133,7 @@ public class HintsControllerImpl implements HintsController {
         this.submissions = requireNonNull(submissions);
         this.library = requireNonNull(library);
         this.construction = requireNonNull(construction);
+        this.onHintsFinished = requireNonNull(onHintsFinished);
         this.votes.putAll(votes);
         this.configurationSupplier = requireNonNull(configuration);
 
@@ -225,6 +229,8 @@ public class HintsControllerImpl implements HintsController {
             } else if (crsState.nextContributingNodeIdOrThrow() == selfId && crsPublicationFuture == null && isActive) {
                 submitUpdatedCRS(hintsStore);
             }
+        } catch (CancellationException ignore) {
+            // Normal operations may include cancelling ongoing work
         } catch (Exception e) {
             log.error("Failed to advance CRS work", e);
         }
@@ -259,14 +265,14 @@ public class HintsControllerImpl implements HintsController {
                 // If the threshold is not met, restart the process
                 restartFromFirstNode(now, hintsStore, tssConfig);
             } else {
-                final var finalUpdatedCrs = requireNonNull(finalCrsFuture).join();
+                final var crs = requireNonNull(finalCrsFuture).join().crs();
                 final var updatedState = crsState.copyBuilder()
-                        .crs(finalUpdatedCrs.crs())
+                        .crs(crs)
                         .stage(COMPLETED)
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCrsState(updatedState);
-                log.info("CRS construction complete");
+                log.info("Finished constructing CRS");
             }
         }
     }
@@ -335,7 +341,7 @@ public class HintsControllerImpl implements HintsController {
                         .findFirst()
                         .orElse("No remaining nodes to consider"));
         hintsStore.moveToNextNode(
-                optionalNextNodeId,
+                optionalNextNodeId.isEmpty() ? null : optionalNextNodeId.getAsLong(),
                 now.plusSeconds(tssConfig.crsUpdateContributionTime().toSeconds()));
     }
 
@@ -357,6 +363,8 @@ public class HintsControllerImpl implements HintsController {
                         submissions
                                 .submitCrsUpdate(newCrs.crs(), newCrs.proof())
                                 .join();
+                    } catch (CancellationException ignore) {
+                        // Normal operations may include cancelling ongoing work
                     } catch (Exception e) {
                         log.error("Failed to submit updated CRS", e);
                     }
@@ -421,6 +429,7 @@ public class HintsControllerImpl implements HintsController {
         requireNonNull(vote);
         requireNonNull(hintsStore);
         if (!construction.hasHintsScheme() && !votes.containsKey(nodeId)) {
+            hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
             if (vote.hasPreprocessedKeys()) {
                 votes.put(nodeId, vote);
             } else if (vote.hasCongruentNodeId()) {
@@ -438,12 +447,10 @@ public class HintsControllerImpl implements HintsController {
                     .map(Map.Entry::getKey)
                     .findFirst();
             maybeWinningOutputs.ifPresent(keys -> {
-                construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
+                construction = hintsStore.setHintsScheme(
+                        construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
-                // If this just completed the active construction, update the signing context
-                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstructions(construction);
-                }
+                onHintsFinished.accept(hintsStore, construction, context);
             });
             return true;
         }
@@ -592,7 +599,7 @@ public class HintsControllerImpl implements HintsController {
      *     <Li>{@code (7, 12)}</Li>
      *     <Li>{@code (0, 2, 3)}</Li>
      * </ul>
-     * And no matter which node publishes their key next, they still the same id as expected.
+     * And no matter which node publishes their key next, they still get the same id as before.
      *
      * @throws IndexOutOfBoundsException if the node id has already been assigned a party id
      */
@@ -662,6 +669,8 @@ public class HintsControllerImpl implements HintsController {
                             submissions
                                     .submitHintsKey(selfPartyId, numParties, hints)
                                     .join();
+                        } catch (CancellationException ignore) {
+                            // Normal operations may include cancelling ongoing work
                         } catch (Exception e) {
                             log.error("Failed to publish hinTS key", e);
                         }
@@ -717,6 +726,8 @@ public class HintsControllerImpl implements HintsController {
                                     .submitHintsVote(construction.constructionId(), preprocessedKeys)
                                     .join();
                         }
+                    } catch (CancellationException ignore) {
+                        // Normal operations may include cancelling ongoing work
                     } catch (Exception e) {
                         log.error("Failed to submit preprocessing vote", e);
                     }

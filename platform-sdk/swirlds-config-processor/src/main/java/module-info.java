@@ -8,5 +8,4 @@ module com.swirlds.config.processor {
     requires com.squareup.javapoet;
     requires java.compiler;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 }

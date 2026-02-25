@@ -75,6 +75,7 @@ The `NodeCreateTransactionBody` message has the following fields:
 - `gossip_ca_certificate`: A certificate used to sign gossip events. This value must be a certificate of a type permitted for gossip signatures and must be the DER encoding of the certificate presented.
 - `grpc_certificate_hash`: A hash of the node gRPC TLS certificate. This value may be used to verify the certificate presented by the node during TLS negotiation for gRPC. This value must be a SHA-384 hash.
 - `admin_key`: An administrative key controlled by the node operator. This key must sign this transaction and each transaction to update this node. This field must contain a valid `Key` value and must not be set to an empty `KeyList`.
+- `grpc_proxy_endpoint`: Service endpoint for gRPC proxy calls. This endpoint represent the published gRPC proxy to which clients may submit transactions.
 
 ### NodeUpdateTransactionBody
 
@@ -90,6 +91,7 @@ The `NodeUpdateTransactionBody` message has the following fields:
 - `gossip_ca_certificate`: A certificate used to sign gossip events. If set, the new value will replace the existing bytes value.
 - `grpc_certificate_hash`: A hash of the node gRPC TLS certificate. If set, the new value will replace the existing hash value.
 - `admin_key`: An administrative key controlled by the node operator. If set, this key must sign this transaction and each subsequent transaction to update this node. If set, this field must contain a valid `Key` value and must not be set to an empty `KeyList`.
+- `grpc_proxy_endpoint`: Service endpoint for gRPC proxy calls. This endpoint represent the published gRPC proxy to which clients may submit transactions.
 
 ### NodeDeleteTransactionBody
 

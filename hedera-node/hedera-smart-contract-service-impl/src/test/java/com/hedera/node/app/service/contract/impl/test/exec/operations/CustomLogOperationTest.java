@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.apache.tuweni.bytes.Bytes32.leftPad;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
@@ -14,7 +15,6 @@ import com.google.common.collect.ImmutableList;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomLogOperation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -107,15 +107,13 @@ class CustomLogOperationTest {
         given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(TestHelpers.CALLED_CONTRACT_ID);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(3);
         for (int i = 0; i < 3; i++) {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
-        final var mirrorAddress =
-                ConversionUtils.asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNumOrThrow());
+        final var mirrorAddress = asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);
@@ -130,8 +128,6 @@ class CustomLogOperationTest {
     void addsExpectedLogWithAlreadyLongZeroAddress() {
         givenHappyPathFrame(2);
         given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(2);

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common;
 
-import com.swirlds.common.exceptions.ReferenceCountException;
+import org.hiero.base.Releasable;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * <p>

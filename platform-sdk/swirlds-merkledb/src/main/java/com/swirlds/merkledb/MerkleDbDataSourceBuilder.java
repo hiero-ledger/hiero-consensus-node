@@ -1,195 +1,182 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.MerkleDbDataSourceBuilder.CLASS_ID;
+import static com.swirlds.common.io.utility.FileUtils.hardLinkTree;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.constructable.constructors.MerkleDbDataSourceBuilderConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
- * Virtual data source builder that manages {@link MerkleDb} based data sources.
+ * Virtual data source builder that manages MerkleDb data sources.
  *
- * <p>One of the key MerkleDb builder config options is database directory. When a builder is
- * requested to create a new data source, or restore an existing data sources from snapshot,
- * the data source is hosted in the specified database. Full data source path is therefore
- * databaseDir + "/" + dataSource.label. To make sure there are no folder name conflicts
- * between data sources with the same label, e.g. on copy or snapshot, MerkleDb builders
- * use different database directories, usually managed using {@link LegacyTemporaryFileBuilder}.
+ * <p>When a MerkleDb data source builder creates a new data source, or restores a data source
+ * from snapshot, it creates a new temp folder using {@link LegacyTemporaryFileBuilder} as the data
+ * source storage dir.
+ *
+ * <p>When a data source snapshot is taken, or a data source is restored from a snapshot, the
+ * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
+ * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
-@ConstructableClass(value = CLASS_ID, constructorType = MerkleDbDataSourceBuilderConstructor.class)
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
-
-    public static final long CLASS_ID = 0x176ede0e1a69828L;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
-
-    /**
-     * Default database folder used by this builder to create and restore data sources. If {@code null},
-     * the default {@link MerkleDb} database is used.
-     */
-    private Path databaseDir;
-
-    /**
-     * Table configuration to use when this builder is requested to create a new data source.
-     */
-    private MerkleDbTableConfig tableConfig;
 
     /** Platform configuration */
     private final Configuration configuration;
 
+    private long initialCapacity = 0;
+
+    private long hashesRamToDiskThreshold = 0;
+
     /**
      * Constructor for deserialization purposes.
+     * @param configuration configuration to use
      */
-    public MerkleDbDataSourceBuilder(final @NonNull Configuration configuration) {
-        // for deserialization
+    public MerkleDbDataSourceBuilder(@NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
     }
 
     /**
      * Creates a new data source builder with the specified table configuration.
      *
-     * @param tableConfig
-     *      Table configuration to use to create new data sources
+     * @param initialCapacity initial capacity of the map
+     * @param hashesRamToDiskThreshold threshold where we switch from storing internal hashes in ram to storing them on disk
      * @param configuration platform configuration
      */
     public MerkleDbDataSourceBuilder(
-            final MerkleDbTableConfig tableConfig, final @NonNull Configuration configuration) {
-        this(null, tableConfig, configuration);
+            @NonNull final Configuration configuration,
+            final long initialCapacity,
+            final long hashesRamToDiskThreshold) {
+        this.configuration = requireNonNull(configuration);
+        this.initialCapacity = initialCapacity;
+        this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
     }
 
-    /**
-     * Creates a new data source builder with the specified database dir and table configuration.
-     *
-     * @param databaseDir
-     *      Default database folder. May be {@code null}
-     * @param tableConfig
-     *      Table configuration to use to create new data sources
-     * @param configuration platform configuration
-     */
-    public MerkleDbDataSourceBuilder(
-            final Path databaseDir, final MerkleDbTableConfig tableConfig, final @NonNull Configuration configuration) {
-        this.databaseDir = databaseDir;
-        this.tableConfig = tableConfig;
-        this.configuration = requireNonNull(configuration);
+    @SuppressWarnings("deprecation")
+    private Path newDataSourceDir(final String label) {
+        try {
+            return LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb-" + label, configuration);
+        } catch (final IOException z) {
+            throw new UncheckedIOException("Failed to create a new temp MerkleDb folder", z);
+        }
+    }
+
+    private Path snapshotDataDir(final Path snapshotDir, final String label) {
+        return snapshotDir.resolve("data").resolve(label);
     }
 
     /**
      * {@inheritDoc}
+     *
+     * <p>If the source directory is provided, this builder assumes the directory is a base
+     * snapshot dir. Data source dir is either baseDir/data/label (new naming schema) or
+     * baseDir/tables/label-ID (legacy naming).
+     *
+     * <p>If the source directory is null, a new empty data source is created in a temp
+     * directory.
      */
     @NonNull
     @Override
-    public VirtualDataSource build(final String label, final boolean withDbCompactionEnabled) {
-        if (tableConfig == null) {
-            throw new IllegalArgumentException("Table serialization config is missing");
+    public VirtualDataSource build(
+            final String label,
+            @Nullable final Path sourceDir,
+            final boolean compactionEnabled,
+            final boolean offlineUse) {
+        if (sourceDir == null) {
+            return buildNewDataSource(label, compactionEnabled, offlineUse);
+        } else {
+            return restoreDataSource(label, sourceDir, compactionEnabled, offlineUse);
         }
-        // Creates a new data source in this builder's database dir or in the default MerkleDb instance
-        final MerkleDb database = MerkleDb.getInstance(databaseDir, configuration);
+    }
+
+    @NonNull
+    private VirtualDataSource buildNewDataSource(
+            final String label, final boolean compactionEnabled, final boolean offlineUse) {
+        if (initialCapacity <= 0) {
+            throw new IllegalArgumentException("Initial map capacity not set");
+        }
         try {
-            return database.createDataSource(
-                    label, // use VirtualMap name as the table name
-                    tableConfig,
-                    withDbCompactionEnabled);
+            final Path dataSourceDir = newDataSourceDir(label);
+            return new MerkleDbDataSource(
+                    dataSourceDir,
+                    configuration,
+                    label,
+                    initialCapacity,
+                    hashesRamToDiskThreshold,
+                    compactionEnabled,
+                    offlineUse);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
 
+    private void snapshotDataSource(final MerkleDbDataSource dataSource, final Path dir) {
+        try {
+            try {
+                dataSource.pauseCompaction();
+                dataSource.snapshot(dir);
+            } finally {
+                dataSource.resumeCompaction();
+            }
+        } catch (final IOException z) {
+            throw new UncheckedIOException(z);
+        }
+    }
+
     /**
      * {@inheritDoc}
+     *
+     * <p>Data source snapshot is placed under "data/label" sub-folder in the provided
+     * {@code snapshotDir}.
      */
     @NonNull
     @Override
-    public MerkleDbDataSource copy(
-            final VirtualDataSource snapshotMe, final boolean makeCopyActive, boolean offlineUse) {
-        if (!(snapshotMe instanceof MerkleDbDataSource source)) {
-            throw new IllegalArgumentException("The datasource must be compatible with the MerkleDb");
+    public Path snapshot(@Nullable Path snapshotDir, @NonNull final VirtualDataSource dataSource) {
+        if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
+            throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
-        try {
-            return source.getDatabase().copyDataSource(source, makeCopyActive, offlineUse);
-        } catch (final IOException z) {
-            throw new UncheckedIOException(z);
+        final String label = merkleDbDataSource.getTableName();
+        if (snapshotDir == null) {
+            snapshotDir = newDataSourceDir(label);
         }
+        final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
+        snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
+        return snapshotDir;
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void snapshot(@NonNull final Path destination, final VirtualDataSource snapshotMe) {
-        if (!(snapshotMe instanceof MerkleDbDataSource source)) {
-            throw new IllegalArgumentException("The datasource must be compatible with the MerkleDb");
-        }
-        try {
-            // Snapshot all tables. When this snapshot() method is called for other data sources,
-            // the database will check if they are already present in the destination path. If so,
-            // the snapshot will be a no-op
-            source.getDatabase().snapshot(destination, source);
-        } catch (final IOException z) {
-            throw new UncheckedIOException(z);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
+     * The builder first checks if "data/label" sub-folder exists in the snapshot dir and
+     * restores a data source from there. If the sub-folder doesn't exist, it may be an old
+     * snapshot with MerkleDb database metadata available. The metadata is used to find the
+     * folder for a data source with the given label. If database metadata file is not found,
+     * this method throws an IO exception.
      */
     @NonNull
-    @Override
-    public VirtualDataSource restore(final String label, final Path source) {
+    private VirtualDataSource restoreDataSource(
+            final String label,
+            @NonNull final Path snapshotDir,
+            final boolean compactionEnabled,
+            final boolean offlineUse) {
         try {
-            // Restore to the default database. Assuming the default database hasn't been initialized yet.
-            // Note that all database data, shared and per-table for all tables, will be restored.
-            final MerkleDb database = MerkleDb.restore(source, databaseDir, configuration);
-            return database.getDataSource(label, true);
+            final Path dataSourceDir = newDataSourceDir(label);
+            final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
+            if (Files.isDirectory(snapshotDataSourceDir)) {
+                hardLinkTree(snapshotDataSourceDir, dataSourceDir);
+                return new MerkleDbDataSource(dataSourceDir, configuration, label, compactionEnabled, offlineUse);
+            }
+            throw new IOException(
+                    "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        // The order of the first 3 fields matches JasperDbBuilder serialization
-        out.writeSerializable(tableConfig, false);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        tableConfig = in.readSerializable(false, MerkleDbTableConfig::new);
     }
 
     /**
@@ -197,7 +184,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      */
     @Override
     public int hashCode() {
-        return tableConfig.hashCode();
+        return Objects.hash(initialCapacity, hashesRamToDiskThreshold);
     }
 
     /**
@@ -208,6 +195,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         if (!(obj instanceof MerkleDbDataSourceBuilder that)) {
             return false;
         }
-        return Objects.equals(tableConfig, that.tableConfig);
+        return (initialCapacity == that.initialCapacity) && (hashesRamToDiskThreshold == that.hashesRamToDiskThreshold);
     }
 }

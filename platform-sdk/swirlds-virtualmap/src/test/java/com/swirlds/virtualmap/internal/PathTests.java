@@ -5,13 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteFactory;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -350,43 +348,5 @@ class PathTests {
         assertEquals(3, Path.getSiblingPath(4), "unexpected value from getRightChildPath(internal node 4)");
         assertEquals(6, Path.getSiblingPath(5), "unexpected value from getRightChildPath(internal node 5)");
         assertEquals(5, Path.getSiblingPath(6), "unexpected value from getRightChildPath(internal node 6)");
-    }
-
-    /**
-     * This is a basic test to validate that MerkleRoutes for Virtual Nodes are computed as expected.
-     * Once the test module is added to the swirlds-test module, we should recreate this test with
-     * MerkleBinaryTree, by adding one million elements to the MerkleBinaryTree, and the same elements
-     * added to a {@link com.swirlds.virtualmap.VirtualMap}. Then, we iterate over each node and their
-     * MerkleRoutes should be the same.
-     */
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    void getRouteStepsFromRoot() {
-        final List<Integer> emptyRoute = Path.getRouteStepsFromRoot(0);
-        assertTrue(emptyRoute.isEmpty(), "No route from root to root");
-
-        MerkleRoute route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(1));
-        assertEquals(MerkleRouteFactory.buildRoute(0), route, "Only left child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(2));
-        assertEquals(MerkleRouteFactory.buildRoute(1), route, "Only right child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(3));
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0), route, "Left-left child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(4));
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1), route, "Left-Right child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(5));
-        assertEquals(MerkleRouteFactory.buildRoute(1, 0), route, "Right-Left child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(6));
-        assertEquals(MerkleRouteFactory.buildRoute(1, 1), route, "Right-right child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(7));
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 0), route, "Left-left-Left child");
-
-        route = MerkleRouteFactory.buildRoute(Path.getRouteStepsFromRoot(8));
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 1), route, "Left-left-right child");
     }
 }

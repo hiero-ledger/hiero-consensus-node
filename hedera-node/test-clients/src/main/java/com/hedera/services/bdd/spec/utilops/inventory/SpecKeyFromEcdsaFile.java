@@ -27,7 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class SpecKeyFromEcdsaFile extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromEcdsaFile.class);

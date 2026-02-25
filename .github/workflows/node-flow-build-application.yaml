@@ -1,92 +1,331 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "Node: Build Application"
 on:
-  workflow_dispatch:
-    inputs:
-      enable-unit-tests:
-        description: "Unit Testing Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-hapi-tests:
-        description: "HAPI Testing Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: boolean
-        required: false
-        default: false
-      java-version:
-        description: "Java JDK Version:"
-        type: string
-        required: false
-        default: "21.0.6"
-      java-distribution:
-        description: "Java JDK Distribution:"
-        type: string
-        required: false
-        default: "temurin"
   push:
     branches:
       - main
-      - "release/*"
+      - "release/**"
 
 defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
 jobs:
-  code:
-    name: Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  mats-tests:
+    name: MATS Tests
+    uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
-      enable-hapi-tests-misc: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-crypto: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-iss: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-token: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-smart-contract: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-time-consuming: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-restart: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-nd-reconnect: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-spotless-check: ${{ github.event.inputs.enable-spotless-check == 'true' }}
-      enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
-      enable-network-log-capture: true
+      ref: ${{ github.ref }}
+      enable-spotless-check: "true"
+      enable-dependency-check: "true"
+      enable-unit-tests: "true"
+      enable-integration-tests: "true"
+      enable-hapi-tests: "true"
+      enable-otter-tests: "true"
+      enable-snyk-scan: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "MATS (main):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-network-node-linux-medium
-    needs: code
-    if: ${{ needs.code.result == 'success' }}
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - mats-tests
+    if: ${{ needs.mats-tests.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Trigger ZXF Deploy Production Release
-        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ github.ref }}"
+            "ref": "${{ github.sha }}",
+            "ref-name": "${{ github.ref_name }}",
+            "dry-run-enabled": false
             }'
+
+  report-failure:
+    name: Report MATS execution failure
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - mats-tests
+      - deploy-ci-trigger
+    if: ${{ (needs.mats-tests.result != 'success' ||
+      needs.deploy-ci-trigger.result != 'success') &&
+      !cancelled() && always() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && always() }}
+        continue-on-error: true
+        with:
+          retention-days: 7
+          path: |
+            run.log
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Rootly Parameters
+        id: set-rootly-parameters
+        run: |
+          ROOTLY_SERVICE_NAME="CITR General"
+          if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
+            ROOTLY_SERVICE_NAME="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+        run: |
+          title="MATS Error Report"
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- MATS Tests: ${{ needs.mats-tests.result }}"
+            echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
+            echo "------------------------------------"
+            if [[ "${{ needs.mats-tests.result }}" != "success" ]]; then
+              echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
+              echo "- Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            echo "Commit information:"
+            echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-parameters.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
+          set_as_noise: "false"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":exclamation: Hiero Consensus Node - MATS Error Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MATS Job Resulted in failure on `main`. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-parameters.outputs.service != 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-parameters.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

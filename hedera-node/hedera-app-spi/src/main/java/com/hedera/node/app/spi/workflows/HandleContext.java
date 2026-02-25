@@ -6,11 +6,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -19,9 +21,8 @@ import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,19 +50,19 @@ public interface HandleContext {
     enum TransactionCategory {
         /**
          * A transaction submitted by a user via HAPI or by a node via {@link com.hedera.node.app.spi.AppContext.Gossip}.
-         * */
+         */
         USER,
         /**
          * An independent, top-level transaction that is executed before the user transaction.
-         * */
+         */
         PRECEDING,
         /**
          * A child transaction that is executed as part of a user transaction.
-         * */
+         */
         CHILD,
         /**
          * A transaction executed via the schedule service.
-         * */
+         */
         SCHEDULED,
         /**
          * A transaction submitted by Node for TSS service
@@ -137,6 +138,24 @@ public interface HandleContext {
          * @param javaType the Java type of the metadata value
          * @return the metadata value, if present
          */
+        public <T> @Nullable T getMetadataIfPresent(@NonNull final Type type, @NonNull final Class<T> javaType) {
+            requireNonNull(type);
+            requireNonNull(javaType);
+            final var v = metadata.get(type);
+            if (v == null) {
+                return null;
+            } else {
+                return javaType.cast(v);
+            }
+        }
+
+        /**
+         * Retrieves the metadata value associated with the given key.
+         *
+         * @param type the metadata key
+         * @param javaType the Java type of the metadata value
+         * @return the metadata value, if present
+         */
         public <T> Optional<T> getMetadata(@NonNull final Type type, @NonNull final Class<T> javaType) {
             requireNonNull(type);
             requireNonNull(javaType);
@@ -155,6 +174,19 @@ public interface HandleContext {
              * A fee charging strategy that should be used to customize further dispatches.
              */
             CUSTOM_FEE_CHARGING,
+            /**
+             * Whether a contract dispatch should externalize explicit writes with its slot usage traces.
+             */
+            EXPLICIT_WRITE_TRACING,
+            /**
+             * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
+             */
+            INNER_TRANSACTION_BYTES,
+            /**
+             * A callback to be invoked to increment the nonce of the payer account.
+             * This is used to ensure that the nonce is incremented when ethereum transaction fails inside a batch.
+             */
+            ETHEREUM_NONCE_INCREMENT_CALLBACK
         }
     }
 
@@ -184,10 +216,40 @@ public interface HandleContext {
 
     /**
      * Attempts to charge the payer in this context the given amount of tinybar.
+     *
      * @param amount the amount to charge
      * @return true if the entire amount was successfully charged, false otherwise
      */
-    boolean tryToChargePayer(long amount);
+    default boolean tryToChargePayer(final long amount) {
+        return tryToCharge(payer(), amount);
+    }
+
+    /**
+     * Tries to charge the requested account in this context the given amount of tinybar,
+     * distributing the fees proportionally to the active collection accounts.
+     *
+     * @param amount the amount to charge
+     * @return true if the entire amount was successfully charged, false otherwise
+     */
+    boolean tryToCharge(AccountID accountId, long amount);
+
+    /**
+     * Tries to refund the requested account in this context the given amount of tinybar,
+     * reclaiming the fees proportionally from the active collection accounts. This is
+     * a best effort operation, and in some extremely unusual edge cases (like the fee
+     * collection accounts themselves being debited in the transaction), may not refund
+     * the full amount.
+     *
+     * @param amount the amount to refund.
+     */
+    void refundBestEffort(AccountID accountId, long amount);
+
+    /**
+     * Refunds the requested account in this context the given amount of service fee.
+     * @param accountId the account to refund
+     * @param amount the amount to refund.
+     */
+    void refundServiceFee(@NonNull final AccountID accountId, final long amount);
 
     /**
      * Returns the current {@link Configuration} for the node.
@@ -307,9 +369,10 @@ public interface HandleContext {
 
     /**
      * Dispatches a child transaction with the given options.
+     *
      * @param options the options to use
-     * @return the stream builder of the child transaction
      * @param <T> the type of the stream builder
+     * @return the stream builder of the child transaction
      */
     <T extends StreamBuilder> T dispatch(@NonNull DispatchOptions<T> options);
 
@@ -414,6 +477,7 @@ public interface HandleContext {
      * Gets the pre-paid rewards for the current transaction. This can be non-empty for scheduled transactions.
      * Since we use the parent record finalizer to finalize schedule transactions, we need to deduct any paid staking rewards
      * already happened in the parent transaction.
+     *
      * @return the paid rewards
      */
     @NonNull
@@ -421,6 +485,7 @@ public interface HandleContext {
 
     /**
      * Returns the {@link NodeInfo} for the node this transaction is created from.
+     *
      * @return the node info
      */
     NodeInfo creatorInfo();
@@ -440,4 +505,10 @@ public interface HandleContext {
      * be used to pass additional information to the targeted handlers.
      */
     DispatchMetadata dispatchMetadata();
+
+    /**
+     * Returns the gas price in tiny cents.
+     * @return the gas price in tiny cents
+     */
+    long getGasPriceInTinycents();
 }

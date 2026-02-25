@@ -14,6 +14,7 @@ import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -25,7 +26,7 @@ import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This is a prototype for a RecordFileWriter for a cleaned up version of V6 format, going to true protobuf and
@@ -181,6 +182,18 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         @Override
         public RecordStreamItemV7 getDefaultInstance() {
             return DEFAULT_VALUE;
+        }
+
+        @NonNull
+        @Override
+        public RecordStreamItemV7 parse(
+                @NonNull final ReadableSequentialData readableSequentialData,
+                final boolean strictMode,
+                final boolean parseUnknownFields,
+                final int maxDepth,
+                final int maxSize)
+                throws ParseException {
+            return new RecordStreamItemV7(null, null, null, null, 0, 0);
         }
 
         public @NonNull RecordStreamItemV7 parse(

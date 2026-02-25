@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -8,7 +9,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenInfoStructForFungibleToken;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenInfoStructForNonFungibleToken;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenKeyFromSpec;
@@ -45,12 +46,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class GetScheduledInfoTest {
 
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String HTS_COLLECTOR = "denomFee";
     private static final String TOKEN_TREASURY = "treasury";
+    private static final String GET_FUNGIBLE_CREATE_TOKEN_INFO = "getFungibleCreateTokenInfo";
+    private static final String GET_NON_FUNGIBLE_CREATE_TOKEN_INFO = "getNonFungibleCreateTokenInfo";
     private static final String ADMIN_KEY = TokenKeyType.ADMIN_KEY.name();
     private static final String KYC_KEY = TokenKeyType.KYC_KEY.name();
     private static final String SUPPLY_KEY = TokenKeyType.SUPPLY_KEY.name();
@@ -64,27 +68,34 @@ public class GetScheduledInfoTest {
     private static final int MINIMUM_TO_COLLECT = 5;
     private static final int MAXIMUM_TO_COLLECT = 400;
 
-    @Contract(contract = "GetScheduleInfo")
+    @Contract(contract = "GetScheduleInfo", creationGas = 5_000_000)
     static SpecContract contract;
 
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent fungible create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
-        return hapiTest(
-                contract.call("getFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
+        return hapiTest(withOpContext((spec, log) -> {
+            final var callOp = contract.call(
+                            GET_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                    .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
+            allRunFor(spec, callOp);
+        }));
     }
 
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent NFT create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
-        return hapiTest(contract.call(
-                        "getNonFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
-                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
+        return hapiTest(withOpContext((spec, log) -> {
+            final var callOp = contract.call(
+                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                    .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
+            allRunFor(spec, callOp);
+        }));
     }
 
     @HapiTest
     @DisplayName("Can get scheduled info for fungible create schedule")
+    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();
@@ -136,10 +147,10 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
-                            .via("getFungibleCreateTokenInfo"),
+                    contract.call(GET_FUNGIBLE_CREATE_TOKEN_INFO, ConversionUtils.headlongAddressOf(scheduleId.get()))
+                            .via("getFungibleTokenInfoTxn"),
                     childRecordsCheck(
-                            "getFungibleCreateTokenInfo",
+                            "getFungibleTokenInfoTxn",
                             SUCCESS,
                             recordWith()
                                     .contractCallResult(resultWith()
@@ -161,6 +172,7 @@ public class GetScheduledInfoTest {
 
     @HapiTest
     @DisplayName("Can get scheduled info for nft create schedule")
+    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForNonFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();
@@ -206,10 +218,12 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getNonFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
-                            .via("getNonFungibleCreateTokenInfo"),
+                    contract.call(
+                                    GET_NON_FUNGIBLE_CREATE_TOKEN_INFO,
+                                    ConversionUtils.headlongAddressOf(scheduleId.get()))
+                            .via("getInfoTxn"),
                     childRecordsCheck(
-                            "getNonFungibleCreateTokenInfo",
+                            "getInfoTxn",
                             SUCCESS,
                             recordWith()
                                     .contractCallResult(resultWith()

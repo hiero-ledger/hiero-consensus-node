@@ -3,12 +3,12 @@ package com.swirlds.platform.state.signer;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.PlatformSigner;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A standard implementation of a {@link StateSigner}.
@@ -47,7 +47,7 @@ public class DefaultStateSigner implements StateSigner {
 
             final Hash stateHash =
                     Objects.requireNonNull(reservedSignedState.get().getState().getHash());
-            final Bytes signature = signer.signImmutable(stateHash);
+            final Bytes signature = signer.sign(stateHash.getBytes());
             Objects.requireNonNull(signature);
 
             return StateSignatureTransaction.newBuilder()

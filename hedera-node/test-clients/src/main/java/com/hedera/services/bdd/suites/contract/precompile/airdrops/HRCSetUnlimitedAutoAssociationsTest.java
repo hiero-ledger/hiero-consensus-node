@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -18,8 +17,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -29,17 +28,18 @@ import org.junit.jupiter.api.Tag;
 public class HRCSetUnlimitedAutoAssociationsTest {
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> hrcSetUnlimitedAutoAssociations() {
-        final AtomicReference<Address> accountNum = new AtomicReference<>();
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("account")
                         .balance(100 * ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(0)
-                        .exposingCreatedIdTo(id -> accountNum.set(idAsHeadlongAddress(id))),
+                        .exposingCreatedIdTo(accountNum::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
-                                        asEntityString(accountNum.get().value().longValue()),
+                                        String.valueOf(accountNum.get().getAccountNum()),
                                         getABIFor(
                                                 com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
                                                 "setUnlimitedAutomaticAssociations",
@@ -64,17 +64,18 @@ public class HRCSetUnlimitedAutoAssociationsTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> hrcSetDisabledAutoAssociations() {
-        final AtomicReference<Address> accountNum = new AtomicReference<>();
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("account")
                         .balance(100 * ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(10)
-                        .exposingCreatedIdTo(id -> accountNum.set(idAsHeadlongAddress(id))),
+                        .exposingCreatedIdTo(accountNum::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
-                                        asEntityString(accountNum.get().value().longValue()),
+                                        String.valueOf(accountNum.get().getAccountNum()),
                                         getABIFor(
                                                 com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
                                                 "setUnlimitedAutomaticAssociations",

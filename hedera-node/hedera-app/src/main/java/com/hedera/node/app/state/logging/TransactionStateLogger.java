@@ -9,8 +9,8 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -50,13 +50,13 @@ public final class TransactionStateLogger {
      *
      * @param event The event to log
      */
-    public static void logStartEvent(final ConsensusEvent event, final NodeInfo creator) {
+    public static void logStartEvent(final ConsensusEvent event, @Nullable final NodeInfo creator) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "  Starting event {} at {} from node {}",
                     event.getConsensusOrder(),
                     event.getConsensusTimestamp(),
-                    creator.nodeId());
+                    creator != null ? creator.nodeId() : null);
         }
     }
 

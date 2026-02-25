@@ -28,40 +28,25 @@ permissions:
 jobs:
   title-check:
     name: Title Check
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Check PR Title
-        uses: step-security/conventional-pr-title-action@19fb561b33015fd2184055a05ce5a3bcf2ba3f54 # v3.2.0
+        uses: step-security/conventional-pr-title-action@101b3d5adffb51b5789997fea508c8313c8ddf02 # v3.2.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  milestone-check:
-    name: Milestone Check
-    runs-on: hiero-network-node-linux-medium
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
-        with:
-          egress-policy: audit
-
-      - name: Check Milestone
-        if: ${{ github.event.pull_request.milestone == null }}
-        run: |
-          echo "Milestone is not set. Failing the workflow."
-          exit 1
-
   assignee-check:
     name: Assignee Check
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

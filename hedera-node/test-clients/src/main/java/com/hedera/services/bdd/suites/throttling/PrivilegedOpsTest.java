@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.throttling;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -35,17 +36,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class PrivilegedOpsTest {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
-    private static final String ACCOUNT_88 = String.format("%s.%s.88", SHARD, REALM);
-    private static final String ACCOUNT_2 = String.format("%s.%s.2", SHARD, REALM);
+    private static final String ACCOUNT_88 = "88";
+    private static final String ACCOUNT_2 = "2";
     private static final String CIVILIAN = "civilian";
     private static final String NEW_88 = "new88";
     private static final int BURST_SIZE = 10;
@@ -175,7 +174,10 @@ public class PrivilegedOpsTest {
                                 .signedBy(SYSTEM_ADMIN, GENESIS));
     }
 
-    @LeakyHapiTest(requirement = THROTTLE_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/only-mint-allowed.json")
+    @Tag(MATS)
     final Stream<DynamicTest> systemAccountsAreNeverThrottled() {
         return hapiTest(flattened(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000_000L))

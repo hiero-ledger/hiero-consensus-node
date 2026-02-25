@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.util.HapiUtils;
@@ -10,11 +9,10 @@ import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -43,34 +41,25 @@ public class UnsignedEvent implements Hashable {
     /**
      * Create a UnsignedEvent object
      *
-     * @param softwareVersion the software version of the node that created this event.
      * @param creatorId       ID of this event's creator
-     * @param selfParent      self parent event descriptor
-     * @param otherParents    other parent event descriptors
+     * @param allParents      all parent event descriptors
      * @param birthRound      the round in which this event was created.
      * @param timeCreated     creation time, as claimed by its creator
      * @param transactions    list of transactions included in this event instance
+     * @param coin            a random number, see {@link EventCore#coin()} for more details
      */
     public UnsignedEvent(
-            @NonNull final SemanticVersion softwareVersion,
             @NonNull final NodeId creatorId,
-            @Nullable final EventDescriptorWrapper selfParent,
-            @NonNull final List<EventDescriptorWrapper> otherParents,
+            @NonNull final List<EventDescriptorWrapper> allParents,
             final long birthRound,
             @NonNull final Instant timeCreated,
-            @NonNull final List<Bytes> transactions) {
+            @NonNull final List<Bytes> transactions,
+            final long coin) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
-        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
-        this.parents = this.metadata.getAllParents().stream()
-                .map(EventDescriptorWrapper::eventDescriptor)
-                .toList();
-        this.eventCore = new EventCore(
-                creatorId.id(),
-                birthRound,
-                HapiUtils.asTimestamp(timeCreated),
-                // this is where parents used to be stored
-                Collections.emptyList(),
-                softwareVersion);
+        this.metadata = new EventMetadata(creatorId, allParents, timeCreated, transactions, birthRound);
+        this.parents =
+                allParents.stream().map(EventDescriptorWrapper::eventDescriptor).toList();
+        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
     }
 
     /**

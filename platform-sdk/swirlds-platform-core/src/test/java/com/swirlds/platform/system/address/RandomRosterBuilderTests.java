@@ -9,15 +9,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
 class RandomRosterBuilderTests {
@@ -51,14 +53,16 @@ class RandomRosterBuilderTests {
         // Only generate small address book (it's expensive to generate signatures)
         final int size = 3;
 
-        final RandomRosterBuilder builderA =
-                RandomRosterBuilder.create(randotron).withSize(size).withRealKeysEnabled(true);
-        final Roster rosterA = builderA.build();
-
-        final RandomRosterBuilder builderB = RandomRosterBuilder.create(randotron.copyAndReset())
+        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron)
                 .withSize(size)
-                .withRealKeysEnabled(true);
-        final Roster rosterB = builderB.build();
+                .withRealKeysEnabled(true)
+                .buildWithKeys();
+        final Roster rosterA = rosterWithKeysA.getRoster();
+
+        final Roster rosterB = RandomRosterBuilder.create(randotron.copyAndReset())
+                .withSize(size)
+                .withRealKeysEnabled(true)
+                .build();
 
         // The address book should be the same (keys should be deterministic)
         assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));
@@ -88,29 +92,30 @@ class RandomRosterBuilderTests {
             final NodeId id = NodeId.of(address.nodeId());
             final PublicKey signaturePublicKey =
                     RosterUtils.fetchGossipCaCertificate(address).getPublicKey();
-            final KeysAndCerts privateKeys = builderA.getPrivateKeys(id);
+            final KeysAndCerts privateKeys = rosterWithKeysA.getKeysAndCerts(id);
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);
-            final com.swirlds.common.crypto.Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
+            final Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
 
-            assertTrue(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
+            assertTrue(ConsensusCryptoUtils.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating using the wrong public key should fail
             final RosterEntry wrongAddress = rosterA.rosterEntries().get((i + 1) % size);
             final NodeId wrongId = NodeId.of(wrongAddress.nodeId());
             final PublicKey wrongPublicKey =
                     RosterUtils.fetchGossipCaCertificate(wrongAddress).getPublicKey();
-            assertFalse(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
+            assertFalse(ConsensusCryptoUtils.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
 
             // Sanity check: validating against the wrong data should fail
             final Bytes wrongData = randotron.nextHashBytes();
-            assertFalse(CryptoStatic.verifySignature(wrongData, signature.getBytes(), signaturePublicKey));
+            assertFalse(ConsensusCryptoUtils.verifySignature(wrongData, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating with a modified signature should fail
             final byte[] modifiedSignature = signature.getBytes().toByteArray();
             modifiedSignature[0] = (byte) ~modifiedSignature[0];
-            assertFalse(CryptoStatic.verifySignature(dataBytes, Bytes.wrap(modifiedSignature), signaturePublicKey));
+            assertFalse(
+                    ConsensusCryptoUtils.verifySignature(dataBytes, Bytes.wrap(modifiedSignature), signaturePublicKey));
         }
     }
 }

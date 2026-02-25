@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
@@ -48,6 +49,7 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -76,24 +78,25 @@ public interface V038Module {
             @ServicesV038 @NonNull final CustomMessageCallProcessor messageCallProcessor,
             @ServicesV038 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV038 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV038 @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
         return new TransactionProcessor(
-                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
+                frameBuilder,
+                frameRunner,
+                gasCharging,
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                codeFactory);
     }
 
     @Provides
     @Singleton
     @ServicesV038
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV038 @NonNull final EVM evm,
-            @NonNull final GasCalculator gasCalculator,
-            @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV038 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
-                evm,
-                gasCalculator,
-                REQUIRE_CODE_DEPOSIT_TO_SUCCEED,
-                List.copyOf(validationRules),
-                INITIAL_CONTRACT_NONCE);
+                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
 
     @Provides
@@ -104,8 +107,10 @@ public interface V038Module {
             @ServicesV038 @NonNull final FeatureFlags featureFlags,
             @ServicesV038 @NonNull final AddressChecks addressChecks,
             @ServicesV038 @NonNull final PrecompileContractRegistry registry,
-            @NonNull final Map<Address, HederaSystemContract> systemContracts) {
-        return new CustomMessageCallProcessor(evm, featureFlags, registry, addressChecks, systemContracts);
+            @NonNull final Map<Address, HederaSystemContract> systemContracts,
+            @NonNull final ContractMetrics contractMetrics) {
+        return new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, systemContracts, contractMetrics);
     }
 
     @Provides
@@ -201,16 +206,19 @@ public interface V038Module {
     @Provides
     @IntoSet
     @ServicesV038
-    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
-        return new CustomCreateOperation(gasCalculator);
+    static Operation provideCreateOperation(
+            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
+        return new CustomCreateOperation(gasCalculator, codeFactory);
     }
 
     @Provides
     @IntoSet
     @ServicesV038
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV038 @NonNull final FeatureFlags featureFlags) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags);
+            @NonNull final GasCalculator gasCalculator,
+            @ServicesV038 @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
     }
 
     @Provides

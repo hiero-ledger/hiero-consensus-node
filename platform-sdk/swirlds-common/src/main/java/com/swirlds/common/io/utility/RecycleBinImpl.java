@@ -9,12 +9,9 @@ import static java.nio.file.Files.exists;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.Locked;
-import com.swirlds.common.threading.manager.ThreadManager;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,7 +25,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.consensus.concurrent.framework.StoppableThread;
+import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A standard implementation of a {@link RecycleBin}.
@@ -93,6 +98,36 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
                 .setMinimumPeriod(minimumPeriod)
                 .setWork(this::cleanup)
                 .build();
+    }
+
+    /**
+     * Create a default recycle bin.
+     *
+     * @param metrics           manages the creation of metrics
+     * @param configuration     configuration
+     * @param threadManager     manages the creation of threads
+     * @param time              provides wall clock time
+     * @param fileSystemManager the manager that would be used to operate the fs.
+     * @param nodeId            this node id
+     */
+    public static RecycleBin create(
+            @NonNull final Metrics metrics,
+            @NonNull final Configuration configuration,
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Time time,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final NodeId nodeId) {
+        final FileSystemManagerConfig fsmConfig = configuration.getConfigData(FileSystemManagerConfig.class);
+        final Path recycleBinPath =
+                fileSystemManager.resolve(Path.of(fsmConfig.recycleBinDir())).resolve(nodeId.toString());
+
+        return new RecycleBinImpl(
+                metrics,
+                threadManager,
+                time,
+                recycleBinPath,
+                fsmConfig.recycleBinMaximumFileAge(),
+                fsmConfig.recycleBinCollectionPeriod());
     }
 
     /**

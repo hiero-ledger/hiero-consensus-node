@@ -9,8 +9,5 @@ import com.swirlds.config.api.ConfigProperty;
 public record BalancesConfig(
         @ConfigProperty(value = "exportDir.path", defaultValue = "/opt/hgcapp/accountBalances/") @NodeProperty
                 String exportDirPath,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean exportEnabled,
         @ConfigProperty(defaultValue = "900") @NodeProperty int exportPeriodSecs,
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportTokenBalances,
-        @ConfigProperty(defaultValue = "0") @NodeProperty long nodeBalanceWarningThreshold,
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean compressOnCreation) {}
+        @ConfigProperty(defaultValue = "0") @NodeProperty long nodeBalanceWarningThreshold) {}

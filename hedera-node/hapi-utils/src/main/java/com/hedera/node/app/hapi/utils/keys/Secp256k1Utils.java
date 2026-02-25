@@ -2,12 +2,14 @@
 package com.hedera.node.app.hapi.utils.keys;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.BC_PROVIDER;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.interfaces.ECPrivateKey;
@@ -47,6 +49,12 @@ public class Secp256k1Utils {
 
     public static ECPrivateKey readECKeyFrom(final File pem, final String passphrase) {
         return KeyUtils.readKeyFrom(pem, passphrase, BC_PROVIDER);
+    }
+
+    public static ECPrivateKey readECKeyFrom(@NonNull final InputStream in, @NonNull final String passphrase) {
+        requireNonNull(in);
+        requireNonNull(passphrase);
+        return KeyUtils.readKeyFrom(in, passphrase, BC_PROVIDER);
     }
 
     static boolean isValidEcdsaSecp256k1Key(@NonNull final Bytes key) {

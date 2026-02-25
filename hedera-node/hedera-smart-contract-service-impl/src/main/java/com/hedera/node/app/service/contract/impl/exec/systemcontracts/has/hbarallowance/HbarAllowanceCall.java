@@ -11,7 +11,6 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountCryptoAllowance;
-import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,14 +40,13 @@ public class HbarAllowanceCall extends AbstractCall {
     @Override
     public PricedResult execute(final MessageFrame frame) {
         requireNonNull(frame);
-        if (owner == null || nativeOperations().getAccount(owner) == null) {
-            return reversionWith(
-                    INVALID_ALLOWANCE_OWNER_ID, gasCalculator.canonicalGasRequirement(DispatchType.APPROVE));
-        }
         final var gasRequirement = gasCalculator.viewGasRequirement();
+        if (owner == null || nativeOperations().getAccount(owner) == null) {
+            return reversionWith(INVALID_ALLOWANCE_OWNER_ID, gasRequirement);
+        }
 
         final var allowance = getAllowance(nativeOperations().getAccount(owner), spender);
-        return gasOnly(successResult(encodedAllowanceOutput(allowance), gasRequirement), SUCCESS, false);
+        return gasOnly(successResult(encodedAllowanceOutput(allowance), gasRequirement), SUCCESS, true);
     }
 
     @NonNull

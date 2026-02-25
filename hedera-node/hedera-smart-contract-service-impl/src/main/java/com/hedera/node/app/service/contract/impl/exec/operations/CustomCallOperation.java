@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractRequired;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -11,6 +11,8 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
@@ -66,6 +68,8 @@ public class CustomCallOperation extends CallOperation {
             final var toAddress = to(frame);
             final var isMissing = mustBePresent(frame, toAddress) && !addressChecks.isPresent(toAddress, frame);
             if (isMissing) {
+                FrameUtils.invalidAddressContext(frame)
+                        .set(toAddress, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
                 return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return super.execute(frame, evm);
@@ -74,9 +78,18 @@ public class CustomCallOperation extends CallOperation {
         }
     }
 
+    @Override
+    public Address sender(final MessageFrame frame) {
+        if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            // If the sender is the HTS hooks contract, we want to use the owner of the hook as the sender
+            return FrameUtils.hookOwnerAddress(frame);
+        }
+        return super.sender(frame);
+    }
+
     private boolean mustBePresent(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {
         // This call will create the "to" address, so it doesn't need to be present
-        if (impliesLazyCreation(frame, toAddress) && featureFlags.isImplicitCreationEnabled(frame)) {
+        if (impliesLazyCreation(frame, toAddress) && featureFlags.isImplicitCreationEnabled()) {
             return false;
         }
         // Let system accounts calls or if configured to allow calls to non-existing contract address calls
@@ -85,7 +98,7 @@ public class CustomCallOperation extends CallOperation {
     }
 
     private boolean impliesLazyCreation(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {
-        return !isLongZero(entityIdFactory(frame), toAddress)
+        return !isLongZero(toAddress)
                 && value(frame).greaterThan(Wei.ZERO)
                 && !addressChecks.isPresent(toAddress, frame);
     }

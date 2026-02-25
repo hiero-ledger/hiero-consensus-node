@@ -5,60 +5,51 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
 /**
  * A convenient base class for {@link TreeView} implementations for virtual merkle.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public abstract class VirtualTreeViewBase<K extends VirtualKey, V extends VirtualValue> implements TreeView<Long> {
+public abstract class VirtualTreeViewBase implements TreeView {
     /**
      * The root node that is involved in reconnect. This would be the saved state for the teacher, and
      * the new root node into which things are being serialized for the learner.
      */
-    protected final VirtualRootNode<K, V> root;
+    protected final VirtualMap map;
 
     /**
      * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
      * For the learner, this is the state of the tree being serialized into.
      */
-    protected final VirtualStateAccessor reconnectState;
+    protected final VirtualMapMetadata reconnectState;
 
     /**
      * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
      * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
      * tree.
      */
-    protected final VirtualStateAccessor originalState;
+    protected final VirtualMapMetadata originalState;
 
     /**
      * Create a new {@link VirtualTreeViewBase}.
      *
-     * @param root
-     * 		The root. Cannot be null.
+     * @param map
+     * 		The map. Cannot be null.
      * @param originalState
      * 		The original state of a learner. Cannot be null.
      * @param reconnectState
      * 		The state of the trees being reconnected. Cannot be null.
      */
     protected VirtualTreeViewBase(
-            final VirtualRootNode<K, V> root,
-            final VirtualStateAccessor originalState,
-            final VirtualStateAccessor reconnectState) {
-        this.root = Objects.requireNonNull(root);
+            @NonNull final VirtualMap map,
+            @NonNull final VirtualMapMetadata originalState,
+            @NonNull final VirtualMapMetadata reconnectState) {
+        this.map = Objects.requireNonNull(map);
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
     }
@@ -67,30 +58,16 @@ public abstract class VirtualTreeViewBase<K extends VirtualKey, V extends Virtua
      * {@inheritDoc}
      */
     @Override
-    public MerkleNode getMerkleRoot(final Long node) {
-        // NOTE: It is not clear what this "node" is. Original path? New path? It seems to be both depending on the
-        // call site. Luckily, it doesn't really matter in my case.
-        if (node == null || node == ROOT_PATH) {
-            return root;
-        }
-        throw new UnsupportedOperationException("Nested virtual maps not supported " + node);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isInternal(final Long node, final boolean isOriginal) {
+    public boolean isInternal(final Long path, final boolean isOriginal) {
         // Sometimes this is null. Sometimes null is considered a leaf.
-        if (node == null) {
+        if (path == null) {
             return false;
         }
-
         // Based on isOriginal I can know whether the node is out of the original state or the reconnect state.
         // This only matters on the learner, on the teacher they are both the same instances.
-        final VirtualStateAccessor state = isOriginal ? originalState : reconnectState;
-        checkValidNode(node, state);
-        return node == ROOT_PATH || (node > ROOT_PATH && node < state.getFirstLeafPath());
+        final VirtualMapMetadata state = isOriginal ? originalState : reconnectState;
+        checkValidNode(path, state);
+        return path == ROOT_PATH || (path > ROOT_PATH && path < state.getFirstLeafPath());
     }
 
     /**
@@ -116,20 +93,19 @@ public abstract class VirtualTreeViewBase<K extends VirtualKey, V extends Virtua
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the child node path of a given parent node path at a specified index.
+     *
+     * @param originalParent The path of the parent node whose child is to be retrieved.
+     *                       Must represent a valid internal node.
+     * @param childIndex     The index of the child node to retrieve, where 0 corresponds
+     *                       to the left child and 1 corresponds to the right child.
+     *                       Must be either 0 or 1.
+     * @return The path of the child node if it exists within the bounds of the original state;
+     *         otherwise, returns null.
+     * @throws AssertionError If the childIndex is not 0 or 1.
+     * @throws MerkleSynchronizationException If the originalParent path is out of bounds
+     *         or not an internal node.
      */
-    @Override
-    public long getClassId(final Long originalNode) {
-        checkValidNode(originalNode, originalState);
-        if (originalNode >= originalState.getLastLeafPath()) {
-            return VirtualLeafNode.CLASS_ID;
-        } else if (originalNode > ROOT_PATH) {
-            return VirtualInternalNode.CLASS_ID;
-        } else {
-            return VirtualRootNode.CLASS_ID;
-        }
-    }
-
     public Long getChild(final Long originalParent, final int childIndex) {
         checkValidInternal(originalParent, originalState);
         assert childIndex >= 0 && childIndex < 2 : "childIndex was not 1 or 2";
@@ -139,20 +115,20 @@ public abstract class VirtualTreeViewBase<K extends VirtualKey, V extends Virtua
         return childPath > originalState.getLastLeafPath() ? null : childPath;
     }
 
-    protected void checkValidNode(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidNode(final Long node, final VirtualMapMetadata state) {
         if (node != ROOT_PATH && !(node > ROOT_PATH && node <= state.getLastLeafPath())) {
             throw new MerkleSynchronizationException(
                     "node path out of bounds. path=" + node + ", lastLeafPath=" + state.getLastLeafPath());
         }
     }
 
-    protected void checkValidInternal(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidInternal(final Long node, final VirtualMapMetadata state) {
         if (node != ROOT_PATH && !(node > ROOT_PATH && node < state.getFirstLeafPath())) {
             throw new MerkleSynchronizationException("internal path out of bounds. path=" + node);
         }
     }
 
-    protected void checkValidLeaf(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidLeaf(final Long node, final VirtualMapMetadata state) {
         if (node < state.getFirstLeafPath() || node > state.getLastLeafPath()) {
             throw new MerkleSynchronizationException("leaf path out of bounds. path=" + node);
         }

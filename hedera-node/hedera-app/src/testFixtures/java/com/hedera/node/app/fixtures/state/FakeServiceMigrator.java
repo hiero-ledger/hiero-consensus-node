@@ -4,46 +4,43 @@ package com.hedera.node.app.fixtures.state;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class FakeServiceMigrator implements ServiceMigrator {
-    private static final String NAME_OF_ENTITY_ID_SERVICE = "EntityIdService";
-    private static final String NAME_OF_ENTITY_ID_SINGLETON = "ENTITY_ID";
-
     @Override
     public List<StateChanges.Builder> doMigrations(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final ServicesRegistry servicesRegistry,
-            @Nullable final SoftwareVersion previousVersion,
-            @NonNull final SoftwareVersion currentVersion,
+            @Nullable final SemanticVersion previousVersion,
+            @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @NonNull final Metrics metrics,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
             @NonNull final ConfigProviderImpl configProvider,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final InitTrigger trigger) {
         requireNonNull(state);
         requireNonNull(servicesRegistry);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
-        requireNonNull(metrics);
+        requireNonNull(startupNetworks);
+        requireNonNull(storeMetricsService);
+        requireNonNull(configProvider);
+        requireNonNull(trigger);
 
         if (!(state instanceof FakeState fakeState)) {
             throw new IllegalArgumentException("Can only be used with FakeState instances");
@@ -52,9 +49,6 @@ public class FakeServiceMigrator implements ServiceMigrator {
             throw new IllegalArgumentException("Can only be used with FakeServicesRegistry instances");
         }
         final Map<String, Object> sharedValues = new HashMap<>();
-        final var deserializedPbjVersion = Optional.ofNullable(previousVersion)
-                .map(SoftwareVersion::getPbjSemanticVersion)
-                .orElse(null);
         registry.registrations().forEach(registration -> {
             if (!(registration.registry() instanceof FakeSchemaRegistry schemaRegistry)) {
                 throw new IllegalArgumentException("Can only be used with FakeSchemaRegistry instances");
@@ -62,7 +56,7 @@ public class FakeServiceMigrator implements ServiceMigrator {
             schemaRegistry.migrate(
                     registration.serviceName(),
                     fakeState,
-                    deserializedPbjVersion,
+                    previousVersion,
                     appConfig,
                     platformConfig,
                     sharedValues,

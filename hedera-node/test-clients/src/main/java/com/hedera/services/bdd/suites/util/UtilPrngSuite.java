@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.util;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -13,19 +13,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PRNG_R
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class UtilPrngSuite {
-    private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     public static final String BOB = "bob";
 
     @HapiTest
     final Stream<DynamicTest> failsInPreCheckForNegativeRange() {
         return defaultHapiSpec("failsInPreCheckForNegativeRange")
                 .given(
-                        overridingAllOf(Map.of(PRNG_IS_ENABLED, "true")),
                         cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                         hapiPrng(-10)
                                 .payingWith(BOB)
@@ -46,6 +44,7 @@ public class UtilPrngSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> happyPathWorksForRangeAndBitString() {
         final var rangeTxn = "prngWithRange";
         final var rangeTxn1 = "prngWithRange1";
@@ -54,7 +53,6 @@ public class UtilPrngSuite {
         final var prngWithZeroRange = "prngWithZeroRange";
         return defaultHapiSpec("happyPathWorksForRangeAndBitString")
                 .given(
-                        overridingAllOf(Map.of(PRNG_IS_ENABLED, "true")),
                         // running hash is set
                         cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                         // n-1 running hash and running has set

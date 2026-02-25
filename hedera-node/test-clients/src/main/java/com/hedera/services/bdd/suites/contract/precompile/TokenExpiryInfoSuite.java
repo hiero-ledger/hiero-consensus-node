@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -19,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -29,13 +29,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -75,8 +76,6 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS =
-            asHeadlongAddress(toAddressStringWithShardAndRealm(Long.toHexString(Integer.MAX_VALUE)));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";
@@ -112,13 +111,25 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @DisplayName("cannot update expiry metadata without authorization")
-    final Stream<DynamicTest> cannotUpdateWithoutAuthorization() {
+    final Stream<DynamicTest> cannotUpdateWithoutAuthorization(
+            @FungibleToken(name = "unauthorizedToken", useAutoRenewAccount = true)
+                    final SpecFungibleToken unauthorizedToken,
+            @Account final SpecAccount unauthorizedAutoRenewAccount) {
+        // Uses unauthorizedToken instead of mutableToken to avoid race condition with the WhenAuthorized
+        // nested class's @BeforeAll which authorizes mutableToken for the contract. Since tests within
+        // a class can run concurrently, using mutableToken here would cause flaky failures when the
+        // nested @BeforeAll runs before this test.
         return hapiTest(
                 // This function takes four arguments---a token address, an expiry second, an auto-renew account
                 // address, and an auto-renew period---and tries to update the token at that address with the given
                 // metadata; when expiry second is zero like here, it is ignored
                 tokenExpiryContract
-                        .call("updateExpiryInfoForToken", mutableToken, 0L, newAutoRenewAccount, MONTH_IN_SECONDS)
+                        .call(
+                                "updateExpiryInfoForToken",
+                                unauthorizedToken,
+                                0L,
+                                unauthorizedAutoRenewAccount,
+                                MONTH_IN_SECONDS)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)));
     }
 
@@ -147,19 +158,16 @@ public class TokenExpiryInfoSuite {
         @HapiTest
         @DisplayName("still cannot set an invalid auto-renew account")
         final Stream<DynamicTest> cannotSetInvalidAutoRenewAccount() {
-            return hapiTest(
-                    // This function takes four arguments---a token address, an expiry second, an auto-renew account
-                    // address, and an auto-renew period---and tries to update the token at that address with the given
-                    // metadata; here we set an invalid auto-renew account address
-                    tokenExpiryContract
-                            .call(
-                                    "updateExpiryInfoForToken",
-                                    mutableToken,
-                                    0L,
-                                    MISSING_LONG_ZERO_ADDRESS,
-                                    MONTH_IN_SECONDS)
-                            .andAssert(
-                                    txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT)));
+            return hapiTest(withOpContext((spec, log) -> {
+                final var missingLongZeroAddress = asHeadlongAddress(asSolidityAddress(spec, Integer.MAX_VALUE));
+                // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                // address, and an auto-renew period---and tries to update the token at that address with the given
+                // metadata; here we set an invalid auto-renew account address
+                final var callOp = tokenExpiryContract
+                        .call("updateExpiryInfoForToken", mutableToken, 0L, missingLongZeroAddress, MONTH_IN_SECONDS)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT));
+                allRunFor(spec, callOp);
+            }));
         }
 
         @HapiTest
@@ -172,11 +180,13 @@ public class TokenExpiryInfoSuite {
                     // set an invalid auto-renew account period of 1 second
                     tokenExpiryContract
                             .call("updateExpiryInfoForToken", mutableToken, 0L, ZERO_ADDRESS, 1L)
-                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_RENEWAL_PERIOD)));
+                            .andAssert(txn ->
+                                    txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, AUTORENEW_DURATION_NOT_IN_RANGE)));
         }
 
         @HapiTest
         @DisplayName("can update expiry metadata")
+        @Tag(MATS)
         final Stream<DynamicTest> canUpdateExpiryMetadata() {
             return hapiTest(mutableToken
                     .getInfo()
@@ -203,6 +213,7 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @SuppressWarnings("java:S1192") // "use already defined const instead of copying its value here" - not this time
+    @Tag(MATS)
     final Stream<DynamicTest> updateExpiryInfoForTokenAndReadLatestInfo() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> updatedAutoRenewAccountID = new AtomicReference<>();

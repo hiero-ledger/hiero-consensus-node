@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.networkadmin;
 
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.ServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
@@ -35,6 +35,6 @@ public interface NetworkService extends RpcService {
      */
     @NonNull
     static NetworkService getInstance() {
-        return RpcServiceFactory.loadService(NetworkService.class, ServiceLoader.load(NetworkService.class));
+        return ServiceFactory.loadService(NetworkService.class, ServiceLoader.load(NetworkService.class));
     }
 }

@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.crypto.LeakyCryptoTestsSuite.AUTO_ACCOUNT;
 import static com.hedera.services.bdd.suites.regression.factories.RegressionProviderFactory.intPropOrElse;
 
@@ -181,7 +182,7 @@ public class IdFuzzingProviderFactory {
         return new HapiSpecOperation[] {
             cryptoCreate(SENDER).balance(INITIAL_SUPPLY).key(MULTI_KEY).maxAutomaticTokenAssociations(5),
             uploadInitCode(NESTED_LAZY_PRECOMPILE_CONTRACT),
-            contractCreate(NESTED_LAZY_PRECOMPILE_CONTRACT),
+            contractCreate(NESTED_LAZY_PRECOMPILE_CONTRACT).gas(3_000_000),
         };
     }
 
@@ -195,10 +196,9 @@ public class IdFuzzingProviderFactory {
                     .treasury(TOKEN_TREASURY)
                     .adminKey(MULTI_KEY)
                     .supplyKey(MULTI_KEY)
-                    .exposingCreatedIdTo(id ->
-                            tokenAddr.set(HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                    .exposingCreatedIdTo(id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
             uploadInitCode(TRANSFER_TO_ALIAS_PRECOMPILE_CONTRACT),
-            contractCreate(TRANSFER_TO_ALIAS_PRECOMPILE_CONTRACT).gas(500_000L),
+            contractCreate(TRANSFER_TO_ALIAS_PRECOMPILE_CONTRACT).gas(3_000_000L),
             tokenAssociate(OWNER, List.of(FUNGIBLE_TOKEN)),
             cryptoTransfer(moving(INITIAL_SUPPLY, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER))
         };
@@ -232,8 +232,7 @@ public class IdFuzzingProviderFactory {
                     .treasury(TOKEN_TREASURY_ERC)
                     .adminKey(MULTI_KEY)
                     .supplyKey(MULTI_KEY)
-                    .exposingCreatedIdTo(id ->
-                            tokenAddr.set(HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                    .exposingCreatedIdTo(id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
             uploadInitCode(ERC_20_CONTRACT),
             contractCreate(ERC_20_CONTRACT),
             tokenAssociate(ERC_20_CONTRACT, List.of(ERC_FUNGIBLE_TOKEN)),
@@ -250,7 +249,7 @@ public class IdFuzzingProviderFactory {
                     .adminKey(MULTI_KEY)
                     .supplyKey(MULTI_KEY),
             uploadInitCode(ERC_721_CONTRACT),
-            contractCreate(ERC_721_CONTRACT),
+            contractCreate(ERC_721_CONTRACT).gas(3_000_000L),
             tokenAssociate(OWNER, ERC_NON_FUNGIBLE_TOKEN),
             tokenAssociate(SPENDER, ERC_NON_FUNGIBLE_TOKEN),
             tokenAssociate(ERC_721_CONTRACT, ERC_NON_FUNGIBLE_TOKEN),

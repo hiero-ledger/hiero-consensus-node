@@ -11,9 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
@@ -21,8 +18,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
@@ -35,12 +33,7 @@ class SignedStateNexusTest {
     }
 
     private static Stream<SignedStateNexus> raceConditionInstances() {
-        return Stream.of(new LockFreeStateNexus(), new EmergencyStateNexus());
-    }
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
+        return Stream.of(new LockFreeStateNexus());
     }
 
     @AfterEach
@@ -131,14 +124,12 @@ class SignedStateNexusTest {
 
     private static ReservedSignedState mockState() {
         final ReservedSignedState state = Mockito.mock(ReservedSignedState.class);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState ss = new RandomSignedStateGenerator().build();
         Mockito.when(state.get()).thenReturn(ss);
         return state;
     }
 
     private static ReservedSignedState realState() {
-        MerkleDb.resetDefaultInstancePath();
         return new RandomSignedStateGenerator().build().reserve("test");
     }
 }

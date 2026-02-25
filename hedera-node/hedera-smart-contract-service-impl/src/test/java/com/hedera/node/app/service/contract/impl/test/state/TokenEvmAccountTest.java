@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,7 +18,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,7 +86,9 @@ class TokenEvmAccountTest {
     void returnsEvmCode() {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getTokenRedirectCode(TOKEN_ADDRESS)).willReturn(code);
-        assertEquals(CodeFactory.createCode(code, 0, false), subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY));
+        assertEquals(
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
     }
 
     @Test
@@ -137,7 +139,7 @@ class TokenEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getTokenRedirectCode(TOKEN_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 }

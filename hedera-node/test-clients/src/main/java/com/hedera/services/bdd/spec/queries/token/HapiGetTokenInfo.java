@@ -11,6 +11,7 @@ import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.CustomFee;
@@ -37,6 +38,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
@@ -132,6 +134,9 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
 
     @Nullable
     private Function<TokenInfo, SpecOperation> validationOp = null;
+
+    @Nullable
+    private Consumer<TokenInfo> tokenInfoConsumer = null;
 
     @Override
     public HederaFunctionality type() {
@@ -389,10 +394,19 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
         return this;
     }
 
+    public HapiGetTokenInfo getTokenInfo(Consumer<TokenInfo> consumer) {
+        this.tokenInfoConsumer = consumer;
+        return this;
+    }
+
     @Override
     @SuppressWarnings("java:S5960")
     protected void assertExpectationsGiven(HapiSpec spec) {
         var actualInfo = response.getTokenGetInfo().getTokenInfo();
+
+        if (tokenInfoConsumer != null) {
+            tokenInfoConsumer.accept(actualInfo);
+        }
 
         if (validationOp != null) {
             allRunFor(spec, validationOp.apply(actualInfo));
@@ -404,13 +418,9 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
         expectedSupplyType.ifPresent(
                 supplyType -> assertEquals(supplyType, actualInfo.getSupplyType(), "Wrong supply type!"));
 
-        if (expectedSymbol.isPresent()) {
-            assertEquals(expectedSymbol.get(), actualInfo.getSymbol(), "Wrong symbol!");
-        }
+        expectedSymbol.ifPresent(s -> assertEquals(s, actualInfo.getSymbol(), "Wrong symbol!"));
 
-        if (expectedName.isPresent()) {
-            assertEquals(expectedName.get(), actualInfo.getName(), "Wrong name!");
-        }
+        expectedName.ifPresent(s -> assertEquals(s, actualInfo.getName(), "Wrong name!"));
 
         if (expectedAutoRenewAccount.isPresent()) {
             var id = TxnUtils.asId(expectedAutoRenewAccount.get(), spec);
@@ -476,7 +486,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getFreezeKey(),
                     expectedFreezeKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getFreezeKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.FREEZE),
                     "Wrong token freeze key!",
                     registry);
         }
@@ -489,7 +499,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getAdminKey(),
                     expectedAdminKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getAdminKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.ADMIN),
                     "Wrong token admin key!",
                     registry);
         }
@@ -502,7 +512,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getWipeKey(),
                     expectedWipeKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getWipeKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.WIPE),
                     "Wrong token wipe key!",
                     registry);
         }
@@ -515,7 +525,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getKycKey(),
                     expectedKycKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getKycKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.KYC),
                     "Wrong token KYC key!",
                     registry);
         }
@@ -528,7 +538,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getSupplyKey(),
                     expectedSupplyKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getSupplyKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.SUPPLY),
                     "Wrong token supply key!",
                     registry);
         }
@@ -542,7 +552,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getFeeScheduleKey(),
                     expectedFeeScheduleKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getFeeScheduleKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.FEE_SCHEDULE),
                     "Wrong token fee schedule key!",
                     registry);
         }
@@ -555,7 +565,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getPauseKey(),
                     expectedPauseKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getPauseKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.PAUSE),
                     "Wrong token pause key!",
                     registry);
         }
@@ -566,7 +576,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getMetadataKey(),
                     expectedMetadataKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getMetadataKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.METADATA),
                     "Wrong token metadata key!",
                     registry);
         }

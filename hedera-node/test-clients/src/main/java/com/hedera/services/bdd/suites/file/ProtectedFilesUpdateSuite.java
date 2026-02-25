@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
-import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -18,6 +19,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 
@@ -41,9 +43,10 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 public class ProtectedFilesUpdateSuite {
@@ -83,6 +86,7 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateApiPermissions() {
         return unauthorizedAccountCannotUpdateSpecialFile(API_PERMISSIONS, NEW_CONTENTS);
     }
@@ -141,8 +145,18 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> account2CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(GENESIS, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
     final Stream<DynamicTest> account50CanUpdateFeeSchedule() {
         return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> account50CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
     }
 
     @HapiTest
@@ -151,8 +165,18 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> account56CanUpdateSimpleFeesSchedule() {
+        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> unauthorizedAccountCannotUpdateSimpleFeesSchedule() {
+        return unauthorizedAccountCannotUpdateSpecialFile(SIMPLE_FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @HapiTest
@@ -218,6 +242,7 @@ public class ProtectedFilesUpdateSuite {
         return specialAccountCanUpdateSpecialFile(specialAccount, specialFile, target, replacement, true);
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> specialAccountCanUpdateSpecialFile(
             final String specialAccount,
             final String specialFile,

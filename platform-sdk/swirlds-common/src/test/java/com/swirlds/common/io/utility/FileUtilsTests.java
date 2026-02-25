@@ -9,11 +9,11 @@ import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.nio.file.Files.delete;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,9 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.File;
@@ -41,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -150,8 +149,7 @@ class FileUtilsTests {
             throws IOException {
 
         final Path file = parent.resolve(fileName);
-        final SerializableDataOutputStream out =
-                new SerializableDataOutputStreamImpl(new FileOutputStream(file.toFile()));
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(new FileOutputStream(file.toFile()));
         out.writeNormalisedString(fileContents);
         out.close();
 
@@ -297,17 +295,17 @@ class FileUtilsTests {
         // Since the data is hard linked, appending to files should update both trees
 
         final SerializableDataOutputStream fooOut =
-                new SerializableDataOutputStreamImpl(new FileOutputStream(fooData.toFile(), true));
+                new SerializableDataOutputStream(new FileOutputStream(fooData.toFile(), true));
         fooOut.writeNormalisedString("FOO");
         fooOut.close();
 
         final SerializableDataOutputStream barOut =
-                new SerializableDataOutputStreamImpl(new FileOutputStream(barData.toFile(), true));
+                new SerializableDataOutputStream(new FileOutputStream(barData.toFile(), true));
         barOut.writeNormalisedString("BAR");
         barOut.close();
 
         final SerializableDataOutputStream bazOut =
-                new SerializableDataOutputStreamImpl(new FileOutputStream(bazData.toFile(), true));
+                new SerializableDataOutputStream(new FileOutputStream(bazData.toFile(), true));
         bazOut.writeNormalisedString("BAZ");
         bazOut.close();
 
@@ -420,8 +418,8 @@ class FileUtilsTests {
                     assertTrue(exists(data), "final file does not exist");
                     assertFalse(exists(fooTmp), "temporary file should no longer be present");
 
-                    try (final MerkleDataInputStream in =
-                            new MerkleDataInputStream(new FileInputStream(data.toFile()))) {
+                    try (final SerializableDataInputStream in =
+                            new SerializableDataInputStream(new FileInputStream(data.toFile()))) {
                         assertEquals("foo", in.readNormalisedString(100), "invalid data in file");
                         assertEquals("bar", in.readNormalisedString(100), "invalid data in file");
                     } catch (final IOException e) {
@@ -529,7 +527,8 @@ class FileUtilsTests {
         assertEventuallyTrue(() -> exists(foo), Duration.ofSeconds(2), "final directory does not exist");
         assertEventuallyTrue(() -> exists(data), Duration.ofSeconds(2), "final file does not exist");
 
-        try (final MerkleDataInputStream in = new MerkleDataInputStream(new FileInputStream(data.toFile()))) {
+        try (final SerializableDataInputStream in =
+                new SerializableDataInputStream(new FileInputStream(data.toFile()))) {
             assertEquals("foo", in.readNormalisedString(100), "invalid data in file");
             assertEquals("bar", in.readNormalisedString(100), "invalid data in file");
         }
@@ -569,7 +568,8 @@ class FileUtilsTests {
 
         assertTrue(exists(foo), "file should exist");
 
-        try (final MerkleDataInputStream in = new MerkleDataInputStream(new FileInputStream(foo.toFile()))) {
+        try (final SerializableDataInputStream in =
+                new SerializableDataInputStream(new FileInputStream(foo.toFile()))) {
             assertEquals("foobarbaz", in.readNormalisedString(1000), "invalid data in file");
         }
     }
@@ -591,5 +591,113 @@ class FileUtilsTests {
         assertEquals(2, files.size(), "incorrect number of files found");
         assertTrue(files.contains(first), "first.foo not found");
         assertTrue(files.contains(third), "third.foo not found");
+    }
+
+    /*
+     Directory layout before:
+     srcTree/
+     ├─ sub1/
+     │  └─ file1.txt ("hello")
+     ├─ sub2/
+     │  └─ file2.txt ("world")
+     └─ file3.txt ("root")
+     destTree/ (does not exist)
+
+     After moveDirectory(srcTree, destTree):
+     destTree/
+     ├─ sub1/file1.txt ("hello")
+     ├─ sub2/file2.txt ("world")
+     └─ file3.txt ("root")
+     srcTree/ (deleted)
+    */
+    @Test
+    @DisplayName("moveDirectory() moves nested structure and deletes source")
+    void moveDirectoryMovesNestedStructureAndDeletesSource() throws IOException {
+        final Path source = testDirectory.resolve("srcTree");
+        final Path target = testDirectory.resolve("destTree");
+
+        final Path srcSub1 = source.resolve("sub1");
+        final Path srcSub2 = source.resolve("sub2");
+        Files.createDirectories(srcSub1);
+        Files.createDirectories(srcSub2);
+
+        final Path file1 = srcSub1.resolve("file1.txt");
+        final Path file2 = srcSub2.resolve("file2.txt");
+        final Path file3 = source.resolve("file3.txt");
+        Files.writeString(file1, "hello");
+        Files.writeString(file2, "world");
+        Files.writeString(file3, "root");
+
+        FileUtils.moveDirectory(source, target);
+
+        assertFalse(Files.exists(source), "source directory should be deleted after move");
+        assertTrue(Files.exists(target), "target directory should exist after move");
+        assertEquals("hello", Files.readString(target.resolve("sub1").resolve("file1.txt")));
+        assertEquals("world", Files.readString(target.resolve("sub2").resolve("file2.txt")));
+        assertEquals("root", Files.readString(target.resolve("file3.txt")));
+    }
+
+    /*
+     Before:
+     srcExistingTarget/
+     └─ sub/shared.txt ("from-source")
+
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-target-before")  <-- will be replaced
+     └─ targetOnly.txt ("keep-me")             <-- should remain
+
+     After moveDirectory(srcExistingTarget, destExistingTarget):
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-source")  <-- replaced
+     └─ targetOnly.txt ("keep-me")      <-- preserved
+     srcExistingTarget/ (deleted)
+    */
+    @Test
+    @DisplayName("moveDirectory() replaces conflicting files in existing target and preserves others")
+    void moveDirectoryReplacesConflictsAndPreservesOtherTargetFiles() throws IOException {
+        final Path source = testDirectory.resolve("srcExistingTarget");
+        final Path target = testDirectory.resolve("destExistingTarget");
+
+        final Path srcSub = source.resolve("sub");
+        Files.createDirectories(srcSub);
+        final Path srcFile = srcSub.resolve("shared.txt");
+        Files.writeString(srcFile, "from-source");
+
+        // Prepare target with a conflicting file and an extra file that should remain
+        final Path targetSub = target.resolve("sub");
+        Files.createDirectories(targetSub);
+        final Path conflicting = targetSub.resolve("shared.txt");
+        Files.writeString(conflicting, "from-target-before");
+        final Path targetOnly = target.resolve("targetOnly.txt");
+        Files.writeString(targetOnly, "keep-me");
+
+        FileUtils.moveDirectory(source, target);
+
+        // Source should be deleted
+        assertFalse(Files.exists(source), "source directory should be deleted after move");
+        // Conflicting file should be replaced with source content
+        assertEquals("from-source", Files.readString(target.resolve("sub").resolve("shared.txt")));
+        // Unrelated file in target should still exist
+        assertTrue(Files.exists(targetOnly), "unrelated pre-existing target file should remain");
+        assertEquals("keep-me", Files.readString(targetOnly));
+    }
+
+    /*
+     Before:
+     no_such_source/ (missing)
+     should_not_be_created/ (missing)
+
+     Expectation:
+     - moveDirectory throws IOException
+     - target directory is not created
+    */
+    @Test
+    @DisplayName("moveDirectory() throws when source does not exist and does not create target")
+    void moveDirectoryThrowsWhenSourceMissing() {
+        final Path source = testDirectory.resolve("no_such_source");
+        final Path target = testDirectory.resolve("should_not_be_created");
+
+        assertThrows(IOException.class, () -> FileUtils.moveDirectory(source, target));
+        assertFalse(Files.exists(target), "target directory should not be created on failure");
     }
 }

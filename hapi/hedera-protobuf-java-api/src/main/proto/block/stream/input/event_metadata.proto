@@ -19,6 +19,7 @@ option java_package = "com.hedera.hapi.block.stream.input.protoc";
 option java_multiple_files = true;
 
 import "platform/event/event_core.proto";
+import "platform/event/event_descriptor.proto";
 
 /**
  * A header for a single event.<br/>
@@ -27,14 +28,29 @@ import "platform/event/event_core.proto";
 message EventHeader {
     /**
      * An event core value.<br/>
-     * This provides information about the event creator and the event
-     * "parents". Event "parents" includes the "self parent" if any.
      */
     com.hedera.hapi.platform.event.EventCore event_core = 1;
 
     /**
-     * A single node event signature.<br/>
-     * This is the event creator's signature for this event.
-     */
-    bytes signature = 2;
+    * A list of references to parent events. <br/>
+    */
+    repeated ParentEventReference parents = 2;
+}
+
+/*
+ * A reference to a parent event.
+ */
+message ParentEventReference {
+
+    oneof parent {
+        /**
+         * An EventDescriptor for the parent event outside of the containing block.
+         */
+        com.hedera.hapi.platform.event.EventDescriptor event_descriptor = 1;
+
+        /**
+         * An index of the parent event within the containing block.
+         */
+        uint32 index = 2;
+    }
 }

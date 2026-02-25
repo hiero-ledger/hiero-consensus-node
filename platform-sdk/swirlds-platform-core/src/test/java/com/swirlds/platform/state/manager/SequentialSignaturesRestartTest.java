@@ -1,35 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import java.security.PublicKey;
 import java.util.HashMap;
-import java.util.Map;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -73,11 +64,6 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
         };
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -95,21 +81,12 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();
 
-        // Simulate a restart (i.e. loading a state from disk)
-        final Hash stateHash = randomHash(random);
-        final Map<NodeId, Signature> signatures = new HashMap<>();
-        for (final RosterEntry node : roster.rosterEntries()) {
-            final PublicKey publicKey =
-                    RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
-            signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, stateHash));
-        }
-
         final SignedState stateFromDisk = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setRound(firstRound)
-                .setSignatures(signatures)
+                .useSignatureSupplierFromRoster()
+                .setState(createTestState())
                 .build();
-        stateFromDisk.getState().setHash(stateHash);
 
         signedStates.put(firstRound, stateFromDisk);
         // the validation in stateHasEnoughSignaturesConsumer does not work well with adding a complete state,
@@ -121,7 +98,6 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
         // Create a series of signed states.
         final int count = 100;
         for (int round = (int) firstRound + 1; round < count + firstRound; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setRound(round)

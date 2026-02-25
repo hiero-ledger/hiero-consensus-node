@@ -7,6 +7,11 @@ plugins {
 
 testModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.assertj.core")
+
+    exportsTo("com.swirlds.config.impl") // for ConfigExportTest
 }
+
+testFixturesModuleInfo { runtimeOnly("com.swirlds.config.impl") }

@@ -212,7 +212,7 @@ public class StartStaking extends HapiSuite {
         final var to = chooseRandomExistingStaker();
         log.info("Choosing to stake to num {}", to);
         return cryptoCreate(STAKER_NAME + RANDOM.nextLong(Long.MAX_VALUE))
-                .stakedAccountId("0.0." + to)
+                .stakedAccountId(String.valueOf(to))
                 .balance(balance)
                 .key(DEFAULT_PAYER)
                 .exposingCreatedIdTo(id -> trackStaker(id.getAccountNum(), StakerMeta.newToAccount(balance, to)));

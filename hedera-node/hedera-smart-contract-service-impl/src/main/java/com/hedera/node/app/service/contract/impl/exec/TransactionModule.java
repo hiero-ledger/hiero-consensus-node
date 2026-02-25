@@ -34,9 +34,9 @@ import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
@@ -45,7 +45,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -53,7 +52,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
-import java.util.function.Supplier;
+import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
 public interface TransactionModule {
@@ -76,13 +75,8 @@ public interface TransactionModule {
     static TinybarValues provideTinybarValues(
             @TopLevelResourcePrices @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
-            @NonNull final ExchangeRate exchangeRate,
-            @NonNull final HandleContext context) {
-        return TinybarValues.forTransactionWith(
-                exchangeRate,
-                context.configuration().getConfigData(ContractsConfig.class),
-                topLevelResourcePrices,
-                childTransactionResourcePrices);
+            @NonNull final ExchangeRate exchangeRate) {
+        return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
     @Provides
@@ -188,16 +182,6 @@ public interface TransactionModule {
 
     @Provides
     @TransactionScope
-    static Supplier<HederaWorldUpdater> provideFeesOnlyUpdater(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement, @NonNull final EvmFrameStateFactory factory) {
-        return () -> {
-            enhancement.operations().begin();
-            return new ProxyWorldUpdater(enhancement, requireNonNull(factory), null);
-        };
-    }
-
-    @Provides
-    @TransactionScope
     static AttributeValidator provideAttributeValidator(@NonNull final HandleContext context) {
         return context.attributeValidator();
     }
@@ -228,10 +212,6 @@ public interface TransactionModule {
 
     @Binds
     @TransactionScope
-    EvmFrameStateFactory bindEvmFrameStateFactory(ScopedEvmFrameStateFactory factory);
-
-    @Binds
-    @TransactionScope
     HederaOperations bindHederaOperations(HandleHederaOperations handleExtWorldScope);
 
     @Binds
@@ -246,4 +226,17 @@ public interface TransactionModule {
     @Binds
     @TransactionScope
     HederaEvmBlocks bindHederaEvmBlocks(HandleContextHevmBlocks handleContextHevmBlocks);
+
+    @Provides
+    @TransactionScope
+    static EvmFrameStateFactory provideEvmFrameStateFactory(
+            @NonNull final EvmFrameStates evmFrameStates,
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final HederaOperations operations,
+            @NonNull final HederaNativeOperations nativeOperations) {
+        // If this EVM tx is for a hook, the factory returned here will
+        // create "hook-aware" EvmFrameState's that e.g. return the executing
+        // hook contract's bytecode from address 0x16d
+        return evmFrameStates.from(operations, nativeOperations, codeFactory);
+    }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.config;
 
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.validation.ConfigViolationException;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class VirtualMapConfigTest {
 
     @Test
-    public void testDefaultValuesValid() {
+    void testDefaultValuesValid() {
         // given
         final ConfigurationBuilder configurationBuilder =
                 ConfigurationBuilder.create().withConfigDataType(VirtualMapConfig.class);
@@ -19,7 +20,7 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testPercentHashThreadsOutOfRangeMin() {
+    void testPercentHashThreadsOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSources(new SimpleConfigSource("virtualMap.percentHashThreads", -1))
@@ -33,7 +34,7 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testPercentHashThreadsOutOfRangeMax() {
+    void testPercentHashThreadsOutOfRangeMax() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSources(new SimpleConfigSource("virtualMap.percentHashThreads", 101))
@@ -47,7 +48,7 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testPercentCleanerThreadsOutOfRangeMin() {
+    void testPercentCleanerThreadsOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSources(new SimpleConfigSource("virtualMap.percentCleanerThreads", -1))
@@ -61,7 +62,7 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testPercentCleanerThreadsOutOfRangeMax() {
+    void testPercentCleanerThreadsOutOfRangeMax() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSources(new SimpleConfigSource("virtualMap.percentCleanerThreads", 101))
@@ -75,27 +76,10 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testMaximumVirtualMapSizeOutOfRangeMin() {
+    void testFlushThresholdOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.maximumVirtualMapSize", 0L))
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningThreshold", 0L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        // the "virtualMapWarningThreshold" depends on the "maximumVirtualMapSize" and therefore we can not test it
-        // alone
-        Assertions.assertEquals(3, exception.getViolations().size(), "We must exactly have 3 violation");
-    }
-
-    @Test
-    public void testMaximumVirtualMapSizeOutOfRangeMax() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.maximumVirtualMapSize", Integer.MAX_VALUE + 1L))
+                .withSources(new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", 0L))
                 .withConfigDataType(VirtualMapConfig.class);
 
         // then
@@ -106,52 +90,18 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testVirtualMapWarningIntervalOutOfRangeMin() {
+    void testFlushThresholdMinAllowed() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningInterval", 0L))
+                .withSources(new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", 1L))
                 .withConfigDataType(VirtualMapConfig.class);
 
         // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
+        Assertions.assertDoesNotThrow(() -> configurationBuilder.build(), "init must be successful");
     }
 
     @Test
-    public void testVirtualMapWarningThresholdOutOfRangeMin() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningThreshold", 0L))
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningInterval", -1L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        // the "virtualMapWarningInterval" depends on the "virtualMapWarningThreshold" and therefore we can not test it
-        // alone
-        Assertions.assertEquals(2, exception.getViolations().size(), "We must exactly have 1 violation");
-    }
-
-    @Test
-    public void testFlushIntervalOutOfRangeMin() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.flushInterval", 0L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
-    }
-
-    @Test
-    public void testNumCleanerThreadsRangeMin() {
+    void testNumCleanerThreadsRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSources(new SimpleConfigSource("virtualMap.numCleanerThreads", -2))
@@ -162,5 +112,109 @@ class VirtualMapConfigTest {
                 ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
+    }
+
+    @Test
+    void testFamilyThrottleThresholdZero() {
+        // given
+        final Configuration config = ConfigurationBuilder.create()
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", 0))
+                // familyThrottlePercent should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", 10.0))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals(0, virtualMapConfig.getFamilyThrottleThreshold());
+    }
+
+    @Test
+    void testFamilyThrottleThresholdNonZero() {
+        final long value = 1_234_567_890;
+
+        // given
+        final Configuration config = ConfigurationBuilder.create()
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", value))
+                // familyThrottlePercent should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", 10.0))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals(value, virtualMapConfig.getFamilyThrottleThreshold());
+    }
+
+    @Test
+    void testFamilyThrottlePercentZero() {
+        // given
+        final Configuration config = ConfigurationBuilder.create()
+                // familyThrottleThreshold should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", -1))
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", 0))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals(0, virtualMapConfig.getFamilyThrottleThreshold());
+    }
+
+    @Test
+    void testFamilyThrottlePercentToHeapSize() {
+        final double value = 10.0;
+        final long maxHeapSize = Runtime.getRuntime().maxMemory();
+
+        // given
+        final Configuration config = ConfigurationBuilder.create()
+                // familyThrottleThreshold should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", -1))
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", value))
+                // Copy threshold should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", 1))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals((long) (maxHeapSize * value / 100.0), virtualMapConfig.getFamilyThrottleThreshold());
+    }
+
+    @Test
+    void testFamilyThrottlePercentToCopyThreshold() {
+        final double value = 10.0;
+        final long maxHeapSize = Runtime.getRuntime().maxMemory();
+
+        // given
+        final long copyFlushCandidateThreshold = (long) (maxHeapSize * value * 2 / 100.0);
+        final Configuration config = ConfigurationBuilder.create()
+                // familyThrottleThreshold should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", -1))
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", value))
+                // Copy threshold should be used, since percent * heap size is less than copy threshold
+                .withSources(
+                        new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", copyFlushCandidateThreshold))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals(copyFlushCandidateThreshold, virtualMapConfig.getFamilyThrottleThreshold());
+    }
+
+    @Test
+    void testFamilyThrottleNegativeThrows() {
+        // given
+        final Configuration config = ConfigurationBuilder.create()
+                // familyThrottleThreshold should be ignored
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottleThreshold", -1))
+                .withSources(new SimpleConfigSource("virtualMap.familyThrottlePercent", -1))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertThrows(IllegalArgumentException.class, virtualMapConfig::getFamilyThrottleThreshold);
     }
 }

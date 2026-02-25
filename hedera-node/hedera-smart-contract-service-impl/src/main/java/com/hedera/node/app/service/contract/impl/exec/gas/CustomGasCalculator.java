@@ -42,8 +42,11 @@ public class CustomGasCalculator extends CancunGasCalculator {
         // Dagger2
     }
 
+    // We won't use the baseline cost for now
+    // should revisit with the Pectra support epic
     @Override
-    public long transactionIntrinsicGasCost(final Bytes payload, final boolean isContractCreate) {
+    public long transactionIntrinsicGasCost(
+            final Bytes payload, final boolean isContractCreate, final long baselineCost) {
         int zeros = 0;
         for (int i = 0; i < payload.size(); i++) {
             if (payload.get(i) == 0) {
@@ -54,7 +57,7 @@ public class CustomGasCalculator extends CancunGasCalculator {
 
         long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
 
-        return isContractCreate ? (cost + txCreateExtraGasCost()) : cost;
+        return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 
     @Override
@@ -72,11 +75,6 @@ public class CustomGasCalculator extends CancunGasCalculator {
                 tinybarValues.topLevelTinycentGasPrice());
 
         return Math.max(evmGasCost, hevmGasCost);
-    }
-
-    @Override
-    public long codeDepositGasCost(final int codeSize) {
-        return 0L;
     }
 
     /**

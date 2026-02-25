@@ -23,10 +23,11 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -35,7 +36,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -106,6 +106,7 @@ public class ContractDeleteHandler implements TransactionHandler {
         validateFalse(toBeDeleted.accountIdOrThrow().equals(obtainer.accountIdOrThrow()), OBTAINER_SAME_CONTRACT_ID);
         final var recordBuilder = context.savepointStack().getBaseBuilder(ContractDeleteStreamBuilder.class);
         final var deletedId = toBeDeleted.accountIdOrThrow();
+        final var accountNodeRelStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
                 .deleteAndTransfer(
@@ -113,7 +114,7 @@ public class ContractDeleteHandler implements TransactionHandler {
                         obtainer.accountIdOrThrow(),
                         context.expiryValidator(),
                         recordBuilder,
-                        FreeAliasOnDeletion.YES);
+                        accountNodeRelStore);
         recordBuilder.contractID(asNumericContractId(entityIdFactory, deletedId));
     }
 

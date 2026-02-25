@@ -5,11 +5,14 @@ import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -18,7 +21,6 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -26,6 +28,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
@@ -35,13 +38,15 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
@@ -49,7 +54,6 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -88,7 +92,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Indicates if the QueryWorkflow should charge for handling queries.
@@ -132,8 +135,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            final boolean shouldCharge,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            final boolean shouldCharge) {
         this.stateAccessor = requireNonNull(stateAccessor, "stateAccessor must not be null");
         this.submissionManager = requireNonNull(submissionManager, "submissionManager must not be null");
         this.ingestChecker = requireNonNull(ingestChecker, "ingestChecker must not be null");
@@ -150,7 +152,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
         this.shouldCharge = shouldCharge;
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
@@ -180,67 +181,106 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
                 // 2. Do some general pre-checks
-                ingestChecker.verifyPlatformActive();
+                final var paymentRequired = handler.requiresNodePayment(responseType);
+                if (paymentRequired) {
+                    ingestChecker.verifyPlatformActive();
+                } else {
+                    ingestChecker.verifyFreeQueryable();
+                }
                 if (UNSUPPORTED_RESPONSE_TYPES.contains(responseType)) {
                     throw new PreCheckException(NOT_SUPPORTED);
                 }
 
                 final var state = wrappedState.get();
-                final var storeFactory = new ReadableStoreFactory(state);
-                final var paymentRequired = handler.requiresNodePayment(responseType);
+                final var storeFactory = new ReadableStoreFactoryImpl(state);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
                 TransactionBody txBody;
                 AccountID payerID = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
-                    final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    final Bytes paymentBytes;
+                    try {
+                        paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    } catch (IOException | ParseException e) {
+                        throw new PreCheckException(INVALID_QUERY_HEADER);
+                    }
 
-                    // 3.i Ingest checks
-                    final var transactionInfo = ingestChecker.runAllChecks(state, paymentBytes, configuration);
-                    txBody = transactionInfo.txBody();
+                    final var checkerResult = new IngestChecker.Result();
+                    try {
+                        // 3.i Ingest checks
+                        ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
+                        final var txInfo = checkerResult.txnInfoOrThrow();
+                        txBody = txInfo.txBody();
 
-                    // get payer
-                    payerID = requireNonNull(transactionInfo.payerID());
-                    context = new QueryContextImpl(
-                            state,
-                            storeFactory,
-                            query,
-                            configuration,
-                            recordCache,
-                            exchangeRateManager,
-                            feeCalculator,
-                            payerID);
+                        // get payer
+                        payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
+                        context = new QueryContextImpl(
+                                state,
+                                storeFactory,
+                                query,
+                                configuration,
+                                recordCache,
+                                exchangeRateManager,
+                                feeCalculator,
+                                payerID);
 
-                    // A super-user does not have to pay for a query and has all permissions
-                    if (!authorizer.isSuperUser(payerID)) {
-                        // But if payment is required, we must be able to submit a transaction
-                        ingestChecker.verifyReadyForTransactions();
+                        // A super-user does not have to pay for a query and has all permissions
+                        if (!authorizer.isSuperUser(payerID)) {
+                            // But if payment is required, we must be able to submit a transaction
+                            ingestChecker.verifyReadyForTransactions();
 
-                        // 3.ii Validate CryptoTransfer
-                        queryChecker.validateCryptoTransfer(transactionInfo);
+                            // Get the account store for validations
+                            final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
-                        // 3.iii Check permissions
-                        queryChecker.checkPermissions(payerID, function);
+                            // 3.ii Validate CryptoTransfer (including sender signatures)
+                            queryChecker.validateCryptoTransfer(
+                                    accountStore, checkerResult.txnInfoOrThrow(), configuration);
 
-                        // Get the payer
-                        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
-                        final var payer = accountStore.getAccountById(payerID);
-                        if (payer == null) {
-                            // This should never happen, because the account is checked in the pure checks
-                            throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            // 3.iii Check permissions
+                            queryChecker.checkPermissions(payerID, function);
+
+                            // Get the payer
+                            final var payer = accountStore.getAccountById(payerID);
+                            if (payer == null) {
+                                // This should never happen, because the account is checked in the pure checks
+                                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            }
+
+                            // 3.iv Calculate costs
+                            long queryFees;
+                            if (shouldUseSimpleFees(context)) {
+                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                        .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                                queryFees = tinycentsToTinybars(
+                                        queryFeeTinyCents.totalTinycents(),
+                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                            } else {
+                                queryFees = handler.computeFees(context).totalFee();
+                            }
+
+                            // The fee for the crypto transfer that pays the fee
+                            final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
+                                    storeFactory,
+                                    consensusTime,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer.keyOrThrow(),
+                                    configuration);
+
+                            // 3.v Check account balances
+                            queryChecker.validateAccountBalances(
+                                    accountStore,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer,
+                                    queryFees,
+                                    cryptoTransferTxnFee);
+
+                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
                         }
-
-                        // 3.iv Calculate costs
-                        final var queryFees = handler.computeFees(context).totalFee();
-                        final var txFees = queryChecker.estimateTxFees(
-                                storeFactory, consensusTime, transactionInfo, payer.keyOrThrow(), configuration);
-
-                        // 3.v Check account balances
-                        queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
-
-                        // 3.vi Submit payment to platform
-                        submissionManager.submit(txBody, paymentBytes);
+                    } catch (Exception e) {
+                        checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                        throw e;
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {
@@ -268,7 +308,16 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    final var queryFees = handler.computeFees(context).totalFee();
+                    long queryFees;
+                    if (shouldUseSimpleFees(context)) {
+                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                        queryFees = tinycentsToTinybars(
+                                queryFeeTinyCents.totalTinycents(),
+                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                    } else {
+                        queryFees = handler.computeFees(context).totalFee();
+                    }
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -280,8 +329,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             } catch (InsufficientBalanceException e) {
                 response = createErrorResponse(handler, responseType, e.responseCode(), e.getEstimatedFee());
             } catch (PreCheckException e) {
+                logger.debug("Query failed", e);
                 response = createErrorResponse(handler, responseType, e.responseCode(), 0L);
             } catch (HandleException e) {
+                logger.debug("Query failed", e);
                 // Conceptually, this should never happen, because we should use PreCheckException only for queries
                 // But we catch it here to play it safe
                 response = createErrorResponse(handler, responseType, e.getStatus(), 0L);
@@ -302,6 +353,31 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
 
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
+    }
+
+    private boolean shouldUseSimpleFees(QueryContext context) {
+        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+        return switch (context.query().query().kind()) {
+            case CONSENSUS_GET_TOPIC_INFO,
+                    SCHEDULE_GET_INFO,
+                    FILE_GET_CONTENTS,
+                    FILE_GET_INFO,
+                    TOKEN_GET_INFO,
+                    TOKEN_GET_NFT_INFO,
+                    CRYPTO_GET_INFO,
+                    CRYPTO_GET_ACCOUNT_RECORDS,
+                    CRYPTOGET_ACCOUNT_BALANCE,
+                    NETWORK_GET_VERSION_INFO,
+                    TRANSACTION_GET_RECORD,
+                    TRANSACTION_GET_RECEIPT,
+                    GET_BY_KEY,
+                    CONTRACT_CALL_LOCAL,
+                    CONTRACT_GET_BYTECODE,
+                    CONTRACT_GET_INFO -> true;
+            default -> false;
+        };
     }
 
     private Query parseQuery(Bytes requestBuffer) {

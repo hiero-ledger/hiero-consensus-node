@@ -7,10 +7,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NFT_SER
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NFT_SERIAL_NUMBERS_LIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeDecoder;
@@ -32,6 +34,9 @@ public class WipeDecoderTest {
     @Mock
     private AddressIdConverter addressIdConverter;
 
+    @Mock
+    protected HederaNativeOperations nativeOperations;
+
     private final WipeDecoder subject = new WipeDecoder();
 
     @BeforeEach
@@ -47,6 +52,8 @@ public class WipeDecoderTest {
                 .encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, OWNER_HEADLONG_ADDRESS, NFT_SERIAL_NUMBERS)
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when
         final var body = subject.decodeWipeNonFungible(attempt);
@@ -65,6 +72,8 @@ public class WipeDecoderTest {
                 .encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, OWNER_HEADLONG_ADDRESS, WIPE_FUNGIBLE_TOKEN_AMOUNT)
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when
         final var body = subject.decodeWipeFungibleV1(attempt);
@@ -81,6 +90,8 @@ public class WipeDecoderTest {
                 .encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, OWNER_HEADLONG_ADDRESS, WIPE_FUNGIBLE_TOKEN_AMOUNT)
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when
         final var body = subject.decodeWipeFungibleV2(attempt);

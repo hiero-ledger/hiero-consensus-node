@@ -9,6 +9,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
@@ -36,7 +38,6 @@ public final class SystemContractUtils {
 
     /**
      * Create a successful contract function result.
-     *
      * @param gasUsed Report the gas used.
      * @param result The result of the contract call.
      * @param gas The remaining gas.
@@ -58,6 +59,31 @@ public final class SystemContractUtils {
                 .functionParameters(tuweniToPbjBytes(inputData))
                 .senderId(senderId)
                 .contractID(HTS_PRECOMPILE_MIRROR_ID)
+                .build();
+    }
+
+    /**
+     * Create a successful contract function result.
+     * @param gasUsed Report the gas used.
+     * @param result The result of the contract call.
+     * @param gas The remaining gas.
+     * @param inputData The input data.
+     * @param senderId The sender id.
+     * @return The created contract function result for a successful call.
+     */
+    @NonNull
+    public static EvmTransactionResult txSuccessResultOfZeroValueTraceable(
+            final long gasUsed,
+            final Bytes result,
+            final long gas,
+            @NonNull final Bytes inputData,
+            @NonNull final AccountID senderId) {
+        return EvmTransactionResult.newBuilder()
+                .internalCallContext(InternalCallContext.newBuilder().gas(gas).callData(tuweniToPbjBytes(inputData)))
+                .gasUsed(gasUsed)
+                .resultData(tuweniToPbjBytes(result))
+                .senderId(senderId)
+                .contractId(HTS_PRECOMPILE_MIRROR_ID)
                 .build();
     }
 
@@ -93,6 +119,38 @@ public final class SystemContractUtils {
     }
 
     /**
+     * Create a successful contract function result for the given frame with
+     * the known sender and result.
+     *
+     * @param senderId the sender id
+     * @param fullResult the full result
+     * @param frame the frame
+     * @param includeTraceabilityFields whether to include traceability fields
+     * @return the created contract function result for a successful call
+     */
+    public static @NonNull EvmTransactionResult txSuccessResultOf(
+            @NonNull final AccountID senderId,
+            @NonNull final FullResult fullResult,
+            @NonNull final MessageFrame frame,
+            final boolean includeTraceabilityFields) {
+        requireNonNull(senderId);
+        requireNonNull(fullResult);
+        requireNonNull(frame);
+        final var builder = EvmTransactionResult.newBuilder()
+                .gasUsed(fullResult.gasRequirement())
+                .resultData(tuweniToPbjBytes(fullResult.result().getOutput()))
+                .senderId(senderId)
+                .contractId(HTS_PRECOMPILE_MIRROR_ID);
+        if (includeTraceabilityFields) {
+            builder.internalCallContext(InternalCallContext.newBuilder()
+                    .gas(frame.getRemainingGas())
+                    .value(frame.getValue().toLong())
+                    .callData(tuweniToPbjBytes(frame.getInputData())));
+        }
+        return builder.build();
+    }
+
+    /**
      * Create an error contract function result.
      *
      * @param fullResult The result of the failed contract call
@@ -121,6 +179,21 @@ public final class SystemContractUtils {
                 .senderId(senderId)
                 .errorMessage(errorMsg)
                 .contractID(contractID)
+                .build();
+    }
+
+    public static @NonNull EvmTransactionResult txResultFailedFor(
+            @NonNull final AccountID senderId,
+            @NonNull final Bytes result,
+            final long gasRequirement,
+            final String errorMsg,
+            final ContractID contractID) {
+        return EvmTransactionResult.newBuilder()
+                .gasUsed(gasRequirement)
+                .resultData(tuweniToPbjBytes(result))
+                .senderId(senderId)
+                .errorMessage(errorMsg)
+                .contractId(contractID)
                 .build();
     }
 

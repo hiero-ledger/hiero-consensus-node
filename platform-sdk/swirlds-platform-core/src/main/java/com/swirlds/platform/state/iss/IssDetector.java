@@ -3,16 +3,13 @@ package com.swirlds.platform.state.iss;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Keeps track of the state hashes reported by all network nodes. Responsible for detecting ISS events.
@@ -55,20 +52,4 @@ public interface IssDetector {
      */
     @Nullable
     List<IssNotification> overridingState(@NonNull ReservedSignedState state);
-
-    /**
-     * Given an ISS notification, produce the appropriate status action.
-     *
-     * @param notification the ISS notification
-     * @return the status action, or null if no action is needed
-     */
-    @Nullable
-    default PlatformStatusAction getStatusAction(final IssNotification notification) {
-        if (Set.of(IssNotification.IssType.SELF_ISS, IssNotification.IssType.CATASTROPHIC_ISS)
-                .contains(notification.getIssType())) {
-            return new CatastrophicFailureAction();
-        }
-        // don't change status for other types of ISS
-        return null;
-    }
 }

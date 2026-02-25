@@ -4,7 +4,6 @@ package com.swirlds.component.framework.schedulers.builders.internal;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.MultiObjectCounter;
@@ -12,6 +11,7 @@ import com.swirlds.component.framework.counters.NoOpObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.counters.StandardObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -264,12 +264,17 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
      */
     @NonNull
     protected UncaughtExceptionHandler buildUncaughtExceptionHandler() {
-        if (uncaughtExceptionHandler != null) {
-            return uncaughtExceptionHandler;
-        } else {
-            return (thread, throwable) ->
-                    logger.error(EXCEPTION.getMarker(), "Uncaught exception in scheduler {}", name, throwable);
-        }
+        return uncaughtExceptionHandlerOr(ExceptionHandlers.defaultExceptionHandler(name));
+    }
+
+    /**
+     * Returns either the set uncaughtExceptionHandler or the handler sent as parameter.
+     * @param or the uncaught exception handler to return in case none was set
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    protected UncaughtExceptionHandler uncaughtExceptionHandlerOr(@NonNull final UncaughtExceptionHandler or) {
+        return Objects.requireNonNullElse(uncaughtExceptionHandler, or);
     }
 
     protected record Counters(@NonNull ObjectCounter onRamp, @NonNull ObjectCounter offRamp) {}

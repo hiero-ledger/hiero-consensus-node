@@ -5,24 +5,21 @@ import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A simple builder to create a {@link PlatformContext} for unit tests.
@@ -32,13 +29,11 @@ public final class TestPlatformContextBuilder {
     private static final Metrics defaultMetrics = new NoOpMetrics();
     private static final Configuration defaultConfig =
             ConfigurationBuilder.create().autoDiscoverExtensions().build();
-    private static final MerkleCryptography defaultMerkleCryptography = MerkleCryptographyFactory.create(defaultConfig);
     private Configuration configuration;
     private Metrics metrics;
     private Time time = Time.getCurrent();
     private FileSystemManager fileSystemManager;
     private RecycleBin recycleBin;
-    private MerkleCryptography merkleCryptography;
 
     private TestPlatformContextBuilder() {}
 
@@ -104,12 +99,6 @@ public final class TestPlatformContextBuilder {
         return this;
     }
 
-    @NonNull
-    public TestPlatformContextBuilder withMerkleCryptography(@NonNull final MerkleCryptography merkleCryptography) {
-        this.merkleCryptography = merkleCryptography;
-        return this;
-    }
-
     /**
      * Returns a new {@link PlatformContext} based on this builder
      *
@@ -128,16 +117,9 @@ public final class TestPlatformContextBuilder {
         if (this.fileSystemManager == null) {
             this.fileSystemManager = getTestFileSystemManager();
         }
-        if (merkleCryptography == null) {
-            this.merkleCryptography = defaultMerkleCryptography;
-        }
 
-        final ExecutorFactory executorFactory = ExecutorFactory.create("test", new UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread t, Throwable e) {
-                fail("Uncaught exception in thread " + t.getName(), e);
-            }
-        });
+        final ExecutorFactory executorFactory =
+                ExecutorFactory.create("test", (t, e) -> fail("Uncaught exception in thread " + t.getName(), e));
 
         return new PlatformContext() {
             @NonNull
@@ -174,12 +156,6 @@ public final class TestPlatformContextBuilder {
             @Override
             public RecycleBin getRecycleBin() {
                 return recycleBin;
-            }
-
-            @NonNull
-            @Override
-            public MerkleCryptography getMerkleCryptography() {
-                return merkleCryptography;
             }
         };
     }

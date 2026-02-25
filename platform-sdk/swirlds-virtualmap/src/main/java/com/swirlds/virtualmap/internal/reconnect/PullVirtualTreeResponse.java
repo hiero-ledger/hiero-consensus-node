@@ -2,10 +2,10 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import java.io.IOException;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single virtual node.
@@ -14,10 +14,9 @@ import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
  * learner. Every response includes a path followed by an integer flag that indicates if the node
  * is clear (value 0, node hash on the teacher is the same as sent by the learner), or not (non-zero
  * value). If the path corresponds to a leaf node, and the node is not clear, a {@link
- * com.swirlds.virtualmap.datasource.VirtualLeafRecord} for the node is included in the end of the
+ * com.swirlds.virtualmap.datasource.VirtualLeafBytes} for the node is included in the end of the
  * response.
  */
-@SuppressWarnings("rawtypes")
 public class PullVirtualTreeResponse implements SelfSerializable {
 
     private static final long CLASS_ID = 0xecfbef49a90334e3L;

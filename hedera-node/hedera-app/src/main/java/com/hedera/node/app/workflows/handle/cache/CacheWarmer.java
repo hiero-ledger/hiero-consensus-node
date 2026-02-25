@@ -4,27 +4,23 @@ package com.hedera.node.app.workflows.handle.cache;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -43,23 +39,15 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
-    private final HederaConfig hederaConfig;
-
-    @NonNull
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull @Named("CacheWarmer") final Executor executor,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            @NonNull final ConfigProvider configProvider) {
-        this.checker = requireNonNull(checker);
-        this.dispatcher = requireNonNull(dispatcher);
-        this.executor = requireNonNull(executor);
-        this.softwareVersionFactory = softwareVersionFactory;
-        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+            @NonNull @Named("CacheWarmer") final Executor executor) {
+        this.checker = requireNonNull(checker, "checker must not be null");
+        this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
+        this.executor = requireNonNull(executor, "executor must not be null");
     }
 
     /**
@@ -70,8 +58,8 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
-            final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactoryImpl(state);
+            final ReadableAccountStore accountStore = storeFactory.readableStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {
                     final TransactionBody txBody = extractTransactionBody(platformTransaction);
@@ -104,8 +92,7 @@ public class CacheWarmer {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
             // There is no cache warming to do for oversize TSS transactions, so it's fine
             // to fail with TRANSACTION_OVERSIZE here in any case
-            final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
-            return checker.parseAndCheck(buffer, transactionMaxBytes).txBody();
+            return checker.parseSignedAndCheck(buffer).txBody();
         } catch (PreCheckException ex) {
             return null;
         }
@@ -143,7 +130,7 @@ public class CacheWarmer {
         @NonNull
         @Override
         public <C> C createStore(@NonNull final Class<C> storeInterface) {
-            return storeFactory.getStore(storeInterface);
+            return storeFactory.readableStore(storeInterface);
         }
     }
 }

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.validation;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressString;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -18,10 +21,12 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -65,15 +70,15 @@ public class EvmValidationTest {
             @HapiTest
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
             public Stream<DynamicTest> lazyCreateToLongZeroFails() {
-                final var LONG_ZERO_ADDRESS = toAddressStringWithShardAndRealm("1117d0");
-                return callContractWithValue(LONG_ZERO_ADDRESS, CONTRACT_REVERT_EXECUTED);
+                final Function<HapiSpec, String> longZeroAddress = (spec) -> toAddressString("1117d0");
+                return callContractWithValue(longZeroAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
             public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
-                final var LONG_ZERO_BURN_ADDRESS = toAddressStringWithShardAndRealm("dEaD");
-                return callContractWithValue(LONG_ZERO_BURN_ADDRESS, CONTRACT_REVERT_EXECUTED);
+                final Function<HapiSpec, String> longZeroBurnAddress = (spec) -> toAddressString("dEaD");
+                return callContractWithValue(longZeroBurnAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
@@ -96,6 +101,7 @@ public class EvmValidationTest {
 
             @HapiTest
             @DisplayName("when transferring value to realistic evm address 388C818CA8B9251b393131C08a736A67ccB19297")
+            @Tag(MATS)
             public Stream<DynamicTest> lazyCreateToRealisticEvmAddressSucceeds() {
                 final var REALISTIC_EVM_ADDRESS = "388C818CA8B9251b393131C08a736A67ccB19297";
                 return callContractWithValue(REALISTIC_EVM_ADDRESS, ResponseCodeEnum.SUCCESS);
@@ -109,6 +115,18 @@ public class EvmValidationTest {
                     .sending(ONE_HBAR)
                     .hasKnownStatus(expectedStatus));
         }
+
+        private static Stream<DynamicTest> callContractWithValue(
+                Function<HapiSpec, String> address, final ResponseCodeEnum expectedStatus) {
+            return hapiTest(withOpContext((spec, log) -> {
+                final var addressValue = address.apply(spec);
+                final var callOp = contractCall(touchAccountContract, "touchAccount", asHeadlongAddress(addressValue))
+                        .gas(100_000L)
+                        .sending(ONE_HBAR)
+                        .hasKnownStatus(expectedStatus);
+                allRunFor(spec, callOp);
+            }));
+        }
     }
 
     @Nested
@@ -118,6 +136,7 @@ public class EvmValidationTest {
 
         @HapiTest
         @DisplayName("should fail to deploy")
+        @Tag(MATS)
         public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             return hapiTest(
                     uploadInitCode(emptyContract),

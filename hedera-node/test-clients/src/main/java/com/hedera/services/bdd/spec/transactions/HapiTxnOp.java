@@ -9,12 +9,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TransactionGetReceipt;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
@@ -24,6 +28,9 @@ import static java.util.stream.Collectors.toList;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
@@ -77,9 +84,7 @@ import org.apache.tuweni.bytes.Bytes;
 public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperation {
     private static final Logger log = LogManager.getLogger(HapiTxnOp.class);
 
-    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY =
-            (network, transaction, functionality, target, nodeAccountId) ->
-                    network.submit(transaction, functionality, target, nodeAccountId);
+    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY = HederaNetwork::submit;
 
     private static final Response UNKNOWN_RESPONSE = Response.newBuilder()
             .setTransactionGetReceipt(TransactionGetReceiptResponse.newBuilder()
@@ -110,10 +115,30 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<ResponseCodeEnum> expectedPrecheck = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissibleStatuses = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissiblePrechecks = Optional.empty();
-    /** if response code in the set then allow to resubmit transaction */
+    /**
+     * if response code in the set then allow to resubmit transaction
+     */
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
 
     protected List<Condition> conditions = new ArrayList<>();
+
+    /**
+     * Serializes a signed transaction from the given {@link Transaction}.
+     * @param tx the transaction to serialize
+     * @return the serialized signed transaction bytes
+     */
+    public static byte[] serializedSignedTxFrom(@NonNull final Transaction tx) {
+        return !tx.getSignedTransactionBytes().isEmpty()
+                ? tx.getSignedTransactionBytes().toByteArray()
+                : SignedTransaction.PROTOBUF
+                        .toBytes(SignedTransaction.newBuilder()
+                                .useSerializedTxMessageHashAlgorithm(true)
+                                .sigMap(CommonPbjConverters.protoToPbj(tx.getSigMap(), SignatureMap.class))
+                                .bodyBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                                        tx.getBodyBytes().toByteArray()))
+                                .build())
+                        .toByteArray();
+    }
 
     public T satisfies(@NonNull final Condition condition) {
         conditions.add(condition);
@@ -126,6 +151,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T satisfies(@NonNull final BooleanSupplier condition, @NonNull final String errorMessage) {
         return satisfies(new Condition(condition, () -> errorMessage));
+    }
+
+    public T withHighVolume() {
+        return self().fee(ONE_HUNDRED_HBARS)
+                .withBodyMutation(BodyMutation.withTransform(
+                        body -> body.toBuilder().setHighVolume(true).build()));
     }
 
     /**
@@ -155,6 +186,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return expectedStatus.orElse(SUCCESS);
     }
 
+    public boolean isExpectedStatusSet() {
+        return expectedStatus.isPresent() || permissibleStatuses.isPresent();
+    }
+
     public ResponseCodeEnum getExpectedPrecheck() {
         return expectedPrecheck.orElse(OK);
     }
@@ -180,9 +215,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
+    public void setTransactionSubmitted(final Transaction txn) {
+        this.txnSubmitted = txn;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
         int retryCount = 1;
         while (true) {
@@ -237,16 +275,32 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
             } finally {
                 /* Used by superclass to perform standard housekeeping. */
-                txnSubmitted = txn;
+                setTransactionSubmitted(txn);
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
-            if (retryPrechecks.isPresent()
+            // Automatically retry on transient platform errors (backlog/not active)
+            // regardless of explicit retryPrechecks configuration
+            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
+                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
+                    || actualPrecheck == BUSY;
+            // Don't retry if the test explicitly expects this transient error (e.g., testing throttling)
+            final boolean expectsTransientError =
+                    expectedPrecheck.isPresent() && expectedPrecheck.get() == actualPrecheck;
+            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
+            // when no explicit retryLimits is set (which defaults to unlimited)
+            final int maxTransientRetries = 10;
+            final boolean withinTransientLimit = retryCount < maxTransientRetries;
+            final boolean shouldRetryTransient =
+                    isTransientPlatformError && withinTransientLimit && !expectsTransientError;
+            final boolean shouldRetryExplicit = retryPrechecks.isPresent()
                     && retryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount)) {
+                    && isWithInRetryLimit(retryCount);
+            if (shouldRetryTransient || shouldRetryExplicit) {
                 retryCount++;
                 try {
-                    sleep(10);
+                    // Use longer sleep for platform errors to allow recovery
+                    sleep(isTransientPlatformError ? 1000 : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
@@ -297,7 +351,8 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                             actualPrecheck,
                             getExpectedPrecheck());
                     throw new HapiTxnPrecheckStateException(String.format(
-                            "Wrong precheck status! Expected %s, actual %s", getExpectedPrecheck(), actualPrecheck));
+                            "Wrong precheck status for %s in '%s'! Expected %s, actual %s",
+                            type().name(), spec.getName(), getExpectedPrecheck(), actualPrecheck));
                 }
             }
         }
@@ -322,7 +377,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return !deferStatusResolution;
     }
 
-    private void resolveStatus(HapiSpec spec) throws Throwable {
+    public void resolveStatus(HapiSpec spec) throws Throwable {
         actualStatus = resolvedStatusOfSubmission(spec);
         spec.updateResolvedCounts(actualStatus);
         if (actualStatus == INSUFFICIENT_PAYER_BALANCE) {
@@ -356,8 +411,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         this,
                         actualStatus,
                         getExpectedStatus());
-                throw new HapiTxnCheckStateException(
-                        String.format("Wrong status! Expected %s, was %s", getExpectedStatus(), actualStatus));
+                throw new HapiTxnCheckStateException(String.format(
+                        "Wrong status for %s in '%s'! Expected %s, was %s",
+                        type().name(), spec.getName(), getExpectedStatus(), actualStatus));
             }
         }
         if (actualStatus == SUCCESS && receiptValidator != null) {
@@ -388,7 +444,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     private void addIpbToPermissiblePrechecks() {
         if (permissiblePrechecks.isEmpty()) {
             permissiblePrechecks =
-                    Optional.of(EnumSet.copyOf(List.of(OK, INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_TX_FEE)));
+                    Optional.of(EnumSet.copyOf(List.of(BUSY, OK, INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_TX_FEE)));
         } else if (!permissiblePrechecks.get().contains(INSUFFICIENT_PAYER_BALANCE)
                 || !permissiblePrechecks.get().contains(INSUFFICIENT_TX_FEE)) {
             permissiblePrechecks = Optional.of(addIpbToleranceTo(permissiblePrechecks.get()));
@@ -783,9 +839,13 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public T setNode(String account) {
-        node = Optional.of(HapiPropertySource.asAccount(account));
+    public T setNode(String accountNum) {
+        node = Optional.of(accountNum);
+        return self();
+    }
 
+    public T setNode(long accountNum) {
+        node = Optional.of(Long.toString(accountNum));
         return self();
     }
 
@@ -886,7 +946,15 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public Optional<AccountID> getNode() {
+    public boolean hasBatchKey() {
+        return batchKey.isPresent();
+    }
+
+    public Optional<String> getNode() {
         return node;
+    }
+
+    public boolean shouldResolveStatus() {
+        return !deferStatusResolution && !fireAndForget;
     }
 }

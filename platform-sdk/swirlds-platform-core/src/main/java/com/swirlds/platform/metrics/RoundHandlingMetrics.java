@@ -6,8 +6,6 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.IDLE;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.extensions.PhaseTimer;
-import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
@@ -15,6 +13,8 @@ import com.swirlds.platform.eventhandling.TransactionHandlerPhase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.metrics.extensions.PhaseTimer;
+import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 
 /**
  * Provides access to statistics relevant to {@link DefaultTransactionHandler}
@@ -57,8 +57,7 @@ public class RoundHandlingMetrics {
         consensusTimeDeviation = metrics.getOrCreate(consensusTimeDeviationConfig);
         eventsPerRound = metrics.getOrCreate(eventsPerRoundConfig);
 
-        this.roundHandlerPhase = new PhaseTimerBuilder<>(
-                        platformContext, time, "platform", TransactionHandlerPhase.class)
+        this.roundHandlerPhase = new PhaseTimerBuilder<>(metrics, time, "platform", TransactionHandlerPhase.class)
                 .enableFractionalMetrics()
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("consensus")

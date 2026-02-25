@@ -2,7 +2,7 @@
 package com.swirlds.common.stream;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A record used to override the running event hash on various components when a new state is loaded (i.e. after a

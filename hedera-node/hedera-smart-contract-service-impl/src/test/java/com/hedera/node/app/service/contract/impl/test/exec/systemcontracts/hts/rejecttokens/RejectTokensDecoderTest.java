@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -20,6 +21,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.token.TokenReference;
 import com.hedera.hapi.node.token.TokenRejectTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensDecoder;
@@ -49,6 +51,9 @@ public class RejectTokensDecoderTest {
     @Mock
     private LedgerConfig ledgerConfig;
 
+    @Mock
+    private HederaNativeOperations nativeOperations;
+
     private RejectTokensDecoder subject;
 
     @BeforeEach
@@ -62,6 +67,8 @@ public class RejectTokensDecoderTest {
     void decodeHtsCall() {
         // given:
         given(attempt.configuration()).willReturn(configuration);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenRejectsMaxLen()).willReturn(10);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
@@ -93,6 +100,8 @@ public class RejectTokensDecoderTest {
     void decodeHtsCallNFT() {
         // given:
         given(attempt.configuration()).willReturn(configuration);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenRejectsMaxLen()).willReturn(10);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))

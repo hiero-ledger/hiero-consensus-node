@@ -8,6 +8,12 @@ on:
         type: boolean
         required: false
         default: false
+      ref:
+        required: true
+        description: "Git Reference (branch, tag, or commit SHA)"
+      ref-name:
+        required: true
+        description: "Git Reference Name (branch name or tag name)"
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -41,13 +47,15 @@ jobs:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       gradle-version: ${{ github.event.inputs.gradle-version || 'wrapper' }}
+      ref: ${{ github.event.inputs.ref }}
+      ref-name: ${{ github.event.inputs.ref-name }}
 
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
       cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-      svcs-ossrh-username: ${{ secrets.SVCS_OSSRH_USERNAME }}
-      svcs-ossrh-password: ${{ secrets.SVCS_OSSRH_PASSWORD }}
+      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
       svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
       svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
       sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}

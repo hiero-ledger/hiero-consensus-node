@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: Prepare Extended Test Suite"
+name: "ZXF: [CITR] Prepare Extended Test Suite"
 on:
   workflow_dispatch:
     inputs:
       ref:
         description: Git Commit Reference for the XTS prep tag
         required: true
+      dry-run-enabled:
+        description: "If true, the workflow will not create a tag, but will validate the commit."
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -22,12 +27,14 @@ env:
   PROMOTED_GREP_PATTERN: "build-.{5}"
 
 jobs:
-  tag-for-xts:
-    name: Tag for XTS promotion
-    runs-on: hiero-network-node-linux-medium
+  validate-input-ref:
+    name: Validate Input Reference
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      commit-is-present: ${{ steps.validate-input.outputs.commit_on_dev }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -44,15 +51,29 @@ jobs:
           COMMIT_ID: ${{ inputs.ref }}
         run: |
           if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
-            echo "commit_on_dev=true" >> $GITHUB_OUTPUT
+            echo "commit_on_dev=true" >> "${GITHUB_OUTPUT}"
+            echo "## Commit ${{ inputs.ref }} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
-            exit 1
+            echo "commit_on_dev=false" >> "${GITHUB_OUTPUT}"
+            echo "## Commit ${{ inputs.ref }} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "Skipping job: Tag for XTS promotion" >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+  tag-for-xts:
+    name: Tag for XTS promotion
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - validate-input-ref
+    if: ${{ needs.validate-input-ref.outputs.commit-is-present == 'true' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: ${{ steps.validate-input.outputs.commit_on_dev == 'true'}}
         with:
           fetch-depth: "0"
           ref: ${{ inputs.ref }}
@@ -60,7 +81,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -86,14 +107,21 @@ jobs:
 
           # if the strings are not empty than the commit has been tagged.
           if [[ -n "${XTS_CANDIDATE_TAGGED}" || -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-            gh run cancel ${{ github.run_id }}
+            echo "Commit already tagged in XTS flow. Skipping remaining steps." >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-checks-required=false" >> "${GITHUB_OUTPUT}"
           else
-            echo "xts-checks-required=true" >> $GITHUB_OUTPUT
+            echo "Commit not yet tagged in XTS flow. Proceeding to tag for XTS." >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-checks-required=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          # Log dry-run status
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled. The workflow will not create a tag." >> "${GITHUB_STEP_SUMMARY}"
           fi
 
       # move the tag if successful
       - name: Tag Code and push
-        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' }}
+        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' && !inputs.dry-run-enabled }}
         run: |
           # Check if the tag exists
           set +e
@@ -111,9 +139,33 @@ jobs:
           git tag --annotate "${XTS_CANDIDATE_TAG}" --message "chore: tagging commit for XTS promotion"
           git push --set-upstream origin --tags
 
-      - name: Report failure
-        if: ${{ !cancelled() && failure() && always() }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+  report-failures:
+    name: Report Failures
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - validate-input-ref
+      - tag-for-xts
+    if: ${{ (needs.validate-input-ref.result == 'failure' || needs.tag-for-xts.result == 'failure') && !cancelled() && always() }}
+    steps:
+      - name: Report Failure (Rootly)
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "Hiero Consensus Node - XTS Candidate Tagging Failed"
+          details: |
+            The tagging of commit `${{ inputs.ref }}` for the Extended Test Suite (XTS) promotion has failed.
+            Please investigate the issue to ensure the commit is properly tagged for further testing and deployment processes.
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "false"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Report Failure (Slack)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -128,7 +180,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Tagging Failed",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Tagging Failed",
                         "emoji": true
                       }
                     },
@@ -139,7 +191,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
                       }
                     }
                   ]

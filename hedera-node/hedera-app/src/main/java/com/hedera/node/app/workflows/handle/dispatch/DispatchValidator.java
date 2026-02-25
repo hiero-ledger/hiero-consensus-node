@@ -19,14 +19,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -109,10 +108,6 @@ public class DispatchValidator {
         }
     }
 
-    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
-        return txnBody.hasBatchKey();
-    }
-
     /**
      * Checks payer solvency for Schedule and User transactions. If the payer is a super-user, it will not be checked.
      *
@@ -142,10 +137,11 @@ public class DispatchValidator {
         }
         return switch (duplicateStatus) {
             case DUPLICATE -> newPayerDuplicateError(creatorId, payer);
-            case NO_DUPLICATE -> dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
-                    ? validation
-                    : newPayerUniqueError(
-                            creatorId, payer, dispatch.preHandleResult().responseCode());
+            case NO_DUPLICATE ->
+                dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
+                        ? validation
+                        : newPayerUniqueError(
+                                creatorId, payer, dispatch.preHandleResult().responseCode());
         };
     }
 
@@ -204,13 +200,21 @@ public class DispatchValidator {
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final AccountID accountID,
             @NonNull final HandleContext.TransactionCategory category) {
-        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
             case USER, NODE, BATCH_INNER -> {
-                if (account == null || account.deleted() || account.smartContract()) {
-                    throw new IllegalStateException("Category " + category
-                            + " payer account should have resulted in failure upstream " + account);
+                if (account == null) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s does not exists", category, accountID));
+                }
+                if (account.deleted()) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s is deleted", category, accountID));
+                }
+                if (account.smartContract()) {
+                    throw new IllegalStateException(String.format(
+                            "Category %s payer account with id %s is a smart contract", category, accountID));
                 }
                 yield account;
             }

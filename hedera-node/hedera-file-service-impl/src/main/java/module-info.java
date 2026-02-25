@@ -3,6 +3,7 @@ module com.hedera.node.app.service.file.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
@@ -13,8 +14,8 @@ module com.hedera.node.app.service.file.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
-    requires com.swirlds.common;
-    requires org.hiero.consensus.model;
+    requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.protobuf;
     requires org.apache.commons.lang3;

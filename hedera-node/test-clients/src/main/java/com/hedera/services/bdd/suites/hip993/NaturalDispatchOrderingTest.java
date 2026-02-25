@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip993;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
@@ -66,6 +67,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Asserts the expected presence and order of all valid combinations of preceding and following stream items;
@@ -94,7 +96,7 @@ public class NaturalDispatchOrderingTest {
     static void setUp(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(withOpContext((spec, opLog) -> {
             unsubscribe = STREAM_FILE_ACCESS.subscribe(
-                    guaranteedExtantDir(spec.streamsLoc(byNodeId(0))), new StreamDataListener() {});
+                    guaranteedExtantDir(spec.recordStreamsLoc(byNodeId(0))), new StreamDataListener() {});
             triggerAndCloseAtLeastOneFile(spec);
         }));
     }
@@ -151,11 +153,12 @@ public class NaturalDispatchOrderingTest {
      */
     @HapiTest
     @DisplayName("reversible child and removable preceding stream items are as expected")
+    @Tag(MATS)
     final Stream<DynamicTest> reversibleChildAndRemovablePrecedingItemsAsExpected(
             @NonFungibleToken(numPreMints = 2) SpecNonFungibleToken nonFungibleToken,
             @Account(maxAutoAssociations = 1) SpecAccount beneficiary,
-            @Contract(contract = "PrecompileAliasXfer", creationGas = 2_000_000) SpecContract transferContract,
-            @Contract(contract = "LowLevelCall") SpecContract lowLevelCallContract) {
+            @Contract(contract = "PrecompileAliasXfer", creationGas = 5_000_000) SpecContract transferContract,
+            @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
@@ -261,15 +264,16 @@ public class NaturalDispatchOrderingTest {
      */
     @HapiTest
     @DisplayName("removable child stream items are as expected")
+    @Tag(MATS)
     final Stream<DynamicTest> removableChildItemsAsExpected(
-            @Contract(contract = "OuterCreator") SpecContract outerCreatorContract,
-            @Contract(contract = "LowLevelCall") SpecContract lowLevelCallContract) {
+            @Contract(contract = "OuterCreator", creationGas = 2_000_000) SpecContract outerCreatorContract,
+            @Contract(contract = "LowLevelCall", creationGas = 2_000_000) SpecContract lowLevelCallContract) {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
-                outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(2_000_000)
+                outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
                         .via("nestedCreations")),
                 withOpContext((spec, opLog) -> {
                     final var calldata = startChainFn.encodeCallWithArgs(emptyMessage);

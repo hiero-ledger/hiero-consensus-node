@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getBySolidityIdNotS
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getClaimNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getExecutionTimeNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModifiedWithFixedPayer;
@@ -49,7 +50,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -71,7 +72,7 @@ public class MiscCryptoSuite {
 
     @HapiTest
     final Stream<DynamicTest> sysAccountKeyUpdateBySpecialWontNeedNewKeyTxnSign() {
-        String sysAccount = asEntityString(977);
+        String sysAccount = "977";
         String randomAccountA = "randomAccountA";
         String randomAccountB = "randomAccountB";
         String firstKey = "firstKey";
@@ -97,13 +98,17 @@ public class MiscCryptoSuite {
                         .hasKnownStatus(INVALID_SIGNATURE));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            requirement = FEE_SCHEDULE_OVERRIDES,
+            overrides = "fees.simpleFeesEnabled")
     final Stream<DynamicTest> reduceTransferFee() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
         final long REDUCED_SERVICE_FEE = 3L;
         final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiver").balance(0L),
                 cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
@@ -221,7 +226,7 @@ public class MiscCryptoSuite {
                         .addTokenAllowance(owner, token, spender, 100L)
                         .addNftAllowance(owner, nft, spender, true, List.of(1L))
                         .via("approveTxn")
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HBAR * 2)
                         .blankMemo()
                         .logged(),
                 /* NetworkGetExecutionTime requires superuser payer */

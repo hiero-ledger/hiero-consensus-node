@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_BYTECODE;
+import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_STORAGE;
+import static com.hedera.node.app.hapi.utils.EntityType.EVM_HOOK_STORAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * A read-only {@link ContractStateStore}.
  */
 @SuppressWarnings("MissingJavadoc")
 public class ReadableContractStateStore implements ContractStateStore {
-    private static final Logger logger = LogManager.getLogger(ReadableContractStateStore.class);
+
     private final ReadableKVState<SlotKey, SlotValue> storage;
     private final ReadableKVState<ContractID, Bytecode> bytecode;
     private final ReadableEntityCounters entityCounters;
@@ -33,8 +33,8 @@ public class ReadableContractStateStore implements ContractStateStore {
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.storage = states.get(V0490ContractSchema.STORAGE_KEY);
-        this.bytecode = states.get(V0490ContractSchema.BYTECODE_KEY);
+        this.storage = states.get(V0490ContractSchema.STORAGE_STATE_ID);
+        this.bytecode = states.get(V0490ContractSchema.BYTECODE_STATE_ID);
     }
 
     @Override
@@ -113,11 +113,11 @@ public class ReadableContractStateStore implements ContractStateStore {
      */
     @Override
     public long getNumSlots() {
-        return entityCounters.getCounterFor(EntityType.CONTRACT_STORAGE);
+        return entityCounters.getCounterFor(CONTRACT_STORAGE) + entityCounters.getCounterFor(EVM_HOOK_STORAGE);
     }
 
     @Override
     public long getNumBytecodes() {
-        return entityCounters.getCounterFor(EntityType.CONTRACT_BYTECODE);
+        return entityCounters.getCounterFor(CONTRACT_BYTECODE);
     }
 }

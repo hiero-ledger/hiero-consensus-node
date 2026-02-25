@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
@@ -19,22 +21,23 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * Implementation of {@link PreHandleContext}.
@@ -142,7 +145,7 @@ public class PreHandleContextImpl implements PreHandleContext {
         this.configuration = requireNonNull(configuration, "configuration must not be null!");
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null!");
         this.isUserTx = isUserTx;
-        this.accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        this.accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         // Find the account, which must exist or throw on construction
         final var payer = mustExist(accountStore.getAccountById(payerId), INVALID_PAYER_ACCOUNT_ID);
         // It would be a catastrophic invariant failure if an account in state didn't have a key
@@ -153,7 +156,7 @@ public class PreHandleContextImpl implements PreHandleContext {
     @Override
     @NonNull
     public <C> C createStore(@NonNull Class<C> storeInterface) {
-        return storeFactory.getStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override
@@ -275,8 +278,28 @@ public class PreHandleContextImpl implements PreHandleContext {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode)
             throws PreCheckException {
         requireNonNull(responseCode);
+        return requireKey(accountID, responseCode, false, null, false);
+    }
 
-        return requireKey(accountID, responseCode, false);
+    @NonNull
+    @Override
+    public PreHandleContext requireKeyOrThrowOnDeleted(
+            @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum failureStatus)
+            throws PreCheckException {
+        requireNonNull(failureStatus);
+        return requireKey(accountID, failureStatus, false, null, true);
+    }
+
+    @NonNull
+    @Override
+    public PreHandleContext requireKeyOrThrow(
+            @Nullable final AccountID accountID,
+            @NonNull final UnaryOperator<Key> finisher,
+            @NonNull final ResponseCodeEnum failureStatus)
+            throws PreCheckException {
+        requireNonNull(finisher);
+        requireNonNull(failureStatus);
+        return requireKey(accountID, failureStatus, false, finisher, true);
     }
 
     @Override
@@ -288,13 +311,15 @@ public class PreHandleContextImpl implements PreHandleContext {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode)
             throws PreCheckException {
         requireNonNull(responseCode);
-        return requireKey(accountID, responseCode, true);
+        return requireKey(accountID, responseCode, true, null, false);
     }
 
     private @NonNull PreHandleContext requireKey(
             final @Nullable AccountID accountID,
             final @NonNull ResponseCodeEnum responseCode,
-            final boolean allowAliasedIds)
+            final boolean allowAliasedIds,
+            @Nullable final UnaryOperator<Key> finisher,
+            final boolean failOnDeleted)
             throws PreCheckException {
         if (accountID == null) {
             throw new PreCheckException(responseCode);
@@ -316,6 +341,9 @@ public class PreHandleContextImpl implements PreHandleContext {
         if (account == null) {
             throw new PreCheckException(responseCode);
         }
+        if (failOnDeleted && account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
         // If it is hollow account, and we require this to sign, we need to finalize the account
         // with the corresponding ECDSA key in handle
         if (isHollow(account)) {
@@ -324,13 +352,15 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
-        final var key = account.keyOrThrow();
+        var key = account.keyOrThrow();
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
             throw new PreCheckException(responseCode);
         }
-
+        if (finisher != null) {
+            key = finisher.apply(key);
+        }
         return requireKey(key);
     }
 
@@ -488,6 +518,21 @@ public class PreHandleContextImpl implements PreHandleContext {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return context;
+    }
+
+    @Override
+    public Key getAccountKey(@NonNull final AccountID accountID) throws PreCheckException {
+        requireNonNull(accountID);
+        final var account = accountStore.getAccountById(accountID);
+        if (account == null) {
+            throw new PreCheckException(INVALID_ACCOUNT_ID);
+        }
+        if (account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
+        // Verify this key isn't for an immutable account
+        verifyNotStakingAccounts(account.accountIdOrThrow(), INVALID_ACCOUNT_ID);
+        return account.keyOrThrow();
     }
 
     @Override

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+replicas: 1
+
+resources:
+  limits:
+    cpu: 20
+    memory: 32Gi
+  requests:
+    cpu: 20
+    memory: 32Gi
+
+nodeSelector:
+  solo.hashgraph.io/role: "consensus-node"
+  solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+  solo.hashgraph.io/network-id: "%NETWORK_ID%"
+tolerations:
+  - key: "solo.hashgraph.io/role"
+    operator: "Equal"
+    value: "consensus-node"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/owner"
+    operator: "Equal"
+    value: "%NETWORK_OWNER%"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/network-id"
+    operator: "Equal"
+    value: "%NETWORK_ID%"
+    effect: "NoSchedule"

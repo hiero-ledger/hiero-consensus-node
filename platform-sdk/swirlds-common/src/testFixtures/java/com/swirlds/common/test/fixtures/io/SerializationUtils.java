@@ -4,7 +4,7 @@ package com.swirlds.common.test.fixtures.io;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 public class SerializationUtils {
 

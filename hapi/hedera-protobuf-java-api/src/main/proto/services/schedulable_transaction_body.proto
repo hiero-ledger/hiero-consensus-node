@@ -70,10 +70,15 @@ import "services/token_airdrop.proto";
 
 import "services/schedule_delete.proto";
 import "services/util_prng.proto";
+import "services/custom_fees.proto";
 
 import "services/node_create.proto";
 import "services/node_update.proto";
 import "services/node_delete.proto";
+
+import "services/registered_node_create.proto";
+import "services/registered_node_update.proto";
+import "services/registered_node_delete.proto";
 
 /**
  * A schedulable transaction.
@@ -402,5 +407,29 @@ message SchedulableTransactionBody {
          * other recipients receive the "airdropped" tokens immediately.
          */
         TokenAirdropTransactionBody tokenAirdrop = 48;
+
+        /**
+         * Create a new registered node in the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody registeredNodeCreate = 49;
+
+        /**
+         * Update a registered node in the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody registeredNodeUpdate = 50;
+
+        /**
+         * Delete a registered node from the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody registeredNodeDelete = 51;
     }
+
+    /**
+      * A list of maximum custom fees that the users are willing to pay.
+      * <p>
+      * This field is OPTIONAL.<br/>
+      * If left empty, the users are accepting to pay any custom fee.<br/>
+      * If used with a transaction type that does not support custom fee limits, the transaction will fail.
+      */
+    repeated CustomFeeLimit max_custom_fees = 1001;
 }

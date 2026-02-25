@@ -20,7 +20,7 @@ public class SidecarValidationOp extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        final var streamsLoc = spec.streamsLoc(byNodeId(0));
+        final var streamsLoc = spec.recordStreamsLoc(byNodeId(0));
         spec.setSidecarWatcher(new SidecarWatcher(streamsLoc));
         log.info("Watching for sidecar files at {}", streamsLoc);
         return false;

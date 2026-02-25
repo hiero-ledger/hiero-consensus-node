@@ -28,12 +28,12 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.ReadableRosterStore;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,7 +85,7 @@ public class CrsPublicationHandlerTest {
         lenient()
                 .when(handleContext.creatorInfo())
                 .thenReturn(new NodeInfoImpl(
-                        0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test"), List.of(), false));
+                        0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test"), List.of(), false, null));
         lenient().when(rosterStore.getActiveRoster()).thenReturn(createRoster());
         subject = new CrsPublicationHandler(controllers);
     }

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.lang.String.format;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.common.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -40,18 +40,18 @@ class ReplaceSyncPhaseParallelExecutorTests {
     void testReplacePhase(final int phaseNum, final int taskNum) throws ParallelExecutionException {
         final AtomicInteger replacementTask = new AtomicInteger(0);
         final ReplaceSyncPhaseParallelExecutor executor = new ReplaceSyncPhaseParallelExecutor(
-                getStaticThreadManager(), phaseNum, taskNum, toCallable(replacementTask::incrementAndGet));
+                getStaticThreadManager(), phaseNum, taskNum, replacementTask::incrementAndGet);
         executor.start();
 
         executor.doParallel(
                 toCallable(PhaseTask.PHASE1_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE1_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE1_TASK2.getTask()::incrementAndGet);
         executor.doParallel(
                 toCallable(PhaseTask.PHASE2_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE2_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE2_TASK2.getTask()::incrementAndGet);
         executor.doParallel(
                 toCallable(PhaseTask.PHASE3_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE3_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE3_TASK2.getTask()::incrementAndGet);
 
         for (final PhaseTask phaseTask : PhaseTask.values()) {
             if (phaseTask.matches(phaseNum, taskNum)) {

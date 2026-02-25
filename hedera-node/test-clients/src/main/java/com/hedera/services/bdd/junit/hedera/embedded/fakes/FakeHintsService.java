@@ -1,25 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
@@ -35,13 +38,13 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        delegate.initCurrentRoster(roster);
+    public @NonNull Bytes activeVerificationKeyOrThrow() {
+        return delegate.activeVerificationKeyOrThrow();
     }
 
     @Override
-    public @NonNull Bytes activeVerificationKeyOrThrow() {
-        return delegate.activeVerificationKeyOrThrow();
+    public void onFinishedConstruction(@Nullable final OnHintsFinished cb) {
+        delegate.onFinishedConstruction(cb);
     }
 
     @Override
@@ -50,8 +53,8 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        return delegate.signFuture(blockHash);
+    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+        return delegate.sign(blockHash);
     }
 
     @Override
@@ -65,13 +68,13 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void manageRosterAdoption(
+    public void handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             final boolean forceHandoff) {
-        delegate.manageRosterAdoption(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
+        delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
     }
 
     @Override
@@ -96,12 +99,7 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public long activeSchemeId() {
-        return delegate.activeSchemeId();
-    }
-
-    @Override
-    public Bytes activeVerificationKey() {
-        return delegate.activeVerificationKey();
+    public @Nullable HintsConstruction activeConstruction() {
+        return delegate.activeConstruction();
     }
 }

@@ -10,7 +10,6 @@ import java.util.Timer;
  * A scheduler that produces heartbeats at a specified rate.
  */
 public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
-
     private final Timer timer = new Timer();
 
     /**
@@ -18,11 +17,9 @@ public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
      *
      * @param model the wiring model containing this heartbeat scheduler
      * @param time  provides wall clock time
-     * @param name  the name of the heartbeat scheduler
      */
-    public HeartbeatScheduler(
-            @NonNull final StandardWiringModel model, @NonNull final Time time, @NonNull final String name) {
-        super(model, time, name);
+    public HeartbeatScheduler(@NonNull final StandardWiringModel model, @NonNull final Time time) {
+        super(model, time);
     }
 
     /**

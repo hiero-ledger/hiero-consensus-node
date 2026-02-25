@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isRandomResult;
@@ -29,7 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -50,6 +51,7 @@ public class PrngPrecompileSuite {
                     + "00000000d83bf9a1000000000d83bf9a1000";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> multipleCallsHaveIndependentResults() {
         final var prng = THE_PRNG_CONTRACT;
         final var gasToOffer = 400_000;
@@ -115,7 +117,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(emptyInputCall)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(21_070L, gasUsed);
                 }));
     }
 
@@ -140,7 +142,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(largeInputCall)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(26_134L, gasUsed);
                 }));
     }
 
@@ -188,7 +190,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(lessThan4Bytes)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(21_118L, gasUsed);
                 }));
     }
 
@@ -200,13 +202,10 @@ public class PrngPrecompileSuite {
                 cryptoCreate(BOB),
                 uploadInitCode(prng),
                 contractCreate(prng),
-                sourcing(() -> contractCall(prng, GET_SEED)
-                        .gas(GAS_TO_OFFER)
-                        .payingWith(BOB)
-                        .via(randomBits)),
+                contractCall(prng, GET_SEED).gas(GAS_TO_OFFER).payingWith(BOB).via(randomBits),
                 getTxnRecord(randomBits)
                         .andAllChildRecords()
-                        .hasChildRecordCount(1)
+                        .hasNonStakingChildRecordCount(1)
                         .hasChildRecords(recordWith()
                                 .pseudoRandomBytes()
                                 .contractCallResult(resultWith()
@@ -228,6 +227,7 @@ public class PrngPrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> prngPrecompileInsufficientGas() {
         final var prng = THE_PRNG_CONTRACT;
         final var randomBits = "randomBits";

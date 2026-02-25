@@ -3,7 +3,6 @@ package com.swirlds.component.framework.schedulers.internal;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 
-import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -12,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
 
 /**
  * A scheduler that performs work immediately on the caller's thread.
@@ -20,7 +20,6 @@ import java.util.function.Consumer;
  */
 public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
 
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
     private final FractionalTimer busyTimer;
@@ -50,11 +49,11 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
                 model,
                 name,
                 threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT,
+                uncaughtExceptionHandler,
                 false,
                 squelchingEnabled,
                 true);
 
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.busyTimer = Objects.requireNonNull(busyTimer);
@@ -127,7 +126,7 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
         try {
             handler.accept(data);
         } catch (final Throwable t) {
-            uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
+            getUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
         }
         busyTimer.deactivate();
         offRamp.offRamp();

@@ -49,7 +49,7 @@ public class AppFeeCharging implements FeeCharging {
             @NonNull final AccountID creatorId,
             @NonNull final Fees fees,
             @NonNull final TransactionBody body,
-            boolean isDuplicate,
+            final boolean isDuplicate,
             @NonNull final HederaFunctionality function,
             @NonNull final HandleContext.TransactionCategory category) {
         requireNonNull(payer);
@@ -81,7 +81,12 @@ public class AppFeeCharging implements FeeCharging {
     }
 
     @Override
-    public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Context ctx,
+            @NonNull final Validation validation,
+            @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
@@ -92,10 +97,19 @@ public class AppFeeCharging implements FeeCharging {
         final boolean shouldWaiveServiceFee =
                 result.serviceFeeStatus() == UNABLE_TO_PAY_SERVICE_FEE || result.duplicateStatus() == DUPLICATE;
         final var feesToCharge = shouldWaiveServiceFee ? fees.withoutServiceComponent() : fees;
+        return switch (ctx.category()) {
+            case USER, NODE -> ctx.charge(payerId, feesToCharge, ctx.nodeAccountId(), null);
+            default -> ctx.charge(payerId, feesToCharge, null);
+        };
+    }
+
+    @Override
+    public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(ctx);
+        requireNonNull(fees);
         switch (ctx.category()) {
-            case USER, NODE -> ctx.charge(
-                    result.payerOrThrow().accountIdOrThrow(), feesToCharge, result.creatorId(), null);
-            default -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge, null);
+            case USER, NODE -> ctx.refund(payerId, fees, ctx.nodeAccountId());
+            default -> ctx.refund(payerId, fees);
         }
     }
 }

@@ -4,19 +4,14 @@ package com.swirlds.platform.state.snapshot;
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.UNKNOWN;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -27,9 +22,15 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * This class is responsible for managing the state writing pipeline.
@@ -63,8 +64,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     private final Configuration configuration;
 
-    private final PlatformStateFacade platformStateFacade;
-
     /**
      * the platform context
      */
@@ -81,20 +80,25 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private final SignedStateFilePath signedStateFilePath;
 
     /**
+     * Provides access to the state
+     */
+    private final StateLifecycleManager stateLifecycleManager;
+
+    /**
      * Creates a new instance.
      *
      * @param platformContext       the platform context
      * @param mainClassName the main class name of this node
      * @param selfId        the ID of this node
      * @param swirldName    the name of the swirld
-     * @param platformStateFacade the facade to access the platform state
+     * @param stateLifecycleManager the state lifecycle manager
      */
     public DefaultStateSnapshotManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = platformContext.getTime();
@@ -102,7 +106,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.mainClassName = Objects.requireNonNull(mainClassName);
         this.swirldName = Objects.requireNonNull(swirldName);
         configuration = platformContext.getConfiguration();
-        this.platformStateFacade = platformStateFacade;
+        this.stateLifecycleManager = stateLifecycleManager;
         signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
@@ -132,9 +136,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             signedState.stateSavedToDisk();
-            final long minGen = deleteOldStates();
+            final long minBirthRound = deleteOldStates();
             stateSavingResult = new StateSavingResult(
-                    signedState.getRound(), signedState.isFreezeState(), signedState.getConsensusTimestamp(), minGen);
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
         }
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
@@ -169,7 +176,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext, selfId, directory, state, getReason(state), platformStateFacade);
+                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(
@@ -222,24 +229,20 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             final double signingWeight1Percent = (((double) signingWeight1) / ((double) totalWeight1)) * 100.0;
             final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
 
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    new InsufficientSignaturesPayload(
-                            ("""
+            logger.error(EXCEPTION.getMarker(), new InsufficientSignaturesPayload(("""
                                     State written to disk for round %d did not have enough signatures.
                                     This log adds debug information for #11422.
                                     Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
-                                    Pre-check threshold: %s   Post-check threshold: %s"""
-                                    .formatted(
-                                            reservedState.getRound(),
-                                            signingWeight1,
-                                            totalWeight1,
-                                            signingWeight1Percent,
-                                            signingWeight2,
-                                            totalWeight2,
-                                            signingWeight2Percent,
-                                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
-                                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
+                                    Pre-check threshold: %s   Post-check threshold: %s""".formatted(
+                            reservedState.getRound(),
+                            signingWeight1,
+                            totalWeight1,
+                            signingWeight1Percent,
+                            signingWeight2,
+                            totalWeight2,
+                            signingWeight2Percent,
+                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
+                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
         }
     }
 
@@ -257,7 +260,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Purge old states on the disk.
      *
-     * @return the minimum generation non-ancient of the oldest state that was not deleted
+     * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
         final List<SavedStateInfo> savedStates =
@@ -270,7 +273,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
             final SavedStateInfo savedStateInfo = savedStates.get(index);
             try {
-                deleteDirectoryAndLog(savedStateInfo.getDirectory());
+                deleteDirectoryAndLog(savedStateInfo.stateDirectory());
             } catch (final IOException e) {
                 // Intentionally ignored, deleteDirectoryAndLog will log any exceptions that happen
             }
@@ -280,6 +283,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             return EventConstants.GENERATION_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
-        return oldestStateMetadata.minimumGenerationNonAncient();
+        return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

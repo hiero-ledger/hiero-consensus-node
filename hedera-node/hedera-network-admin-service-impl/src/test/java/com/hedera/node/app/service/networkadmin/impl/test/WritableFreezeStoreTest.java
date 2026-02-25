@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,8 +18,8 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.networkadmin.impl.ReadableFreezeStoreImpl;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableFreezeStoreTest {
+
     @Mock(strictness = LENIENT)
     protected WritableStates writableStates;
 
@@ -44,9 +47,12 @@ class WritableFreezeStoreTest {
     @Test
     void testFreezeTime() {
         final AtomicReference<ProtoBytes> freezeTimeBackingStore = new AtomicReference<>(null);
-        when(writableStates.getSingleton(FREEZE_TIME_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+        when(writableStates.getSingleton(FREEZE_TIME_STATE_ID))
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        FREEZE_TIME_STATE_ID,
+                        FREEZE_TIME_STATE_LABEL,
+                        freezeTimeBackingStore::get,
+                        freezeTimeBackingStore::set));
         final AtomicReference<ProtoBytes> lastFrozenBackingStore = new AtomicReference<>(null);
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
@@ -63,9 +69,12 @@ class WritableFreezeStoreTest {
     @Test
     void testUpdateFileHash() {
         final AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(null);
-        when(writableStates.getSingleton(UPGRADE_FILE_HASH_KEY))
-                .then(invocation ->
-                        new WritableSingletonStateBase<>(UPGRADE_FILE_HASH_KEY, backingStore::get, backingStore::set));
+        when(writableStates.getSingleton(UPGRADE_FILE_HASH_STATE_ID))
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        UPGRADE_FILE_HASH_STATE_ID,
+                        UPGRADE_FILE_HASH_STATE_LABEL,
+                        backingStore::get,
+                        backingStore::set));
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
         // test with no file hash set

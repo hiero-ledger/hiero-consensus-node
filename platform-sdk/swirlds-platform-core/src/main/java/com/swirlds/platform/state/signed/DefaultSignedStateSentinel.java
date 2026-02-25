@@ -7,14 +7,16 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.throttle.RateLimiter;
-import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateHistory;
 
 /**
  * This object is responsible for observing the lifespans of signed states, and taking action if a state suspected of a
@@ -24,7 +26,6 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
 
     private static final Logger logger = LogManager.getLogger(DefaultSignedStateSentinel.class);
 
-    private final Time time;
     private final RateLimiter rateLimiter;
 
     private final Duration maxSignedStateAge;
@@ -35,9 +36,8 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
      * @param platformContext the current platform's context
      */
     public DefaultSignedStateSentinel(@NonNull final PlatformContext platformContext) {
-        this.time = platformContext.getTime();
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        maxSignedStateAge = stateConfig.suspiciousSignedStateAge();
+        maxSignedStateAge = stateConfig.suspiciousSignedStateAgeGap();
         final Duration rateLimitPeriod = stateConfig.signedStateAgeNotifyRateLimit();
         rateLimiter = new RateLimiter(Time.getCurrent(), rateLimitPeriod);
     }
@@ -50,14 +50,19 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
         if (!rateLimiter.request()) {
             return;
         }
-        final RuntimeObjectRecord objectRecord = RuntimeObjectRegistry.getOldestActiveObjectRecord(SignedState.class);
-        if (objectRecord == null) {
+        final RuntimeObjectRecord oldest = RuntimeObjectRegistry.getOldestActiveObjectRecord(SignedState.class);
+        if (oldest == null) {
+            return;
+        }
+        final RuntimeObjectRecord newest = RuntimeObjectRegistry.getNewestActiveObjectRecord(SignedState.class);
+        if (newest == null) {
             return;
         }
 
-        if (CompareTo.isGreaterThan(objectRecord.getAge(time.now()), maxSignedStateAge)
-                && rateLimiter.requestAndTrigger()) {
-            final SignedStateHistory history = objectRecord.getMetadata();
+        final Duration signedStateGap = Duration.between(oldest.getCreationTime(), newest.getCreationTime());
+
+        if (CompareTo.isGreaterThan(signedStateGap, maxSignedStateAge) && rateLimiter.requestAndTrigger()) {
+            final SignedStateHistory history = oldest.getMetadata();
             logger.error(
                     EXCEPTION.getMarker(),
                     "Old signed state detected. The most likely causes are either that the node has gotten stuck or that there has been a memory leak.\n{}",

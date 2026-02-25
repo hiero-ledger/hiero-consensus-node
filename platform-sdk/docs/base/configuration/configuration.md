@@ -188,6 +188,11 @@ final Configuration config = ConfigurationBuilder.create()
 final UUID id = config.getValue("app.id");
 ```
 
+You cannot add multiple converters for the same type.
+An exception will be thrown if you try to add a converter for a type that has already has a registered converter.
+You can, however, register converter for any of the above mentioned types that are supported by default.
+In that case your custom converter will be used.
+
 ### Supported config sources
 
 The configuration can support multiple sources for config properties. How such sources can be defined and added will be
@@ -471,10 +476,6 @@ specific format. The `com.swirlds.common.config.sources.LegacyFileConfigSource` 
 is used in the platform to read the 2 files and extract configuration properties out of them. The `config.txt` file has
 a higher priority than the `settings.txt` file. Based on that the `config.txt` can overwrite properties that are already
 defined in the `settings.txt` file.
-
-Next to this the `config.txt` has some special properties (`app` and `address`) that will not be handled by the config
-API today. For this 2 properties a custom parser exists (see
-`com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader` for more details)
 
 ### Support for aliases
 

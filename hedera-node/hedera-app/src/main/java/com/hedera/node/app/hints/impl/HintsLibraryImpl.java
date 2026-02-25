@@ -20,8 +20,10 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
+    public static final int VK_LENGTH = 1096;
+
     @Override
-    public Bytes newCrs(final int n) {
+    public Bytes newCrs(final short n) {
         return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
@@ -106,12 +108,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return BRIDGE.verifyBls(
-                crs.toByteArray(),
-                signature.toByteArray(),
-                message.toByteArray(),
-                aggregationKey.toByteArray(),
-                partyId);
+        return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
     @Override
