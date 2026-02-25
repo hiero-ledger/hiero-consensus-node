@@ -54,12 +54,7 @@ public class CongestionPricingTest {
 
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {
-                "contracts.maxGasPerSec",
-                "fees.percentCongestionMultipliers",
-                "fees.minCongestionPeriod",
-                "fees.simpleFeesEnabled"
-            })
+            overrides = {"contracts.maxGasPerSec", "fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateGasThrottleMultipliersDynamically() {
         final var contract = "Multipurpose";
 
@@ -70,7 +65,7 @@ public class CongestionPricingTest {
         final var gasToOffer = 200_000L;
 
         return hapiTest(
-                overridingTwo("contracts.maxGasPerSec", "15_000_000", "fees.simpleFeesEnabled", "true"),
+                overriding("contracts.maxGasPerSec", "15_000_000"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract),
@@ -122,7 +117,7 @@ public class CongestionPricingTest {
 
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "fees.simpleFeesEnabled"})
+            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
@@ -130,7 +125,6 @@ public class CongestionPricingTest {
 
         return hapiTest(
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
