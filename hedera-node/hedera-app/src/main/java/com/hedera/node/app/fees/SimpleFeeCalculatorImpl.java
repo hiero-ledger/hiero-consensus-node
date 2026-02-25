@@ -5,8 +5,8 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -133,7 +133,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
         final var functionality = simpleFeeContext.functionality();
-        final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
+        final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
         if (txnBody.highVolume() && isHighVolumeFunction) {
@@ -203,7 +203,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     public long highVolumeRawMultiplier(@NonNull final TransactionBody txnBody, @NonNull final FeeContext feeContext) {
         final var functionality = feeContext.functionality();
-        if (!txnBody.highVolume() || !HIGH_VOLUME_FUNCTIONS.contains(functionality)) {
+        if (!txnBody.highVolume() || !HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality)) {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);

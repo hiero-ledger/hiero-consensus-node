@@ -529,6 +529,8 @@ public final class Hedera
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
+                java.time.Duration.ofSeconds(
+                        bootstrapConfig.getConfigData(HederaConfig.class).maximumPermissibleUnhealthySeconds()),
                 metrics,
                 instantSource);
 

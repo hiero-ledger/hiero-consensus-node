@@ -7,20 +7,6 @@ plugins {
 
 description = "Openmetrics HTTP Server for Hiero Metrics"
 
-dependencies {
-    jmh("io.prometheus:prometheus-metrics-core:1.4.3")
-    jmh("io.prometheus:prometheus-metrics-exporter-httpserver:1.4.3")
-}
-
-extraJavaModuleInfo {
-    module("io.prometheus:prometheus-metrics-core", "io.prometheus.metrics.core")
-    module("io.prometheus:prometheus-metrics-model", "io.prometheus.metrics.model")
-    module(
-        "io.prometheus:prometheus-metrics-exporter-httpserver",
-        "io.prometheus.metrics.exporter.httpserver",
-    )
-}
-
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
@@ -43,3 +29,15 @@ jmhModuleInfo {
     runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
     runtimeOnly("com.swirlds.config.impl")
 }
+
+// versions and module name mappings for prometheus-metrics modules only required for JMH
+javaModuleDependencies {
+    moduleNameToGA.put("io.prometheus.metrics.core", "io.prometheus:prometheus-metrics-core")
+    moduleNameToGA.put(
+        "io.prometheus.metrics.exporter.httpserver",
+        "io.prometheus:prometheus-metrics-exporter-httpserver",
+    )
+    moduleNameToGA.put("io.prometheus.metrics.model", "io.prometheus:prometheus-metrics-model")
+}
+
+dependencies { api(platform("io.prometheus:prometheus-metrics-bom:1.4.3")) }

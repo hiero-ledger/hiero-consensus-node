@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.streams;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,6 +17,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -150,9 +152,8 @@ class AsyncInputStreamTest {
 
         // Unblock the buffer, allowing remaining messages to be sent
         blockingOut.unlock();
-        MILLISECONDS.sleep(100);
 
-        assertEquals(count, messagesSent.get(), "all messages should have been sent");
+        assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should have been sent");
 
         out.close();
         workGroup.waitForTermination();
@@ -229,9 +230,8 @@ class AsyncInputStreamTest {
 
         // Unblock the stream, remainder of messages should be read
         blockingIn.unlock();
-        MILLISECONDS.sleep(100);
 
-        assertEquals(count, messagesReceived.get(), "all messages should be read");
+        assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(5), "all messages should be read");
 
         in.close();
         workGroup.waitForTermination();
