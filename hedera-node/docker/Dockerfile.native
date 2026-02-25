@@ -48,6 +48,17 @@ RUN for jar in data/lib/netty-*.jar data/lib/grpc-netty*.jar; do \
         [ -f "$jar" ] && zip -dq "$jar" 'META-INF/native-image/*' 2>/dev/null || true; \
     done
 
+# Extract JNA native library (needed at runtime for LazySodium/libsodium)
+# In native-image the classpath JARs aren't available, so JNA can't self-extract.
+RUN mkdir -p /build/jna-libs && \
+    ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64)  JNA_ARCH="linux-x86-64" ;; \
+        aarch64) JNA_ARCH="linux-aarch64" ;; \
+        *)       echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac && \
+    unzip -j data/lib/jna-*.jar "com/sun/jna/$JNA_ARCH/libjnidispatch.so" -d /build/jna-libs/
+
 # Build the native image with G1 GC
 RUN native-image \
     -cp "data/lib/*:data/apps/*" \
@@ -56,7 +67,7 @@ RUN native-image \
     --no-fallback \
     --gc=G1 \
     "--initialize-at-build-time=org.slf4j,com.fasterxml.jackson,com.google.common,org.apache.commons,com.google.gson,com.google.errorprone,javax.annotation,io.perfmark,org.yaml.snakeyaml" \
-    "--initialize-at-run-time=com.sun.jna,io.netty.channel.epoll" \
+    "--initialize-at-run-time=com.sun.jna,io.netty" \
     -J-Xmx8g \
     com.hedera.node.app.ServicesMain
 
@@ -76,6 +87,9 @@ WORKDIR /app
 # Copy the native binary
 COPY --from=builder /build/hedera-node ./hedera-node
 
+# Copy JNA native library for LazySodium
+COPY --from=builder /build/jna-libs/libjnidispatch.so /usr/lib/
+
 # Copy configuration
 ARG CONFIGURATION_PROFILE=small-memory
 COPY hedera-node/configuration/${CONFIGURATION_PROFILE}/ data/config/
@@ -88,4 +102,4 @@ COPY hedera-node/data/onboard/ data/onboard/
 COPY hedera-node/data/keys/ data/keys/
 
 ENTRYPOINT ["/bin/sh", "-c", \
-    "./hedera-node -Xmx128m -Xss512k -local 0; rc=$?; echo \"#### Hedera Node Stopped (Exit Code: $rc) at $(date '+%Y-%m-%d %H:%M:%S') ####\"; exit $rc"]
+    "./hedera-node -Djna.boot.library.path=/usr/lib -Dio.netty.transport.noNative=true -Xmx256m -Xss512k -local 0; rc=$?; echo \"#### Hedera Node Stopped (Exit Code: $rc) at $(date '+%Y-%m-%d %H:%M:%S') ####\"; exit $rc"]
