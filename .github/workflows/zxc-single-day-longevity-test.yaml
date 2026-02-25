@@ -1011,7 +1011,7 @@ jobs:
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
                    export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
-                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; PATH=/usr/bin:\$PATH bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; JAVA_HOME=/usr PATH=/usr/bin:\$PATH bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
           #for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
