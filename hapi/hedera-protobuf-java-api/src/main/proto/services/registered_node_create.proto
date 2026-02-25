@@ -58,4 +58,21 @@ message RegisteredNodeCreateTransactionBody {
      * This list MUST NOT contain more than `50` entries.
      */
     repeated RegisteredServiceEndpoint service_endpoint = 3;
+
+    /**
+     * An account identifier.<br/>
+     * This account identifies the entity financially responsible for this
+     * registered node.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * Individual node operators SHALL have full authority to set, change, or
+     * remove their node account ID.<br/>
+     * If set and the node account ID does not resolve to an existing and active
+     * account, then the transaction SHALL fail.<br/>
+     * Node operators SHOULD ensure that the node account is kept up to date
+     * and always refers to a valid and active `Account`.<br/>
+     * The owner of the node account MAY be different from the owner of the
+     * registered node.
+     */
+    proto.AccountID node_account = 4;
 }
