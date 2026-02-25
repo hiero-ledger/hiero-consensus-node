@@ -291,7 +291,7 @@ class EventSignatureValidatorTests {
         final PlatformEvent runtime = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
-                .setOrigin(EventOrigin.RUNTIME_CREATED)
+                .setOrigin(EventOrigin.RUNTIME)
                 .build();
         assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());

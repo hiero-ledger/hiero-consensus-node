@@ -265,7 +265,7 @@ public class PcesGraphSlicer {
         // Store for parent lookup by subsequent events
         migratedParents.put(event.getHash().getBytes(), eventDescriptor);
 
-        return new PlatformEvent(unsignedEvent, signature.getBytes(), EventOrigin.RUNTIME_CREATED);
+        return new PlatformEvent(unsignedEvent, signature.getBytes(), EventOrigin.RUNTIME);
     }
 
     /**

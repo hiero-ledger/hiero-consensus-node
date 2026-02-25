@@ -255,7 +255,7 @@ public class BlockStreamEventBuilder {
                 .parents(resolvedParents)
                 .transactions(transactionBytes) // may not match original if there are filtered transactions
                 .build();
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.TRUSTED_STORAGE);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.STORAGE);
         platformEvent.setHash(eventHash);
         return platformEvent;
     }

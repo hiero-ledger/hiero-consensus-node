@@ -256,7 +256,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME_CREATED);
+        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
     }
 
     /**

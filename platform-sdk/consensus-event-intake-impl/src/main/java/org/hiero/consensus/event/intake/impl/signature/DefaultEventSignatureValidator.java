@@ -161,7 +161,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return null;
         }
 
-        if (event.getOrigin() == EventOrigin.RUNTIME_CREATED) {
+        if (event.getOrigin() == EventOrigin.RUNTIME) {
             // This is an event we just created and signed, there is no need to validate the signature
             return event;
         }
