@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.NAME;
@@ -25,6 +27,7 @@ import static org.mockito.Mockito.verify;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -34,6 +37,7 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
@@ -55,6 +59,7 @@ import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -70,6 +75,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -559,5 +565,147 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     private static Instant fromTimestamp(final Timestamp timestamp) {
         return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
+    }
+
+    @Nested
+    class ComputeWrappedRecordBlockRootHashTest {
+
+        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
+
+        @Test
+        void producesHashOfCorrectSize() {
+            final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    HASH_OF_ZERO, HASH_OF_ZERO, entryWithZeroHashes());
+
+            assertThat(result.length()).isEqualTo(HASH_SIZE);
+        }
+
+        @Test
+        void isDeterministic() {
+            final var prevBlockHash = randomHash();
+            final var allPrevRootHash = randomHash();
+            final var entry = entryWith(randomHash(), randomHash());
+
+            final var first = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entry);
+            final var second = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entry);
+
+            assertThat(first).isEqualTo(second);
+        }
+
+        @Test
+        void variesWithPreviousBlockRootHash() {
+            final var allPrevRootHash = randomHash();
+            final var entry = entryWith(randomHash(), randomHash());
+
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    randomHash(), allPrevRootHash, entry);
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    randomHash(), allPrevRootHash, entry);
+
+            assertThat(resultA).isNotEqualTo(resultB);
+        }
+
+        @Test
+        void variesWithAllPrevBlocksRootHash() {
+            final var prevBlockHash = randomHash();
+            final var entry = entryWith(randomHash(), randomHash());
+
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, randomHash(), entry);
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, randomHash(), entry);
+
+            assertThat(resultA).isNotEqualTo(resultB);
+        }
+
+        @Test
+        void variesWithOutputItemsTreeRootHash() {
+            final var prevBlockHash = randomHash();
+            final var allPrevRootHash = randomHash();
+            final var consensusHash = randomHash();
+
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
+
+            assertThat(resultA).isNotEqualTo(resultB);
+        }
+
+        @Test
+        void variesWithConsensusTimestampHash() {
+            final var prevBlockHash = randomHash();
+            final var allPrevRootHash = randomHash();
+            final var outputHash = randomHash();
+
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
+
+            assertThat(resultA).isNotEqualTo(resultB);
+        }
+
+        @Test
+        void matchesManualComputation() {
+            final var prevBlockHash = randomHash();
+            final var allPrevRootHash = randomHash();
+            final var outputHash = randomHash();
+            final var consensusHash = randomHash();
+            final var entry = entryWith(outputHash, consensusHash);
+
+            // Manually compute the expected tree structure
+            final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
+            final Bytes depth5Node2 = EMPTY_INT_NODE;
+            final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
+            final Bytes depth5Node4 = EMPTY_INT_NODE;
+
+            final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
+            final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+
+            final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+
+            final Bytes depth2Node1 = consensusHash;
+            final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
+
+            final Bytes expected = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+
+            final var actual = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevBlockHash, allPrevRootHash, entry);
+
+            assertThat(actual).isEqualTo(expected);
+        }
+
+        @Test
+        void chainedComputationsProduceDifferentResults() {
+            final var allPrevRootHash = randomHash();
+            final var entry = entryWith(randomHash(), randomHash());
+
+            final var block1Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    HASH_OF_ZERO, allPrevRootHash, entry);
+            final var block2Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    block1Hash, allPrevRootHash, entry);
+
+            assertThat(block1Hash).isNotEqualTo(block2Hash);
+        }
+
+        private WrappedRecordFileBlockHashes entryWithZeroHashes() {
+            return entryWith(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE]));
+        }
+
+        private WrappedRecordFileBlockHashes entryWith(Bytes outputTreeRootHash, Bytes consensusTimestampHash) {
+            return WrappedRecordFileBlockHashes.newBuilder()
+                    .outputItemsTreeRootHash(outputTreeRootHash)
+                    .consensusTimestampHash(consensusTimestampHash)
+                    .build();
+        }
+
+        private Bytes randomHash() {
+            final var bytes = new byte[HASH_SIZE];
+            new SecureRandom().nextBytes(bytes);
+            return Bytes.wrap(bytes);
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
@@ -15,12 +16,15 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESC
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
@@ -65,6 +69,7 @@ import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 @Singleton
 public final class BlockRecordManagerImpl implements BlockRecordManager {
     private static final Logger logger = LogManager.getLogger(BlockRecordManagerImpl.class);
+    private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     /**
      * The number of blocks to keep multiplied by hash size. This is computed based on the
@@ -314,7 +319,46 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         return false;
     }
 
-    @Override
+	/**
+	 * Computes the wrapped record block root hash for a single block from its constituent hashes.
+	 *
+	 * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
+	 * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
+	 * @param entry the wrapped record file block hashes for the current block
+	 * @return the computed block root hash
+	 */
+    @VisibleForTesting
+	public static Bytes computeWrappedRecordBlockRootHash(
+			@NonNull final Bytes previousWrappedRecordBlockRootHash,
+			@NonNull final Bytes allPrevBlocksRootHash,
+			@NonNull final WrappedRecordFileBlockHashes entry) {
+		// Branch 2
+		final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
+
+		// Branches 3/4 (empty)
+		@SuppressWarnings("UnnecessaryLocalVariable") final Bytes depth5Node2 = EMPTY_INT_NODE;
+
+		// Branches 5/6
+		final Bytes outputTreeHash = entry.outputItemsTreeRootHash();
+		final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
+
+		// Branches 7/8 (empty)
+		@SuppressWarnings("UnnecessaryLocalVariable") final Bytes depth5Node4 = EMPTY_INT_NODE;
+
+		// Intermediate depths 4, 3, and 2
+		final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
+		final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+
+		final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+
+		final Bytes depth2Node1 = entry.consensusTimestampHash();
+		final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
+
+		// Final block root (depth 1)
+		return BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+	}
+
+	@Override
     public void markMigrationRecordsStreamed() {
         lastBlockInfo =
                 lastBlockInfo.copyBuilder().migrationRecordsStreamed(true).build();

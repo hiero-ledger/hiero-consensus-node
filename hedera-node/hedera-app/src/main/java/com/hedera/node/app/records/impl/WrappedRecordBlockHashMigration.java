@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -60,7 +58,6 @@ public class WrappedRecordBlockHashMigration {
         return result;
     }
 
-    static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
     private static final String RESUME_MESSAGE =
             "Resuming calculation of wrapped record file hashes until next attempt, but this node "
                     + "will likely experience an ISS";
@@ -297,33 +294,9 @@ public class WrappedRecordBlockHashMigration {
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
-            // Branch 1 is represented by `prevWrappedBlockHash`
-
-            // Branch 2
             final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
-            final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(prevWrappedBlockHash, allPrevBlocksHash);
-
-            // Branches 3/4 (empty)
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-
-            // Branches 5/6
-            final Bytes outputTreeHash = recentWrappedRecordHashes.outputItemsTreeRootHash();
-            final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
-
-            // Branches 7/8 (empty)
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-            // Intermediate depths 4, 3, and 2
-            final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-
-            final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
-
-            final Bytes depth2Node1 = recentWrappedRecordHashes.consensusTimestampHash();
-            final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-            // Final block root
-            final Bytes finalBlockHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+            final Bytes finalBlockHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
             }
