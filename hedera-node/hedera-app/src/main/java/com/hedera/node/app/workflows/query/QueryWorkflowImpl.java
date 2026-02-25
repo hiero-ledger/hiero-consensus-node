@@ -181,6 +181,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             }
             final ResponseType responseType = queryHeader.responseType();
             final var configuration = configProvider.getConfiguration();
+            final var useSimpleFees =
+                    configuration.getConfigData(FeesConfig.class).simpleFeesEnabled();
             logger.debug("Started answering a {} query of type {}", function, responseType);
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
@@ -252,7 +254,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                             // 3.iv Calculate costs
                             long queryFees;
-                            if (shouldUseSimpleFees(context)) {
+                            if (useSimpleFees) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
                                 queryFees = tinycentsToTinybars(
@@ -312,7 +314,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
                     long queryFees;
-                    if (shouldUseSimpleFees(context)) {
+                    if (useSimpleFees) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                 .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
                         queryFees = tinycentsToTinybars(
@@ -358,13 +360,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
     }
 
-    private boolean shouldUseSimpleFees(QueryContext context) {
-        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return false;
-        }
-        return supportsSimpleFees(functionOf(context.query()));
-    }
-
     private boolean requiresNodePayment(
             @NonNull final QueryHandler handler,
             @NonNull final ResponseType responseType,
@@ -373,28 +368,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         return configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
                 ? !feeManager.isFreeQuery(functionality)
                 : handler.requiresNodePayment(responseType);
-    }
-
-    private static boolean supportsSimpleFees(@NonNull final HederaFunctionality functionality) {
-        return switch (functionality) {
-            case CONSENSUS_GET_TOPIC_INFO,
-                    SCHEDULE_GET_INFO,
-                    FILE_GET_CONTENTS,
-                    FILE_GET_INFO,
-                    TOKEN_GET_INFO,
-                    TOKEN_GET_NFT_INFO,
-                    CRYPTO_GET_INFO,
-                    CRYPTO_GET_ACCOUNT_RECORDS,
-                    CRYPTO_GET_ACCOUNT_BALANCE,
-                    GET_VERSION_INFO,
-                    TRANSACTION_GET_RECORD,
-                    TRANSACTION_GET_RECEIPT,
-                    GET_BY_KEY,
-                    CONTRACT_CALL_LOCAL,
-                    CONTRACT_GET_BYTECODE,
-                    CONTRACT_GET_INFO -> true;
-            default -> false;
-        };
     }
 
     private Query parseQuery(Bytes requestBuffer) {
