@@ -57,6 +57,8 @@ jobs:
 
   # Update the variable `MQPT_CLUSTER` in Github
   # Options are: Dallas_n10, Dallas_n11, Dallas_n12
+  # This job will be removed before Merge Queues are required
+  # This job is ONLY for testing purposes to rapidly iterate and test
   update-mqpt-cluster-variable:
     name: Update MQPT_CLUSTER Variable
     runs-on: hl-cn-default-lin-sm
@@ -82,7 +84,7 @@ jobs:
           echo "Next cluster: ${next_cluster}"
           echo "NEXT_CLUSTER=$next_cluster" >> "${GITHUB_ENV}"
 
-      - name: Update GS_STATE to input value
+      - name: Update MQPT_CLUSTER to input value
         uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
         with:
           name: "MQPT_CLUSTER"
