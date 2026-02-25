@@ -64,15 +64,4 @@ message RegisteredNode {
      * This list SHALL NOT contain more than `50` entries.
      */
     repeated com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint service_endpoint = 4;
-
-    /**
-     * An account identifier.<br/>
-     * This account identifies the entity financially responsible for this
-     * registered node.
-     * <p>
-     * This field is OPTIONAL.<br/>
-     * If set and the node account ID does not resolve to an existing and active
-     * account, then any transaction that sets this value SHALL fail.
-     */
-    proto.AccountID node_account = 5;
 }

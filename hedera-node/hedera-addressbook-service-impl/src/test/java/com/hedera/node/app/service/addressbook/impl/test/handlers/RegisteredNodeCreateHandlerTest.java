@@ -132,7 +132,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(deletedAccount.deleted()).willReturn(true);
         given(accountStore.getAccountById(accountId)).willReturn(deletedAccount);
 
-        final var op = opBuilder().adminKey(key).nodeAccount(accountId).build();
+        final var op = opBuilder().adminKey(key).build();
         final var txn = txnWithOp(op);
         given(handleContext.body()).willReturn(txn);
         given(handleContext.storeFactory()).willReturn(storeFactory);
@@ -147,7 +147,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     void handleFailsIfNodeAccountMissing() {
         given(accountStore.getAccountById(accountId)).willReturn(null);
 
-        final var op = opBuilder().adminKey(key).nodeAccount(accountId).build();
+        final var op = opBuilder().adminKey(key).build();
         final var txn = txnWithOp(op);
         given(handleContext.body()).willReturn(txn);
         given(handleContext.storeFactory()).willReturn(storeFactory);
