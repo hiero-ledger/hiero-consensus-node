@@ -18,6 +18,7 @@ module org.hiero.interledger.clpr.impl {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
