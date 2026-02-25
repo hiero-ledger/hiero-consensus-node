@@ -8,6 +8,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -130,6 +132,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), rosterSize);
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
+
     }
 
     /**

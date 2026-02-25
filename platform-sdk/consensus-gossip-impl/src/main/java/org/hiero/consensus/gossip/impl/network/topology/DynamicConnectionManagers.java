@@ -16,6 +16,7 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.gossip.impl.network.ShmConnectionManager;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -136,16 +137,18 @@ public class DynamicConnectionManagers {
     }
 
     private void updateManager(@NonNull final NetworkTopology topology, @NonNull final PeerInfo otherPeer) {
-        if (topology.shouldConnectToMe(otherPeer.nodeId())) {
-            connectionManagers.put(
-                    otherPeer.nodeId(), connectionManagerFactory.createInboundConnectionManager(otherPeer));
-        } else if (topology.shouldConnectTo(otherPeer.nodeId())) {
-            connectionManagers.put(
-                    otherPeer.nodeId(),
-                    connectionManagerFactory.createOutboundConnectionManager(
-                            configuration, time, selfId, otherPeer, connectionTracker, ownKeysAndCerts));
-        } else {
-            connectionManagers.remove(otherPeer.nodeId());
-        }
+//        if (topology.shouldConnectToMe(otherPeer.nodeId())) {
+//            connectionManagers.put(
+//                    otherPeer.nodeId(), connectionManagerFactory.createInboundConnectionManager(otherPeer));
+//        } else if (topology.shouldConnectTo(otherPeer.nodeId())) {
+//            connectionManagers.put(
+//                    otherPeer.nodeId(),
+//                    connectionManagerFactory.createOutboundConnectionManager(
+//                            configuration, time, selfId, otherPeer, connectionTracker, ownKeysAndCerts));
+//        } else {
+//            connectionManagers.remove(otherPeer.nodeId());
+//        }
+
+        connectionManagers.put(otherPeer.nodeId(), new ShmConnectionManager(configuration, time, selfId, otherPeer, connectionTracker, ownKeysAndCerts));
     }
 }
