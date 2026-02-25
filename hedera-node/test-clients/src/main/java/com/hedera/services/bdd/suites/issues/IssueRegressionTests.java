@@ -325,7 +325,6 @@ public class IssueRegressionTests {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @Tag(MATS)
     final Stream<DynamicTest> canSwitchSimpleFeesFromFalseToTrueWithoutException() {
         final var payer = "payerForSimpleFeeToggle";
         return hapiTest(
