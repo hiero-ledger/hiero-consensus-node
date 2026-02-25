@@ -76,7 +76,7 @@ dependencies.constraints {
     api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
-    api("commons-codec:commons-codec:1.19.0") { because("org.apache.commons.codec") }
+    api("commons-codec:commons-codec:1.21.0") { because("org.apache.commons.codec") }
     api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.18.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
