@@ -33,12 +33,14 @@ import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -60,6 +62,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.TokenService;
@@ -457,6 +460,17 @@ public class SystemTransactions {
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in))));
         final var feesConfig = config.getConfigData(FeesConfig.class);
+        if (feesConfig.createSimpleFeeSchedule()) {
+            final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
+            final var filesState = state.getReadableStates(FileService.NAME)
+                    .<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+            if (filesState.get(simpleFeesFileId) == null) {
+                log.info(
+                        "Creating simple fee schedule file 0.0.{} (upgrading from pre-simple-fees version)",
+                        filesConfig.simpleFeesSchedules());
+                fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
+            }
+        }
         if (feesConfig.createSimpleFeeSchedule()) {
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
