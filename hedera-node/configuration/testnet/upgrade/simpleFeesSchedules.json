@@ -130,17 +130,20 @@
         {
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "CryptoGetInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "CryptoGetAccountRecords",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
@@ -201,7 +204,8 @@
         {
           "name": "ConsensusGetTopicInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
@@ -290,7 +294,8 @@
         {
           "name": "FileGetInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
@@ -515,13 +520,15 @@
           "name": "TokenGetInfo",
           "baseFee": 0,
           "extras": [
-          ]
+          ],
+          "free": true
         },
         {
           "name": "TokenGetNftInfo",
           "baseFee": 0,
           "extras": [
-          ]
+          ],
+          "free": true
         }
       ]
     },
@@ -568,7 +575,8 @@
         {
           "name": "ScheduleGetInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
@@ -578,7 +586,8 @@
         {
           "name": "GetVersionInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "TransactionGetRecord",
@@ -593,12 +602,14 @@
         {
           "name": "TransactionGetReceipt",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "GetByKey",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
@@ -730,7 +741,8 @@
         {
           "name": "ContractGetInfo",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         }
       ]
     },
