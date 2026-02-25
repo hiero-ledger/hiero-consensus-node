@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.BROADCAST_EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
@@ -17,6 +18,10 @@ import com.hedera.hapi.platform.message.GossipSyncData;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -103,6 +108,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * Configuration for sync parameters
      */
     private final SyncConfig syncConfig;
+    private final DatagramSocket updOutSocket;
+    private final InetAddress outAddress;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
@@ -223,6 +230,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
                 broadcastConfig, syncMetrics, time, (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
+
+        try {
+            this.updOutSocket = new DatagramSocket();
+            this.outAddress = InetAddress.getByName("node-" + remotePeerId.id());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -543,9 +557,17 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     @Override
     public void sendBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
         outputQueue.add(out -> {
-            out.writeShort(1); // single message
-            out.write(BROADCAST_EVENT);
-            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
+//            out.writeShort(1); // single message
+//            out.write(BROADCAST_EVENT);
+//            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
+
+            byte[] data = new byte[10*1024];
+            int len = GossipEvent.PROTOBUF.write(gossipEvent,data,0);
+
+            DatagramPacket packet = new DatagramPacket(data, len, outAddress, (int)(10000+remotePeerId.id()));
+            updOutSocket.send(packet);
+            //logger.info(RECONNECT.getMarker(), "Sending udp packet with length "+ len);
+
         });
     }
 

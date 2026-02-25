@@ -2,12 +2,18 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -69,6 +75,7 @@ public class RpcProtocol implements Protocol, GossipController {
 
     private final FallenBehindMonitor fallenBehindMonitor;
     private final Consumer<PlatformEvent> receivedEventHandler;
+    private final DatagramSocket udpIncoming;
 
     private volatile boolean started;
 
@@ -130,6 +137,33 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), rosterSize);
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
+
+        try {
+            this.udpIncoming = new DatagramSocket((int) (10000+selfId.id()));
+            logger.info(RECONNECT.getMarker(),"Opening udp socket on port {}", (10000+selfId.id()));
+
+            new Thread() {
+                @Override
+                public void run() {
+                    byte[] buf = new byte[2048];
+                    DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                    while(true) {
+                        try {
+                            udpIncoming.receive(packet);
+                            var gossipEvent = GossipEvent.PROTOBUF.parse(Bytes.wrap(packet.getData(),0,packet.getLength()));
+                            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+                            receivedEventHandler.accept(platformEvent);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                    }
+                }
+            }.start();
+
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

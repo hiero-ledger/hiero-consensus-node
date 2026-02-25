@@ -3,6 +3,7 @@ package org.hiero.consensus.gossip.impl.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
@@ -125,6 +126,8 @@ public class OutboundConnectionManager implements ConnectionManager {
                         throw new RuntimeException("Host '" + otherPeer.hostname() + "' not found", e);
                     }
                 });
+
+        logger.info(RECONNECT.getMarker(), "Connecting to " + networkEndpoint);
 
         Socket clientSocket = null;
         SyncOutputStream dos = null;

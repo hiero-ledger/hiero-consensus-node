@@ -27,7 +27,7 @@ import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
-    public static final BenchmarkParameters DEFAULTS = BenchmarkParameters.defaults();
+    public static final BenchmarkParameters DEFAULTS = new BenchmarkParameters(4, 1000, 1000, 20, 10L, 10L, 30L);
 
     /**
      * Apply all identified optimizations together.
@@ -42,6 +42,8 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.maxCreationRate", 0);
             network.withConfigValue("event.creation.creationAttemptRate", 1000);
             network.withConfigValue("broadcast.enableBroadcast", true);
+            network.withConfigValue("sync.pingPeriod", "100ms");
+
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
