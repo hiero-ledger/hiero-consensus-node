@@ -10,6 +10,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
@@ -19,6 +21,8 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -165,6 +169,25 @@ class ClprStateProofManagerTest extends ClprTestBase {
         assertFalse(manager.validateStateProof(ClprSetLedgerConfigurationTransactionBody.DEFAULT));
     }
 
+    @Test
+    void getLatestConsensusRoundReturnsRoundFromState() {
+        final long expectedRound = 42L;
+        final var stateWithPlatform = buildMerkleStateWithPlatformRound(expectedRound);
+        final var lifecycleManager = mock(StateLifecycleManager.class);
+        when(lifecycleManager.getLatestImmutableState()).thenReturn(stateWithPlatform);
+        final var accessor = new BlockProvenStateAccessor(lifecycleManager);
+        final var managerWithPlatform = new ClprStateProofManager(accessor, devModeConfig);
+
+        assertEquals(expectedRound, managerWithPlatform.getLatestConsensusRound());
+    }
+
+    @Test
+    void getLatestConsensusRoundReturnsZeroWhenNoSnapshot() {
+        final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
+        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        assertEquals(0L, emptyManager.getLatestConsensusRound());
+    }
+
     private ClprSetLedgerConfigurationTransactionBody validTransaction(final StateProof proof) {
         return ClprSetLedgerConfigurationTransactionBody.newBuilder()
                 .ledgerConfigurationProof(proof)
@@ -195,6 +218,35 @@ class ClprStateProofManagerTest extends ClprTestBase {
             committableStates.commit();
         }
         // Make the state immutable and compute hashes so Merkle proofs can be generated
+        state.copy();
+        state.computeHash();
+        return state;
+    }
+
+    private com.swirlds.state.lifecycle.StateMetadata<Void, PlatformState> platformStateMetadata() {
+        return new com.swirlds.state.lifecycle.StateMetadata<>(
+                PlatformStateService.NAME,
+                StateDefinition.singleton(
+                        V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID,
+                        V0540PlatformStateSchema.PLATFORM_STATE_KEY,
+                        PlatformState.PROTOBUF));
+    }
+
+    private VirtualMapState buildMerkleStateWithPlatformRound(final long round) {
+        final var state = VirtualMapStateTestUtils.createTestState();
+        state.initializeState(ledgerConfigStateMetadata());
+        state.initializeState(ledgerMetadataStateMetadata());
+        state.initializeState(platformStateMetadata());
+        final var writableStates = state.getWritableStates(PlatformStateService.NAME);
+        final var writablePlatformState =
+                writableStates.<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
+        writablePlatformState.put(PlatformState.newBuilder()
+                .consensusSnapshot(
+                        ConsensusSnapshot.newBuilder().round(round).build())
+                .build());
+        if (writableStates instanceof CommittableWritableStates committableStates) {
+            committableStates.commit();
+        }
         state.copy();
         state.computeHash();
         return state;

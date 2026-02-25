@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -98,6 +100,10 @@ class ClprEndpointClientTest extends ClprTestBase {
 
         when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
         when(selfNodeInfo.nodeId()).thenReturn(1L);
+        when(selfNodeInfo.zeroWeight()).thenReturn(false);
+        // Single-node roster: ensures round-robin always assigns all ledgers to this node
+        when(networkInfo.addressBook()).thenReturn(List.of(selfNodeInfo));
+        when(stateProofManager.getLatestConsensusRound()).thenReturn(0L);
         selfAccountId = AccountID.newBuilder().accountNum(3).build();
         payerAccountId = AccountID.newBuilder().accountNum(2).build();
         when(selfNodeInfo.accountId()).thenReturn(selfAccountId);
@@ -198,5 +204,136 @@ class ClprEndpointClientTest extends ClprTestBase {
         verify(remoteClient).setConfiguration(payerAccountId, remoteNodeAccountId, localProof);
         verify(remoteClient).getConfiguration(remoteClprLedgerId);
         verify(localClient).setConfiguration(payerAccountId, remoteNodeAccountId, remoteProof);
+    }
+
+    @Test
+    void runOnceSkipsLedgerWhenNotAssigned() throws Exception {
+        // Set up a 3-node roster where this node (nodeId=1) is at index 1
+        final var node0 = org.mockito.Mockito.mock(NodeInfo.class);
+        when(node0.nodeId()).thenReturn(0L);
+        when(node0.zeroWeight()).thenReturn(false);
+        final var node2 = org.mockito.Mockito.mock(NodeInfo.class);
+        when(node2.nodeId()).thenReturn(2L);
+        when(node2.zeroWeight()).thenReturn(false);
+        when(networkInfo.addressBook()).thenReturn(List.of(node0, selfNodeInfo, node2));
+
+        // Choose a consensus round such that the remote ledger is NOT assigned to this node.
+        // selfIndex = 1, N = 3, roundsPerRotation = max(1, 5000/1000) = 5
+        // We need: (ledgerHash + cycle) mod 3 != 1
+        // Brute-force: try round=0 -> cycle=0 -> assignedIndex = ledgerHash mod 3
+        // If ledgerHash mod 3 != 1, round=0 works; otherwise try round=5 -> cycle=1
+        final int ledgerHash = Math.floorMod(remoteClprLedgerId.ledgerId().hashCode(), 3);
+        // Pick a round where (ledgerHash + cycle) mod 3 != 1
+        long testRound = 0;
+        for (int c = 0; c < 3; c++) {
+            if (Math.floorMod(ledgerHash + c, 3) != 1) {
+                testRound = (long) c * 5; // cycle = testRound / 5 = c
+                break;
+            }
+        }
+        when(stateProofManager.getLatestConsensusRound()).thenReturn(testRound);
+
+        final var localConfig = localClprConfig;
+        final var remoteStored = remoteClprConfig
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(10).nanos(0).build())
+                .endpoints(List.of(org.hiero.hapi.interledger.state.clpr.ClprEndpoint.newBuilder()
+                        .endpoint(remoteEndpoint)
+                        .signingCertificate(Bytes.wrap("cert"))
+                        .build()))
+                .build();
+        when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        final var localProof = buildLocalClprStateProofWrapper(localConfig);
+        when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.readAllLedgerConfigurations())
+                .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
+
+        subject.runOnce();
+
+        // This node should NOT have contacted the remote ledger
+        verifyNoInteractions(connectionManager);
+    }
+
+    @Test
+    void runOnceContactsLedgerWhenAssigned() throws Exception {
+        // Set up a 3-node roster where this node (nodeId=1) is at index 1
+        final var node0 = org.mockito.Mockito.mock(NodeInfo.class);
+        when(node0.nodeId()).thenReturn(0L);
+        when(node0.zeroWeight()).thenReturn(false);
+        final var node2 = org.mockito.Mockito.mock(NodeInfo.class);
+        when(node2.nodeId()).thenReturn(2L);
+        when(node2.zeroWeight()).thenReturn(false);
+        when(networkInfo.addressBook()).thenReturn(List.of(node0, selfNodeInfo, node2));
+
+        // Choose a consensus round such that the remote ledger IS assigned to this node.
+        // selfIndex = 1, N = 3, roundsPerRotation = 5
+        // We need: (ledgerHash + cycle) mod 3 == 1
+        final int ledgerHash = Math.floorMod(remoteClprLedgerId.ledgerId().hashCode(), 3);
+        long testRound = 0;
+        for (int c = 0; c < 3; c++) {
+            if (Math.floorMod(ledgerHash + c, 3) == 1) {
+                testRound = (long) c * 5;
+                break;
+            }
+        }
+        when(stateProofManager.getLatestConsensusRound()).thenReturn(testRound);
+
+        final var localConfig = localClprConfig;
+        final var remoteNodeAccountId = AccountID.newBuilder().accountNum(7).build();
+        final var remoteStored = remoteClprConfig
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(10).nanos(0).build())
+                .endpoints(List.of(org.hiero.hapi.interledger.state.clpr.ClprEndpoint.newBuilder()
+                        .endpoint(remoteEndpoint)
+                        .signingCertificate(Bytes.wrap("cert"))
+                        .nodeAccountId(remoteNodeAccountId)
+                        .build()))
+                .build();
+        final var remoteUpdated = remoteStored
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(20).nanos(0).build())
+                .build();
+        when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        final var localProof = buildLocalClprStateProofWrapper(localConfig);
+        when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.readAllLedgerConfigurations())
+                .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
+        when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
+        when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
+        when(remoteClient.setConfiguration(payerAccountId, remoteNodeAccountId, localProof))
+                .thenReturn(ResponseCodeEnum.OK);
+        final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
+        when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
+
+        subject.runOnce();
+
+        // This node SHOULD have contacted the remote ledger
+        verify(remoteClient).setConfiguration(payerAccountId, remoteNodeAccountId, localProof);
+    }
+
+    @Test
+    void isAssignedToLedgerRotatesAcrossAllNodes() {
+        // With N=3, over 3 consecutive cycles, each node index should be assigned exactly once
+        final int rosterSize = 3;
+        boolean[] assigned = new boolean[rosterSize];
+        for (int cycle = 0; cycle < rosterSize; cycle++) {
+            for (int nodeIndex = 0; nodeIndex < rosterSize; nodeIndex++) {
+                if (subject.isAssignedToLedger(remoteClprLedgerId, cycle, nodeIndex, rosterSize)) {
+                    assertFalse(assigned[cycle], "Cycle " + cycle + " should assign to exactly one node");
+                    assigned[cycle] = true;
+                }
+            }
+        }
+        // Every cycle should have exactly one assigned node
+        for (int cycle = 0; cycle < rosterSize; cycle++) {
+            assertTrue(assigned[cycle], "Cycle " + cycle + " should have an assigned node");
+        }
+    }
+
+    @Test
+    void isAssignedToLedgerFallsBackWhenRosterEmpty() {
+        // When roster size is 0 or selfIndex is -1, all ledgers should be assigned (graceful degradation)
+        assertTrue(subject.isAssignedToLedger(remoteClprLedgerId, 0, -1, 3));
+        assertTrue(subject.isAssignedToLedger(remoteClprLedgerId, 0, 0, 0));
     }
 }

@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -363,5 +365,29 @@ public class ClprStateProofManager {
 
     public boolean clprEnabled() {
         return clprConfig.clprEnabled();
+    }
+
+    /**
+     * Returns the latest consensus round number from the platform state.
+     *
+     * <p>The round number is agreed upon by all consensus nodes and can be used as a
+     * deterministic, synchronized counter for distributed coordination (e.g., round-robin
+     * node assignment for remote ledger communication).</p>
+     *
+     * <p>Note: the consensus timestamp ({@code Instant}) can also be exposed from the same
+     * platform state source via {@code ReadablePlatformStateStore.getConsensusTimestamp()}
+     * if needed in the future.</p>
+     *
+     * @return the latest consensus round, or {@code 0L} if the state snapshot is unavailable
+     */
+    public long getLatestConsensusRound() {
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return 0L;
+        }
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(PlatformStateService.NAME);
+        final var platformStateStore = new ReadablePlatformStateStore(readableStates);
+        return platformStateStore.getRound();
     }
 }

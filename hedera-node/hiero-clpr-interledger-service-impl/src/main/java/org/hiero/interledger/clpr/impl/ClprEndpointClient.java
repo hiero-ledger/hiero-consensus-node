@@ -24,10 +24,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import com.hedera.node.app.spi.info.NodeInfo;
 import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,6 +110,11 @@ public class ClprEndpointClient {
     /**
      * Performs a single maintenance cycle: publish the local configuration to known remotes and
      * pull newer remote configurations back into this network.
+     *
+     * <p>A deterministic round-robin algorithm assigns each remote ledger to exactly one local
+     * consensus node per cycle, reducing redundant connections from N*R to R (where N is the
+     * number of consensus nodes and R is the number of remote ledgers). The assignment rotates
+     * over time so that every node eventually communicates with every remote ledger.</p>
      */
     void runOnce() {
         try {
@@ -134,9 +142,28 @@ public class ClprEndpointClient {
             }
             final var selfNodeInfo = networkInfo.selfNodeInfo();
             final var localEndpoint = localServiceEndpoint();
+
+            // Build sorted roster and determine this node's position for round-robin assignment
+            final var sortedRoster = networkInfo.addressBook().stream()
+                    .filter(n -> !n.zeroWeight())
+                    .sorted(Comparator.comparingLong(NodeInfo::nodeId))
+                    .toList();
+            final int selfIndex = selfIndex(sortedRoster, selfNodeInfo.nodeId());
+            final long consensusRound = stateProofManager.getLatestConsensusRound();
+            final long roundsPerRotation = Math.max(1, clprConfig.connectionFrequency() / 1000); // ~ 5
+            final long cycle = consensusRound / roundsPerRotation;
+
             for (final var entry : configsByLedgerId.entrySet()) {
                 final var remoteLedgerId = entry.getKey();
                 if (localLedgerId.equals(remoteLedgerId)) {
+                    continue;
+                }
+                if (!isAssignedToLedger(remoteLedgerId, cycle, selfIndex, sortedRoster.size())) {
+                    log.debug(
+                            "CLPR Endpoint: Skipping ledger {} (not assigned this cycle; cycle={}, selfIndex={})",
+                            remoteLedgerId,
+                            cycle,
+                            selfIndex);
                     continue;
                 }
                 final var storedRemoteConfig = entry.getValue();
@@ -146,6 +173,47 @@ public class ClprEndpointClient {
         } catch (final Exception e) {
             log.error("CLPR endpoint maintenance failed; will retry on next cycle", e);
         }
+    }
+
+    /**
+     * Determines whether this node is responsible for communicating with the given remote ledger
+     * during the current cycle.
+     *
+     * <p>Uses the formula: {@code assignedIndex = (ledgerHash + cycle) mod rosterSize}.
+     * This produces a deterministic, evenly-distributed assignment that rotates every cycle.</p>
+     *
+     * @param remoteLedgerId the remote ledger to check
+     * @param cycle          the current rotation cycle derived from consensus round
+     * @param selfIndex      this node's index in the sorted roster, or -1 if not in roster
+     * @param rosterSize     number of active consensus nodes
+     * @return {@code true} if this node should communicate with the remote ledger this cycle
+     */
+    boolean isAssignedToLedger(
+            @NonNull final ClprLedgerId remoteLedgerId,
+            final long cycle,
+            final int selfIndex,
+            final int rosterSize) {
+        if (rosterSize == 0 || selfIndex < 0) {
+            // Graceful degradation: if roster is unavailable or node not found, contact all ledgers
+            return true;
+        }
+        final int ledgerHash = Math.floorMod(remoteLedgerId.ledgerId().hashCode(), rosterSize);
+        final int assignedIndex = Math.floorMod(ledgerHash + (int) cycle, rosterSize);
+        return assignedIndex == selfIndex;
+    }
+
+    /**
+     * Finds this node's index in the sorted roster.
+     *
+     * @return the index, or -1 if not found
+     */
+    private static int selfIndex(@NonNull final List<NodeInfo> sortedRoster, final long selfNodeId) {
+        for (int i = 0; i < sortedRoster.size(); i++) {
+            if (sortedRoster.get(i).nodeId() == selfNodeId) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void scheduleRoutineActivity() {
