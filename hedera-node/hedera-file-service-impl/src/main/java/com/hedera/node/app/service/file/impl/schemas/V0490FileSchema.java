@@ -744,7 +744,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     /**
      * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
      */
-    private static InputStream loadResourceInPackage(String resourcePath) {
+    public static InputStream loadResourceInPackage(String resourcePath) {
         return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
     }
 
