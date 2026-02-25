@@ -596,6 +596,34 @@ class QueryWorkflowImplTest extends AppTestBase {
     }
 
     @Test
+    void testSimpleFeeFreeQuerySkipsPayment() throws ParseException, PreCheckException {
+        // given
+        final var feesConfig = mock(FeesConfig.class);
+        final var testConfiguration = mock(Configuration.class);
+        when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+        when(testConfiguration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        when(configProvider.getConfiguration())
+                .thenReturn(new VersionedConfigImpl(testConfiguration, DEFAULT_CONFIG_VERSION));
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
+        when(feeManager.isFreeQuery(FILE_GET_INFO)).thenReturn(true);
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then
+        final var response = parseResponse(responseBuffer);
+        final var header = response.fileGetInfoOrThrow().headerOrThrow();
+        assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
+        assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
+        assertThat(header.cost()).isZero();
+        verify(ingestChecker).verifyFreeQueryable();
+        verify(ingestChecker, never()).verifyPlatformActive();
+        verify(ingestChecker, never()).runAllChecks(any(), any(), any(), any());
+        verify(submissionManager, never()).submit(any(), any(), anyBoolean());
+    }
+
+    @Test
     void testSuccessIfPaymentRequiredAndNotProvided() throws ParseException, PreCheckException {
         doAnswer(invocationOnMock -> {
                     final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
