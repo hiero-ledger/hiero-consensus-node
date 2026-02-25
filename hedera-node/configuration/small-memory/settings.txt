@@ -61,6 +61,7 @@ virtualMap.numCleanerThreads,                       1                      # dow
                                           #############################
 state.roundsToKeepForSigning,                       5                      # down from 26, fewer state copies in RAM
 state.signedStateDisk,                              1                      # down from 5, fewer disk copies
+state.periodicSnapshotsEnabled                      false                  # disable periodic snapshots
 
                                           #############################
                                           #          PCES             #
