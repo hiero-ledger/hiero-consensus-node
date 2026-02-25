@@ -15,7 +15,6 @@ then
   rm -rf /opt/hgcapp/*Streams/*
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
-  
 fi
 
 if [[ "${isToClean}" == "cobertura" ]]
