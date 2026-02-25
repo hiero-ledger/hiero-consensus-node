@@ -138,7 +138,7 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
-        put("hapiTestSmartContractSerial", "28000")
+        put("hapiTestSmartContractSerial", "27800")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
