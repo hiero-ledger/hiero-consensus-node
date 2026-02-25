@@ -1,26 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Publish Yahcli Image"
 on:
-  workflow_call:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
     inputs:
-      version:
-        description: "Version:"
-        type: string
-        required: true
       ref:
         description: "Git Reference - branch, tag, or commit SHA."
-        type: string
-        required: true
-      # Valid version policies are as follows: specified, branch-commit, adhoc-commit
-      version-policy:
-        description: "Version Policy:"
         type: string
         required: true
       dry-run-enabled:
         description: "Perform Dry Run"
         type: boolean
         required: false
-        default: false
+        default: true
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -41,29 +35,6 @@ on:
         required: false
         type: string
         default: "Publish Yahcli Image"
-    outputs:
-      docker-image:
-        description: "Docker Image"
-        value: ${{ jobs.publish-yahcli-image.outputs.docker-image }}
-      docker-image-tag:
-        description: "Docker Image Tag"
-        value: ${{ jobs.publish-yahcli-image.outputs.docker-image-tag }}
-    secrets:
-      access-token:
-        description: "The GitHub access token used to perform actions."
-        required: true
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git Reference (branch, tag, or commit SHA)"
-        required: false
-        type: string
-        default: ""
-      dry-run-enabled:
-        description: "Perform Dry Run"
-        required: false
-        type: boolean
-        default: true
 
 defaults:
   run:
@@ -93,7 +64,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || github.ref }}
-          token: ${{ secrets.access-token || github.token }}
+          token: ${{ github.token }}
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -106,19 +77,13 @@ jobs:
         with:
           gradle-version: ${{ inputs.gradle-version || 'wrapper' }}
 
-      - name: Download Build Version
-        if: ${{ inputs.version != '' }}
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: version.txt
-
       - name: Resolve Version
         id: resolve-version
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
-            echo "Using provided version: ${VERSION}"
+            echo "Resolved version from tag: ${VERSION}"
           else
             VERSION="$(./gradlew showVersion --quiet 2>/dev/null | tr -d '[:space:]')"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
