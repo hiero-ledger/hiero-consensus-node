@@ -672,7 +672,7 @@ public final class Hedera
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
                 if (daggerApp != null) {
-                    daggerApp.blockRecordManager().writeFreezeBlockWrappedRecordFileBlockHashes();
+                    daggerApp.blockRecordManager().writeFreezeBlockWrappedRecordFileBlockHashes(null);
                 }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {

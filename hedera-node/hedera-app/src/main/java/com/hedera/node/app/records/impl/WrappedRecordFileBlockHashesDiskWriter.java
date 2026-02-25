@@ -256,6 +256,68 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         }
     }
 
+    /**
+     * Accepts a pre-computed {@link WrappedRecordFileBlockHashes} entry and only performs the disk I/O
+     * (skipping computation). This is used when the caller has already computed the entry synchronously
+     * (e.g., in the live wrapped record hashes path).
+     *
+     * @param entry the pre-computed entry to append
+     * @return a future completed when the append task has finished
+     */
+    public CompletableFuture<Void> appendPrecomputed(@NonNull final WrappedRecordFileBlockHashes entry) {
+        requireNonNull(entry);
+        if (!configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .writeWrappedRecordFileBlockHashesToDisk()) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        ensureInitialized();
+
+        return tail.updateAndGet(prev -> prev.thenRunAsync(
+                        () -> {
+                            if (index.contains(entry.blockNumber())) {
+                                logger.info(
+                                        "Skipping wrapped record-file block hashes append for block {} because it is already present in {}",
+                                        entry.blockNumber(),
+                                        DEFAULT_FILE_NAME);
+                                return;
+                            }
+
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(
+                                        "Appending pre-computed wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
+                                        entry.blockNumber(),
+                                        entry.consensusTimestampHash().toHex(),
+                                        entry.outputItemsTreeRootHash().toHex());
+                            }
+
+                            if (!appendInternal(entry)) {
+                                return;
+                            }
+
+                            final var newlyLoggedGaps = index.addAndGetNewGaps(entry.blockNumber());
+                            for (final var gap : newlyLoggedGaps) {
+                                logger.warn(
+                                        "Wrapped record hashes file has a gap: missing record blocks {}..{} (observed range {}..{})",
+                                        gap.startInclusive(),
+                                        gap.endInclusive(),
+                                        index.lowestBlock(),
+                                        index.highestBlock());
+                            }
+
+                            blockStreamMetrics.recordWrappedRecordHashesLowestBlock(index.lowestBlock());
+                            blockStreamMetrics.recordWrappedRecordHashesHighestBlock(index.highestBlock());
+                            blockStreamMetrics.recordWrappedRecordHashesHasGaps(index.hasGaps());
+                        },
+                        executor)
+                .exceptionally(ex -> {
+                    // Swallow to keep the chain alive; errors are logged in-task.
+                    return null;
+                }));
+    }
+
     @Override
     public void close() {
         // Ensure all queued appends are flushed to disk before shutting down.

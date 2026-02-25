@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
@@ -120,6 +121,106 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
                     Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
 
             assertEquals(List.of(e0, e1), log.entries(), "Expected entries to parse back from the on-disk file");
+        }
+    }
+
+    @Test
+    void appendPrecomputedWritesEntryToDisk() throws IOException, ParseException {
+        final var app = appBuilder()
+                .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+
+            // Pre-compute an entry manually
+            final var ts0 = new Timestamp(10, 1);
+            final var item0 = new RecordStreamItem(
+                    com.hedera.hapi.node.base.Transaction.DEFAULT,
+                    TransactionRecord.newBuilder().consensusTimestamp(ts0).build());
+            final var in0 = new WrappedRecordFileBlockHashesComputationInput(
+                    0,
+                    ts0,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(item0),
+                    List.of(),
+                    1024 * 1024);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(in0);
+
+            // Use appendPrecomputed instead of appendAsync
+            writer.appendPrecomputed(entry).join();
+
+            final var file = tmpDir.resolve(FILE_NAME);
+            assertTrue(Files.exists(file), "Expected file to be created by appendPrecomputed");
+
+            final var allBytes = Files.readAllBytes(file);
+            final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                    Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+            assertEquals(1, log.entries().size());
+            assertEquals(entry, log.entries().getFirst());
+        }
+    }
+
+    @Test
+    void appendPrecomputedSkipsWhenFeatureFlagDisabled() throws IOException {
+        final var app = appBuilder()
+                .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                .build();
+
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+
+            final var entry = WrappedRecordFileBlockHashes.newBuilder()
+                    .blockNumber(0)
+                    .consensusTimestampHash(Bytes.wrap(new byte[48]))
+                    .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                    .build();
+
+            writer.appendPrecomputed(entry).join();
+
+            final var file = tmpDir.resolve(FILE_NAME);
+            assertTrue(!Files.exists(file), "File should not be created when feature flag is disabled");
+        }
+    }
+
+    @Test
+    void appendPrecomputedDeduplicatesExistingBlockNumber() throws IOException, ParseException {
+        final var app = appBuilder()
+                .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+
+            final var ts0 = new Timestamp(10, 1);
+            final var item0 = new RecordStreamItem(
+                    com.hedera.hapi.node.base.Transaction.DEFAULT,
+                    TransactionRecord.newBuilder().consensusTimestamp(ts0).build());
+            final var in0 = new WrappedRecordFileBlockHashesComputationInput(
+                    0,
+                    ts0,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(item0),
+                    List.of(),
+                    1024 * 1024);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(in0);
+
+            // Append the same entry twice via appendPrecomputed
+            writer.appendPrecomputed(entry).join();
+            writer.appendPrecomputed(entry).join();
+
+            final var file = tmpDir.resolve(FILE_NAME);
+            final var allBytes = Files.readAllBytes(file);
+            final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                    Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+            assertEquals(1, log.entries().size(), "Duplicate block should not be appended");
         }
     }
 }

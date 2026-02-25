@@ -6,6 +6,7 @@ import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.stream.Stream;
 
@@ -144,7 +145,11 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * Hook to append wrapped record-file block hashes for the current in-progress record block
      * (if the feature is enabled and sufficient in-memory inputs exist).
      *
-     * <p>This is primarily intended to be called on orderly shutdown paths like {@code FREEZE_COMPLETE}.
+     * <p>When {@code state} is non-null and live mode is enabled, the updated wrapped hash state
+     * is persisted to BlockInfo so it survives restart. When {@code state} is null (e.g. called
+     * from {@code FREEZE_COMPLETE}), only the disk path fires.
+     *
+     * @param state the state to persist BlockInfo to, or {@code null} if state is no longer writable
      */
-    void writeFreezeBlockWrappedRecordFileBlockHashes();
+    void writeFreezeBlockWrappedRecordFileBlockHashes(@Nullable State state);
 }

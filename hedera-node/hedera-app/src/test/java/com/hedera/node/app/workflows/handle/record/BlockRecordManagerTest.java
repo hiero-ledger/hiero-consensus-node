@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.NAME;
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
@@ -12,6 +11,7 @@ import static com.hedera.node.app.records.RecordTestData.SIGNER;
 import static com.hedera.node.app.records.RecordTestData.STARTING_RUNNING_HASH_OBJ;
 import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.USER_PUBLIC_KEY;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.impl.producers.formats.v6.RecordStreamV6Verifier.validateRecordStreamFiles;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
@@ -32,12 +32,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
@@ -59,9 +59,9 @@ import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.SecureRandom;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -568,6 +568,378 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     @Nested
+    class LiveWrappedRecordHashesTest {
+
+        private App liveApp;
+
+        @BeforeEach
+        void enableLiveWrappedHashes() {
+            given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
+            liveApp = appBuilder()
+                    .withConfigValue(
+                            "hedera.recordStream.logDir", fs.getPath("/temp").toString())
+                    .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
+                    .withConfigValue("hedera.recordStream.recordFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                    .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .withConfigValue("blockStream.streamMode", "BOTH")
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .build();
+
+            liveApp.stateMutator(BlockRecordService.NAME)
+                    .withSingletonState(
+                            RUNNING_HASHES_STATE_ID,
+                            new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
+                    .withSingletonState(
+                            BLOCKS_STATE_ID,
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(-1)
+                                    .firstConsTimeOfLastBlock(EPOCH)
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .migrationRecordsStreamed(false)
+                                    .firstConsTimeOfCurrentBlock(EPOCH)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .build())
+                    .commit();
+            liveApp.stateMutator(PlatformStateService.NAME)
+                    .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
+                    .commit();
+        }
+
+        private BlockRecordManagerImpl createGenesisManager(App theApp, State state) {
+            return createManager(
+                    theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.GENESIS);
+        }
+
+        private BlockRecordManagerImpl createManager(
+                App theApp, State state, WrappedRecordFileBlockHashesDiskWriter diskWriter, InitTrigger trigger) {
+            final var writerFactory =
+                    new BlockRecordWriterFactoryImpl(theApp.configProvider(), SIGNER, fs, selfNodeAccountIdManager);
+            final var producer =
+                    new StreamFileProducerSingleThreaded(blockRecordFormat, writerFactory, theApp.hapiVersion());
+            return new BlockRecordManagerImpl(
+                    theApp.configProvider(),
+                    state,
+                    producer,
+                    quiescenceController,
+                    quiescedHeartbeat,
+                    platform,
+                    diskWriter,
+                    trigger);
+        }
+
+        private void processBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {
+            for (var record : TEST_BLOCKS.get(blockIndex)) {
+                manager.startUserTransaction(
+                        fromTimestamp(record.transactionRecord().consensusTimestamp()), state);
+                manager.endUserTransaction(Stream.of(record), state);
+            }
+        }
+
+        private BlockInfo readBlockInfo(State state) {
+            return state.getWritableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+        }
+
+        @Test
+        void wrappedRootHashIsPopulatedAfterFirstBlockBoundary() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                // Process block 0, then block 1 (first tx of block 1 triggers boundary)
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
+                        .isEqualTo(HASH_SIZE);
+            }
+        }
+
+        @Test
+        void intermediateHashStateIsNonEmptyAfterBlockBoundary() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.wrappedIntermediatePreviousBlockRootHashes())
+                        .isNotEmpty();
+            }
+        }
+
+        @Test
+        void leafCountIncrementsWithEachBlockBoundary() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                // Process blocks 0, 1, 2 — two block boundaries fire (block 0 and block 1 complete)
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+                processBlock(manager, state, 2);
+
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(2);
+            }
+        }
+
+        @Test
+        void wrappedRootHashDiffersBetweenConsecutiveBlocks() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                // Complete block 0 (boundary fires at start of block 1)
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+                final var hashAfterBlock0 = readBlockInfo(state).previousWrappedRecordBlockRootHash();
+
+                // Complete block 1 (boundary fires at start of block 2)
+                processBlock(manager, state, 2);
+                final var hashAfterBlock1 = readBlockInfo(state).previousWrappedRecordBlockRootHash();
+
+                assertThat(hashAfterBlock0).isNotEqualTo(Bytes.EMPTY);
+                assertThat(hashAfterBlock1).isNotEqualTo(Bytes.EMPTY);
+                assertThat(hashAfterBlock0).isNotEqualTo(hashAfterBlock1);
+            }
+        }
+
+        @Test
+        void restartContinuityPreservesWrappedHashState() {
+            // Process blocks 0, 1 through genesis manager — one boundary fires (block 0 completes), leaf count = 1
+            final var state = liveApp.workingStateAccessor().getState();
+            final Bytes rootHashFromGenesis;
+            final long leafCountFromGenesis;
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfo = readBlockInfo(state);
+                rootHashFromGenesis = blockInfo.previousWrappedRecordBlockRootHash();
+                leafCountFromGenesis = blockInfo.wrappedIntermediateBlockRootsLeafCount();
+                assertThat(leafCountFromGenesis).isEqualTo(1);
+                assertThat(rootHashFromGenesis).isNotEqualTo(Bytes.EMPTY);
+            }
+
+            // Simulate restart: new manager with RESTART trigger reads the persisted state.
+            // The first boundary after restart has currentBlockStartRunningHash==null so it
+            // can't compute wrapped hashes for the in-progress block — but it should preserve
+            // the restored hasher state. The second boundary has tracking set up and computes
+            // a new wrapped hash leaf using the restored hasher.
+            try (final var restartManager = createManager(
+                    liveApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.RESTART)) {
+                processBlock(restartManager, state, 1);
+                processBlock(restartManager, state, 2);
+
+                // After the first boundary on restart (currentBlockStartRunningHash is null),
+                // the BlockInfo should preserve the restored hasher state — not zero it out.
+                // The leaf count must still equal the genesis value (not reset to 0).
+                final var blockInfoAfterFirstBoundary = readBlockInfo(state);
+                assertThat(blockInfoAfterFirstBoundary.wrappedIntermediateBlockRootsLeafCount())
+                        .as("First restart boundary should preserve restored leaf count")
+                        .isEqualTo(leafCountFromGenesis);
+                assertThat(blockInfoAfterFirstBoundary.previousWrappedRecordBlockRootHash())
+                        .as("First restart boundary should preserve a non-empty root hash")
+                        .isNotEqualTo(Bytes.EMPTY);
+
+                processBlock(restartManager, state, 3);
+
+                final var blockInfo = readBlockInfo(state);
+                // The restored leaf count (1) should be carried forward and incremented.
+                // After the first real computation boundary, leaf count = restored (1) + 1 = 2.
+                assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(leafCountFromGenesis + 1);
+                // The root hash should differ from the genesis value (a new block was incorporated)
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashFromGenesis);
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
+                        .isEqualTo(HASH_SIZE);
+            }
+        }
+
+        @Test
+        void liveModeDelegatesPrecomputedToDiskWriter() {
+            final var state = liveApp.workingStateAccessor().getState();
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            try (final var manager = createManager(liveApp, state, diskWriter, InitTrigger.GENESIS)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+            }
+            // Since both flags are on, appendPrecomputed should have been called (not appendAsync)
+            verify(diskWriter).appendPrecomputed(notNull());
+            verify(diskWriter, org.mockito.Mockito.never()).appendAsync(notNull());
+        }
+
+        @Test
+        void liveModeWithoutDiskWriteDoesNotCallDiskWriter() throws Exception {
+            // Build app with liveWritePrevWrappedRecordHashes=true but writeWrappedRecordFileBlockHashesToDisk=false
+            final var liveOnlyApp = appBuilder()
+                    .withConfigValue(
+                            "hedera.recordStream.logDir", fs.getPath("/temp").toString())
+                    .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
+                    .withConfigValue("hedera.recordStream.recordFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                    .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .withConfigValue("blockStream.streamMode", "BOTH")
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .build();
+            liveOnlyApp
+                    .stateMutator(BlockRecordService.NAME)
+                    .withSingletonState(
+                            RUNNING_HASHES_STATE_ID,
+                            new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
+                    .withSingletonState(
+                            BLOCKS_STATE_ID,
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(-1)
+                                    .firstConsTimeOfLastBlock(EPOCH)
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .migrationRecordsStreamed(false)
+                                    .firstConsTimeOfCurrentBlock(EPOCH)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .build())
+                    .commit();
+            liveOnlyApp
+                    .stateMutator(PlatformStateService.NAME)
+                    .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
+                    .commit();
+
+            final var state = liveOnlyApp.workingStateAccessor().getState();
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.GENESIS)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                // BlockInfo should still have wrapped hash data (live mode is on)
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
+            }
+            // But disk writer should NOT have been called at all
+            verify(diskWriter, org.mockito.Mockito.never()).appendPrecomputed(org.mockito.ArgumentMatchers.any());
+            verify(diskWriter, org.mockito.Mockito.never()).appendAsync(org.mockito.ArgumentMatchers.any());
+        }
+
+        @Test
+        void freezeBlockUpdatesWrappedHashState() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                // Process blocks 0 and 1. One boundary fires (block 0 completes at start of block 1).
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfoBefore = readBlockInfo(state);
+                assertThat(blockInfoBefore.wrappedIntermediateBlockRootsLeafCount())
+                        .isEqualTo(1);
+                final var rootHashBefore = blockInfoBefore.previousWrappedRecordBlockRootHash();
+
+                // Call freeze with state — computes wrapped hash for the in-progress block 1
+                // and persists the updated BlockInfo to state (leaf count → 2).
+                manager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+
+                final var blockInfoAfterFreeze = readBlockInfo(state);
+                // Freeze persisted the updated wrapped hash state
+                assertThat(blockInfoAfterFreeze.wrappedIntermediateBlockRootsLeafCount())
+                        .isEqualTo(2);
+                assertThat(blockInfoAfterFreeze.previousWrappedRecordBlockRootHash())
+                        .isNotEqualTo(rootHashBefore);
+
+                // Now process block 2; boundary fires completing block 1 (items are re-computed
+                // since freeze didn't clear them — this is expected for orderly shutdown).
+                // The boundary uses the hasher that already has the freeze leaf, so leaf count → 3.
+                processBlock(manager, state, 2);
+
+                final var blockInfoAfter = readBlockInfo(state);
+                // The leaf count increased: 1 (pre-freeze) + 1 (freeze) + 1 (boundary) = 3
+                assertThat(blockInfoAfter.wrappedIntermediateBlockRootsLeafCount())
+                        .isEqualTo(3);
+                // Root hash should have changed from the pre-freeze state
+                assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashBefore);
+            }
+        }
+
+        @Test
+        void freezeWithNullStateDoesNotPersistBlockInfo() {
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfoBefore = readBlockInfo(state);
+                assertThat(blockInfoBefore.wrappedIntermediateBlockRootsLeafCount())
+                        .isEqualTo(1);
+
+                // Call freeze with null state (as Hedera.FREEZE_COMPLETE does) — the internal
+                // hasher is updated but BlockInfo in state should NOT change.
+                manager.writeFreezeBlockWrappedRecordFileBlockHashes(null);
+
+                final var blockInfoAfter = readBlockInfo(state);
+                assertThat(blockInfoAfter.wrappedIntermediateBlockRootsLeafCount())
+                        .as("Leaf count should not change when state is null")
+                        .isEqualTo(1);
+                assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash())
+                        .as("Root hash should not change when state is null")
+                        .isEqualTo(blockInfoBefore.previousWrappedRecordBlockRootHash());
+            }
+        }
+
+        @Test
+        void wrappedHashFieldsRemainEmptyWhenFeatureDisabled() throws Exception {
+            // Build a separate app with the feature explicitly disabled
+            final var disabledApp = appBuilder()
+                    .withConfigValue(
+                            "hedera.recordStream.logDir", fs.getPath("/temp").toString())
+                    .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
+                    .withConfigValue("hedera.recordStream.recordFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
+                    .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                    .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", false)
+                    .withConfigValue("blockStream.streamMode", "BOTH")
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .build();
+            disabledApp
+                    .stateMutator(BlockRecordService.NAME)
+                    .withSingletonState(
+                            RUNNING_HASHES_STATE_ID,
+                            new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
+                    .withSingletonState(
+                            BLOCKS_STATE_ID,
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(-1)
+                                    .firstConsTimeOfLastBlock(EPOCH)
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .migrationRecordsStreamed(false)
+                                    .firstConsTimeOfCurrentBlock(EPOCH)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .build())
+                    .commit();
+            disabledApp
+                    .stateMutator(PlatformStateService.NAME)
+                    .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
+                    .commit();
+
+            final var state = disabledApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(disabledApp, state)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isEqualTo(Bytes.EMPTY);
+                assertThat(blockInfo.wrappedIntermediatePreviousBlockRootHashes())
+                        .isEmpty();
+                assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(0);
+            }
+        }
+    }
+
+    @Nested
     class ComputeWrappedRecordBlockRootHashTest {
 
         private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
@@ -586,10 +958,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var first = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entry);
-            final var second = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entry);
+            final var first =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
+            final var second =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
 
             assertThat(first).isEqualTo(second);
         }
@@ -599,10 +971,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    randomHash(), allPrevRootHash, entry);
-            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    randomHash(), allPrevRootHash, entry);
+            final var resultA =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(randomHash(), allPrevRootHash, entry);
+            final var resultB =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(randomHash(), allPrevRootHash, entry);
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -612,10 +984,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var prevBlockHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, randomHash(), entry);
-            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, randomHash(), entry);
+            final var resultA =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, randomHash(), entry);
+            final var resultB =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, randomHash(), entry);
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -672,8 +1044,8 @@ final class BlockRecordManagerTest extends AppTestBase {
 
             final Bytes expected = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
-            final var actual = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entry);
+            final var actual =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
 
             assertThat(actual).isEqualTo(expected);
         }
@@ -683,10 +1055,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var block1Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    HASH_OF_ZERO, allPrevRootHash, entry);
-            final var block2Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    block1Hash, allPrevRootHash, entry);
+            final var block1Hash =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO, allPrevRootHash, entry);
+            final var block2Hash =
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(block1Hash, allPrevRootHash, entry);
 
             assertThat(block1Hash).isNotEqualTo(block2Hash);
         }
