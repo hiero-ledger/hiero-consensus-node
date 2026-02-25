@@ -10,6 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 // Utility for interning UInt256 from parts
+
+// UI256's are only made here, and are always interned so it is safe and
+// expected (and fast) to simply do pointer equality checks.
 public class UI256 {
 
     // The interning table
