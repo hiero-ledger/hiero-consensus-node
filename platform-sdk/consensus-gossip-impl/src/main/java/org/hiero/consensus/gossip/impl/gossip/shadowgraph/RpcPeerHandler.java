@@ -381,6 +381,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // with random events, no need to make extra checks here
         this.syncMetrics.broadcastEventReceived();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        platformEvent.setSenderId(peerId);
+        this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
+
         eventHandler.accept(platformEvent);
     }
 
