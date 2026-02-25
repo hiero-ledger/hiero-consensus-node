@@ -245,7 +245,7 @@ jobs:
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.140.0 -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.148.0 -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
@@ -362,9 +362,7 @@ jobs:
         run: |
           # Get CN Logs
           solo deployment diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
-          BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
-          LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
-          echo "Latest log folder is $LOG_FOLDER"
+          LOG_FOLDER="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
