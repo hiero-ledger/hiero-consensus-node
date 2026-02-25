@@ -22,6 +22,6 @@ public class ClprHandlerTestBase extends ClprTestBase {
     }
 
     protected ClprConfig defaultClprConfig() {
-        return new ClprConfig(true, 5000, true, true, 5, 6144);
+        return new ClprConfig(true, 5000, true, 5, 6144);
     }
 }
