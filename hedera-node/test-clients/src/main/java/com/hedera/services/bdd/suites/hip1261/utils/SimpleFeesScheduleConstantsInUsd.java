@@ -22,7 +22,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double SIGNATURE_FEE_USD = 0.00001;
     public static final double STATE_BYTES_FEE_USD = 0.0001;
-    public static final double PROCESSING_BYTES_FEE_USD = 0.00001;
+    public static final double PROCESSING_BYTES_FEE_USD = 0.000001;
     public static final long STATE_BYTES_INCLUDED = 1000L;
     public static final long PROCESSING_BYTES_INCLUDED = 1024L;
     public static final double KEYS_FEE_USD = 0.01;
@@ -191,7 +191,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double BATCH_BASE_FEE = 0.001;
 
     /* ---------- Address Book service ---------- */
-    public static final double NODE_CREATE_BASE_FEE_USD = 0.0177;
+    public static final double NODE_CREATE_BASE_FEE_USD = 0.001;
     public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
     public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
 
@@ -202,4 +202,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
     public static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
     public static final double HOOK_SLOT_UPDATE_BASE_FEE = 0.005;
+    public static final long CONTRACT_CREATE_INCLUDED_HOOK_UPDATES = 0L;
+    public static final long CONTRACT_CREATE_INCLUDED_KEYS = 0L;
+    public static final double CONTRACT_CREATE_BASE_FEE_USD = 0.9999;
 }

@@ -47,7 +47,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -70,6 +69,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SplittableRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
@@ -87,13 +87,16 @@ public class LambdaplexVerbs {
     private static final byte STOP_LIMIT_GT = 4;
     private static final byte STOP_MARKET_GT = 5;
 
+    private static final long SEED = System.currentTimeMillis();
     private static final long BASE_GAS_LIMIT = 8_000L;
     private static final long DIRECT_PREFIX_GAS_INCREMENT = 40_000L;
     private static final long ORACLE_SETUP_GAS = 300_000L;
-    public static final long ORACLE_HOOK_GAS = 300_000L;
     private static final long ORACLE_GAS_PER_ADDITIONAL_STOP_LEG = 80_000L;
     private static final int ONE_HUNDRED_PERCENT_CENTI_BPS = 1_000_000;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
+    private static final SplittableRandom RANDOM = new SplittableRandom(SEED);
+
+    public static final long ORACLE_HOOK_GAS = 300_000L;
 
     // Sentinel for HBAR
     public static final SpecFungibleToken HBAR = new SpecFungibleToken("<HBAR>") {
@@ -160,7 +163,9 @@ public class LambdaplexVerbs {
     }
 
     public static String randomB64Salt() {
-        return Base64.getEncoder().encodeToString(TxnUtils.randomUtf8Bytes(7));
+        final var salt = new byte[7];
+        RANDOM.nextBytes(salt);
+        return Base64.getEncoder().encodeToString(salt);
     }
 
     public static Instant iocExpiry() {
@@ -462,8 +467,9 @@ public class LambdaplexVerbs {
 
     private Bytes rawSlotKey(@NonNull final String b64Salt) {
         final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
-        return slotKeyOfMappingEntry(
-                PADDED_ZERO, EvmHookMappingEntry.newBuilder().key(prefix).build());
+        // This is the raw EVM slot key, hence not left-padded with zeros
+        return minimalKey(slotKeyOfMappingEntry(
+                PADDED_ZERO, EvmHookMappingEntry.newBuilder().key(prefix).build()));
     }
 
     public SpecOperation placeLimitOrder(
