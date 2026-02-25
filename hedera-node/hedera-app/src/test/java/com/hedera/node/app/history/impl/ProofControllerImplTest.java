@@ -16,6 +16,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
@@ -28,6 +29,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -45,6 +47,8 @@ class ProofControllerImplTest {
     private static final long CONSTRUCTION_ID = 100L;
     private static final Bytes METADATA = Bytes.wrap("meta");
     private static final Bytes PROOF_KEY_1 = Bytes.wrap("pk1");
+    private static final String RECOVERABLE_REASON =
+            "Still missing messages from R1 nodes [2] after end of grace period for phase R2";
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
 
     private Executor executor;
@@ -66,6 +70,9 @@ class ProofControllerImplTest {
 
     @Mock
     private HistoryProver prover;
+
+    @Mock
+    private HistoryProofMetrics historyProofMetrics;
 
     @Mock
     private WritableHistoryStore writableHistoryStore;
@@ -122,6 +129,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
     }
 
@@ -157,6 +165,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
@@ -184,6 +193,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
@@ -211,6 +221,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
@@ -259,6 +270,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
@@ -288,6 +300,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -325,6 +338,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var proof = HistoryProof.newBuilder().build();
@@ -365,6 +379,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var reason = "test-failure";
@@ -380,6 +395,92 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).getLedgerId();
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
         verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
+    }
+
+    @Test
+    void advanceConstructionRestartsOnRecoverableWrapsFailure() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var restarted = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                .wrapsRetryCount(1)
+                .build();
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any()))
+                .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
+        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+                .willReturn(restarted);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore, never()).failForReason(anyLong(), any());
+    }
+
+    @Test
+    void advanceConstructionRecoversFailedConstructionAtStart() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .failureReason(RECOVERABLE_REASON)
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var restarted = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                .wrapsRetryCount(1)
+                .build();
+        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+                .willReturn(restarted);
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
     @Test
@@ -404,6 +505,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var publication = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
@@ -454,6 +556,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
@@ -499,13 +602,14 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var vote = HistoryProofVote.newBuilder()
                 .proof(HistoryProof.newBuilder().build())
                 .build();
 
-        subject.addProofVote(SELF_ID, vote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
     }
@@ -520,7 +624,7 @@ class ProofControllerImplTest {
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
                 .willReturn(construction);
 
-        subject.addProofVote(SELF_ID, vote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
@@ -548,6 +652,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var congruentVote =
@@ -558,7 +663,7 @@ class ProofControllerImplTest {
         given(weights.sourceWeightThreshold()).willReturn(15L);
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), any())).willReturn(construction);
 
-        subject.addProofVote(SELF_ID, congruentVote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(congruentVote));
     }
