@@ -162,17 +162,17 @@ public class EventCreationTimeTests {
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, List::of);
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        final NodeId node0 = NodeId.of(0);
-        final NodeId node1 = NodeId.of(1);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().getLast().nodeId());
 
         // Both nodes create their genesis events
-        final PlatformEvent genesis0 = nodes.get(node0).eventCreator().maybeCreateEvent();
+        final PlatformEvent genesis0 = nodes.get(nodeA).eventCreator().maybeCreateEvent();
         assertNotNull(genesis0);
         assignNGenAndDistributeEvent(nodes, events, genesis0);
 
         time.tick(Duration.ofSeconds(1));
 
-        final PlatformEvent genesis1 = nodes.get(node1).eventCreator().maybeCreateEvent();
+        final PlatformEvent genesis1 = nodes.get(nodeB).eventCreator().maybeCreateEvent();
         assertNotNull(genesis1);
         assignNGenAndDistributeEvent(nodes, events, genesis1);
 
@@ -183,7 +183,7 @@ public class EventCreationTimeTests {
 
         // Node 0 creates a second event — should pick genesis1 as other parent
         // and use its timeReceived (not timeCreated) for the creation time calculation.
-        final PlatformEvent childEvent = nodes.get(node0).eventCreator().maybeCreateEvent();
+        final PlatformEvent childEvent = nodes.get(nodeA).eventCreator().maybeCreateEvent();
         assertNotNull(childEvent);
         assertEquals(
                 otherTimeReceived,
