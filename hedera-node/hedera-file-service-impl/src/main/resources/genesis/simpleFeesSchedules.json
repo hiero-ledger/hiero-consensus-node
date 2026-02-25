@@ -3,10 +3,12 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "PROCESSING_BYTES", "includedCount": 1024
+        "name": "PROCESSING_BYTES",
+        "includedCount": 1024
       },
       {
-        "name": "SIGNATURES", "includedCount": 1
+        "name": "SIGNATURES",
+        "includedCount": 1
       }
     ]
   },
@@ -16,32 +18,103 @@
   "unreadable": {
     "feeValue": 100
   },
-
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 100000 },
-    { "name":  "STATE_BYTES",                    "fee": 1000000 },
-    { "name":  "PROCESSING_BYTES",               "fee": 10000 },
-    { "name":  "KEYS",                           "fee": 100000000 },
-    { "name":  "NFT_SERIALS",                    "fee": 8900000 },
-    { "name":  "ACCOUNTS",                       "fee": 1000000 },
-    { "name":  "TOKEN_TYPES",                    "fee": 1000000 },
-    { "name":  "GAS",                            "fee": 852 },
-    { "name":  "ALLOWANCES",                     "fee": 500000000 },
-    { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
-    { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
-    { "name":  "TOKEN_MINT_NFT_BASE",            "fee": 190000000 },
-    { "name":  "TOKEN_MINT_NFT",                 "fee": 200000000 },
-    { "name":  "NFT_UPDATE",                     "fee": 10000000 },
-    { "name":  "AIRDROPS",                       "fee": 500000000 },
-    { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
-    { "name":  "RECORDS",                        "fee": 1000000 },
-    { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
-    { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
-    { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
-    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
-    { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
-    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
-    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
+    {
+      "name": "SIGNATURES",
+      "fee": 100000
+    },
+    {
+      "name": "STATE_BYTES",
+      "fee": 1000000
+    },
+    {
+      "name": "PROCESSING_BYTES",
+      "fee": 10000
+    },
+    {
+      "name": "KEYS",
+      "fee": 100000000
+    },
+    {
+      "name": "NFT_SERIALS",
+      "fee": 8900000
+    },
+    {
+      "name": "ACCOUNTS",
+      "fee": 1000000
+    },
+    {
+      "name": "TOKEN_TYPES",
+      "fee": 1000000
+    },
+    {
+      "name": "GAS",
+      "fee": 852
+    },
+    {
+      "name": "ALLOWANCES",
+      "fee": 500000000
+    },
+    {
+      "name": "TOKEN_ASSOCIATE",
+      "fee": 500000000
+    },
+    {
+      "name": "TOKEN_CREATE_WITH_CUSTOM_FEE",
+      "fee": 10000000000
+    },
+    {
+      "name": "TOKEN_MINT_NFT_BASE",
+      "fee": 190000000
+    },
+    {
+      "name": "TOKEN_MINT_NFT",
+      "fee": 200000000
+    },
+    {
+      "name": "NFT_UPDATE",
+      "fee": 10000000
+    },
+    {
+      "name": "AIRDROPS",
+      "fee": 500000000
+    },
+    {
+      "name": "HOOK_UPDATES",
+      "fee": 10000000000
+    },
+    {
+      "name": "RECORDS",
+      "fee": 1000000
+    },
+    {
+      "name": "TOKEN_TRANSFER_BASE",
+      "fee": 9000000
+    },
+    {
+      "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES",
+      "fee": 19000000
+    },
+    {
+      "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",
+      "fee": 19900000000
+    },
+    {
+      "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",
+      "fee": 492000000
+    },
+    {
+      "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE",
+      "fee": 900000000
+    },
+    {
+      "name": "HOOK_EXECUTION",
+      "fee": 50000000
+    },
+    {
+      "name": "HOOK_SLOT_UPDATE",
+      "fee": 50000000
+    }
   ],
   "services": [
     {
@@ -51,27 +124,72 @@
           "name": "CryptoCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1 },
-            { "name": "HOOK_UPDATES", "includedCount": 0 }
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                  {
+                    "utilizationBasisPoints": 2,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 3,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 5,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 7,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 10,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 15,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 20,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 50,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 150000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 200000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 200000
+                  }
                 ]
               }
             }
@@ -81,8 +199,14 @@
           "name": "CryptoUpdate",
           "baseFee": 1200000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1 },
-            { "name": "HOOK_UPDATES", "includedCount": 0 }
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            }
           ]
         },
         {
@@ -95,26 +219,50 @@
           "name": "CryptoTransfer",
           "baseFee": 0,
           "extras": [
-            {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
-            {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },
-            {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
-            {  "name": "GAS",                             "includedCount": 0 },
-            {  "name": "ACCOUNTS",                        "includedCount": 2 },
-            {  "name": "TOKEN_TYPES",                     "includedCount": 1 }
+            {
+              "name": "TOKEN_TRANSFER_BASE",
+              "includedCount": 0
+            },
+            {
+              "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES",
+              "includedCount": 0
+            },
+            {
+              "name": "HOOK_EXECUTION",
+              "includedCount": 0
+            },
+            {
+              "name": "GAS",
+              "includedCount": 0
+            },
+            {
+              "name": "ACCOUNTS",
+              "includedCount": 2
+            },
+            {
+              "name": "TOKEN_TYPES",
+              "includedCount": 1
+            }
           ]
         },
         {
           "name": "CryptoApproveAllowance",
           "baseFee": 499000000,
           "extras": [
-            { "name": "ALLOWANCES", "includedCount": 1 }
+            {
+              "name": "ALLOWANCES",
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 4000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 10000, "multiplier": 4000 }
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 4000
+                  }
                 ]
               }
             }
@@ -124,7 +272,10 @@
           "name": "CryptoDeleteAllowance",
           "baseFee": 499000000,
           "extras": [
-            { "name": "ALLOWANCES", "includedCount": 1 }
+            {
+              "name": "ALLOWANCES",
+              "includedCount": 1
+            }
           ]
         },
         {
@@ -136,14 +287,12 @@
         {
           "name": "CryptoGetInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
@@ -154,27 +303,72 @@
           "name": "ConsensusCreateTopic",
           "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 0 },
-            { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
+            {
+              "name": "KEYS",
+              "includedCount": 0
+            },
+            {
+              "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",
+              "includedCount": 0
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                  {
+                    "utilizationBasisPoints": 2,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 3,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 5,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 7,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 10,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 15,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 20,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 50,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 150000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 200000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 200000
+                  }
                 ]
               }
             }
@@ -184,15 +378,24 @@
           "name": "ConsensusUpdateTopic",
           "baseFee": 1200000,
           "extras": [
-            { "name": "KEYS",       "includedCount": 1 }
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
           ]
         },
         {
           "name": "ConsensusSubmitMessage",
           "baseFee": 7000000,
           "extras": [
-            { "name": "STATE_BYTES",      "includedCount": 1024 },
-            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
+            {
+              "name": "STATE_BYTES",
+              "includedCount": 1024
+            },
+            {
+              "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",
+              "includedCount": 0
+            }
           ]
         },
         {
@@ -204,39 +407,83 @@
         {
           "name": "ConsensusGetTopicInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
     {
-      "name":  "File",
+      "name": "File",
       "schedule": [
         {
           "name": "FileCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "STATE_BYTES",
+              "includedCount": 1000
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                  {
+                    "utilizationBasisPoints": 2,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 3,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 5,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 7,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 10,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 15,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 20,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 50,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 150000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 200000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 200000
+                  }
                 ]
               }
             }
@@ -246,34 +493,82 @@
           "name": "FileUpdate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "STATE_BYTES",
+              "includedCount": 1000
+            }
           ]
         },
         {
           "name": "FileAppend",
           "baseFee": 499000000,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            {
+              "name": "STATE_BYTES",
+              "includedCount": 1000
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                  {
+                    "utilizationBasisPoints": 2,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 3,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 5,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 7,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 10,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 15,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 20,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 50,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 150000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 200000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 200000
+                  }
                 ]
               }
             }
@@ -288,14 +583,16 @@
           "name": "FileGetContents",
           "baseFee": 0,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            {
+              "name": "STATE_BYTES",
+              "includedCount": 1000
+            }
           ]
         },
         {
           "name": "FileGetInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
@@ -306,24 +603,60 @@
           "name": "TokenCreate",
           "baseFee": 9999000000,
           "extras": [
-            {"name": "KEYS", "includedCount": 1},
-            {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "TOKEN_CREATE_WITH_CUSTOM_FEE",
+              "includedCount": 0
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 150,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 250,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 350,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 750,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 2500,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 5000,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 100000
+                  }
                 ]
               }
             }
@@ -333,25 +666,64 @@
           "name": "TokenMint",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT_BASE", "includedCount": 0 },
-            {"name": "TOKEN_MINT_NFT", "includedCount": 1 }
+            {
+              "name": "TOKEN_MINT_NFT_BASE",
+              "includedCount": 0
+            },
+            {
+              "name": "TOKEN_MINT_NFT",
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 150000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 40, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 60, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 140, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 300, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 400, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 2000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 4000, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 150000 }
+                  {
+                    "utilizationBasisPoints": 40,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 60,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 140,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 300,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 400,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 2000,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 4000,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 150000
+                  }
                 ]
               }
             }
@@ -396,22 +768,57 @@
         {
           "name": "TokenAssociateToAccount",
           "baseFee": 499000000,
-          "extras": [ {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }],
+          "extras": [
+            {
+              "name": "TOKEN_ASSOCIATE",
+              "includedCount": 1
+            }
+          ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 150,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 250,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 350,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 750,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 2500,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 5000,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 100000
+                  }
                 ]
               }
             }
@@ -421,23 +828,56 @@
           "name": "TokenAirdrop",
           "baseFee": 1000000000,
           "extras": [
-            { "name": "AIRDROPS", "includedCount": 1 }
+            {
+              "name": "AIRDROPS",
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 150,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 250,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 350,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 750,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 2500,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 5000,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 100000
+                  }
                 ]
               }
             }
@@ -452,10 +892,22 @@
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2857, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 4286, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 7143, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 15000 }
+                  {
+                    "utilizationBasisPoints": 2857,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 4286,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 7143,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 15000
+                  }
                 ]
               }
             }
@@ -506,29 +958,33 @@
           "name": "TokenUpdate",
           "baseFee": 9000000,
           "extras": [
-            {"name": "KEYS", "includedCount": 1}
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
           ]
         },
         {
           "name": "TokenUpdateNfts",
           "baseFee": 9000000,
           "extras": [
-            {"name": "NFT_UPDATE", "includedCount": 1}
+            {
+              "name": "NFT_UPDATE",
+              "includedCount": 1
+            }
           ]
         },
         {
           "name": "TokenGetInfo",
           "baseFee": 0,
           "extras": [
-          ],
-          "free": true
+          ]
         },
         {
           "name": "TokenGetNftInfo",
           "baseFee": 0,
           "extras": [
-          ],
-          "free": true
+          ]
         }
       ]
     },
@@ -539,24 +995,60 @@
           "name": "ScheduleCreate",
           "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
-            { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE",
+              "includedCount": 0
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 150,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 250,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 350,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 750,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 2500,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 5000,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 100000
+                  }
                 ]
               }
             }
@@ -575,8 +1067,7 @@
         {
           "name": "ScheduleGetInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
@@ -586,8 +1077,7 @@
         {
           "name": "GetVersionInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         },
         {
           "name": "TransactionGetRecord",
@@ -608,8 +1098,7 @@
         {
           "name": "GetByKey",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
@@ -678,15 +1167,42 @@
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 200, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 300, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 700, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 1500, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 2000, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 5000, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 80000 }
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 300,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 700,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 1500,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 2000,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 5000,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 80000
+                  }
                 ]
               }
             }
@@ -706,19 +1222,58 @@
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
-                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
-                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
-                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
-                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
-                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
-                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
-                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
-                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
-                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
-                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
-                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
-                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                  {
+                    "utilizationBasisPoints": 2,
+                    "multiplier": 4000
+                  },
+                  {
+                    "utilizationBasisPoints": 3,
+                    "multiplier": 8000
+                  },
+                  {
+                    "utilizationBasisPoints": 5,
+                    "multiplier": 10000
+                  },
+                  {
+                    "utilizationBasisPoints": 7,
+                    "multiplier": 15000
+                  },
+                  {
+                    "utilizationBasisPoints": 10,
+                    "multiplier": 20000
+                  },
+                  {
+                    "utilizationBasisPoints": 15,
+                    "multiplier": 30000
+                  },
+                  {
+                    "utilizationBasisPoints": 20,
+                    "multiplier": 40000
+                  },
+                  {
+                    "utilizationBasisPoints": 50,
+                    "multiplier": 60000
+                  },
+                  {
+                    "utilizationBasisPoints": 100,
+                    "multiplier": 80000
+                  },
+                  {
+                    "utilizationBasisPoints": 200,
+                    "multiplier": 100000
+                  },
+                  {
+                    "utilizationBasisPoints": 500,
+                    "multiplier": 150000
+                  },
+                  {
+                    "utilizationBasisPoints": 1000,
+                    "multiplier": 200000
+                  },
+                  {
+                    "utilizationBasisPoints": 10000,
+                    "multiplier": 200000
+                  }
                 ]
               }
             }
@@ -734,15 +1289,15 @@
           "baseFee": 499000000,
           "extras": [
             {
-              "name": "STATE_BYTES", "includedCount": 1000
+              "name": "STATE_BYTES",
+              "includedCount": 1000
             }
           ]
         },
         {
           "name": "ContractGetInfo",
           "baseFee": 0,
-          "extras": [],
-          "free": true
+          "extras": []
         }
       ]
     },
