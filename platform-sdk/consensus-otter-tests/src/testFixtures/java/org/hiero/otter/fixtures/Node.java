@@ -230,6 +230,18 @@ public interface Node {
     void version(@NonNull SemanticVersion version);
 
     /**
+     * Enables GC logging for the consensus node process. Must be called before the node is started.
+     *
+     * <p><b>Note:</b> This feature is not supported in all environments. Calling this on unsupported environments
+     * will throw {@link UnsupportedOperationException}.
+     *
+     * @throws UnsupportedOperationException if GC logging is not supported in this environment
+     */
+    default void withGcLogging() {
+        throw new UnsupportedOperationException("GC logging is not supported in this environment");
+    }
+
+    /**
      * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be
      * called while the node is not running.
      */
