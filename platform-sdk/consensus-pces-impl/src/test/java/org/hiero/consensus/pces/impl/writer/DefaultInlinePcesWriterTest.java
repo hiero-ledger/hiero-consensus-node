@@ -8,7 +8,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -17,6 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -60,7 +60,7 @@ class DefaultInlinePcesWriterTest {
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+            events.add(generator.generateEventWithoutIndex());
         }
 
         final PcesFileTracker pcesFiles = new PcesFileTracker();
@@ -101,11 +101,11 @@ class DefaultInlinePcesWriterTest {
                 new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
 
         // We will add this event at the very end, it should be ancient by then
-        final PlatformEvent ancientEvent = generator.generateEventWithoutIndex().getBaseEvent();
+        final PlatformEvent ancientEvent = generator.generateEventWithoutIndex();
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+            events.add(generator.generateEventWithoutIndex());
         }
 
         writer.beginStreamingNewEvents();

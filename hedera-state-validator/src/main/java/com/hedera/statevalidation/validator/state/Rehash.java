@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.validator.state;
 
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,15 +35,9 @@ public class Rehash {
 
     private static final Logger logger = LogManager.getLogger(Rehash.class);
 
-    /**
-     * This parameter defines how deep the hash tree should be traversed.
-     * Note that it doesn't go below the top level of VirtualMap even if the depth is set to a higher value.
-     */
-    public static final int HASH_DEPTH = 5;
-
     @Test
     void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
-        final VirtualMap vm = (VirtualMap)
+        final VirtualMap vm =
                 deserializedSignedState.reservedSignedState().get().getState().getRoot();
         records = vm.getRecords();
 
@@ -64,8 +59,11 @@ public class Rehash {
      * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
+    @Disabled("expected to fail in 0.72 due to different leaf bytes to hash "
+            + "(see https://github.com/hiero-ledger/hiero-consensus-node/issues/23631)."
+            + "Should be re-enabled in 0.73")
     @Test
-    void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
+    void validateAgainstHashInfo(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var infoStringFromState = getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState());

@@ -19,16 +19,17 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -56,6 +57,7 @@ public class QueryChecker {
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
     private final IngestChecker ingestChecker;
+    private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -78,7 +80,8 @@ public class QueryChecker {
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull final IngestChecker ingestChecker) {
+            @NonNull final IngestChecker ingestChecker,
+            @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
@@ -86,6 +89,7 @@ public class QueryChecker {
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
         this.ingestChecker = requireNonNull(ingestChecker);
+        this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
     }
 
     /**
@@ -240,7 +244,7 @@ public class QueryChecker {
             @NonNull final TransactionInfo transactionInfo,
             @NonNull final Key payerKey,
             @NonNull final Configuration configuration) {
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusTime,
                 transactionInfo,
                 payerKey,
@@ -251,10 +255,11 @@ public class QueryChecker {
                 authorizer,
                 // Signatures aren't applicable to queries
                 -1,
-                dispatcher);
+                dispatcher,
+                synchronizedThrottleAccumulator);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(feeContext));
+                    .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }

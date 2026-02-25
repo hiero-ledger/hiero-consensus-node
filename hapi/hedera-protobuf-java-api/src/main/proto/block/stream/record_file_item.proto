@@ -20,10 +20,11 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "services/basic_types.proto";
 import "services/timestamp.proto";
 import "streams/sidecar_file.proto";
 import "streams/record_stream_file.proto";
+import "services/transaction_record.proto";
+import "services/transaction_contents.proto";
 
 /**
  * A Block Item for record files.
@@ -115,4 +116,17 @@ message RecordFileItem {
      * Each block can have zero or more sidecar files.
      */
     repeated proto.SidecarFile sidecar_file_contents = 3;
+
+    /**
+     * Amendments to the record file data.<br/>
+     * Over the years there were various bugs that caused data to be missed,
+     * incorrect or added erroneously.  Amendments are used to fix those
+     * mistakes with the aim that all data in the block stream is correct and
+     * complete. This field carries the record items that amend the original
+     * record file contents. Each item may contain a Transaction and/or
+     * TransactionRecord that are intended to replace the original data. They
+     * can be matched by the transaction ID. If you want the original raw data
+     * then you can ignore the contents of this field.
+     */
+    repeated proto.RecordStreamItem amendments = 4;
 }

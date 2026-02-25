@@ -33,7 +33,7 @@ public class StandaloneFeeCalculatorTest {
     static final long CREATE_TOPIC_BASE = 99000000L;
     static final long SUBMIT_MESSAGE_BASE = 7000000L;
     static final long NODE_BASE = 100000;
-    static final long SIG_EXTRA = 1000000;
+    static final long SIG_EXTRA = 100000;
 
     @Test
     public void testTokenCreateIntrinsic() throws ParseException {
@@ -58,6 +58,7 @@ public class StandaloneFeeCalculatorTest {
 
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(SignatureMap.newBuilder().build())
                 .build();
 
         final Transaction txn = Transaction.newBuilder()

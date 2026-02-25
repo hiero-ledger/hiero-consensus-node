@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -34,13 +34,13 @@ public class HederaUtils {
      * @throws RuntimeException when there is an issue loading the class
      * @return an instance of hedera app
      */
-    public static SwirldMain<? extends MerkleNodeState> createHederaAppMain(
-            @NonNull final PlatformContext platformContext) {
+    public static SwirldMain createHederaAppMain(@NonNull final PlatformContext platformContext) {
         try {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
-            Method newHederaMethod = mainClass.getDeclaredMethod("newHedera", Metrics.class, Configuration.class);
-            return (SwirldMain<? extends MerkleNodeState>)
-                    newHederaMethod.invoke(null, new NoOpMetrics(), platformContext.getConfiguration());
+            Method newHederaMethod =
+                    mainClass.getDeclaredMethod("newHedera", Configuration.class, Metrics.class, Time.class);
+            return (SwirldMain) newHederaMethod.invoke(
+                    null, platformContext.getConfiguration(), new NoOpMetrics(), platformContext.getTime());
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException
@@ -54,8 +54,7 @@ public class HederaUtils {
      * See: {@code  Hedera#setInitialStateHash}
      */
     public static void updateStateHash(
-            @NonNull final SwirldMain<? extends MerkleNodeState> hederaApp,
-            @NonNull final DeserializedSignedState deserializedSignedState) {
+            @NonNull final SwirldMain hederaApp, @NonNull final DeserializedSignedState deserializedSignedState) {
         try {
             Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
             setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());

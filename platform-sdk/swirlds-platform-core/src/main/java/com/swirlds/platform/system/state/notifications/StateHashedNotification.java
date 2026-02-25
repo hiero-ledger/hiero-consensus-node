@@ -3,11 +3,11 @@ package com.swirlds.platform.system.state.notifications;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A {@link Notification} that a state hash has been computed.

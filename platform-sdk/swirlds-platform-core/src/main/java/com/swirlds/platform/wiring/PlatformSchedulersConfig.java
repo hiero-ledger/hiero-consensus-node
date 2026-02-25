@@ -18,7 +18,6 @@ import java.time.Duration;
  * @param issDetector                          configuration for the ISS detector scheduler
  * @param issHandler                           configuration for the ISS handler scheduler
  * @param hashLogger                           configuration for the hash logger scheduler
- * @param latestCompleteStateNotifier          configuration for the latest complete state notifier scheduler
  * @param stateHasher                          configuration for the state hasher scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
@@ -30,7 +29,6 @@ import java.time.Duration;
  *                                             sentinel
  * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
- * @param gossip                               configuration for the gossip scheduler
  * @param branchDetector                       configuration for the branch detector scheduler
  * @param branchReporter                       configuration for the branch reporter scheduler
  */
@@ -71,9 +69,6 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration hashLogger,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration latestCompleteStateNotifier,
-
         @ConfigProperty(
                 defaultValue =
                         "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
@@ -97,9 +92,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration platformMonitor,
 
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration gossip,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration branchDetector,

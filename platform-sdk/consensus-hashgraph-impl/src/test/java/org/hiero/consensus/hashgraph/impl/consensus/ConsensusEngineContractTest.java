@@ -9,15 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,9 +18,16 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -133,9 +132,7 @@ public class ConsensusEngineContractTest {
                 .getGraphGenerator()
                 .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
                         roster.rosterEntries().size(), shunnedNodeIndex));
-        final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
 
         // start from genesis, validate the output
         final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
@@ -210,9 +207,7 @@ public class ConsensusEngineContractTest {
     @NonNull
     private static List<PlatformEvent> generateEvents(@NonNull final Random random, @NonNull final Roster roster) {
         final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
-        return eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        return eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
     }
 
     /**

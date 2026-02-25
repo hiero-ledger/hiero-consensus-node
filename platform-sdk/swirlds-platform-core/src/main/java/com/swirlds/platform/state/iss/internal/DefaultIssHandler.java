@@ -4,7 +4,6 @@ package com.swirlds.platform.state.iss.internal;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.platform.components.common.output.FatalErrorConsumer;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
@@ -12,6 +11,7 @@ import com.swirlds.platform.system.SystemExitCode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * A standard implementation of {@link IssHandler}.

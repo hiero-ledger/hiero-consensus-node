@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,13 +36,5 @@ public class V0590EntityIdSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.singleton(ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_KEY, EntityCounts.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        if (ctx.isGenesis()) {
-            final var entityIdState = ctx.newStates().getSingleton(ENTITY_COUNTS_STATE_ID);
-            entityIdState.put(EntityCounts.DEFAULT);
-        }
     }
 }

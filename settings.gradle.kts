@@ -1,21 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("org.hiero.gradle.build") version "0.7.0"
-    id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
+    id("org.hiero.gradle.build") version "0.7.4"
+    id("com.hedera.pbj.pbj-compiler") version "0.14.0" apply false
 }
 
 javaModules {
-    // This "intermediate parent project" should be removed
-    module("platform-sdk") { artifact = "swirlds-platform" }
-
     // The Hedera API module
     directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
-    directory("platform-sdk") {
-        group = "com.hedera.hashgraph"
-        module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-    }
+    directory("platform-sdk") { group = "com.hedera.hashgraph" }
 
     // The Hedera services modules
     directory("hedera-node") {
@@ -52,12 +46,7 @@ javaModules {
     // Platform-base demo applications
     directory("example-apps") { group = "com.hedera.hashgraph" }
 
-    directory("hiero-observability") {
-        group = "com.hedera.hashgraph"
-
-        module("hiero-metrics") { artifact = "hiero-metrics" }
-        module("openmetrics-httpserver") { artifact = "openmetrics-httpserver" }
-    }
+    directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }

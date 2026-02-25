@@ -29,7 +29,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,9 +56,8 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
-    private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
 
-    @Nullable
+    private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
     private SimpleFeeCalculator simpleFeeCalculator;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
@@ -88,13 +87,21 @@ public final class FeeManager {
             .servicedata(DEFAULT_FEE_COMPONENTS)
             .build();
 
-    /** The current fee schedule, cached for speed. */
+    /**
+     * The current fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> currentFeeDataMap = Collections.emptyMap();
-    /** The next fee schedule, cached for speed. */
+    /**
+     * The next fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> nextFeeDataMap = Collections.emptyMap();
-    /** The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed. */
+    /**
+     * The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed.
+     */
     private long currentScheduleExpirationSeconds;
-    /** The exchange rate manager to use for the current rate */
+    /**
+     * The exchange rate manager to use for the current rate
+     */
     private final ExchangeRateManager exchangeRateManager;
 
     private final CongestionMultipliers congestionMultipliers;
@@ -176,11 +183,10 @@ public final class FeeManager {
     }
 
     /**
-     * Updates the fee schedule based on the given file content.
+     * Updates the simple fee schedule based on the given file content. This is called on genesis and whenever
+     * the simple fee schedule file is updated.
      *
-     * <p>IMPORTANT:</p> This can only be called when initializing a state or handling a transaction.
-     *
-     * @param bytes The new fee schedule file content.
+     * @param bytes The new simple fee schedule file content.
      */
     public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
         // Parse the current and next fee schedules
@@ -188,9 +194,10 @@ public final class FeeManager {
             final org.hiero.hapi.support.fees.FeeSchedule schedule =
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
+                logger.info("Successfully validated simple fee schedule.");
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator =
-                        new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
+                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
                 return SUCCESS;
             } else {
                 logger.error("Unable to validate simple fee schedule.");
@@ -246,7 +253,6 @@ public final class FeeManager {
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
-
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
     }
 
@@ -287,8 +293,10 @@ public final class FeeManager {
         }
         return result;
     }
+
     /**
      * Returns the gas price in tiny cents.
+     *
      * @param consensusTime the consensus time
      * @return the gas price in tiny cents
      */
@@ -300,7 +308,8 @@ public final class FeeManager {
                 / FEE_DIVISOR_FACTOR;
     }
 
-    /** Gets the current exchange rate manager.
+    /**
+     * Gets the current exchange rate manager.
      */
     @NonNull
     public ExchangeRateManager getExchangeRateManager() {
@@ -309,6 +318,7 @@ public final class FeeManager {
 
     /**
      * Used during {@link #update(Bytes)} to populate the fee data map based on the configuration.
+     *
      * @param feeDataMap The map to populate.
      * @param feeSchedule The fee schedule to use.
      */
@@ -329,7 +339,7 @@ public final class FeeManager {
         });
     }
 
-    @Nullable
+    @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
     }

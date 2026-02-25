@@ -7,19 +7,18 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -69,9 +68,9 @@ class AncientParentsTest {
         final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
         // first, we generate events regularly, until we have some ancient rounds
-        for (final EventImpl event : generator.generateEvents(FIRST_BATCH_SIZE)) {
-            node1.addEvent(event.getBaseEvent().copyGossipedData());
-            node2.addEvent(event.getBaseEvent().copyGossipedData());
+        for (final PlatformEvent event : generator.generateEvents(FIRST_BATCH_SIZE)) {
+            node1.addEvent(event.copyGossipedData());
+            node2.addEvent(event.copyGossipedData());
         }
 
         assertConsensusEvents(node1, node2);
@@ -83,10 +82,10 @@ class AncientParentsTest {
         // during the partition, we will not insert the minority partition events into consensus
         // we generate just enough events to make the first event of the partition ancient, but we don't insert the
         // last event into the second consensus
-        final List<EventImpl> partitionedEvents = new LinkedList<>();
+        final List<PlatformEvent> partitionedEvents = new LinkedList<>();
         boolean succeeded = false;
-        EventImpl lastEvent = null;
-        EventImpl firstEventInPartition = null;
+        PlatformEvent lastEvent = null;
+        PlatformEvent firstEventInPartition = null;
         while (!succeeded) {
             lastEvent = generator.generateEvents(1).getFirst();
             if (partitionNodes.contains((int) lastEvent.getCreatorId().id())) {
@@ -102,27 +101,27 @@ class AncientParentsTest {
             } else {
                 // this is an event in the majority partition
                 // we add it to node 1 always
-                node1.addEvent(lastEvent.getBaseEvent().copyGossipedData());
+                node1.addEvent(lastEvent.copyGossipedData());
 
                 // if this event caused the first event in the partition to become ancient, then we exit this loop.
                 // we will add this event to node 2 later, after we add the partitioned events
                 final EventWindow node1Window = node1.getOutput().getEventWindow();
-                if (firstEventInPartition != null && node1Window.isAncient(firstEventInPartition.getBaseEvent())) {
+                if (firstEventInPartition != null && node1Window.isAncient(firstEventInPartition)) {
                     succeeded = true;
                 } else {
-                    node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
+                    node2.addEvent(lastEvent.copyGossipedData());
                 }
             }
         }
 
         // now we insert the minority partition events into both consensus objects, which are in a different state of
         // consensus
-        for (final EventImpl partitionedEvent : partitionedEvents) {
-            node1.addEvent(partitionedEvent.getBaseEvent().copyGossipedData());
-            node2.addEvent(partitionedEvent.getBaseEvent().copyGossipedData());
+        for (final PlatformEvent partitionedEvent : partitionedEvents) {
+            node1.addEvent(partitionedEvent.copyGossipedData());
+            node2.addEvent(partitionedEvent.copyGossipedData());
         }
         // now we add the event that was added to 1 but not to 2
-        node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
+        node2.addEvent(lastEvent.copyGossipedData());
         final long consRoundBeforeLastBatch =
                 node1.getConsensusRounds().getLast().getRoundNum();
         // we wanted the first event in the partition to become ancient, so it should never reach consensus
@@ -133,9 +132,9 @@ class AncientParentsTest {
         generator.setOtherParentAffinity(OtherParentMatrixFactory.createBalancedOtherParentMatrix(numNodes));
 
         // now we generate more events and expect consensus to be the same
-        for (final EventImpl event : generator.generateEvents(SECOND_BATCH_SIZE)) {
-            node1.addEvent(event.getBaseEvent().copyGossipedData());
-            node2.addEvent(event.getBaseEvent().copyGossipedData());
+        for (final PlatformEvent event : generator.generateEvents(SECOND_BATCH_SIZE)) {
+            node1.addEvent(event.copyGossipedData());
+            node2.addEvent(event.copyGossipedData());
         }
         assertThat(node1.getConsensusRounds().getLast().getRoundNum())
                 .withFailMessage("consensus did not advance after the partition rejoined")
@@ -150,8 +149,8 @@ class AncientParentsTest {
      * @param event the event to check
      * @param nodes the nodes to check
      */
-    private static void assertEventDidNotReachConsensus(final EventImpl event, final TestIntake... nodes) {
-        final Hash eventHash = event.getBaseHash();
+    private static void assertEventDidNotReachConsensus(final PlatformEvent event, final TestIntake... nodes) {
+        final Hash eventHash = event.getHash();
         final boolean found = Arrays.stream(nodes)
                 .map(TestIntake::getConsensusRounds)
                 .flatMap(List::stream)

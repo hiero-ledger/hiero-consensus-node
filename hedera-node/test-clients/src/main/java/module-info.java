@@ -83,6 +83,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.entityid.impl;
     requires com.hedera.node.app.service.entityid;
+    requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.roster.impl;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.schedule.impl;
@@ -104,12 +105,14 @@ open module com.hedera.node.test.clients {
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;

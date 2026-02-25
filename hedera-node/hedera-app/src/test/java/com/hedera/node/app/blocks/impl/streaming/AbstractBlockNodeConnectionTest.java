@@ -130,7 +130,7 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             }
 
             @Override
-            void close() {
+            public void close() {
                 // do nothing
             }
         };

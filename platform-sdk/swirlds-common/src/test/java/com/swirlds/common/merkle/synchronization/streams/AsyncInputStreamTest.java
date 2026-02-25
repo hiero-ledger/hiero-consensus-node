@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.streams;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingInputStream;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingOutputStream;
@@ -18,12 +17,15 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -150,9 +152,8 @@ class AsyncInputStreamTest {
 
         // Unblock the buffer, allowing remaining messages to be sent
         blockingOut.unlock();
-        MILLISECONDS.sleep(100);
 
-        assertEquals(count, messagesSent.get(), "all messages should have been sent");
+        assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should have been sent");
 
         out.close();
         workGroup.waitForTermination();
@@ -229,9 +230,8 @@ class AsyncInputStreamTest {
 
         // Unblock the stream, remainder of messages should be read
         blockingIn.unlock();
-        MILLISECONDS.sleep(100);
 
-        assertEquals(count, messagesReceived.get(), "all messages should be read");
+        assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(5), "all messages should be read");
 
         in.close();
         workGroup.waitForTermination();

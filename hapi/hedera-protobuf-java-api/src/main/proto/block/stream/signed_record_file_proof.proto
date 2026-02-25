@@ -1,0 +1,65 @@
+/**
+ * # Record File Signature Proof
+ * Message for a block proof or state proof signature produced by gathering
+ * Record File Signatures.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream;
+
+// spdx-license-identifier: apache-2.0
+option java_package = "com.hedera.hapi.block.stream.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream">>> this comment is special code for setting pbj compiler java package
+option java_multiple_files = true;
+
+/**
+ * A proof containing RSA signatures from consensus nodes for a block that was
+ * originally recorded in the record file format. It contains a list of
+ * signatures over the record file hash. How to compute the record file hash
+ * depends on the record file format version it was originally created with. To
+ * verify a block with a SignedRecordFileProof, the record file hash needs to be
+ * computed according to the record file format version and then verified with
+ * the signatures in this proof and the public keys of the consensus nodes at
+ * the point the record file was created. The public keys can be obtained form
+ * the network address book from a trusted source. See `RecordFileItem`
+ * documentation for description of how to compute the record file hash.
+ */
+message SignedRecordFileProof {
+  /**
+   * The record file format version, this dictates how the hash that is signed
+   * is computed. Valid versions are 2, 5 and 6.
+   */
+  uint32 version = 1;
+
+  /**
+   * A collection of RSA signatures from consensus nodes.<br/>
+   * These signatures validate the record file hash.
+   */
+  repeated RecordFileSignature record_file_signatures = 2;
+}
+
+/**
+ * A signature by a node on the record file hash. See `RecordFileItem`
+ * documentation for description of how to compute the record file hash.
+ */
+message RecordFileSignature {
+  /**
+   * A single RSA signature in DER-encoded X.509 certificate format.<br/>
+   * This is the RSA signature by the node's private RSA key on the record
+   * file hash.
+   */
+  bytes signatures_bytes = 1;
+
+  /**
+   * A unique node identifier.<br/>
+   * This is the node id of the consensus node that created this signature.
+   */
+  uint32 node_id = 2;
+}

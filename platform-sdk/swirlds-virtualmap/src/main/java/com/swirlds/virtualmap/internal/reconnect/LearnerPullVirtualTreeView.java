@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
@@ -25,6 +24,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
@@ -35,7 +35,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
+public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
     /**
      * Reconnect configuration.
@@ -231,7 +231,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void expectLessonFor(
-            final Long parent, final int childIndex, final Long original, final boolean nodeAlreadyPresent) {
+            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
         throw new UnsupportedOperationException("LearnerPullVirtualTreeView.expectLessonFor()");
     }
 
@@ -239,7 +239,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public ExpectedLesson<Long> getNextExpectedLesson() {
+    public ExpectedLesson getNextExpectedLesson() {
         throw new UnsupportedOperationException("LearnerPullVirtualTreeView.getNextExpectedLesson()");
     }
 

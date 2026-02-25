@@ -59,10 +59,17 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
+import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -233,6 +240,8 @@ public class EnhancedKeyStoreLoader {
             throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
         }
 
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
+
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);
     }
@@ -290,8 +299,8 @@ public class EnhancedKeyStoreLoader {
                 final KeyPair signingKeyPair = new KeyPair(publicSigningKey, privateSigningKey);
 
                 // generate the agreement certificate
-                final String dnA = CryptoStatic.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
-                final X509Certificate agrCert = CryptoStatic.generateCertificate(
+                final String dnA = CertificateUtils.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
+                final X509Certificate agrCert = CertificateUtils.generateCertificate(
                         dnA,
                         agrKeyPair,
                         signingCert.getSubjectX500Principal().getName(),
@@ -567,7 +576,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path privateKeyStore(@NonNull final NodeId nodeId) {
         return keyStoreDirectory.resolve(String.format(
-                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
+                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), NodeUtilities.formatNodeName(nodeId)));
     }
 
     /**
@@ -581,7 +590,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path legacyPrivateKeyStore(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ALIAS_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("private-%s.pfx", RosterUtils.formatNodeName(nodeId)));
+        return keyStoreDirectory.resolve(String.format("private-%s.pfx", NodeUtilities.formatNodeName(nodeId)));
     }
 
     /**
@@ -743,7 +752,7 @@ public class EnhancedKeyStoreLoader {
         for (final NodeId nodeId : this.nodeIds) {
             // extract private keys for local nodes
             final Path sPrivateKeyLocation =
-                    keyStoreDirectory.resolve(String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
+                    keyStoreDirectory.resolve(String.format("s-private-%s.pem", NodeUtilities.formatNodeName(nodeId)));
             final Path privateKs = legacyPrivateKeyStore(nodeId);
             if (!Files.exists(sPrivateKeyLocation) && Files.exists(privateKs)) {
                 logger.info(

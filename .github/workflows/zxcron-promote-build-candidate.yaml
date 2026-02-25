@@ -28,6 +28,9 @@ jobs:
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
+      promote-build-candidate: ${{ steps.find-build-candidates.outputs.promote-build-candidate }}
+      promote-candidate-message: ${{ steps.find-build-candidates.outputs.promote-candidate-message }}
+      promote-date: ${{ steps.find-build-candidates.outputs.promote-date }}
     if: ${{ github.event.repository.private == false }}
     steps:
       - name: Harden Runner
@@ -50,6 +53,8 @@ jobs:
           TAG_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
         run: |
+          PROMOTE_MSG="Found build candidate for promotion."
+          PROMOTE_CANDIDATE="true"
           CANDIDATE_TAG="$(git tag --list --sort=-version:refname "${TAG_PATTERN}" | head --lines 1)"
           if [[ -n "${CANDIDATE_TAG}" ]]; then
             set +e
@@ -59,7 +64,9 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED flag is not empty than the commit has been tagged.
             if [[ -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-              gh run cancel ${{ github.run_id }}
+              # Successful. No new commit to tag.
+              PROMOTE_MSG="Candidate commit has already been promoted with tag(s): ${BUILD_PROMOTED_TAGGED}."
+              PROMOTE_CANDIDATE="false"
             fi
 
             # Verify the commit is on main and continue
@@ -72,11 +79,24 @@ jobs:
               echo "build-candidate-commit=${CANDIDATE_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
               echo "build-candidate-tag=${CANDIDATE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
             else
-              gh run cancel "${{ github.run_id }}"
+              # Candidate commit is not on main. No promotion.
+              PROMOTE_MSG="Candidate commit ${CANDIDATE_COMMIT} is not on main branch."
+              PROMOTE_CANDIDATE="false"
             fi
           else
-            gh run cancel "${{ github.run_id }}"
+            # cancel the run if no candidate tag found
+            PROMOTE_MSG="No build candidate tags found matching pattern: ${TAG_PATTERN}."
+            PROMOTE_CANDIDATE="false"
           fi
+
+          echo "promote-build-candidate=${PROMOTE_CANDIDATE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "promote-candidate-message=${PROMOTE_MSG}" | tee -a "${GITHUB_OUTPUT}"
+
+          DATE=$(date +"%Y-%m-%d (%Z)")
+          echo "promote-date=${DATE}" >> "${GITHUB_OUTPUT}"
+
+          echo "### Promotion Decision" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${PROMOTE_MSG}" >> "${GITHUB_STEP_SUMMARY}"
 
   promote-build-candidate:
     name: Promote Build Candidate
@@ -84,7 +104,7 @@ jobs:
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
-    if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
+    if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -191,7 +211,7 @@ jobs:
       - determine-build-candidate
       - promote-build-candidate
     if: ${{ needs.promote-build-candidate.result == 'success' &&
-      needs.determine-build-candidate.result == 'success' &&
+      needs.determine-build-candidate.outputs.promote-build-candidate == 'true' &&
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
@@ -199,66 +219,179 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Report Promoted Build
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#00FF00",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":tada: Hiero Consensus Node - Build Candidate Promoted",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Build Candidate Promotion Succeeded. See details below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Build Candidate Commit"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Promoted Build Tag"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag Date"
+                      },
+                      {
+                          "type": "mrkdwn",
+                          "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "Workflow Run"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report Promoted Build (slack citr-build-promotion-reports)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Build Candidate Promotion Succeeded. See details below.*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Build Candidate Commit"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Promoted Build Tag"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "Workflow Run"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
+          payload-file-path: slack_payload.json
+
+  report-no-promotion:
+    name: Report No Build Promotion
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - determine-build-candidate
+    if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'false' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#777777",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":bell: Hiero Consensus Node - No Build Candidate Promoted",
+                      "emoji": true
                     }
-                  ]
-                }
-              ]
-            }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*No Build Candidate Promoted. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Status:"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.determine-build-candidate.outputs.promote-candidate-message }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Additional Information:*"
+                    },
+                    "fields":[
+                      {
+                        "type": "plain_text",
+                        "text": "Date"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report No Promotion (slack citr-build-promotion-reports)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report No Promotion (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report Build Promotion failure
@@ -268,7 +401,9 @@ jobs:
       - promote-build-candidate
       - deploy-ci-trigger
       - report-promotion
-    if: ${{ (needs.determine-build-candidate.result != 'success' ||
+    if:
+      ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' &&
+      (needs.determine-build-candidate.result != 'success' ||
       needs.promote-build-candidate.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success' ||
       needs.report-promotion.result != 'success') && !cancelled() && always() }}
@@ -335,7 +470,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
+                      "text": ":rotating_light: Hiero Consensus Node - Build Candidate Promotion Error Report",
                       "emoji": true
                     }
                   },
@@ -349,6 +484,14 @@ jobs:
                       "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
                     },
                     "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Date"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
+                      },
                       {
                         "type": "plain_text",
                         "text": "Fetch Latest Build Candidate"
@@ -393,10 +536,10 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack citr-build-promotion-reports)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

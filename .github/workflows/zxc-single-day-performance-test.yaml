@@ -79,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.11.1
+  NLG_VERSION: 0.13.0
 
   #Thresholds for performance
   #benchmarks
@@ -88,11 +88,11 @@ env:
   #-15%
   #         17338 19867         10266          5950     1008               42336
   MinNFTscore: 10266
-  MinMerkleDBscore: 42336
+  MinMerkleDBscore: 51147
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 4000
+  MinSmartContractLoadTest: 5474
   ValidatorExitCode: 0
 
 jobs:
@@ -336,6 +336,9 @@ jobs:
 
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
+
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
 
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
@@ -1350,7 +1353,7 @@ jobs:
                 "${crypto_transfer_load_result}" == "success" && \
                 "${heli_swap_load_result}" == "success" && \
                 "${smart_contract_load_result}" == "success" && \
-                "${validator_result}" != "" ]]; then
+                "${validator_result}" == "0" ]]; then
               RESULT="success"
           fi
 

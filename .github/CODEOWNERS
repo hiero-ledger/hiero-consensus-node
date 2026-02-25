@@ -27,7 +27,7 @@
 /hedera-node/**/*.gradle                        @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Hedera Node Deployments - Configuration & Grafana Dashboards
-/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @beeradb
+/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @akdev
 /hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 
@@ -65,7 +65,6 @@
 
 # Platform SDK Root Protections
 /platform-sdk/                                      @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/**/*.gradle                           @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/README.md                             @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Platform SDK Modules
@@ -74,7 +73,8 @@
 /platform-sdk/swirlds-base/                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-benchmarks/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-cli/                          @hiero-ledger/hiero-consensus-node-consensus-codeowners
-/platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-common/src/**/java/com/swirlds/common/merkle/ @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-component-framework/          @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-config-*/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-logging/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
@@ -94,11 +94,13 @@
 #####   HAPI  ######
 ####################
 
-/hapi/                                              @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hapi/                                              @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 /hapi/**/*.gradle                                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Protobuf
 /hapi/hedera-protobuf-java-api/src/main/proto/services/ @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/ @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/state/virtual_map_state.proto @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners

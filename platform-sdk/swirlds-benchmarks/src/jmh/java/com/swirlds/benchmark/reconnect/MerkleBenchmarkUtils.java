@@ -7,10 +7,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -25,13 +23,14 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
 
-    public static <T extends MerkleNode> T hashAndTestSynchronization(
+    public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final long randomSeed,
@@ -70,7 +69,7 @@ public class MerkleBenchmarkUtils {
      * Synchronize two trees and verify that the end result is the expected result.
      */
     @SuppressWarnings("unchecked")
-    private static <T extends MerkleNode> T testSynchronization(
+    private static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final long randomSeed,
@@ -93,7 +92,7 @@ public class MerkleBenchmarkUtils {
 
             final VirtualMap newRoot = startingTree.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
@@ -188,7 +187,7 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return (T) newRoot;
+            return newRoot;
         }
     }
 
