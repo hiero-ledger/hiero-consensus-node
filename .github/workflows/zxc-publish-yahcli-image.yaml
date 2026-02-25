@@ -3,7 +3,7 @@ name: "ZXC: Publish Yahcli Image"
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       ref:
@@ -14,7 +14,7 @@ on:
         description: "Perform Dry Run"
         type: boolean
         required: false
-        default: true
+        default: false
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -80,8 +80,8 @@ jobs:
       - name: Resolve Version
         id: resolve-version
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF_NAME}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Resolved version from tag: ${VERSION}"
           else
