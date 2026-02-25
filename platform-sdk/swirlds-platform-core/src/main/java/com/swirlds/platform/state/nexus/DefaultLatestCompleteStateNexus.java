@@ -70,7 +70,7 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         if (PlatformStatus.FREEZING.equals(platformStatus)) {
             synchronized (this) {
-                if(currentState == null) {
+                if (currentState == null) {
                     return;
                 }
                 currentState.close();
