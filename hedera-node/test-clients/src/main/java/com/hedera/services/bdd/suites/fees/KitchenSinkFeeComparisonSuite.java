@@ -2634,9 +2634,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(contractGetBytecodeBase));
         ops.add(captureQueryTotalCost(
-                contractGetBytecodeBase,
-                "BYTES=92 (included), BASE_CASE=1, SIGS=1 (included)",
-                feeMap));
+                contractGetBytecodeBase, "BYTES=92 (included), BASE_CASE=1, SIGS=1 (included)", feeMap));
 
         return ops;
     }
