@@ -17,6 +17,7 @@ gradle.allprojects {
                 maxFailures.set(10)
                 failOnPassedAfterRetry.set(false)
             }
+            reports.junitXml.mergeReruns.set(true)
         }
     }
 }
