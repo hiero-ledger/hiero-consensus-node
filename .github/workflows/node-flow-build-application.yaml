@@ -49,7 +49,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
-    if: ${{ needs.mats-tests.result == 'success' }}
+    if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
