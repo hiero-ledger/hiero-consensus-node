@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-time-consuming:
+        description: "HAPI Testing (Time Consuming) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -230,6 +235,7 @@ jobs:
       enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-time-consuming: "${{ inputs.enable-hapi-tests-time-consuming == 'true' }}"
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-network-log-capture: "true"
       mats-suffix: "MATS"

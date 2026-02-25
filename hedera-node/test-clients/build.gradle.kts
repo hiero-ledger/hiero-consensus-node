@@ -76,6 +76,7 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
@@ -85,6 +86,7 @@ val basePrCheckTags =
     )
 
 val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSerial")
+val timeConsumingTasks = setOf("hapiTestTimeConsuming", "hapiTestTimeConsumingSerial")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -94,7 +96,7 @@ val prCheckTags =
             put(task, "($tags)&(!MATS)")
 
             // MATS task → explicitly REQUIRE MATS
-            if (task !in cryptoTasks) {
+            if (task !in cryptoTasks && task !in timeConsumingTasks) {
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
@@ -129,11 +131,13 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
+        put("hapiTestTimeConsumingSerial", "27800")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", port)
+            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+                put("$taskName$matsSuffix", port)
         }
     }
 val prCheckPropOverrides =
@@ -160,6 +164,7 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -173,7 +178,8 @@ val prCheckPropOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", overrides)
+            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+                put("$taskName$matsSuffix", overrides)
         }
     }
 val prCheckPrepareUpgradeOffsets =
@@ -182,7 +188,8 @@ val prCheckPrepareUpgradeOffsets =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, offset: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", offset)
+            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+                put("$taskName$matsSuffix", offset)
         }
     }
 // Note: no MATS variants needed for history proofs
@@ -198,7 +205,8 @@ val prCheckNetSizeOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", size)
+            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+                put("$taskName$matsSuffix", size)
         }
     }
 
@@ -208,7 +216,10 @@ tasks {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
-                if (taskName.contains("Crypto") && !taskName.contains("Serial"))
+                if (
+                    (taskName.contains("Crypto") || taskName.contains("TimeConsuming")) &&
+                        !taskName.contains("Serial")
+                )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
             )

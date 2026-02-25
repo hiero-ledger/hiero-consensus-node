@@ -544,7 +544,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestTimeConsuming
+        run: ${GRADLE_EXEC} hapiTestTimeConsuming && ${GRADLE_EXEC} hapiTestTimeConsumingSerial
 
       - name: Publish HAPI Test (Time Consuming) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
