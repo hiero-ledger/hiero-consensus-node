@@ -19,6 +19,8 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -94,15 +96,23 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         // Set the debug port for the node communication service as JVM arguments
         // This ensures only the main process gets the debug agent, not tools like jps/jcmd
         final int debugPort = getNodeCommunicationDebugPort(selfId);
-        final ProcessBuilder processBuilder = new ProcessBuilder(
+        final List<String> command = new ArrayList<>(List.of(
                 "java",
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
                 "-Djdk.attach.allowAttachSelf=true",
-                "-XX:+StartAttachListener",
+                "-XX:+StartAttachListener"));
+
+        if (request.getGcLoggingEnabled()) {
+            command.add("-Xlog:gc:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");
+        }
+
+        command.addAll(List.of(
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS,
-                String.valueOf(selfId.id()));
+                String.valueOf(selfId.id())));
+
+        final ProcessBuilder processBuilder = new ProcessBuilder(command);
 
         processBuilder.inheritIO();
 
