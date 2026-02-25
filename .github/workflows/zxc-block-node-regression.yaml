@@ -96,10 +96,11 @@ jobs:
           LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
           
           if [[ -z "${LATEST_BN_TAG}" ]]; then
-            log_line "ERROR: Could not parse LATEST_BN_TAG from response"
+            echo "ERROR: Could not parse LATEST_BN_TAG from response"
             return 0
           fi
           
+          echo "Latest Block Node tag: ${LATEST_BN_TAG}"
           echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
 
       - name: Retrieve Latest MN Tag
@@ -109,10 +110,11 @@ jobs:
           LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
           
           if [[ -z "${LATEST_MN_TAG}" ]]; then
-            log_line "ERROR: Could not parse LATEST_MN_TAG from response"
+            echo "ERROR: Could not parse LATEST_MN_TAG from response"
             return 0
           fi
           
+          echo "Latest Block Node tag: ${LATEST_MN_TAG}"
           echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
@@ -208,7 +210,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hashgraph/solo@latest
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
