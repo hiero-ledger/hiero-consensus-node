@@ -39,10 +39,6 @@ import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
  * <p>The manager relies on a supplied {@link BlockProvenSnapshotProvider} so it can retrieve CLPR-backed stores on
  * demand without holding onto stale references. The provider is implemented by the application layer, keeping this
  * implementation free of direct application-module dependencies.</p>
- *
- * <p><b>Dev Mode Only:</b> All methods in this class require {@code devModeEnabled} to be {@code true}.
- * When dev mode is disabled, methods return {@code null} or throw {@link UnsupportedOperationException}
- * as production mode is not yet implemented.</p>
  */
 @Singleton
 public class ClprStateProofManager {
@@ -59,31 +55,19 @@ public class ClprStateProofManager {
     }
 
     /**
-     * Indicates whether dev mode shortcuts are enabled.
-     *
-     * @return {@code true} when dev mode is active
-     */
-    public boolean isDevModeEnabled() {
-        return clprConfig.devModeEnabled();
-    }
-
-    /**
      * Returns the most recent local ledger id, or {@code null} if it is not yet known.
      *
-     * <p><b>Dev Mode Behavior:</b> Returns the ledger ID from the first configuration found in state.
+     * <p>Returns the ledger ID from {@link ClprLocalLedgerMetadata} in state.
      * If no configuration exists yet an empty {@link ClprLedgerId} is returned so callers can treat the
-     * value as “still bootstrapping”. In production this should be replaced with a history-service lookup.</p>
+     * value as “still bootstrapping”.</p>
      *
-     * @return the local ledger ID, {@code null} when dev mode is disabled, or an empty id while bootstrapping
+     * @return the local ledger ID, or an empty id while bootstrapping
      */
     @Nullable
     public ClprLedgerId getLocalLedgerId() {
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
-            return emptyLedgerId();
+            return ClprLedgerId.DEFAULT;
         }
         final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
@@ -101,7 +85,7 @@ public class ClprStateProofManager {
                 && metadata.ledgerId().ledgerId().length() > 0) {
             return metadata.ledgerId();
         }
-        return emptyLedgerId();
+        return ClprLedgerId.DEFAULT;
     }
 
     /**
@@ -144,30 +128,18 @@ public class ClprStateProofManager {
         return configs;
     }
 
-    @Deprecated
-    private ClprLedgerId emptyLedgerId() {
-        if (!clprConfig.devModeEnabled()) {
-            throw new IllegalStateException("Can only return empty ledger ids in dev mode");
-        }
-        return ClprLedgerId.newBuilder().build();
-    }
-
     /**
      * Returns a state proof for the requested ledger configuration, or {@code null} if none exists.
      *
-     * <p><b>Dev Mode Behavior:</b> Builds a state proof from the actual Merkle tree containing the configuration.
-     * The state root hash is used as the TSS signature. In production mode, this should return a TSS-backed
-     * proof from the history service.</p>
+     * <p>Builds a state proof from the actual Merkle tree containing the configuration.
+     * The state root hash is used as the TSS signature.</p>
      *
      * @param ledgerId the ledger ID to query
-     * @return state proof containing the configuration, or {@code null} if not in dev mode or configuration not found
+     * @return state proof containing the configuration, or {@code null} if configuration not found
      */
     @Nullable
     public StateProof getLedgerConfiguration(@NonNull final ClprLedgerId ledgerId) {
         requireNonNull(ledgerId);
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         ClprLedgerId resolvedLedgerId = ledgerId;
         if (ledgerId.ledgerId().length() == 0) {
             final var localLedgerId = getLocalLedgerId();
@@ -338,18 +310,13 @@ public class ClprStateProofManager {
     /**
      * Validates the state proof embedded in the supplied transaction.
      *
-     * <p><b>Dev Mode Behavior:</b> Validates proof structure and root hash signature matching.
-     * In production mode, validation is not yet implemented.</p>
+     * <p>Validates proof structure and root hash signature matching.</p>
      *
      * @param configTxn the transaction containing the state proof
      * @return {@code true} if the proof is structurally sound and its signature matches the computed root hash
-     * @throws UnsupportedOperationException if dev mode is not enabled
      */
     public boolean validateStateProof(@NonNull final ClprSetLedgerConfigurationTransactionBody configTxn) {
         requireNonNull(configTxn);
-        if (!clprConfig.devModeEnabled()) {
-            throw new UnsupportedOperationException("State proof validation not available in production mode");
-        }
         if (!configTxn.hasLedgerConfigurationProof()) {
             return false;
         }

@@ -36,7 +36,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     private BlockProvenStateAccessor snapshotProvider;
     private StateLifecycleManager stateLifecycleManager;
     private VirtualMapState testState;
-    private ClprConfig devModeConfig;
+    private ClprConfig clprConfig;
 
     @BeforeEach
     void setUp() {
@@ -47,9 +47,8 @@ class ClprStateProofManagerTest extends ClprTestBase {
         stateLifecycleManager = mock(StateLifecycleManager.class);
         when(stateLifecycleManager.getLatestImmutableState()).thenReturn(testState);
         snapshotProvider = new BlockProvenStateAccessor(stateLifecycleManager);
-        // Create dev mode config for testing
-        devModeConfig = new ClprConfig(true, 5000, true, true, 5, 6144);
-        manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
+        clprConfig = new ClprConfig(true, 5000, true, 5, 6144);
+        manager = new ClprStateProofManager(snapshotProvider, clprConfig);
     }
 
     private com.swirlds.state.lifecycle.StateMetadata<ClprLedgerId, ClprLedgerConfiguration>
@@ -85,7 +84,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var emptyLifecycleManager = mock(StateLifecycleManager.class);
         when(emptyLifecycleManager.getLatestImmutableState()).thenReturn(emptyState);
         final var emptyAccessor = new BlockProvenStateAccessor(emptyLifecycleManager);
-        final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, devModeConfig);
+        final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, clprConfig);
         final var ledgerId = managerWithMissingLedgerId.getLocalLedgerId();
         assertNotNull(ledgerId);
         assertEquals(ClprLedgerId.DEFAULT, ledgerId);
@@ -100,7 +99,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var lifecycleManager = mock(StateLifecycleManager.class);
         when(lifecycleManager.getLatestImmutableState()).thenReturn(state);
         final var accessor = new BlockProvenStateAccessor(lifecycleManager);
-        final var managerWithMetadata = new ClprStateProofManager(accessor, devModeConfig);
+        final var managerWithMetadata = new ClprStateProofManager(accessor, clprConfig);
 
         final var ledgerId = managerWithMetadata.getLocalLedgerId();
         assertNotNull(ledgerId);
@@ -125,7 +124,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void getLedgerConfigurationReturnsNullWhenStateUnavailable() {
         final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
-        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        final var emptyManager = new ClprStateProofManager(emptyProvider, clprConfig);
         assertNull(emptyManager.getLedgerConfiguration(remoteClprLedgerId));
     }
 
@@ -134,14 +133,6 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var proof = manager.getLedgerConfiguration(ClprLedgerId.DEFAULT);
         assertNotNull(proof);
         assertEquals(localClprConfig, ClprStateProofUtils.extractConfiguration(proof));
-    }
-
-    @Test
-    void isDevModeEnabledReflectsConfig() {
-        assertTrue(manager.isDevModeEnabled());
-        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false, 5, 6144);
-        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
-        assertFalse(prodManager.isDevModeEnabled());
     }
 
     @Test

@@ -36,7 +36,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.hiero.hapi.interledger.clpr.ClprHandleMessagePayloadTransactionBody;
@@ -216,8 +215,7 @@ class ClprProcessMessageBundleHandlerTest extends ClprHandlerTestBase {
         given(clprMessageBundle.messages()).willReturn(List.of(payload("msg1")));
 
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class))
-                .willReturn(new ClprConfig(true, 5000, true, true, 5, 6144));
+        mockDefaultClprConfig();
 
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils.when(() -> validateStateProof(clprStateProof)).thenReturn(true);
