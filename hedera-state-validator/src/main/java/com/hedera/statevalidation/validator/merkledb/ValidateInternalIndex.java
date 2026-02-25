@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
@@ -57,8 +56,7 @@ public class ValidateInternalIndex {
         final long lastChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, hashChunkHeight);
 
         final LongList hashChunkIndex = dataSource.getIdToDiskLocationHashChunks();
-        final var hashChunkStore = new MemoryIndexDiskKeyValueStoreAccessor(dataSource.getHashChunkStore());
-        final DataFileCollection dfc = hashChunkStore.getFileCollection();
+        final DataFileCollection dfc = dataSource.getHashChunkStore().getFileCollection();
         log.debug("Size of hash chunk index: {}", hashChunkIndex.size());
 
         final var onDiskExceptionCount = new AtomicInteger(0);

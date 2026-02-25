@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
@@ -549,6 +550,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         } finally {
             if (hashStoreRam != null) {
                 hashStoreRam.close();
+                Files.delete(dbPaths.hashStoreRamFile);
+            }
+            if (hashStoreDisk != null) {
+                hashStoreDisk.close();
+                FileUtils.deleteDirectory(dbPaths.hashStoreDiskDirectory);
             }
             logger.info(
                     MERKLE_DB.getMarker(),

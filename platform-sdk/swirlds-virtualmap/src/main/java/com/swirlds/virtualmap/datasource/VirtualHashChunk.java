@@ -168,7 +168,6 @@ public class VirtualHashChunk {
                     while ((1 << dataRank) < numHashes) {
                         dataRank++;
                     }
-                    assert (1 << dataRank) == numHashes;
                     final int step = 1 << (height - dataRank);
                     for (int i = 0; i < numHashes; i++) {
                         final int dstOffset = i * singleHashLength * step;
@@ -522,7 +521,7 @@ public class VirtualHashChunk {
             assert path == 2;
             return VirtualHasher.NO_PATH2_HASH;
         }
-        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
+        if ((h == 0) || ((path >= firstLeafPath))) {
             return getHashAtPath(path);
         }
         assert h > 0;

@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -59,8 +58,7 @@ public class ValidateLeafIndex {
 
         var leafNodeIndex = vds.getPathToDiskLocationLeafNodes();
         var objectKeyToPath = vds.getKeyToPath();
-        var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getKeyValueStore());
-        var leafDfc = leafStore.getFileCollection();
+        var leafDfc = vds.getKeyValueStore().getFileCollection();
 
         assertEquals(lastLeafPath, leafNodeIndex.size() - 1);
 

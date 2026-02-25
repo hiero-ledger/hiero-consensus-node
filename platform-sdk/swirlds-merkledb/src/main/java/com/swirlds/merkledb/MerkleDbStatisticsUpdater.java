@@ -122,11 +122,8 @@ public class MerkleDbStatisticsUpdater {
     void updateOffHeapStats(final MerkleDbDataSource dataSource) {
         int totalOffHeapMemoryConsumption = updateOffHeapStat(
                         dataSource.getIdToDiskLocationHashChunks(), statistics::setOffHeapHashesIndexMb)
-                + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb);
-        if (dataSource.getKeyToPath() != null) {
-            totalOffHeapMemoryConsumption += updateOffHeapStat(
-                    (OffHeapUser) dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
-        }
+                + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb)
+                + updateOffHeapStat(dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }
 

@@ -10,7 +10,6 @@ import com.hedera.statevalidation.report.Report;
 import com.hedera.statevalidation.report.StorageReport;
 import com.hedera.statevalidation.util.LongCountArray;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
@@ -43,7 +42,7 @@ public final class StateAnalyzer {
             @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreAccessor(vds.getKeyValueStore()).getFileCollection(),
+                vds.getKeyValueStore().getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
                 Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
@@ -66,7 +65,7 @@ public final class StateAnalyzer {
     public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreAccessor(vds.getHashChunkStore()).getFileCollection(),
+                vds.getHashChunkStore().getFileCollection(),
                 vds.getIdToDiskLocationHashChunks().size(),
                 Report::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
