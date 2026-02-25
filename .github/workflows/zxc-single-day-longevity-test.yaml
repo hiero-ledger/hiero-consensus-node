@@ -391,7 +391,9 @@ jobs:
 
       - name: Build Validator
         run: |
+          cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -818,7 +820,7 @@ jobs:
           set +x
           set +e
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
-            cp "${{ github.workspace }}"/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+            cp "${{ github.workspace }}"/target_consensus_node/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"

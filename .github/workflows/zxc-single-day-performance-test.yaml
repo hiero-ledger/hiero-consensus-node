@@ -306,19 +306,42 @@ jobs:
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew clean assemble
 
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            echo "Instrumenting CN ..."
+            cd "${{ github.workspace }}"/target_consensus_node/hedera-node
+            sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
+            `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/base-*.jar data/lib/hedera*.jar data/lib/hapi*.jar \
+             data/lib/besu*.jar data/lib/evm*.jar data/lib/algorithms-*.jar data/lib/rlp-*.jar data/lib/*-0.8.2-module.jar \
+             data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*-*.*.*-SNAPSHOT.jar | sort -u` > sources_init.txt 2>&1
+            cp sources_init.txt "${{ github.workspace }}"/report/
+            head sources_init.txt
+            echo "..."
+            tail sources_init.txt
+
+            cd ..
+          fi
+          cd "${{ github.workspace }}"
+
+      - name: Setup Java25
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 25.0.2
+
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
-          ./gradlew block-node-app:distTar
-          #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
+          ./gradlew app:distTar
+          #produces ./block-node/app/build/distributions/app-0.18.0-SNAPSHOT.tar
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
             mkdir instrumentation
             cd instrumentation
-            tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
+            tarfile=$(ls -1 ../block-node/app/build/distributions/app-*.tar)
             tar xf $tarfile
-            cd block-node-app-*
+            cd app-*
             pwd
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
@@ -328,9 +351,9 @@ jobs:
             cd ..
 
             rm $tarfile 
-            tar cvf $tarfile block-node-app-*
+            tar cvf $tarfile app-*
 
-            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
+            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find app-* -type f -name '*.ser`
             #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
 
             cd ..
@@ -340,7 +363,9 @@ jobs:
 
       - name: Build Validator
         run: |
+          cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -493,18 +518,19 @@ jobs:
             NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
+          sed -i -e 's/32Gi/54Gi/g' blocknode-values.yaml
           sed -i -e 's/cpu: 20/cpu: 8/g' -e 's/auxiliary-services/consensus-node/g' blocknode-values.yaml
-          sed -e 's/cpu: 8/cpu: 6/g' blocknode-values.yaml > blocknode-values-p2.yaml
+          ##sed -e 's/cpu: 8/cpu: 6/g' blocknode-values.yaml > blocknode-values-p2.yaml
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
              --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
           done
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-           helm upgrade --install --set name=bn-p2-${i} --set appName=bn-p2-${i} block-node-p2-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
-             --version 0.6.2 --values blocknode-values-p2.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
-          done
+          #for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          #do
+          # helm upgrade --install --set name=bn-p2-${i} --set appName=bn-p2-${i} block-node-p2-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
+          #   --version 0.6.2 --values blocknode-values-p2.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
+          #done
           sleep 180
           wait
 
@@ -512,11 +538,11 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get svc > get_svc.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/block_node_env.sh
 
-          BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
+          BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "apt-get -qq update; apt-get install -qq -y unzip"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "apt-get -qq update; apt-get install -qq -y unzip openjdk-25-jre-headless"
           done
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
@@ -542,11 +568,11 @@ jobs:
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
                   cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                #  "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; sh /tmp/startInstrumentedBN.sh"
+                #  "cd /opt/hiero/block-node/; sh /tmp/startInstrumentedBN.sh"
               else
                 sleep 1
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms48G -Xmx52G\"; bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -570,13 +596,13 @@ jobs:
             podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i}" | awk '{print $1}'`
             podprio1IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio1name | grep -E '^IP:' | awk '{print $2}'`
 
-            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
-            podprio2IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio2name | grep -E '^IP:' | awk '{print $2}'`
+            #podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
+            #podprio2IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio2name | grep -E '^IP:' | awk '{print $2}'`
             counter=`expr $i - 1`
 
             echo "{\"nodes\": [" > block-nodes_$counter.json
-            echo "{ \"address\": \"$podprio1IP\", \"port\": 40840, \"priority\": 1 }," >> block-nodes_$counter.json
-            echo "{ \"address\": \"$podprio2IP\", \"port\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
+            echo "{ \"address\": \"$podprio1IP\", \"streamingPort\": 40840, \"servicePort\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            #echo "{ \"address\": \"$podprio2IP\", \"streamingPort\": 40840, \"servicePort\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
           
             echo "DEBUG: block-nodes_$counter.json is:"
@@ -590,7 +616,7 @@ jobs:
 
             echo "{\"nodes\": [" > block-node-sources_$counter.json
           
-            ls -1 block-nodes_*.json | grep -v $counter | xargs cat > tmp.txt
+            ls -1 block-nodes_*.json | grep -v $counter | xargs cat | sed -e 's/streamingPort/port/g' -e 's/"servicePort": 40840, //g' > tmp.txt
             grep -v 'nodes' tmp.txt | grep -v ']}' | sed -e 's/1 },/1 }/g' > tmp.txt2
             lines=`wc -l tmp.txt2 | awk '{print $1}'`
             head -n `expr $lines - 1` tmp.txt2 |  awk '{print $0","}' > tmp.txt1
@@ -608,11 +634,11 @@ jobs:
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
             podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i}" | awk '{print $1}'`
-            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
+            #podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
             counter=`expr $i - 1`
 
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$counter.json ${podprio1name}:/opt/hiero/block-node/backfill/block-node-sources.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$counter.json ${podprio2name}:/opt/hiero/block-node/backfill/block-node-sources.json
+            #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$counter.json ${podprio2name}:/opt/hiero/block-node/backfill/block-node-sources.json
 
           done
 
@@ -684,7 +710,6 @@ jobs:
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- su - hedera -c bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} ${podFlag}"
           done
 
-
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
@@ -716,25 +741,14 @@ jobs:
 
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
+          if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="single-day-longevity-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
-
-          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
-            NETWORK_OWNER="adhoc-single-day-test"
-          else
-            NETWORK_OWNER="adhoc-performance-test"
-          fi
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
         run: |
@@ -809,6 +823,42 @@ jobs:
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
 
+      - name: Prepare NLG communication properties for CN
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+        run: |
+          set +x
+          set +e
+          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
+
+          cat <<EOF > block-nodes.json
+          {
+            "nodes": [
+              { "address": "${NLG_IP}", "port": 8080, "streamingPort": 8080, "servicePort":-1, "priority": 0 }
+            ]
+          }
+          EOF
+
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+
+          for i in $(seq 1 1 ${NofNodes})
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+          done
+
+      - name: Deploy Validator
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/target_consensus_node/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
+
       - name: Distribution of K8S nodes, SysAdmin Grafana
         run: |
           set +x
@@ -818,6 +868,7 @@ jobs:
           echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
 
       - name: Start SwirldsMerkleDB test
         if: false
@@ -997,36 +1048,40 @@ jobs:
               then
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; \
+                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; \
                    sh /tmp/startInstrumentedBN.sh"
               else
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; \
-                   MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                  export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
+                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; PATH=/usr/bin:\$PATH bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
-          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
-          do
-              cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-p2-(\d+)-network-load-generator-.*$/')
-              lastBlock=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
-                "sh /tmp/getLastBlock.sh")
-              echo "Last block at node $cN is $lastBlock"
-              lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
-          
-              if [ "${{ inputs.perf_analysis }}" = "true" ]
-              then
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; \
-                   sh /tmp/startInstrumentedBN.sh"
-              else
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; \
-                   MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
-              fi
-          done
+          #for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
+          #do
+          #    cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-p2-(\d+)-network-load-generator-.*$/')
+          #    lastBlock=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
+          #      "sh /tmp/getLastBlock.sh")
+          #    echo "Last block at node $cN is $lastBlock"
+          #    lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
+          #
+          #    if [ "${{ inputs.perf_analysis }}" = "true" ]
+          #    then
+          #      sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+          #        "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
+          #         export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
+          #         export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; \
+          #         sh /tmp/startInstrumentedBN.sh"
+          #    else
+          #      sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+          #        "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
+          #         export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
+          #         export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
+          #         export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
+          #    fi
+          #done
 
       - name: Enable BNs after accounts were created
         run: |
