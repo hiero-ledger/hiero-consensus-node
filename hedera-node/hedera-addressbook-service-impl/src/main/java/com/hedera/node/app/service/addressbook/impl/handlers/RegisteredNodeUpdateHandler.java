@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateDescription;
 import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateServiceEndpointsForUpdate;
@@ -54,9 +52,6 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
             validateDescription(op.description());
         }
         validateServiceEndpointsForUpdate(op.serviceEndpoint());
-        if (op.hasNodeAccount()) {
-            addressBookValidator.validateAccountId(op.nodeAccountOrThrow());
-        }
     }
 
     @Override
@@ -106,17 +101,6 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         }
         if (!op.serviceEndpoint().isEmpty()) {
             builder.serviceEndpoint(op.serviceEndpoint());
-        }
-        if (op.hasNodeAccount()) {
-            final var accountId = op.nodeAccountOrThrow();
-            if (isRemovalSentinel(accountId)) {
-                builder.nodeAccount((AccountID) null);
-            } else {
-                final var account = accountStore.getAccountById(accountId);
-                validateFalse(account == null, INVALID_NODE_ACCOUNT_ID);
-                validateFalse(account.deleted(), ACCOUNT_DELETED);
-                builder.nodeAccount(accountId);
-            }
         }
         return builder;
     }

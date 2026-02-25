@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
@@ -101,10 +100,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         given(activeAccount.deleted()).willReturn(false);
         given(accountStore.getAccountById(accountId)).willReturn(activeAccount);
 
-        final var txn = txnWithOp(opBuilder()
-                .registeredNodeId(registeredNodeId)
-                .nodeAccount(accountId)
-                .build());
+        final var txn = txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
 
         given(handleContext.body()).willReturn(txn);
         given(handleContext.storeFactory()).willReturn(storeFactory);
@@ -113,20 +109,15 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(existing);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore)
-                .put(org.mockito.ArgumentMatchers.argThat(n -> n.nodeAccount().equals(accountId)));
 
         // Removal sentinel: 0.0.0
         final var sentinel =
                 AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
-        final var txn2 = txnWithOp(opBuilder()
-                .registeredNodeId(registeredNodeId)
-                .nodeAccount(sentinel)
-                .build());
+        final var txn2 =
+                txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
         given(handleContext.body()).willReturn(txn2);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(org.mockito.ArgumentMatchers.argThat(n -> n.nodeAccount() == null));
     }
 
     @Test
@@ -135,10 +126,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         given(deletedAccount.deleted()).willReturn(true);
         given(accountStore.getAccountById(accountId)).willReturn(deletedAccount);
 
-        final var txn = txnWithOp(opBuilder()
-                .registeredNodeId(registeredNodeId)
-                .nodeAccount(accountId)
-                .build());
+        final var txn = txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
 
         given(handleContext.body()).willReturn(txn);
         given(handleContext.storeFactory()).willReturn(storeFactory);

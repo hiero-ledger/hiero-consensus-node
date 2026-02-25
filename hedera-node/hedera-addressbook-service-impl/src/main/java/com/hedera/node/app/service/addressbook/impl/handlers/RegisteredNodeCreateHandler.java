@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateDescription;
 import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateServiceEndpointsForCreate;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -46,9 +43,6 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateAdminKey(op.adminKey());
         validateDescription(op.description());
         validateServiceEndpointsForCreate(op.serviceEndpoint());
-        if (op.hasNodeAccount()) {
-            addressBookValidator.validateAccountId(op.nodeAccountOrThrow());
-        }
     }
 
     @Override
@@ -67,20 +61,12 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
-        if (op.hasNodeAccount()) {
-            final var accountId = op.nodeAccountOrThrow();
-            final var account = accountStore.getAccountById(accountId);
-            validateFalse(account == null, INVALID_NODE_ACCOUNT_ID);
-            validateFalse(account.deleted(), ACCOUNT_DELETED);
-        }
-
         final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)
                 .adminKey(op.adminKeyOrThrow())
                 .description(op.description())
                 .serviceEndpoint(op.serviceEndpoint())
-                .nodeAccount(op.hasNodeAccount() ? op.nodeAccountOrThrow() : null)
                 .build();
         registeredNodeStore.put(node);
 

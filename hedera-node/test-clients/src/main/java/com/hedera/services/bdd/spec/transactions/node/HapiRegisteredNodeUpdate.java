@@ -11,7 +11,6 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.RegisteredNodeUpdateTransactionBody;
@@ -29,7 +28,6 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
 
     private Optional<String> description = Optional.empty();
     private Optional<List<RegisteredServiceEndpoint>> endpoints = Optional.empty();
-    private Optional<AccountID> nodeAccount = Optional.empty();
     private Optional<com.hederahashgraph.api.proto.java.Key> adminKey = Optional.empty();
 
     public HapiRegisteredNodeUpdate(@NonNull final LongSupplier idSupplier) {
@@ -51,11 +49,6 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
         return this;
     }
 
-    public HapiRegisteredNodeUpdate nodeAccount(@NonNull final AccountID nodeAccount) {
-        this.nodeAccount = Optional.of(requireNonNull(nodeAccount));
-        return this;
-    }
-
     public HapiRegisteredNodeUpdate adminKey(@NonNull final com.hederahashgraph.api.proto.java.Key adminKey) {
         this.adminKey = Optional.of(requireNonNull(adminKey));
         return this;
@@ -66,7 +59,6 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
         final var opBody = RegisteredNodeUpdateTransactionBody.newBuilder().setRegisteredNodeId(idSupplier.getAsLong());
         description.ifPresent(d -> opBody.setDescription(StringValue.of(d)));
         endpoints.ifPresent(eps -> opBody.clearServiceEndpoint().addAllServiceEndpoint(eps));
-        nodeAccount.ifPresent(opBody::setNodeAccount);
         adminKey.ifPresent(opBody::setAdminKey);
         return b -> b.setRegisteredNodeUpdate(opBody.build());
     }

@@ -37,7 +37,6 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
     private final String name;
     private Optional<String> description = Optional.empty();
     private List<RegisteredServiceEndpoint> endpoints = List.of(defaultEndpoint());
-    private Optional<String> nodeAccount = Optional.empty();
 
     private Optional<String> adminKeyName = Optional.empty();
     private Optional<KeyShape> adminKeyShape = Optional.empty();
@@ -79,11 +78,6 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
         return this;
     }
 
-    public HapiRegisteredNodeCreate nodeAccount(@NonNull final String nodeAccount) {
-        this.nodeAccount = Optional.of(requireNonNull(nodeAccount));
-        return this;
-    }
-
     public HapiRegisteredNodeCreate advertisingCreation() {
         advertiseCreation = true;
         return this;
@@ -106,7 +100,6 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
                 .clearServiceEndpoint()
                 .addAllServiceEndpoint(endpoints);
         description.ifPresent(opBody::setDescription);
-        nodeAccount.ifPresent(acct -> opBody.setNodeAccount(spec.registry().getAccountID(acct)));
         return b -> b.setRegisteredNodeCreate(opBody.build());
     }
 
