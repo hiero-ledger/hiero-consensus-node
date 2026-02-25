@@ -10,6 +10,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
  */
 public class DefaultEventHasher implements EventHasher {
 
+    // A thread local in a fixed size thread pool results in better performance than a concurrent list for the same use
+    // case
+    // we should re-evaluate once we decide to use an unbounded threadpool
     private static final ThreadLocal<PbjStreamHasher> HASHER = ThreadLocal.withInitial(PbjStreamHasher::new);
 
     @Override
