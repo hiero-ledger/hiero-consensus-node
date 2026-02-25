@@ -32,7 +32,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.platform.util.HederaUtils;
-import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -238,11 +237,12 @@ public final class EventRecoveryWorkflow {
 
         final Configuration configuration = platformContext.getConfiguration();
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), configuration);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new StateLifecycleManagerImpl(platformContext.getMetrics(), platformContext.getTime(), configuration);
         stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
-        final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, stateLifecycleManager, configuration);
+        final ReservedSignedState workingSignedState =
+                ensureMutableState(initialSignedState, stateLifecycleManager, configuration);
         final VirtualMapState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
@@ -259,7 +259,6 @@ public final class EventRecoveryWorkflow {
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
         consensusStateEventHandler.onStateInitialized(
                 initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
-        appMain.init(platform, platform.getSelfId());
 
         ReservedSignedState signedState = workingSignedState;
 
@@ -344,8 +343,8 @@ public final class EventRecoveryWorkflow {
 
         applyTransactions(consensusStateEventHandler, latestImmutableState, newState, round);
 
-        final boolean isFreezeState =
-                isFreezeState(consensusTimestampOf(latestImmutableState), currentRoundTimestamp, freezeTimeOf(newState));
+        final boolean isFreezeState = isFreezeState(
+                consensusTimestampOf(latestImmutableState), currentRoundTimestamp, freezeTimeOf(newState));
         if (isFreezeState) {
             updateLastFrozenTime(newState);
         }

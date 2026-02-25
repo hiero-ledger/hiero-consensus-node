@@ -65,7 +65,7 @@ public class BlockStreamRecoveryWorkflow {
                 getPlatformContext().getConfiguration());
 
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
-                final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
+        final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(stateLifecycleManager, targetRound, outputPath, expectedHash);
         workflow.applyBlocks(blocks, selfId, getPlatformContext());

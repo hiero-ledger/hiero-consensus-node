@@ -67,7 +67,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -109,8 +108,6 @@ public class ServicesMain {
      *     {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
      *     on a {@link VirtualMapState} instance that delegates the call back to our
      *     Hedera instance.)</li>
-     *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
-     *     validation and register notification listeners on the platform.</li>
      *     <li>Invoke {@link Platform#start()}.</li>
      * </ol>
      *
@@ -234,8 +231,6 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-        hedera.init(platform, selfId);
-
         platform.start();
         hedera.run();
     }

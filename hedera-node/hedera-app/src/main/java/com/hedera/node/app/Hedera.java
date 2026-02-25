@@ -721,8 +721,7 @@ public final class Hedera
     }
 
     /**
-     * Invoked by the platform when the state should be initialized. This happens <b>BEFORE</b>
-     * {@link SwirldMain#init(Platform, NodeId)}.
+     * Invoked by the platform when the state should be initialized.
      */
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
@@ -763,6 +762,12 @@ public final class Hedera
                 System.exit(1);
             }
         }
+
+        NodeId selfId = platform.getSelfId();
+        assertEnvSanityChecks(selfId);
+        logger.info("Initializing Hedera app with HederaNode#{}", selfId);
+        Locale.setDefault(Locale.US);
+        logger.info("Locale to set to US en");
     }
 
     /**
@@ -822,34 +827,9 @@ public final class Hedera
         logger.info("Migration complete");
     }
 
-    /*==================================================================================================================
-    *
-    * Initialization Step 3: Initialize the app. Happens once at startup.
-    *
-    =================================================================================================================*/
-
     /**
      * {@inheritDoc}
-     *
-     * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state
-     * or an instance of {@link VirtualMapState} created by the platform and
-     * loaded from the saved state).
-     *
-     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
-     * instead, as there is no special significance to having it here instead.
      */
-    @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
-    @Override
-    public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
-        if (this.platform != platform) {
-            throw new IllegalArgumentException("Platform must be the same instance");
-        }
-        assertEnvSanityChecks(nodeId);
-        logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
-        Locale.setDefault(Locale.US);
-        logger.info("Locale to set to US en");
-    }
-
     @Override
     public void submit(@NonNull final TransactionBody body) {
         requireNonNull(body);

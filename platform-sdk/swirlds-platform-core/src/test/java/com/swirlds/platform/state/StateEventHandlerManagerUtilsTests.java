@@ -24,7 +24,8 @@ public class StateEventHandlerManagerUtilsTests {
     @Test
     void testFastCopyIsMutable() {
         final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
         TestingAppStateInitializer.initPlatformState(state);
         // Create a fast copy
         stateLifecycleManager.initWithState(state);

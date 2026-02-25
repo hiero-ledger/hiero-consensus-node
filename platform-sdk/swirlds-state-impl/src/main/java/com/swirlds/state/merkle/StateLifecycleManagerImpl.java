@@ -139,7 +139,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
      */
     private void copyAndUpdateStateRefs(final @NonNull VirtualMapState stateToCopy) {
         final long copyStart = System.nanoTime();
-        final VirtualMapState newMutableState = ((VirtualMapStateImpl)stateToCopy).copy();
+        final VirtualMapState newMutableState = ((VirtualMapStateImpl) stateToCopy).copy();
         // Increment the reference count because this reference becomes the new value
         newMutableState.getRoot().reserve();
         final long copyEnd = System.nanoTime();
@@ -245,7 +245,6 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
         requireNonNull(state);
         copyAndUpdateStateRefs(state);
     }
-
 
     /**
      *  {@inheritDoc}

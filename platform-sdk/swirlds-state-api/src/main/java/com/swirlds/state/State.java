@@ -2,7 +2,6 @@
 package com.swirlds.state;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.FastCopyable;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
