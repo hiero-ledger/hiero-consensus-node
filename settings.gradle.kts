@@ -6,7 +6,8 @@ plugins {
 }
 
 // Configure the Gradle Test Retry plugin for CI flaky test handling.
-// Retries only in CI (when the CI env var is set). Flaky tests (passed after retry) do not fail the build.
+// Retries only in CI (when the CI env var is set).
+// Flaky tests (passed after retry) do not fail the build.
 gradle.allprojects {
     pluginManager.withPlugin("java") {
         apply(plugin = "org.gradle.test-retry")
