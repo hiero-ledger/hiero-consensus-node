@@ -70,9 +70,6 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     private ConfigProvider configProvider;
 
     @Mock
-    private com.hedera.node.config.VersionedConfiguration configuration;
-
-    @Mock
     private StoreFactory storeFactory;
 
     @Mock
@@ -96,7 +93,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(creatorInfo.nodeId()).willReturn(1L);
         given(stateProofManager.clprEnabled()).willReturn(true);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, 5, 6144));
+        mockDefaultClprConfig();
         given(preHandleContext.isUserTransaction()).willReturn(true);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
@@ -427,7 +424,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         given(pureChecksContext.body()).willReturn(txn);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, 5, 6144));
+        mockDefaultClprConfig();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
