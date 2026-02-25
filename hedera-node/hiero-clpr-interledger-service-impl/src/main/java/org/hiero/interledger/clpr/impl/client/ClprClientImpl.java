@@ -61,8 +61,10 @@ public class ClprClientImpl implements ClprClient {
 
     private static final Logger log = LogManager.getLogger(ClprClientImpl.class);
 
+    private static final Duration GRPC_TIMEOUT = Duration.ofSeconds(5);
+
     private static final PbjGrpcClientConfig clientConfig = new PbjGrpcClientConfig(
-            Duration.ofSeconds(1),
+            GRPC_TIMEOUT,
             Tls.builder().enabled(false).build(),
             Optional.empty(),
             ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
@@ -103,6 +105,8 @@ public class ClprClientImpl implements ClprClient {
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + address + ":" + port)
                 .tls(Tls.builder().enabled(false).build())
+                .connectTimeout(GRPC_TIMEOUT)
+                .readTimeout(GRPC_TIMEOUT)
                 .build();
 
         pbjGrpcClient = new PbjGrpcClient(webClient, clientConfig);
