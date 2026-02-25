@@ -50,6 +50,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
+import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -712,7 +713,8 @@ public class Hip1313EnabledTest {
 
     private static ByteString simpleFeesWithoutCryptoCreatePricingCurve() {
         try {
-            final JsonNode root = MAPPER.readTree(TxnUtils.resourceAsString("genesis/simpleFeesSchedules.json"));
+            final JsonNode root =
+                    MAPPER.readTree(V0490FileSchema.loadResourceInPackage("genesis/simpleFeesSchedules.json"));
             final ObjectNode highVolumeRates = findCryptoCreateHighVolumeRates(root);
             highVolumeRates.remove("pricingCurve");
             final var pbjSimpleFees = FeeSchedule.JSON.parse(Bytes.wrap(MAPPER.writeValueAsBytes(root)));
@@ -726,7 +728,8 @@ public class Hip1313EnabledTest {
 
     private static ByteString simpleFeesWithOneXCryptoCreateHighVolumeRates() {
         try {
-            final JsonNode root = MAPPER.readTree(TxnUtils.resourceAsString("genesis/simpleFeesSchedules.json"));
+            final JsonNode root =
+                    MAPPER.readTree(V0490FileSchema.loadResourceInPackage("genesis/simpleFeesSchedules.json"));
             final ObjectNode highVolumeRates = findCryptoCreateHighVolumeRates(root);
             highVolumeRates.put("maxMultiplier", 1000);
             highVolumeRates.remove("pricingCurve");
