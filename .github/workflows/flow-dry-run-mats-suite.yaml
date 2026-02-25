@@ -71,6 +71,7 @@ jobs:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
+      ref: ${{ github.sha }}
       enable-spotless-check: "${{ inputs.enable-spotless-check || 'false' }}"
       enable-dependency-check: "${{ inputs.enable-dependency-check || 'false' }}"
       enable-unit-tests: "${{ inputs.enable-unit-tests || 'false' }}"
