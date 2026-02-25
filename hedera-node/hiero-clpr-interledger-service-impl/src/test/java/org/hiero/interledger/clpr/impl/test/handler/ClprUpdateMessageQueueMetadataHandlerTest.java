@@ -276,6 +276,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
         given(storeFactory.writableStore(WritableClprMessageQueueMetadataStore.class))
                 .willReturn(writableClprMessageQueueMetadataStore);
 
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
+
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils
                     .when(() -> ClprStateProofUtils.extractMessageQueueMetadata(clprStateProof))
@@ -302,6 +305,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
                 .receivedMessageId(4L) // New received ID from remote
                 .receivedRunningHash(Bytes.wrap("new-received-hash".getBytes())) // New received hash from remote
                 .build();
+
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
 
         given(handleContext.body()).willReturn(transactionBody);
         given(transactionBody.clprUpdateMessageQueueMetadataOrThrow())
@@ -404,6 +410,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
                 .willReturn(writableClprMessageQueueMetadataStore);
         given(storeFactory.writableStore(WritableClprMessageStore.class)).willReturn(writableClprMessageStore);
 
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
+
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils
                     .when(() -> ClprStateProofUtils.extractMessageQueueMetadata(clprStateProof))
@@ -485,6 +494,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
         given(storeFactory.writableStore(WritableClprMessageQueueMetadataStore.class))
                 .willReturn(writableClprMessageQueueMetadataStore);
 
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
+
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils
                     .when(() -> ClprStateProofUtils.extractMessageQueueMetadata(clprStateProof))
@@ -528,6 +540,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
         given(storeFactory.writableStore(WritableClprMessageQueueMetadataStore.class))
                 .willReturn(writableClprMessageQueueMetadataStore);
         given(storeFactory.writableStore(WritableClprMessageStore.class)).willReturn(writableClprMessageStore);
+
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
 
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils
@@ -606,6 +621,9 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableClprMessageQueueMetadataStore.class))
                 .willReturn(writableClprMessageQueueMetadataStore);
+
+        given(handleContext.configuration()).willReturn(configuration);
+        mockDefaultClprConfig();
 
         // set initial queue
         writableClprMessageQueueMetadataStore.put(REMOTE_LEDGER_ID, initialQueueMetadata);
