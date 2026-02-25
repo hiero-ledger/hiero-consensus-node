@@ -22,6 +22,7 @@ import com.swirlds.config.api.Configuration;
 import com.google.common.collect.ImmutableList;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.tuweni.bytes.Bytes32;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.FileDescriptor;
@@ -31,17 +32,14 @@ import java.math.BigInteger;
 import java.util.*;
 
 // BESU imports
-import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
-import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -77,10 +75,13 @@ public class BonnevilleEVM extends HEVM {
 
     @Override
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
-        runToHalt(null,frame,tracing);
+        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe());
+        if( code!=null && frame.getCode()==null )
+            throw new TODO("Failed validation");
+        runToHalt(null,code,frame,tracing);
     }
 
-    void runToHalt(BEVM parent, MessageFrame frame, OperationTracer tracing ) {
+    void runToHalt(BEVM parent, CodeV2 code, MessageFrame frame, OperationTracer tracing ) {
         BEVM bevm;
         synchronized(FREE) {
             bevm = FREE.isEmpty()
@@ -88,7 +89,7 @@ public class BonnevilleEVM extends HEVM {
                 : FREE.removeLast();
         }
         // Run the contract bytecodes
-        bevm.init(parent,frame,tracing).run(parent==null).reset(parent==null);
+        bevm.init(parent,code,frame,tracing).run(parent==null).reset(parent==null);
         synchronized(FREE) { FREE.add(bevm); }
     }
 
@@ -124,8 +125,6 @@ public class BonnevilleEVM extends HEVM {
         /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "tLd ", "tSt ", "mcpy", "psh0",
         };
 
-    // Used in create()
-    static final Bytes CREATE2_PREFIX = Bytes.fromHexString("0xFF");
     // Used in exp()
     static final BigInteger MOD_BASE = BigInteger.TWO.pow(256);
 
@@ -170,9 +169,7 @@ class BEVM {
     MessageFrame _frame;
 
     // Contract bytecodes
-    byte[] _codes;
-    // Per-code valid targets
-    private BitSet _jmpDest;
+    CodeV2 _code;
 
     // Gas available, runs down to zero
     private long _gas;
@@ -230,17 +227,15 @@ class BEVM {
     }
 
 
-    BEVM init( BEVM parent, MessageFrame frame, OperationTracer tracing ) {
+    BEVM init( BEVM parent, CodeV2 code, MessageFrame frame, OperationTracer tracing ) {
 
         _frame = frame;
 
         _tracing = tracing;
 
         // Bytecodes
-        _codes = frame.getCode().getBytes().toArrayUnsafe();
-        if( frame.getCode().getEofVersion() != 0 )
-            throw new TODO("Expect eofVersion==0");
-        assert _jmpDest == null;
+        _code = code;
+
         assert _sp == 0;
 
         // Starting and current gas
@@ -298,7 +293,7 @@ class BEVM {
         }
         _mem.reset();
         _frame = null;
-        _codes = null;
+        _code = null;
         _sp = 0;
         _callData = null;
         _contractId = null;
@@ -306,7 +301,6 @@ class BEVM {
         _recvMutable = null;
         _isSidecarEnabled = false;
         _lastSKey = _lastSVal = null;
-        _jmpDest = null;
     }
 
     private ExceptionalHaltReason useGas( long used ) {
@@ -490,7 +484,7 @@ class BEVM {
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
-            int op = pc < _codes.length ? _codes[pc] & 0xFF : 0;
+            int op = pc < _code._codes.length ? _code._codes[pc] & 0xFF : 0;
             preTrace(trace,pc,op);
             pc++;
 
@@ -510,7 +504,6 @@ class BEVM {
             case 0x09 -> mulmod();
             case 0x0A -> exp();
             case 0x0B -> sign();
-            case 0x0C, 0x0D, 0x0E, 0x0F -> ExceptionalHaltReason.INVALID_OPERATION;
             case 0x10 -> ult();
             case 0x11 -> ugt();
             case 0x12 -> slt();
@@ -525,11 +518,8 @@ class BEVM {
             case 0x1B -> shl();
             case 0x1C -> shr();
             case 0x1D -> sar();
-            case 0x1E, 0x1F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             case 0x20 -> keccak256();
-            case       0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 -> ExceptionalHaltReason.INVALID_OPERATION;
-            case 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             // call/input/output arguments
             case 0x30 -> address();
@@ -560,7 +550,6 @@ class BEVM {
             case 0x48 -> baseFee();
             case 0x49 -> blobHash();
             case 0x4A -> blobBaseFee();
-            case 0x4B, 0x4C, 0x4D, 0x4E, 0x4F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             case 0x50 -> pop();
 
@@ -1319,7 +1308,7 @@ class BEVM {
     private ExceptionalHaltReason codeSize() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        return push( _codes.length );
+        return push( _code._codes.length );
     }
 
     // Copy code into Memory
@@ -1335,7 +1324,7 @@ class BEVM {
         var halt = useGas(copyCost(memOff, len,3));
         if( halt!=null ) return halt;
 
-        _mem.write(memOff, _codes, srcOff, len);
+        _mem.write(memOff, _code._codes, srcOff, len);
         return null;
     }
 
@@ -1441,7 +1430,7 @@ class BEVM {
         Account acct = _frame.getWorldUpdater().get(address);
         if( acct == null ) return push0(); // No account, zero code size
         return push32(acct.getCodeHash().toArrayUnsafe());
-    }
+        }
 
     private ExceptionalHaltReason returnDataSize() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
@@ -1540,33 +1529,18 @@ class BEVM {
         long dst  = popLong();
         long cond = popLong();
         if( cond == 0 ) return nextpc; // No jump is jump-to-nextpc
-        return dst < 0 || dst >= _codes.length || jumpInvalid( (int) dst )
-            ? -1                // Error
-            : (int)dst;         // Target
+        return _code.jumpValid( (int) dst )
+            ? (int)dst          // Target
+            : -1;               // Error
     }
 
     private int jump() {
         if( _sp < 1 ) return -3;
         if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
         long dst = popLong();
-        return dst < 0 || dst >= _codes.length || jumpInvalid( (int) dst )
-            ? -1                // Error
-            : (int)dst;         // Target
-    }
-
-    // Must jump to a jump dest, opcode 91/0x5B
-    private boolean jumpInvalid( int x ) {
-        if( _jmpDest == null ) {
-            // One-time fill jmpDest cache
-            _jmpDest = new BitSet();
-            for( int i=0; i<_codes.length; i++ ) {
-                int op = _codes[i] & 0xFF;
-                if( op == 0x5B ) _jmpDest.set(i); // Set Jump Destination opcodes
-                if( op >= 0x60 && op < 0x80 )
-                    i += op - 0x60 + 1; // Skip immediate bytes
-            }
-        }
-        return !_jmpDest.get( x );
+        return _code.jumpValid( (int) dst )
+            ? (int)dst          // Target
+            : -1;               // Error
     }
 
     private ExceptionalHaltReason noop() {
@@ -1960,7 +1934,7 @@ class BEVM {
     private ExceptionalHaltReason push( int pc, int newpc ) {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
-        return push( _codes, pc, newpc-pc );
+        return push( _code._codes, pc, newpc-pc );
     }
 
     // Duplicate nth word
@@ -2023,7 +1997,7 @@ class BEVM {
         int len = popInt();
         Bytes salt = hasSalt ? popBytes() : null;
 
-        Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
+        CodeV2 code = CodeV2.make(_mem._mem,off,len);
 
         var senderAccount = _frame.getWorldUpdater().getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
@@ -2060,8 +2034,16 @@ class BEVM {
                               _bevm._create);
     }
 
-    private Address saltContract( Address sender, Bytes salt, Code code ) {
-        Bytes bytes = Bytes.concatenate(BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash());
+    static final Bytes CREATE2_PREFIX = Bytes.fromHexString("0xFF");
+    private Address saltContract( Address sender, Bytes salt, CodeV2 code ) {
+        // The original called kekkek256 *twice*, once on the code bytes, and
+        // then again on the concatenated whole.  kekkek256 is a big part of
+        // the profiles, and I have a theory that is it not needed to be called
+        // *twice*.  The exact salted value is tested in the
+        // Create2OperationSuite and so cannot just be changed yet.
+
+        // {FF, [sender 20bytes], [salt 32bytes], [code hash, 32bytes] }
+        Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender, salt, code.getCodeHash());
         Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
         return Address.extract(hash);
     }
@@ -2124,7 +2106,7 @@ class BEVM {
      *   *hooked* current frame recipient - the recipient after checking for
      *   Hedera hooks.  Also, <code>pop</code> means the value is popped from
      *   the stack.
-     *
+     *   <pre>
      *   | CallType | Recipient   | Contract | Sender       |
      *   |----------|-------------|----------|--------------|
      *   | Created  | constructed | =recip   | hook         |
@@ -2132,8 +2114,7 @@ class BEVM {
      *   | Static   | pop         | =recip   | hook         |
      *   | Normal   | hook        | pop      | =recip       |
      *   | Custom   | pop         | =recip   | hook         |
-     *
-     *
+     *   </pre>
      *   A non-halting return can still be a *failed* (or successful)
      *   call.  A halting return halts this current frame execution.
      *   A non-halting return pushes a boolean onto the stack.
@@ -2182,11 +2163,7 @@ class BEVM {
 
         // Get the bytecodes to execute; if we have a contract account, get
         // code from it
-        Code code =  contractAccount==null
-            ? CodeV0.EMPTY_CODE
-            : _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
-        if( !code.isValid() )
-            throw new TODO();
+        CodeV2 code = CodeV2.make(contractAccount);
 
         // gas cost check.  As usual, the input values are capped at
         // Integer.MAX_VALUE and the sum of a few of these will not overflow a
@@ -2226,7 +2203,7 @@ class BEVM {
                               _bevm._call );
     }
 
-    private ExceptionalHaltReason _abstractCall2(SB trace, String str, MessageFrame.Type type, long gas, long stipend, boolean getsValueStipend, Address recipient, Address contract, Address sender, Wei value, Bytes src, Code code, boolean isStatic, int dstOff, int dstLen, PublicMessageProcessor msg ) {
+    private ExceptionalHaltReason _abstractCall2(SB trace, String str, MessageFrame.Type type, long gas, long stipend, boolean getsValueStipend, Address recipient, Address contract, Address sender, Wei value, Bytes src, CodeV2 code, boolean isStatic, int dstOff, int dstLen, PublicMessageProcessor msg ) {
         _frame.clearReturnData();
 
         // Charge gas for call
@@ -2274,7 +2251,7 @@ class BEVM {
         if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
             // ----------------------------
             // Recursively call
-            _bevm.runToHalt(this,child,_tracing);
+            _bevm.runToHalt(this,code,child,_tracing);
             // ----------------------------
         }
 
