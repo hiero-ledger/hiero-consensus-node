@@ -40,8 +40,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -462,8 +462,8 @@ public class SystemTransactions {
         final var feesConfig = config.getConfigData(FeesConfig.class);
         if (feesConfig.createSimpleFeeSchedule()) {
             final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
-            final var filesState = state.getReadableStates(FileService.NAME)
-                    .<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+            final var filesState =
+                    state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
             if (filesState.get(simpleFeesFileId) == null) {
                 log.info(
                         "Creating simple fee schedule file 0.0.{} (upgrading from pre-simple-fees version)",
