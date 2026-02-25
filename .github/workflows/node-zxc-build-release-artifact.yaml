@@ -875,14 +875,14 @@ jobs:
 
       - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}

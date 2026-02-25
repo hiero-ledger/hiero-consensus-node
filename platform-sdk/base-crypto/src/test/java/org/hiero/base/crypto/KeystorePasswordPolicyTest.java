@@ -3,55 +3,62 @@ package org.hiero.base.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.common.test.fixtures.logging.MockAppender;
 import java.util.List;
-import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Logger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class KeystorePasswordPolicyTest {
 
+    private MockAppender appender;
+    private Logger logger;
+
+    @BeforeEach
+    void setUp() {
+        appender = new MockAppender("KeystorePasswordPolicyTest");
+        logger = (Logger) LogManager.getLogger(KeystorePasswordPolicy.class);
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.WARN);
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.removeAppender(appender);
+        appender.stop();
+    }
+
     @Test
     void doesNothingWhenPasswordIsCompliant() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
-
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "some.key", "Abcdefghijk1!");
-
-        org.mockito.Mockito.verifyNoInteractions(logger);
+        KeystorePasswordPolicy.warnIfNonCompliant("some.key", "Abcdefghijk1!");
+        assertThat(appender.size()).isZero();
     }
 
     @Test
     void warnsWhenPasswordIsNonCompliantAndNeverLogsPasswordValue() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
-
         final var password = "short";
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "security.keystore.password", password);
+        KeystorePasswordPolicy.warnIfNonCompliant("security.keystore.password", password);
 
-        final var messageCaptor = ArgumentCaptor.forClass(String.class);
-        final var keyCaptor = ArgumentCaptor.forClass(Object.class);
-        final var issuesCaptor = ArgumentCaptor.forClass(Object.class);
-
-        org.mockito.Mockito.verify(logger).warn(messageCaptor.capture(), keyCaptor.capture(), issuesCaptor.capture());
-
-        assertThat(messageCaptor.getValue()).contains("does not meet recommended password policy");
-        assertThat(keyCaptor.getValue()).isEqualTo("security.keystore.password");
-
-        final var renderedIssues = String.valueOf(issuesCaptor.getValue());
-        assertThat(renderedIssues).contains("minLength>=12", "uppercase", "digit", "special");
-        assertThat(renderedIssues).doesNotContain(password);
+        assertThat(appender.size()).isEqualTo(1);
+        final var renderedMessage = appender.get(0);
+        assertThat(renderedMessage)
+                .contains("does not meet recommended password policy")
+                .contains("security.keystore.password")
+                .contains("minLength>=12", "uppercase", "digit", "special")
+                .doesNotContain(password);
     }
 
     @Test
     void reportsOnlyMissingCharacterClassesWhenLengthIsSufficient() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
+        KeystorePasswordPolicy.warnIfNonCompliant("k", "abcdefghijk1");
 
-        // Length >= 12, but missing uppercase and special
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "k", "abcdefghijk1");
-
-        final var issuesCaptor = ArgumentCaptor.forClass(Object.class);
-        org.mockito.Mockito.verify(logger)
-                .warn(org.mockito.Mockito.anyString(), org.mockito.Mockito.any(), issuesCaptor.capture());
-
-        assertThat(String.valueOf(issuesCaptor.getValue()))
+        assertThat(appender.size()).isEqualTo(1);
+        final var renderedMessage = appender.get(0);
+        assertThat(renderedMessage)
                 .contains("uppercase", "special")
                 .doesNotContain("minLength>=12")
                 .doesNotContain("lowercase")
@@ -60,55 +67,37 @@ class KeystorePasswordPolicyTest {
 
     @Test
     void treatsNonLetterNonDigitCharactersAsSpecial() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
-
-        // Space counts as special, so should not warn about "special"
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "k", "Abcdefghijk1 ");
-
-        org.mockito.Mockito.verifyNoInteractions(logger);
+        KeystorePasswordPolicy.warnIfNonCompliant("k", "Abcdefghijk1 ");
+        assertThat(appender.size()).isZero();
     }
 
     @Test
     void nullArgumentsThrowWithHelpfulMessages() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
-
         final var ex1 = org.junit.jupiter.api.Assertions.assertThrows(
-                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant(null, "k", "p"));
-        assertThat(ex1.getMessage()).isEqualTo("logger must not be null");
+                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant(null, "p"));
+        assertThat(ex1.getMessage()).isEqualTo("configKey must not be null");
 
         final var ex2 = org.junit.jupiter.api.Assertions.assertThrows(
-                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant(logger, null, "p"));
-        assertThat(ex2.getMessage()).isEqualTo("configKey must not be null");
-
-        final var ex3 = org.junit.jupiter.api.Assertions.assertThrows(
-                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant(logger, "k", null));
-        assertThat(ex3.getMessage()).isEqualTo("password must not be null");
+                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant("k", null));
+        assertThat(ex2.getMessage()).isEqualTo("password must not be null");
     }
 
     @Test
     void issuesOrderIsStableAndMatchesExpected() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
+        KeystorePasswordPolicy.warnIfNonCompliant("k", "ABCDEFGHIJ");
 
-        // Only uppercase present; length < 12
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "k", "ABCDEFGHIJ");
-
-        final var issuesCaptor = ArgumentCaptor.forClass(Object.class);
-        org.mockito.Mockito.verify(logger)
-                .warn(org.mockito.Mockito.anyString(), org.mockito.Mockito.any(), issuesCaptor.capture());
-
-        assertThat(String.valueOf(issuesCaptor.getValue()))
-                .isEqualTo(String.join(", ", List.of("minLength>=12", "lowercase", "digit", "special")));
+        assertThat(appender.size()).isEqualTo(1);
+        final var renderedMessage = appender.get(0);
+        assertThat(renderedMessage)
+                .contains(String.join(", ", List.of("minLength>=12", "lowercase", "digit", "special")));
     }
 
     @Test
     void canBeCalledRepeatedlyWithoutSideEffects() {
-        final Logger logger = org.mockito.Mockito.mock(Logger.class);
-
         for (int i = 0; i < 3; i++) {
-            KeystorePasswordPolicy.warnIfNonCompliant(logger, "k", "short");
+            KeystorePasswordPolicy.warnIfNonCompliant("k", "short");
         }
 
-        org.mockito.Mockito.verify(logger, org.mockito.Mockito.times(3))
-                .warn(org.mockito.Mockito.anyString(), org.mockito.Mockito.any(), org.mockito.Mockito.any());
+        assertThat(appender.size()).isEqualTo(3);
     }
 }

@@ -27,6 +27,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -1092,11 +1093,11 @@ class QueryWorkflowImplTest extends AppTestBase {
         final var exchangeRate =
                 ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
         final var exchangeRateInfo = mock(ExchangeRateInfo.class);
-        given(exchangeRateInfo.activeRate(any())).willReturn(exchangeRate);
-        given(exchangeRateManager.exchangeRateInfo(any(State.class))).willReturn(exchangeRateInfo);
+        lenient().when(exchangeRateInfo.activeRate(any())).thenReturn(exchangeRate);
+        lenient().when(exchangeRateManager.exchangeRateInfo(any(State.class))).thenReturn(exchangeRateInfo);
         given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
         final var feeResult = new FeeResult(100_000L, 0, 0);
-        given(simpleFeeCalculator.calculateQueryFee(any(), any())).willReturn(feeResult);
+        lenient().when(simpleFeeCalculator.calculateQueryFee(any(), any())).thenReturn(feeResult);
     }
 
     @Nested
@@ -1104,8 +1105,6 @@ class QueryWorkflowImplTest extends AppTestBase {
     class SimpleFeesTests {
         @Mock
         private ExchangeRateInfo testExchangeRateInfo;
-
-        private ExchangeRate testExchangeRate;
 
         /**
          * Provides test data for query types that use simple fees.
@@ -1135,13 +1134,6 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         @Mock
         private Configuration configuration;
-
-        @BeforeEach
-        void setUp() {
-            testExchangeRate =
-                    ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
-            //            testExchangeRateInfo =  new ExchangeRateInfoImpl(ExchangeRateSet.DEFAULT);
-        }
 
         @Test
         void testQueryUsesSimpleFees() throws PreCheckException, ParseException {

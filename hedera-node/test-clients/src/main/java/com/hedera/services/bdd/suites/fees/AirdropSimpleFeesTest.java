@@ -30,7 +30,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FULL_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -66,8 +66,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                 tokenAirdrop(moving(1, "FT").between("owner", receiver))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", TOKEN_TRANSFER_FULL_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE),
-                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FULL_FEE + AIRDROPS_FEE_USD));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE),
+                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
     }
 
     @HapiTest
@@ -93,8 +93,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                 tokenAirdrop(movingUnique("NFT", 2).between("owner", "receiver"))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", TOKEN_TRANSFER_FULL_FEE + NFT_AIRDROP_FEE),
-                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FULL_FEE + NFT_AIRDROP_FEE));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE + NFT_AIRDROP_FEE),
+                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FEE + NFT_AIRDROP_FEE));
     }
 
     @HapiTest
@@ -200,7 +200,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .payingWith("sender")
                         .via("airdrop"),
                 // The transaction should be charged the same as a crypto transfer
-                validateChargedUsd("airdrop", TOKEN_TRANSFER_FULL_FEE));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE));
     }
 
     @HapiTest
@@ -221,7 +221,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                 moving(1, "FT2").between("owner", "receiver"))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", TOKEN_TRANSFER_FULL_FEE + 2 * AIRDROPS_FEE_USD + 2 * TOKEN_ASSOCIATE_FEE),
-                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FULL_FEE + 2 * AIRDROPS_FEE_USD));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE + 2 * AIRDROPS_FEE_USD + 2 * TOKEN_ASSOCIATE_FEE),
+                validateChargedUsd("second airdrop", TOKEN_TRANSFER_FEE + 2 * AIRDROPS_FEE_USD));
     }
 }

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -47,6 +48,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -255,6 +257,7 @@ public class TokenWipeSimpleFeesTest {
                         wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing wipe key signature
+                                .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("wipeTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),

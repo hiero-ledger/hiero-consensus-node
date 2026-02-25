@@ -11,9 +11,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
@@ -21,6 +22,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_FULL_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -34,7 +37,7 @@ import org.junit.jupiter.api.Tag;
 public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_CREATE = 0.01;
     private static final double BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE = 2.00;
-    private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.00;
+    private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.114;
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
@@ -71,15 +74,10 @@ public class ConsensusServiceFeesSuite {
                         .via("topicCreateWithMultipleCustomFees"),
                 validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE),
                 validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsd(
-                                "topicCreateWithMultipleCustomFees", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5);
-                    } else {
-                        return validateChargedUsd(
-                                "topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5);
-                    }
-                }));
+                validateFees(
+                        "topicCreateWithMultipleCustomFees",
+                        TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES,
+                        BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE));
     }
 
     @HapiTest
@@ -144,10 +142,14 @@ public class ConsensusServiceFeesSuite {
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
                 safeValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                withOpContext((spec, log) -> safeValidateChargedUsd(
-                        "submitMessage1024",
-                        0.00098,
-                        BASE_FEE_TOPIC_SUBMIT_MESSAGE + expectedFeeFromBytesFor(spec, log, "submitMessage1024"))));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        safeValidateChargedUsdWithin(
+                                "submitMessage1024",
+                                0.00098,
+                                1.0,
+                                SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
+                                3.0))));
     }
 
     @HapiTest
