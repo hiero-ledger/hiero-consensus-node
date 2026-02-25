@@ -34,7 +34,7 @@ class StateMetrics {
     }
 
     /**
-     * Records the time it takes {@link State#copy()} to finish (in microseconds)
+     * Records the time it takes {@link StateLifecycleManagerImpl#copyMutableState()} to finish (in microseconds)
      *
      * @param micros
      * 		the amount of time in microseconds

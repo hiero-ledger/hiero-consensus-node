@@ -196,7 +196,7 @@ public class SwirldsPlatform implements Platform {
         // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
         // - For genesis: the manager creates a genesis state eagerly in its constructor.
         // - For restart: loadSnapshot() initializes the manager when loading from disk.
-        // - For reconnect: initStateOnReconnect() re-initializes the manager at runtime.
+        // - For reconnect: initWithState() re-initializes the manager at runtime.
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
         // Startup initialization may hash/freeze the state referenced by the initial SignedState.
         // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.

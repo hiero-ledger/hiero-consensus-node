@@ -128,7 +128,8 @@ class SignedStateFileReadWriteTest {
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
         VirtualMapState state = signedState.getState();
-        state.copy().release();
+        stateLifecycleManager.initWithState(state);
+        stateLifecycleManager.getMutableState().release();
         hashState(signedState);
         stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
@@ -171,7 +172,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final Path directory = testDirectory.resolve("state");
-        stateLifecycleManager.initStateOnReconnect(signedState.getState());
+        stateLifecycleManager.initWithState(signedState.getState());
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = directory.resolve("settingsUsed.txt");

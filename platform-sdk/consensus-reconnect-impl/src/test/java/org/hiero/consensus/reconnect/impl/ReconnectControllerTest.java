@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -38,6 +39,7 @@ import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,6 +58,7 @@ import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -135,10 +138,12 @@ class ReconnectControllerTest {
                 .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
                 .getOrCreateConfig();
 
+        stateLifecycleManager = new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), configuration);
+        stateLifecycleManager.initWithState(createTestState());
         // Create test states
         testSignedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setState(createTestState())
+                .setState(stateLifecycleManager.getMutableState())
                 .build();
         SignedStateFileReader.registerServiceStates(testSignedState);
         final SigSet sigSet = new SigSet();
@@ -148,7 +153,7 @@ class ReconnectControllerTest {
 
         testSignedState.setSigSet(sigSet);
 
-        testWorkingState = testSignedState.getState().copy();
+        testWorkingState = stateLifecycleManager.getMutableState();
         testReservedSignedState = testSignedState.reserve("test");
 
         // Mock Platform
@@ -167,10 +172,6 @@ class ReconnectControllerTest {
                 })
                 .when(reconnectCoordinator)
                 .pauseGossip();
-
-        // Mock SwirldStateManager
-        stateLifecycleManager = mock(StateLifecycleManager.class);
-        when(stateLifecycleManager.getMutableState()).thenReturn(testWorkingState);
 
         // Mock SavedStateController
         savedStateController = mock(SavedStateController.class);
@@ -193,6 +194,7 @@ class ReconnectControllerTest {
         if (testReservedSignedState != null && !testReservedSignedState.isClosed()) {
             testReservedSignedState.close();
         }
+        destroyStateLifecycleManager(stateLifecycleManager);
     }
 
     /**

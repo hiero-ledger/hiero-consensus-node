@@ -271,11 +271,6 @@ public class FakeState implements VirtualMapState {
     }
 
     @Override
-    public @NonNull VirtualMapState copy() {
-        return this;
-    }
-
-    @Override
     public long getKvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }

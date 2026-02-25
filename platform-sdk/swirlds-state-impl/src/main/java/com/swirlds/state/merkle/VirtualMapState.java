@@ -18,17 +18,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  */
 public interface VirtualMapState extends State, BinaryState {
-
     /**
      * @return an instance representing a root of the Merkle tree. For most of the implementations
      * this default implementation will be sufficient.
      */
     VirtualMap getRoot();
 
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    VirtualMapState copy();
 }

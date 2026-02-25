@@ -130,7 +130,7 @@ public class StartupStateUtilsTests {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = createLifecycleManager();
         final VirtualMapState state = signedState.getState();
-        stateLifecycleManager.initStateOnReconnect(state);
+        stateLifecycleManager.initWithState(state);
         stateLifecycleManager.getMutableState().release();
         // hash the state
         state.getHash();

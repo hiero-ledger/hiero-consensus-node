@@ -29,7 +29,7 @@ import org.hiero.base.crypto.Hash;
  * Upon construction, a genesis {@link VirtualMapStateImpl} is created eagerly and is immediately available
  * via {@link #getMutableState()}. If the node is restarting from a saved state, calling
  * {@link #loadSnapshot(Path)} will replace the genesis state with the loaded state. If the node is
- * reconnecting, calling {@link #initStateOnReconnect(VirtualMapState)} will replace the current state with
+ * reconnecting, calling {@link #initWithState(VirtualMapState)} will replace the current state with
  * the reconnect state.
  * <p>
  * This implementation is NOT thread-safe. However, it provides the following guarantees:
@@ -139,7 +139,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
      */
     private void copyAndUpdateStateRefs(final @NonNull VirtualMapState stateToCopy) {
         final long copyStart = System.nanoTime();
-        final VirtualMapState newMutableState = stateToCopy.copy();
+        final VirtualMapState newMutableState = ((VirtualMapStateImpl)stateToCopy).copy();
         // Increment the reference count because this reference becomes the new value
         newMutableState.getRoot().reserve();
         final long copyEnd = System.nanoTime();
@@ -241,11 +241,15 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
      * and re-initializes the manager with it, replacing the current mutable state.
      */
     @Override
-    public void initStateOnReconnect(@NonNull final VirtualMapState state) {
+    public void initWithState(@NonNull final VirtualMapState state) {
         requireNonNull(state);
         copyAndUpdateStateRefs(state);
     }
 
+
+    /**
+     *  {@inheritDoc}
+     */
     @Override
     public VirtualMapState createStateFrom(@NonNull VirtualMap rootNode) {
         return new VirtualMapStateImpl(rootNode, metrics);

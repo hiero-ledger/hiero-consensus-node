@@ -243,7 +243,7 @@ public class ReconnectController implements Runnable {
                     + Roster.JSON.toJSON(stateRoster) + ")");
         }
 
-        stateLifecycleManager.initStateOnReconnect(state);
+        stateLifecycleManager.initWithState(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
         reconnectCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));

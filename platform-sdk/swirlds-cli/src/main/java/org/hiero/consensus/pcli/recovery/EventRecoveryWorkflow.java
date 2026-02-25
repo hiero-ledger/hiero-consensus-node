@@ -6,6 +6,7 @@ import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
@@ -156,9 +157,8 @@ public final class EventRecoveryWorkflow {
                     "Finished reapplying transactions, writing state to {}",
                     resultingStateDirectory);
 
-            // Make one more copy to force the state in recoveredState to be immutable.
-            final State mutableStateCopy =
-                    recoveredState.state().get().getState().copy();
+            // forcing the state in recoveredState to be immutable.
+            stateLifecycleManager.initWithState(recoveredState.state().get().getState());
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext,
@@ -185,7 +185,8 @@ public final class EventRecoveryWorkflow {
             mutableFile.close();
 
             recoveredState.state().close();
-            mutableStateCopy.release();
+            stateLifecycleManager.getMutableState().release();
+            stateLifecycleManager.getLatestImmutableState().release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
         }
@@ -237,7 +238,11 @@ public final class EventRecoveryWorkflow {
 
         final Configuration configuration = platformContext.getConfiguration();
 
-        final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, configuration);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), configuration);
+        stateLifecycleManager.initWithState(initialSignedState.get().getState());
+
+        final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, stateLifecycleManager, configuration);
         final VirtualMapState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
@@ -270,7 +275,7 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(consensusStateEventHandler, platformContext, signedState, round);
+            signedState = handleNextRound(consensusStateEventHandler, platformContext, stateLifecycleManager, round);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -288,19 +293,14 @@ public final class EventRecoveryWorkflow {
     }
 
     private static ReservedSignedState ensureMutableState(
-            @NonNull final ReservedSignedState initialSignedState, @NonNull final Configuration configuration) {
+            @NonNull final ReservedSignedState initialSignedState,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Configuration configuration) {
         final SignedState signedState = initialSignedState.get();
-        final VirtualMapState state = signedState.getState();
-        if (!state.isHashed()) {
-            return initialSignedState;
-        }
-
-        // Snapshot loading hashes the map, which freezes leaf mutations; copy to regain mutability.
-        final VirtualMapState mutableState = state.copy();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,
-                mutableState,
+                stateLifecycleManager.getMutableState(),
                 "EventRecoveryWorkflow.ensureMutableState()",
                 signedState.isFreezeState(),
                 false,
@@ -315,20 +315,19 @@ public final class EventRecoveryWorkflow {
      * Apply a single round and generate a new state. The previous state is released.
      *
      * @param platformContext the current context
-     * @param previousSignedState   the previous round's signed state
+     * @param stateLifecycleManager the state lifecycle manager used to manage the states
      * @param round           the next round
      * @return the resulting signed state
      */
     private static ReservedSignedState handleNextRound(
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final PlatformContext platformContext,
-            @NonNull final ReservedSignedState previousSignedState,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final StreamedRound round) {
 
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
-        final SignedState previousState = previousSignedState.get();
-        previousState.getState().throwIfImmutable();
-        final VirtualMapState newState = previousState.getState().copy();
+        final VirtualMapState newState = stateLifecycleManager.copyMutableState();
+        final VirtualMapState latestImmutableState = stateLifecycleManager.getLatestImmutableState();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
@@ -339,13 +338,14 @@ public final class EventRecoveryWorkflow {
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(generateSyntheticSnapshot(
                     round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
-            v.setCreationSoftwareVersion(creationSoftwareVersionOf(previousState.getState()));
+
+            v.setCreationSoftwareVersion(creationSoftwareVersionOf(latestImmutableState));
         });
 
-        applyTransactions(consensusStateEventHandler, previousState.getState(), newState, round);
+        applyTransactions(consensusStateEventHandler, latestImmutableState, newState, round);
 
         final boolean isFreezeState =
-                isFreezeState(previousState.getConsensusTimestamp(), currentRoundTimestamp, freezeTimeOf(newState));
+                isFreezeState(consensusTimestampOf(latestImmutableState), currentRoundTimestamp, freezeTimeOf(newState));
         if (isFreezeState) {
             updateLastFrozenTime(newState);
         }
@@ -359,7 +359,6 @@ public final class EventRecoveryWorkflow {
                 false,
                 false);
         final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
-        previousSignedState.close();
 
         return reservedSignedState;
     }

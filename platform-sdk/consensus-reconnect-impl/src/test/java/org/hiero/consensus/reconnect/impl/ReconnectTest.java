@@ -16,6 +16,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -108,15 +109,13 @@ final class ReconnectTest {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), configuration);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
+            stateLifecycleManager.initWithState(createTestState());
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(createTestState())
+                    .setState(stateLifecycleManager.getMutableState())
                     .build();
-
-            stateLifecycleManager.initStateOnReconnect(signedState.getState());
-
-            stateCopy = stateLifecycleManager.getMutableState();
+            stateCopy = stateLifecycleManager.copyMutableState();
             // hash the underlying VM
             signedState.getState().getRoot().getHash();
 
@@ -146,8 +145,7 @@ final class ReconnectTest {
             receivedState.get().getState().release();
             thread.join();
         } finally {
-            stateLifecycleManager.getMutableState().release();
-            stateLifecycleManager.getLatestImmutableState().release();
+            TestStateUtils.destroyStateLifecycleManager(stateLifecycleManager);
         }
     }
 

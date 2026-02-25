@@ -18,7 +18,7 @@ import org.hiero.base.crypto.Hash;
  * An implementation creates an initial genesis state eagerly upon construction. This genesis state is
  * immediately available via {@link #getMutableState()}. If the node is restarting from a saved state,
  * calling {@link #loadSnapshot(Path)} will replace the genesis state with the loaded state. If the node
- * is reconnecting, calling {@link #initStateOnReconnect(Object)} will replace the current state with
+ * is reconnecting, calling {@link #initWithState(Object)} will replace the current state with
  * the reconnect state.
  *
  * @param <S> the type of the state
@@ -80,12 +80,12 @@ public interface StateLifecycleManager<S, D> {
     Hash loadSnapshot(@NonNull Path targetPath) throws IOException;
 
     /**
-     * Initialize with the state on reconnect. This method should only be called on a reconnect.
-     * The manager wraps the provided root node in a state object and re-initializes itself with it.
+     * Initialize the manager with the provided state. This method creates a copy of the provided state and uses the copy
+     * as a mutable state. The passed state becomes the latest immutable state registered in the manager.
      *
-     * @param state the state received from the reconnect peer
+     * @param state the state to initialize with
      */
-    void initStateOnReconnect(@NonNull S state);
+    void initWithState(@NonNull S state);
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,

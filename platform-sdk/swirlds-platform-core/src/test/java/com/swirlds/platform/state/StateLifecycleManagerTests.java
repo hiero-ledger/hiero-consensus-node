@@ -61,7 +61,7 @@ class StateLifecycleManagerTests {
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
-        stateLifecycleManager.initStateOnReconnect(initialState);
+        stateLifecycleManager.initWithState(initialState);
     }
 
     @AfterEach
@@ -91,7 +91,7 @@ class StateLifecycleManagerTests {
     void initStateRefCount() {
         final SignedState ss1 = newSignedState();
         final VirtualMapState state1 = ss1.getState();
-        stateLifecycleManager.initStateOnReconnect(state1);
+        stateLifecycleManager.initWithState(state1);
 
         assertEquals(
                 2,
@@ -106,7 +106,7 @@ class StateLifecycleManagerTests {
 
         final SignedState ss2 = newSignedState();
         final VirtualMapState state2 = ss2.getState();
-        stateLifecycleManager.initStateOnReconnect(state2);
+        stateLifecycleManager.initWithState(state2);
         final VirtualMapState consensusState2 = stateLifecycleManager.getMutableState();
 
         assertEquals(

@@ -427,7 +427,7 @@ class StateFileManagerTests {
         stateLifecycleManager =
                 new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), context.getConfiguration());
 
-        stateLifecycleManager.initStateOnReconnect(state.getState());
+        stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getMutableState().release();
     }
 }
