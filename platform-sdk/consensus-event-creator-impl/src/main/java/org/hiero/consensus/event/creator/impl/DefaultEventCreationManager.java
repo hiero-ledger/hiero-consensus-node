@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
-import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -146,8 +145,12 @@ public class DefaultEventCreationManager implements EventCreationManager {
             phase.activatePhase(NO_ELIGIBLE_PARENTS);
         } else {
             eventCreationRules.eventWasCreated();
-            // We created an event, we won't be allowed to create another until some time has elapsed.
-            phase.activatePhase(RATE_LIMITED);
+            // After an event was created we check the status to update the right phase
+            if (!eventCreationRules.isEventCreationPermitted()) {
+                phase.activatePhase(eventCreationRules.getEventCreationStatus());
+            } else {
+                phase.activatePhase(IDLE);
+            }
         }
 
         return newEvent;

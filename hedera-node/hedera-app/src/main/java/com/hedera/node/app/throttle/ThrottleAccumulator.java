@@ -24,7 +24,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRON
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -505,9 +505,17 @@ public class ThrottleAccumulator {
             }
         }
 
+        int transferImplicitCreationsCount = 0;
+        if (function == CRYPTO_TRANSFER) {
+            final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+            transferImplicitCreationsCount = getImplicitCreationsCount(txBody, accountStore);
+        }
+
         // Check if this is a high-volume transaction and use appropriate throttle bucket
         final boolean isHighVolumeTxn = txBody.highVolume();
-        final boolean useHighVolumeBucket = isHighVolumeTxn && HIGH_VOLUME_FUNCTIONS.contains(function);
+        final boolean isHighVolumeFunction = HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function);
+        final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(
+                isHighVolumeTxn, isHighVolumeFunction, function, transferImplicitCreationsCount);
         final var targetFunctionReqs = useHighVolumeBucket ? highVolumeFunctionReqs : functionReqs;
         final var manager = targetFunctionReqs.get(function);
 
@@ -524,14 +532,13 @@ public class ThrottleAccumulator {
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
-                final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 final var relationStore =
                         new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
                 yield shouldThrottleCryptoTransfer(
                         effectiveManager,
                         now,
                         configuration,
-                        getImplicitCreationsCount(txBody, accountStore),
+                        transferImplicitCreationsCount,
                         getAutoAssociationsCount(txBody, relationStore),
                         throttleUsages,
                         useHighVolumeBucket);
@@ -547,6 +554,30 @@ public class ThrottleAccumulator {
             }
             default -> !effectiveManager.allReqsMetAt(now, throttleUsages);
         };
+    }
+
+    /**
+     * Returns whether to use the high-volume bucket for the given transaction. If the transaction is a crypto transfer,
+     * the high volume bucket is only used if the transaction has implicit creations.
+     *
+     * @param isHighVolumeTxn whether the transaction is high volume
+     * @param isHighVolumeFunction whether the function is high volume
+     * @param function the functionality of the transaction
+     * @param transferImplicitCreationsCount the number of implicit creations in the transaction
+     * @return whether to use the high-volume bucket
+     */
+    private boolean shouldUseHighVolumeBucket(
+            final boolean isHighVolumeTxn,
+            final boolean isHighVolumeFunction,
+            @NonNull final HederaFunctionality function,
+            final int transferImplicitCreationsCount) {
+        if (!(isHighVolumeTxn && isHighVolumeFunction)) {
+            return false;
+        }
+        if (function != CRYPTO_TRANSFER) {
+            return true;
+        }
+        return transferImplicitCreationsCount > 0;
     }
 
     private boolean shouldThrottleScheduleCreate(
@@ -989,15 +1020,19 @@ public class ThrottleAccumulator {
 
     /**
      * Returns the current instantaneous utilization percentage of the high-volume throttle
-     * for the given functionality, without accounting for time-based capacity leakage.
+     * for the given functionality. It leaks the throttle to account for time-based capacity restoration,
+     * but ignores any recorded usage since we're only interested in the instantaneous utilization.
      * The utilization is expressed in basis points (0 to 10,000), where 10,000 = 100%.
      *
      * @param function the functionality to get the utilization for
+     * @param consensusTime the consensus time to calculate the utilization at
      * @return the utilization percentage in basis points (0 to 10,000),
      * or 0 if no high-volume throttle exists for the functionality
      */
-    public int getHighVolumeThrottleInstantaneousUtilization(@NonNull final HederaFunctionality function) {
+    public int getHighVolumeThrottleInstantaneousUtilizationBps(
+            @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         requireNonNull(function);
+        requireNonNull(consensusTime);
 
         final var manager = highVolumeFunctionReqs.get(function);
         if (manager == null) {
@@ -1005,14 +1040,17 @@ public class ThrottleAccumulator {
         }
 
         // Get the maximum utilization across all throttles for this functionality
-        double maxUtilization = 0.0;
+        int maxUtilizationBps = 0;
         for (final var throttle : manager.managedThrottles()) {
-            final double utilization = throttle.instantaneousPercentUsed();
-            maxUtilization = Math.max(maxUtilization, utilization);
+            // Leak the throttle to account for time-based capacity restoration, but ignore any recorded
+            // usage since we're only interested in the instantaneous utilization
+            throttle.leakUntil(consensusTime);
+            final int utilization = throttle.instantaneousBps();
+            maxUtilizationBps = Math.max(maxUtilizationBps, utilization);
         }
 
-        // instantaneousPercentUsed() returns percent in [0,100], convert to basis points [0,10_000]
-        return (int) Math.min(10_000, Math.round(maxUtilization * 100));
+        // return in basis points [0,10_000]
+        return Math.min(10_000, maxUtilizationBps);
     }
 
     /**

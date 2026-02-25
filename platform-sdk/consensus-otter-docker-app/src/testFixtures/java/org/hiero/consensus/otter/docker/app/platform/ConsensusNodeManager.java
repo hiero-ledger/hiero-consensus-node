@@ -33,13 +33,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
@@ -103,9 +106,11 @@ public class ConsensusNodeManager {
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
+                new ToFilePrometheusExporter(selfId, platformConfig)::handleSnapshots);
 
         final PlatformContext platformContext =
-                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
+                PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), platformConfig);
 
