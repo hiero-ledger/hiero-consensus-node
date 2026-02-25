@@ -24,9 +24,15 @@ import org.hiero.consensus.model.transaction.TimestampedTransaction;
  */
 public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
+     * The default maximum amount of time the platform may be in an unhealthy state before we start rejecting
+     * transactions.
+     */
+    public static final Duration DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION = Duration.ofSeconds(1);
+
+    /**
      * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
      */
-    private static final Duration maximumPermissibleUnhealthyDuration = Duration.ofSeconds(1);
+    private final Duration maximumPermissibleUnhealthyDuration;
 
     /**
      * A list of timestamped transactions created by this node waiting to be put into a self-event.
@@ -83,19 +89,24 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param transactionLimits            the configuration to use
-     * @param throttleTransactionQueueSize the maximum number of transactions that can be buffered before new
-     *                                     application transactions are rejected
-     * @param metrics                      the metrics to use
-     * @param time                         the time source for timestamping transactions
+     * @param transactionLimits                     the configuration to use
+     * @param throttleTransactionQueueSize          the maximum number of transactions that can be buffered before new
+     *                                              application transactions are rejected
+     * @param maximumPermissibleUnhealthyDuration   the maximum duration the platform may be unhealthy before rejecting
+     *                                              transactions
+     * @param metrics                               the metrics to use
+     * @param time                                  the time source for timestamping transactions
      */
     public TransactionPoolNexus(
             @NonNull final TransactionLimits transactionLimits,
             final int throttleTransactionQueueSize,
+            @NonNull final Duration maximumPermissibleUnhealthyDuration,
             @NonNull final Metrics metrics,
             @NonNull final InstantSource time) {
         maxTransactionBytesPerEvent = transactionLimits.maxTransactionBytesPerEvent();
         this.throttleTransactionQueueSize = throttleTransactionQueueSize;
+        this.maximumPermissibleUnhealthyDuration =
+                Objects.requireNonNull(maximumPermissibleUnhealthyDuration, "maximumPermissibleUnhealthyDuration");
         this.time = Objects.requireNonNull(time, "time must not be null");
 
         transactionPoolMetrics = new TransactionPoolMetrics(
