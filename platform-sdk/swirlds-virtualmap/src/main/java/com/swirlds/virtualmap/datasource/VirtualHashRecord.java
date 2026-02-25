@@ -30,6 +30,7 @@ import org.hiero.base.crypto.Hash;
  * @param path the path of the node
  * @param hash the hash of the node
  */
+@Deprecated
 public record VirtualHashRecord(long path, Hash hash) {
 
     public static final FieldDefinition FIELD_HASHRECORD_PATH =

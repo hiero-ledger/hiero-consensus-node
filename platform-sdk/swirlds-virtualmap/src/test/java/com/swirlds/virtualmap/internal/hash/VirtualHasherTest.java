@@ -14,7 +14,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -510,9 +509,9 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
     /**
      * We found a bug while doing large reconnect tests where the VirtualHasher was asking for
-     * {@link VirtualHashRecord}s before they had been written (#4251). In reality, the
-     * hasher never should have been asking for those records in the first place (this was a
-     * needless performance problem). This test covers that specific case.
+     * hash records before they had been written (#4251). In reality, the hasher should have
+     * never been asking for those records in the first place (this was a needless performance
+     * problem). This test covers that specific case.
      */
     @Test
     @Tag(TestComponentTags.VMAP)

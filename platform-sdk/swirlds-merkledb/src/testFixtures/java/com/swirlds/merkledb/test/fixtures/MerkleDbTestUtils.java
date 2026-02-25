@@ -22,7 +22,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -196,14 +195,6 @@ public class MerkleDbTestUtils {
 
     public static Stream<VirtualHashChunk> createHashChunkStream(final int lastLeafPath, final int hashChunkHeight) {
         return createHashChunkStream(1, lastLeafPath, i -> i, hashChunkHeight);
-    }
-
-    public static VirtualHashRecord createVirtualInternalRecord(final int i) {
-        return createVirtualInternalRecord(i, i);
-    }
-
-    public static VirtualHashRecord createVirtualInternalRecord(final long path, final int i) {
-        return new VirtualHashRecord(path, hash(i));
     }
 
     /**

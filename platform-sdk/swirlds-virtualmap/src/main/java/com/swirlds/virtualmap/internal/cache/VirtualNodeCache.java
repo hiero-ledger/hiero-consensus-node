@@ -13,7 +13,6 @@ import com.swirlds.common.FastCopyable;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,12 +44,12 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * A cache for virtual merkel trees.
  * <p>
  * At genesis, a virtual merkel tree has an empty {@link VirtualNodeCache} and no data on disk. As values
- * are added to the tree, corresponding {@link VirtualLeafBytes}' are added to the cache. When the round
+ * are added to the tree, corresponding {@link VirtualLeafBytes}s are added to the cache. When the round
  * completes, a fast-copy of the tree is made, along with a fast-copy of the cache. Any new changes to the
  * modifiable tree are done through the corresponding copy of the cache. The original tree and original
  * cache have <strong>IMMUTABLE</strong> leaf data. The original tree is then submitted to multiple hashing
- * threads. For each internal node that is hashed, a {@link VirtualHashRecord} is created and added
- * to the {@link VirtualNodeCache}.
+ * threads. All hashed internal and leaf nodes are grouped into {@link VirtualHashChunk}s and put to the
+ * node cache.
  * <p>
  * Eventually, there are multiple copies of the cache in memory. It may become necessary to merge two
  * caches together. The {@link #merge()} method is provided to merge a cache with the one-prior cache.
