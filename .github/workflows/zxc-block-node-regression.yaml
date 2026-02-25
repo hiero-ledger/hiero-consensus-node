@@ -68,7 +68,7 @@ jobs:
             echo "No stable v*.*.* tags found."; exit 1
           fi
           echo "Latest stable tag: ${LATEST_STABLE}"
-          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+          echo "CN_LATEST_TAG=v0.72.0-alpha.3" >> "$GITHUB_ENV"
 
       #  Checkout the block-node repository
       - name: Checkout Block-Node Code
@@ -182,7 +182,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hashgraph/solo@latest
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
