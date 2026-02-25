@@ -137,6 +137,7 @@ public class SwirldsPlatform implements Platform {
      * platform
      */
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
+        System.out.println("This is not a doc only change");
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
         platformContext = blocks.platformContext();
 

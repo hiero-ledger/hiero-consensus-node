@@ -695,3 +695,5 @@ to eventually either reach consensus or become stale.
 #### onRound
 
 Called by Consensus once for each round that comes to consensus.
+
+This line is new.
