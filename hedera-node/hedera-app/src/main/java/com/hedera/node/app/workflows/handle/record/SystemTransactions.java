@@ -466,12 +466,12 @@ public class SystemTransactions {
                     state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
             if (filesState.get(simpleFeesFileId) == null) {
                 log.info(
-                        "Creating simple fee schedule file 0.0.{} (upgrading from pre-simple-fees version)",
-                        filesConfig.simpleFeesSchedules());
+                        "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
+                        simpleFeesFileId.shardNum(),
+                        simpleFeesFileId.realmNum(),
+                        simpleFeesFileId.fileNum());
                 fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
             }
-        }
-        if (feesConfig.createSimpleFeeSchedule()) {
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
                             ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),

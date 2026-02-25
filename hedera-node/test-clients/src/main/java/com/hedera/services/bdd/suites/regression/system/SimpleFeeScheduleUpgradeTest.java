@@ -15,10 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -31,39 +29,25 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class SimpleFeeScheduleUpgradeTest implements LifecycleTest {
-    private static final AtomicReference<byte[]> PRE_UPGRADE_CONTENTS = new AtomicReference<>();
 
     @HapiTest
-    @Order(0)
-    final Stream<DynamicTest> simpleFeeScheduleExistsBeforeUpgrade() {
-        return hapiTest(getFileContents(SIMPLE_FEE_SCHEDULE).consumedBy(bytes -> {
-            assertTrue(bytes.length > 0, "Simple fee schedule should have content before upgrade");
-            PRE_UPGRADE_CONTENTS.set(bytes);
-        }));
-    }
-
-    @HapiTest
-    @Order(1)
-    final Stream<DynamicTest> upgradePreservesSimpleFeeSchedule() {
-        return hapiTest(prepareFakeUpgrade(), upgradeToNextConfigVersion());
-    }
-
-    @HapiTest
-    @Order(2)
-    final Stream<DynamicTest> simpleFeeScheduleQueryableAfterUpgrade() {
-        return hapiTest(getFileContents(SIMPLE_FEE_SCHEDULE).consumedBy(bytes -> {
-            assertTrue(bytes.length > 0, "Simple fee schedule should have content after upgrade");
-        }));
-    }
-
-    @HapiTest
-    @Order(3)
-    final Stream<DynamicTest> simpleFeeScheduleUpdatableAfterUpgrade() {
+    final Stream<DynamicTest> simpleFeeScheduleSurvivesUpgradeAndIsUpdatable() {
         return hapiTest(
+                // Verify the file exists and has content before upgrade
+                getFileContents(SIMPLE_FEE_SCHEDULE).consumedBy(bytes -> {
+                    assertTrue(bytes.length > 0, "Simple fee schedule should have content before upgrade");
+                }),
+                // Perform a fake upgrade
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(),
+                // Verify the file is still queryable after upgrade
+                getFileContents(SIMPLE_FEE_SCHEDULE).consumedBy(bytes -> {
+                    assertTrue(bytes.length > 0, "Simple fee schedule should have content after upgrade");
+                }),
+                // Verify the file is updatable after upgrade
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FEE_SCHEDULE_CONTROL, 1_000_000_000_000L)),
                 getFileContents(SIMPLE_FEE_SCHEDULE).saveToRegistry("originalSimpleFees"),
                 updateLargeFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, "originalSimpleFees"),
-                // Verify the file can still be read after update
                 getFileContents(SIMPLE_FEE_SCHEDULE).consumedBy(bytes -> {
                     assertTrue(bytes.length > 0, "Simple fee schedule should have content after update");
                 }));
