@@ -231,7 +231,7 @@ class HandleHederaNativeOperationsTest {
         given(context.dispatch(assertArg(options -> {
                     assertEquals(synthLazyCreate, options.body());
                     assertFalse(options.commitImmediately());
-                    assertEquals(TransactionCategory.CHILD, options.category());
+                    assertEquals(TransactionCategory.PRECEDING, options.category());
                 })))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);

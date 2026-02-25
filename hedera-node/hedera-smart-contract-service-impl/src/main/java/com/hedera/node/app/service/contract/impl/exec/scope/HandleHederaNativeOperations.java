@@ -7,8 +7,8 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.independentStepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -31,7 +31,6 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -157,14 +156,13 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
             @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress) {
-        final var dispatchOpts = stepDispatch(
+        final var dispatchOpts = independentStepDispatch(
                 context.payer(),
                 TransactionBody.newBuilder()
                         .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
                                 evmAddress, key, delegationAddress, unlimitedAutoAssociationsEnabled()))
                         .build(),
-                CryptoCreateStreamBuilder.class,
-                SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER);
+                CryptoCreateStreamBuilder.class);
         try {
             return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {
