@@ -191,6 +191,36 @@ The answer is hashing. If the range is changed from `[10, 20]` to `[11, 22]`, tw
 21 and 22 must be dirty. Hashes 21 and 22 must not be read from any chunk, they must be recalculated
 from leaf data, and then stored in the right chunk at paths 21 and 22.
 
+### Packed format on disk
+
+Partial chunks may contain just a few hashes, much fewer than `2^N`. The section above describes
+how these hashes are mapped to the last chunk rank. Unfortunately, this schema results in a lot
+of wasted disk space. Indeed, if a chunk of height 6 is used to store only one rank of hashes,
+i.e. 2 hashes, 62 hashes (or about 3Kb) are just wasted. Given that partial chunks are at the
+bottom of the tree, there may be huge number of them, and total disk space wasted may be enormous.
+
+To address this issue, chunks are stored on disk in a packed format. The idea is straightforward:
+if only `K` ranks are actually used in a chunk, `K` less or equal `N`, only `2^K` hashes are
+stored. When a chunk is loaded from disk, it's "expanded" to have storage for all `N` ranks of
+hashes.
+
+Here is an example:
+
+* Hash chunk height is 6
+* Total number of hashes in every chunk is therefore 2^6 == 64
+* Assume a chunk is used to store only 2 ranks of hashes. Ranks 3 to 6 are beyond the leaf range
+* 2 ranks of hashes are paths 3, 4, 5, and 6 relative to the chunk path
+* As described in `Hashes in partical chunks` section above, hash 3 is stored at offset 0, hash 4
+  is at offset 16, hash 5 is at offset 32, and hash 6 is at offset 48
+* On disk, the chunk is serialized with only these 4 hashes, that is 4*48 bytes, plus other
+  protobuf fields
+* When the chunk is deserialized, a byte buffer of 64 hashes is allocated. Then the first hash on
+  disk is read into offset 0, the second hash is read into offset 16*48, and so on
+* If such chunk is at the first/last leaf path boundary, it could contain 3 hashes for relative
+  paths 3, 4, and 2. Path 2 is at the first chunk rank, paths 3 and 4 are at the second rank. In
+  this case, when the chunk is serialized, 4 hashes are written to disk: hash 3, hash 4, hash 2
+  (which is read as hash 5), and hash 6 (with undefined bytes)
+
 ## Related components
 
 Switching from individual hashes to hash chunks affects many parts of the system. This section
