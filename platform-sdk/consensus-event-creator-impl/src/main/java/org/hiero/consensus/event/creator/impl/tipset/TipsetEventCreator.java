@@ -256,7 +256,10 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        final PlatformEvent platformEvent =
+                new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        platformEvent.setTimeReceived(time.now());
+        return platformEvent;
     }
 
     /**
@@ -546,7 +549,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        allParents.stream().map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(p -> p == selfParent ? p.getTimeCreated() : p.getTimeReceived()),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams
