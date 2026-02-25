@@ -85,7 +85,10 @@ message ClprMessageQueueMetadata {
   uint64 next_message_id = 6;
 
   /**
+   * Bundle shape
    *
+   * The limits of a single bundle that MUST be respected,
+   * when a remote ledger submits a bundle to be processed.
    */
   ClprBundleShape bundle_shape = 7;
 }
@@ -238,7 +241,7 @@ message ClprMessageBundle {
 /**
  * Bundle shape
  *
- * These are the limits of a single bundle that MUST be respected,
+ * The limits of a single bundle that MUST be respected,
  * when a remote ledger submits a bundle to be processed.
  */
 message ClprBundleShape {
