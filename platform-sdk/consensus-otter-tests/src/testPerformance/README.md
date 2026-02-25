@@ -36,17 +36,54 @@ You can also point to a custom metrics location:
 ./gradlew :consensus-otter-tests:benchmarkAndVisualize -PmetricsPath="path/to/metrics.txt"
 ```
 
+To run only a specific experiment and then visualize, use `-PtestFilter` (note the `=` is required):
+
+```bash
+./gradlew :consensus-otter-tests:benchmarkAndVisualize -PtestFilter="*.CombinedOptimizationsExperiment"
+```
+
+### Running a single experiment
+
+Use `--tests` to run a specific experiment (or `-PtestFilter` which also works with `benchmarkAndVisualize`):
+
+```bash
+# Run only the baseline benchmark
+./gradlew :consensus-otter-tests:testPerformance --tests "*.ConsensusLayerBenchmark"
+
+# Run only a specific experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment"
+
+# Equivalent using -PtestFilter (works with both testPerformance and benchmarkAndVisualize)
+./gradlew :consensus-otter-tests:testPerformance -PtestFilter="*.MaxOtherParentsExperiment"
+
+# Run a single test method within an experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment.benchmarkCombinedOptimizations"
+```
+
+Available experiments:
+- `ConsensusLayerBenchmark` — Baseline benchmark (defaults)
+- `AntiSelfishnessExperiment` — Anti-selfishness factor variations
+- `CreationAttemptRateExperiment` — Event creation attempt rate variations
+- `MaxCreationRateExperiment` — Max event creation rate variations
+- `MaxOtherParentsExperiment` — Max other parents variations
+- `SignatureSchemeExperiment` — Signature scheme comparisons (RSA vs EC)
+- `CombinedOptimizationsExperiment` — Combined best settings
+
 ### Multiple runs via shell script
 
-The `run-benchmark.sh` script runs the benchmark N times, extracts the average latency from each
-run, and saves all artifacts (logs, CSVs, metrics) to `~/benchmark-results/` with timestamped
+The `run-benchmark.sh` script runs experiments multiple times, extracts the average latency from
+each run, and saves all artifacts (logs, CSVs, metrics) to `~/benchmark-results/` with timestamped
 directories:
 
 ```bash
-src/testPerformance/run-benchmark.sh [num_runs]
+src/testPerformance/run-benchmark.sh [experiment] [num_runs]
 ```
 
-Each run produces a directory like `~/benchmark-results/20260216-143022_avg-42/` containing:
+- `experiment`: Which experiment to run (default: `all`)
+  - `benchmark`, `maxotherparents`, `antiselfishness`, `maxcreationrate`, `signature`, `combined`, or `all`
+- `num_runs`: Number of times to run the experiment(s) (default: `1`)
+
+Each run produces a directory like `~/benchmark-results/20260216-143022_testName_experiment_avg-42/` containing:
 - `swirlds-node-*.log` and `otter-node-*.log` — node logs
 - `stats/MainNetStats*.csv` — CSV statistics
 - `stats/metrics-node-*.txt` — per-node metrics in Prometheus format
@@ -54,11 +91,64 @@ Each run produces a directory like `~/benchmark-results/20260216-143022_avg-42/`
 Examples:
 
 ```bash
-# Run the benchmark 5 times
-src/testPerformance/run-benchmark.sh 5
+# Run all experiments once
+src/testPerformance/scripts/run-benchmark.sh
 
-# Single run (default)
-src/testPerformance/run-benchmark.sh
+# Run all experiments 5 times each
+src/testPerformance/scripts/run-benchmark.sh all 5
+
+# Run only the combined experiment 3 times
+src/testPerformance/scripts/run-benchmark.sh combined 3
+
+# Run only the baseline benchmark once
+src/testPerformance/scripts/run-benchmark.sh benchmark
+```
+
+### Running benchmarks on a remote server
+
+The `deploy-benchmark.sh` script connects to a remote server via SSH, prepares the repository,
+runs benchmark experiments there, and transfers the results back as a `.tar.gz` archive. It requires
+key-based SSH authentication (no password prompts).
+
+```bash
+src/testPerformance/scripts/deploy-benchmark.sh <user@server> <branch> [experiment] [num_runs]
+```
+
+- `user@server`: SSH destination (e.g. `ubuntu@10.0.1.5`)
+- `branch`: Git branch to checkout and benchmark
+- `experiment`: Which experiment to run (default: `all`)
+- `num_runs`: Number of times to run the experiment(s) (default: `1`)
+
+Before running, the script verifies that:
+1. SSH key-based authentication works for the target server
+2. No Gradle processes are running on the server
+3. No other interactive users are logged in
+
+The repository is cloned on first use and reused on subsequent runs. Results are archived and
+downloaded to `~/benchmark-results/remote/` with a filename that includes the server, branch,
+and timestamp.
+
+Examples:
+
+```bash
+# Run all experiments once on a remote server
+src/testPerformance/scripts/deploy-benchmark.sh ubuntu@10.0.1.5 feature/my-branch
+
+# Run the combined experiment 3 times
+src/testPerformance/scripts/deploy-benchmark.sh ubuntu@10.0.1.5 develop combined 3
+
+# Run only the baseline benchmark
+src/testPerformance/scripts/deploy-benchmark.sh user@benchmark-host main benchmark
+```
+
+To inspect the downloaded results:
+
+```bash
+# List archive contents
+tar -tzf ~/benchmark-results/remote/benchmark-10.0.1.5-feature-my-branch-20260220-143022.tar.gz
+
+# Extract to a directory
+tar -xzf ~/benchmark-results/remote/benchmark-10.0.1.5-feature-my-branch-20260220-143022.tar.gz -C ~/benchmark-results/
 ```
 
 ## Starting Grafana Independently
@@ -81,7 +171,7 @@ This imports metrics from the default path (`build/container/ConsensusLayerBench
 
 ```bash
 cd platform-sdk/consensus-otter-tests
-src/testPerformance/start-grafana.sh [--keep-data] [paths...]
+src/testPerformance/scripts/start-grafana.sh [--keep-data] [paths...]
 ```
 
 The script accepts files, directories, or glob patterns as arguments. When given a directory, it
@@ -92,21 +182,42 @@ Examples:
 
 ```bash
 # Import from a specific file
-src/testPerformance/start-grafana.sh /tmp/my-run/node-0/metrics.txt
+src/testPerformance/scripts/start-grafana.sh /tmp/my-run/node-0/metrics.txt
 
 # Point to a results directory (finds all metrics*.txt files inside)
-src/testPerformance/start-grafana.sh ~/benchmark-results/20260216-143022_avg-42/stats/
+src/testPerformance/scripts/start-grafana.sh ~/benchmark-results/20260216-143022_avg-42/stats/
 
 # Load multiple runs at once by passing several directories
-src/testPerformance/start-grafana.sh \
+src/testPerformance/scripts/start-grafana.sh \
   ~/benchmark-results/20260216-143022_avg-42/stats/ \
   ~/benchmark-results/20260216-150512_avg-38/stats/
 
 # Use a glob to load all saved runs
-src/testPerformance/start-grafana.sh ~/benchmark-results/*/stats/
+src/testPerformance/scripts/start-grafana.sh ~/benchmark-results/*/stats/
 
 # Append metrics from a new run without losing previously imported data
-src/testPerformance/start-grafana.sh --keep-data ~/benchmark-results/20260216-160000_avg-40/stats/
+src/testPerformance/scripts/start-grafana.sh --keep-data ~/benchmark-results/20260216-160000_avg-40/stats/
+```
+
+## Helper scripts
+
+To look for metrics from previous runs and choose which ones to import, use:
+
+```bash
+src/testPerformance/scripts/find-metrics.sh
+```
+
+To import metrics to an already running Grafana stack without restarting:
+
+```bash
+src/testPerformance/scripts/import-metrics.sh
+```
+
+To upload the dashboard JSON to Grafana (only needed if you want to modify the dashboard or start from a clean Grafana
+without preloaded dashboards):
+
+```bash
+src/testPerformance/scripts/upload-dashboards.sh
 ```
 
 ## Accessing the Visualization
@@ -123,7 +234,7 @@ The dashboard provides:
 ## Stopping the Stack
 
 ```bash
-src/testPerformance/start-grafana.sh --shutdown
+src/testPerformance/scripts/stop-grafana.sh
 ```
 
 This removes both containers, the data volume, and the Docker network.
