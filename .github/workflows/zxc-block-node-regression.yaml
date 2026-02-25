@@ -261,16 +261,21 @@ jobs:
       # produce protobuf source artifact
       - name: Produce Protobuf proto artifact
         working-directory: block-node
-        run: ${GRADLE_EXEC} :block-node-protobuf-sources:generateBlockNodeProtoArtifact
+        run: ${GRADLE_EXEC} :protobuf-sources:generateBlockNodeProtoArtifact
 
       # untar protobuf sources
       - name: Untar Protobuf Sources
         working-directory: block-node/protobuf-sources
         run: |
           mkdir -p proto
-          # Extract the 'v' from the tag if it exists
-          PROTO_TAG="${{ env.BLOCK_NODE_TAG }}"
-          PROTO_TAG="${PROTO_TAG#v}"
+          # Use the generated protobuf artifact (matches local project version)
+          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
+          if [[ -z "$PROTO_FILE" ]]; then
+            echo "Error: No protobuf artifact found"
+            ls -la
+            exit 1
+          fi
+          echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
           tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
 
@@ -356,7 +361,7 @@ jobs:
         if: always()
         run: |
           # Get CN Logs
-          solo consensus diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          solo deployment diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
           BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"
