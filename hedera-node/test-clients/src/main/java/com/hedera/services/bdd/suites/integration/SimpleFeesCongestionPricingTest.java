@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -18,6 +19,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -75,12 +77,15 @@ public class SimpleFeesCongestionPricingTest {
               ]
             }""";
 
-    @LeakyHapiTest(overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
+    @LeakyHapiTest(
+            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "fees.simpleFeesEnabled"})
     Stream<DynamicTest> simpleFeesApplyCongestionMultiplierToTransfers() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong congestedPrice = new AtomicLong();
+        final int burstTxns = 24;
 
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
@@ -91,23 +96,28 @@ public class SimpleFeesCongestionPricingTest {
                             normalPrice.set(normalFee);
                         })
                         .logged(),
-                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "0"),
+                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 new SysFileOverrideOp(THROTTLES, () -> CONGESTION_THROTTLES),
                 sleepFor(2_000),
-                blockingOrder(IntStream.range(0, 20)
+                blockingOrder(IntStream.range(0, burstTxns)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
                             uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
-                                            .payingWith(CIVILIAN_ACCOUNT))
+                                            .payingWith(CIVILIAN_ACCOUNT)
+                                            .txnId("uncheckedTxn" + i))
                                     .payingWith(GENESIS)
-                                    .noLogging()
+                                    .noLogging(),
+                            sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
                         .toArray(HapiSpecOperation[]::new)),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(CIVILIAN_ACCOUNT)
-                        .via("congestedTransfer"),
+                        .via("congestedTransfer")
+                        .hasRetryPrecheckFrom(BUSY)
+                        .setRetryLimit(20),
+                sleepFor(2_000),
                 getTxnRecord("congestedTransfer").payingWith(GENESIS).providingFeeTo(congestionFee -> {
                     log.info("Congested transfer fee: {}", congestionFee);
                     congestedPrice.set(congestionFee);

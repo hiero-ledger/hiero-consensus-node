@@ -29,6 +29,8 @@ jobs:
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
+      enable-hapi-tests-crypto: "true"
+      enable-hapi-tests-token: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
