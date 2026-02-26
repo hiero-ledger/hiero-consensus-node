@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -327,6 +328,30 @@ class FileAppendHandlerTest extends FileTestBase {
                 .build();
 
         file = new File(fileId, expirationTime, null, Bytes.wrap(contents), memo, false, 0L);
+
+        given(handleContext.body()).willReturn(txBody);
+        writableFileState = writableFileStateWithOneKey();
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
+        given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertEquals(ResponseCodeEnum.UNAUTHORIZED, msg.getStatus());
+    }
+
+    @Test
+    @DisplayName("Fails handle if keys list is empty on file to be appended")
+    void failsForImmutableFileWithEmptyKeyList() {
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(wellKnownId()))
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(
+                                Timestamp.newBuilder().seconds(111111).build())
+                        .build())
+                .build();
+
+        file = new File(fileId, expirationTime, KeyList.DEFAULT, Bytes.wrap(contents), memo, false, 0L);
 
         given(handleContext.body()).willReturn(txBody);
         writableFileState = writableFileStateWithOneKey();
