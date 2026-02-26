@@ -1,0 +1,51 @@
+/**
+ * # Enqueue CLPR Message Transaction
+ * Enqueue a single CLPR message payload into the outbound queue for a remote ledger.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.interledger.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "org.hiero.hapi.interledger.clpr.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
+
+/**
+ * Transaction body for enqueueing a CLPR message payload to the outbound queue for a remote ledger.
+ *
+ * This transaction is expected to be used for internal dispatches (for example, from system contracts),
+ * so that outbound queue state mutations are cleanly correlated to transactions in the block stream.
+ */
+message ClprEnqueueMessageTransactionBody {
+  /**
+   * The identifier of the remote ledger whose outbound queue this payload should be appended to.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 1;
+
+  /**
+   * The message payload to enqueue.
+   *
+   * Exactly one of `message` or `message_reply` MUST be set.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprMessagePayload payload = 2;
+
+  /**
+   * Optional expected next message id for the destination queue.
+   *
+   * If set to a non-zero value, handlers SHOULD validate it matches the current `next_message_id` before enqueueing.
+   * A value of zero indicates "not specified".
+   */
+  uint64 expected_message_id = 3;
+}
+

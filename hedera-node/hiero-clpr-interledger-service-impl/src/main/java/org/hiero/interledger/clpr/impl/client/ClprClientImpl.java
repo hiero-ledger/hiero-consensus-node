@@ -61,8 +61,10 @@ public class ClprClientImpl implements ClprClient {
 
     private static final Logger log = LogManager.getLogger(ClprClientImpl.class);
 
+    private static final Duration GRPC_TIMEOUT = Duration.ofSeconds(5);
+
     private static final PbjGrpcClientConfig clientConfig = new PbjGrpcClientConfig(
-            Duration.ofSeconds(1),
+            GRPC_TIMEOUT,
             Tls.builder().enabled(false).build(),
             Optional.empty(),
             ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
@@ -97,19 +99,33 @@ public class ClprClientImpl implements ClprClient {
      * @throws UnknownHostException if the IP address of the service endpoint cannot be determined
      */
     public ClprClientImpl(@NonNull final ServiceEndpoint serviceEndpoint) throws UnknownHostException {
-        final String address = Inet4Address.getByAddress(
-                        serviceEndpoint.ipAddressV4().toByteArray())
-                .getHostAddress();
+        final String address = resolveAddress(serviceEndpoint);
         final int port = serviceEndpoint.port();
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + address + ":" + port)
                 .tls(Tls.builder().enabled(false).build())
+                .connectTimeout(GRPC_TIMEOUT)
+                .readTimeout(GRPC_TIMEOUT)
                 .build();
 
         pbjGrpcClient = new PbjGrpcClient(webClient, clientConfig);
         clprServiceClient = new ClprServiceInterface.ClprServiceClient(pbjGrpcClient, requestOptions);
         signer = DevTransactionSignerHolder.signer();
+    }
+
+    private static String resolveAddress(@NonNull final ServiceEndpoint serviceEndpoint) throws UnknownHostException {
+        final var domainName = serviceEndpoint.domainName();
+        if (domainName != null && !domainName.isBlank()) {
+            return domainName.trim();
+        }
+        final var ipAddressV4 = serviceEndpoint.ipAddressV4();
+        if (ipAddressV4 == null || ipAddressV4.length() != 4) {
+            throw new UnknownHostException("ServiceEndpoint missing usable ipAddressV4 and domainName (ipBytes="
+                    + (ipAddressV4 == null ? 0 : ipAddressV4.length())
+                    + ")");
+        }
+        return Inet4Address.getByAddress(ipAddressV4.toByteArray()).getHostAddress();
     }
 
     /**

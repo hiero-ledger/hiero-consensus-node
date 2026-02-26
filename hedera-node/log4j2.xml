@@ -369,13 +369,17 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="fileLog"/>
     </Logger>
+    <Logger name="org.hiero.interledger.clpr" level="info" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
     <Logger name="org.hiero.interledger.clpr.impl.ClprEndpointClient" level="debug" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="fileLog"/>
+      <AppenderRef ref="RollingFile"/>
     </Logger>
     <Logger name="org.hiero.interledger.clpr.impl.client.ClprClientImpl" level="debug" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="fileLog"/>
+      <AppenderRef ref="RollingFile"/>
     </Logger>
   </Loggers>
 </Configuration>

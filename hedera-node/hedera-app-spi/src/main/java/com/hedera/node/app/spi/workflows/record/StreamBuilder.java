@@ -106,6 +106,17 @@ public interface StreamBuilder {
     long getGasUsedForContractTxn();
 
     /**
+     * Returns the EVM call result bytes (return data) captured for this dispatch, if any.
+     *
+     * <p>Implementations that do not support capturing EVM return data should return {@link Bytes#EMPTY}.
+     *
+     * @return the EVM call result bytes, or {@link Bytes#EMPTY} if unavailable
+     */
+    default @NonNull Bytes getEvmCallResult() {
+        return Bytes.EMPTY;
+    }
+
+    /**
      * Returns the status that is currently set in the record builder.
      *
      * @return the status of the transaction

@@ -68,15 +68,27 @@ public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
         final var query = context.query();
         final var op = query.getClprMessageQueueMetadata();
         final var ledgerId = op.ledgerId();
+        // TEMP-OBSERVABILITY (delete before production): traces queue-metadata query ingress by remote ledger id.
+        log.info(
+                "CLPR_OBS|component=clpr_get_message_queue_metadata_handler|stage=query_received|remoteLedgerId={}",
+                ledgerId.ledgerId());
         final var readableMessageQueueMetadataStore = context.createStore(ReadableClprMessageQueueMetadataStore.class);
         final var metadata = readableMessageQueueMetadataStore.get(ledgerId);
         if (metadata != null) {
+            // TEMP-OBSERVABILITY (delete before production): traces successful metadata proof query response.
+            log.info(
+                    "CLPR_OBS|component=clpr_get_message_queue_metadata_handler|stage=query_success|nextMessageId={}|sentMessageId={}|receivedMessageId={}",
+                    metadata.nextMessageId(),
+                    metadata.sentMessageId(),
+                    metadata.receivedMessageId());
             final var result = ClprGetMessageQueueMetadataResponse.newBuilder()
                     .header(header)
                     .messageQueueMetadataProof(stateProofManager.getMessageQueueMetadata(ledgerId))
                     .build();
             return Response.newBuilder().clprMessageQueueMetadata(result).build();
         }
+        // TEMP-OBSERVABILITY (delete before production): traces empty metadata query response for unknown queue.
+        log.info("CLPR_OBS|component=clpr_get_message_queue_metadata_handler|stage=query_empty|reason=missing_queue");
         return createEmptyResponse(header);
     }
 }

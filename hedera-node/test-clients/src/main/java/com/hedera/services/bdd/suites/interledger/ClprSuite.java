@@ -10,14 +10,25 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.gossipC
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Function;
+import com.esaulpaugh.headlong.abi.Tuple;
+import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -30,10 +41,15 @@ import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hederahashgraph.api.proto.java.ContractID;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,12 +79,28 @@ import org.junit.jupiter.api.Tag;
 @Tag(TestTags.CLPR)
 @HapiTestLifecycle
 public class ClprSuite implements LifecycleTest {
-    private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
+    private static final Map<String, String> CLPR_OVERRIDES =
+            Map.of("clpr.clprEnabled", "true", "contracts.systemContract.clprQueue.enabled", "true");
     private static final long NODE_ID_TO_REMOVE = 3L;
     private static final long REPLACEMENT_NODE_ID = 4L;
     private static final String REPLACEMENT_NODE_NAME = CLASSIC_NODE_NAMES[(int) REPLACEMENT_NODE_ID];
-    private static final Map<String, String> PUBLICIZE_DISABLED = Map.of("clpr.publicizeNetworkAddresses", "false");
-    private static final Map<String, String> PUBLICIZE_ENABLED = Map.of("clpr.publicizeNetworkAddresses", "true");
+    private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
+    private static final String ECHO_APP = "EchoApplication";
+    private static final String CLPR_QUEUE_SYSTEM_CONTRACT = "0x000000000000000000000000000000000000016e";
+    private static final String ABI_REGISTER_LOCAL_APPLICATION =
+            getABIFor(FUNCTION, "registerLocalApplication", CLPR_MIDDLEWARE);
+    private static final String ABI_SET_TRUSTED_CALLBACK_CALLER =
+            getABIFor(FUNCTION, "setTrustedCallbackCaller", CLPR_MIDDLEWARE);
+    private static final Function ENQUEUE_MESSAGE = new Function(
+            "enqueueMessage((address,(address,bytes32,(uint256,string),bytes),bytes32,(bool,(uint256,string),bytes),((bytes32,(uint256,string),(uint256,string),(uint256,string)),bytes)))",
+            "(uint64)");
+    private static final TupleType<Tuple> REQUEST_ROUTE_HEADER_TYPE =
+            TupleType.parse("(uint8,bytes32,address,address)");
+    private static final int ABI_SELECTOR_LENGTH = 4;
+    private static final Map<String, String> PUBLICIZE_DISABLED =
+            Map.of("clpr.publicizeNetworkAddresses", "false", "contracts.systemContract.clprQueue.enabled", "true");
+    private static final Map<String, String> PUBLICIZE_ENABLED =
+            Map.of("clpr.publicizeNetworkAddresses", "true", "contracts.systemContract.clprQueue.enabled", "true");
     private static final Duration CLPR_QUERY_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration CLPR_QUERY_POLL_INTERVAL = Duration.ofMillis(200);
 
@@ -307,7 +339,7 @@ public class ClprSuite implements LifecycleTest {
                     assertThat(result.ledgerId()).isEqualTo(remoteLedgerId);
                     assertThat(result.receivedMessageId()).isEqualTo(0);
                     assertThat(result.sentMessageId()).isEqualTo(0);
-                    assertThat(result.nextMessageId()).isEqualTo(11);
+                    assertThat(result.nextMessageId()).isEqualTo(1);
                     assertThat(result.receivedRunningHash().length()).isGreaterThan(0);
                     assertThat(result.sentRunningHash().length()).isGreaterThan(0);
                 }));
@@ -318,15 +350,19 @@ public class ClprSuite implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> handleProcessMessageBundle() {
         /*
-         * This test verifies process and get message endpoints using a valid bundle and queue ack.
+         * Small smoke test for process/get message endpoints:
+         * - submits a valid canonical inbound request bundle for a 32-byte remote ledger id
+         * - verifies queue receive cursor advances
+         * - verifies one outbound message-reply is available for pull
          */
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprLedgerId> remoteLedgerIdRef = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> bundleToProcess = new AtomicReference<>();
-        AtomicReference<ClprMessageQueueMetadata> sentQueueUpdate = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
-        Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
-        ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
+        final AtomicReference<ContractID> middlewareIdRef = new AtomicReference<>();
+        final AtomicReference<ContractID> echoAppIdRef = new AtomicReference<>();
+        final byte[] remoteLedgerBytes = new byte[32];
+        remoteLedgerBytes[31] = 0x2A;
         return hapiTest(
                 // set target node
                 doingContextual(spec -> {
@@ -334,7 +370,7 @@ public class ClprSuite implements LifecycleTest {
                     assertThat(tNode).isNotNull();
                     targetNode.set(tNode);
                     remoteLedgerIdRef.set(ClprLedgerId.newBuilder()
-                            .ledgerId(Bytes.wrap("Mock ledger ID".getBytes()))
+                            .ledgerId(Bytes.wrap(remoteLedgerBytes))
                             .build());
                 }),
                 // ensure queue is initialized
@@ -345,71 +381,104 @@ public class ClprSuite implements LifecycleTest {
                                 .nextMessageId(1)
                                 .ledgerId(remoteLedgerIdRef.get())
                                 .build()),
-                // build a valid bundle and a queue update so getMessages can fetch replies
+                // deploy minimal middleware + destination app for queue callback
+                withOpContext((spec, opLog) -> {
+                    final var queueAddress = asHeadlongAddress(CLPR_QUEUE_SYSTEM_CONTRACT);
+                    allRunFor(
+                            spec,
+                            uploadInitCode(CLPR_MIDDLEWARE, ECHO_APP),
+                            contractCreate(CLPR_MIDDLEWARE, queueAddress, remoteLedgerBytes)
+                                    .gas(8_000_000L)
+                                    .exposingContractIdTo(middlewareIdRef::set));
+                    final var middlewareAddress = asHeadlongAddress(
+                            asAddress(requireNonNull(middlewareIdRef.get(), "Middleware id required")));
+                    allRunFor(
+                            spec,
+                            contractCreate(ECHO_APP, middlewareAddress)
+                                    .gas(3_000_000L)
+                                    .exposingContractIdTo(echoAppIdRef::set));
+                    final var echoAddress =
+                            asHeadlongAddress(asAddress(requireNonNull(echoAppIdRef.get(), "Echo app id required")));
+                    final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
+                    allRunFor(
+                            spec,
+                            contractCallWithFunctionAbi(
+                                            asContractIdLiteral(
+                                                    requireNonNull(middlewareIdRef.get(), "Middleware id required")),
+                                            ABI_SET_TRUSTED_CALLBACK_CALLER,
+                                            payerAddress)
+                                    .gas(500_000L),
+                            contractCallWithFunctionAbi(
+                                            asContractIdLiteral(
+                                                    requireNonNull(middlewareIdRef.get(), "Middleware id required")),
+                                            ABI_REGISTER_LOCAL_APPLICATION,
+                                            echoAddress)
+                                    .gas(500_000L));
+                }),
+                // build a valid bundle with a canonical request payload
                 doingContextual(spec -> {
                     final var node = targetNode.get();
                     try (final var client = createClient(node)) {
                         final var remoteLedgerId = requireNonNull(remoteLedgerIdRef.get(), "Remote ledger id required");
                         final var queue = awaitMessageQueueMetadata(client, remoteLedgerId);
+                        final var sourceMiddlewareAddress = asHeadlongAddress(
+                                asAddress(requireNonNull(middlewareIdRef.get(), "Middleware id required")));
+                        final var destinationMiddlewareAddress = asHeadlongAddress(
+                                asAddress(requireNonNull(middlewareIdRef.get(), "Middleware id required")));
+                        final var destinationAppAddress = asHeadlongAddress(
+                                asAddress(requireNonNull(echoAppIdRef.get(), "Echo app id required")));
+                        final var payload = canonicalInboundRequestPayload(
+                                remoteLedgerBytes,
+                                sourceMiddlewareAddress,
+                                destinationMiddlewareAddress,
+                                destinationAppAddress,
+                                "Hello CLPR".getBytes(StandardCharsets.UTF_8));
+                        final var hashAfterProcessing =
+                                ClprMessageUtils.nextRunningHash(payload, queue.receivedRunningHash());
 
-                        final var payload1 =
-                                ClprMessagePayload.newBuilder().message(msg).build();
-                        final var payload2 =
-                                ClprMessagePayload.newBuilder().message(msg).build();
-
-                        final var hash1 = ClprMessageUtils.nextRunningHash(payload1, queue.receivedRunningHash());
-                        final var hash2 = ClprMessageUtils.nextRunningHash(payload2, hash1);
-
-                        final var lastMessageId = queue.receivedMessageId() + 2;
+                        final var messageId = queue.receivedMessageId() + 1;
                         final var lastKey = ClprMessageKey.newBuilder()
-                                .messageId(lastMessageId)
+                                .messageId(messageId)
                                 .ledgerId(remoteLedgerId)
                                 .build();
                         final var lastValue = ClprMessageValue.newBuilder()
-                                .payload(payload2)
-                                .runningHashAfterProcessing(hash2)
+                                .payload(payload)
+                                .runningHashAfterProcessing(hashAfterProcessing)
                                 .build();
                         final var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(lastKey, lastValue);
 
                         bundleToProcess.set(ClprMessageBundle.newBuilder()
                                 .ledgerId(remoteLedgerId)
-                                .messages(List.of(payload1))
+                                .messages(List.of())
                                 .stateProof(stateProof)
-                                .build());
-
-                        final var firstReplyId = queue.nextMessageId();
-                        sentQueueUpdate.set(ClprMessageQueueMetadata.newBuilder()
-                                .ledgerId(remoteLedgerId)
-                                .receivedMessageId(firstReplyId - 1)
-                                .receivedRunningHash(queue.receivedRunningHash())
-                                .sentMessageId(0)
-                                .sentRunningHash(queue.sentRunningHash())
-                                .nextMessageId(queue.nextMessageId())
                                 .build());
                     }
                 }),
 
                 // send process message bundle transaction
                 processMessageBundle(targetNode, bundleToProcess::get),
-                updateMessageQueueMetadataForLedger(targetNode, remoteLedgerIdRef::get, sentQueueUpdate::get),
-
-                // wait for the ack to advance the sent message id
+                // wait for receive cursor to advance after processing the inbound payload
                 doingContextual(spec -> {
                     final var node = targetNode.get();
                     try (final var client = createClient(node)) {
                         final var remoteLedgerId = requireNonNull(remoteLedgerIdRef.get(), "Remote ledger id required");
-                        final var expectedSentId = requireNonNull(sentQueueUpdate.get(), "Queue update required")
-                                .receivedMessageId();
                         awaitMessageQueueMetadata(
                                 client,
                                 remoteLedgerId,
-                                metadata -> metadata.sentMessageId() >= expectedSentId,
-                                "acknowledge sent messages");
+                                metadata -> metadata.receivedMessageId() >= 1,
+                                "process inbound payload");
                     }
                 }),
 
                 // try to fetch message bundle
-                fetchMessageBundleForLedger(targetNode, remoteLedgerIdRef::get, fetchResult, 2),
+                fetchMessageBundleForLedger(
+                        targetNode,
+                        remoteLedgerIdRef::get,
+                        fetchResult,
+                        1,
+                        bundle ->
+                                bundle.messages() != null && !bundle.messages().isEmpty(),
+                        "contain at least one outbound message"),
 
                 // validate the result
                 doingContextual(spec -> {
@@ -418,10 +487,42 @@ public class ClprSuite implements LifecycleTest {
                     final var firstMsg = result.messages().getFirst();
                     assertThat(firstMsg).isNotNull();
                     assertThat(firstMsg.hasMessageReply()).isTrue();
-                    final var resultMsgData = firstMsg.messageReply().messageReplyData();
-                    assertThat(resultMsgData.asUtf8String(0, resultMsgData.length()))
-                            .isEqualTo("Hello CLPR");
+                    assertThat(firstMsg.messageReply().messageReplyData().length())
+                            .isGreaterThan(0);
                 }));
+    }
+
+    private static ClprMessagePayload canonicalInboundRequestPayload(
+            final byte[] sourceLedgerId,
+            final Address sourceMiddlewareAddress,
+            final Address destinationMiddlewareAddress,
+            final Address destinationApplicationAddress,
+            final byte[] applicationPayloadData) {
+        final var amount = Tuple.of(BigInteger.ZERO, "HBAR");
+        final var routeHeaderBytes = toArray(REQUEST_ROUTE_HEADER_TYPE.encode(
+                Tuple.of(1, sourceLedgerId, sourceMiddlewareAddress, destinationMiddlewareAddress)));
+        final var applicationMessage =
+                Tuple.of(destinationApplicationAddress, new byte[32], amount, applicationPayloadData);
+        final var connectorMessage = Tuple.of(true, amount, new byte[0]);
+        final var balanceReport = Tuple.of(new byte[32], amount, amount, amount);
+        final var middlewareMessage = Tuple.of(balanceReport, routeHeaderBytes);
+        final var clprMessage = Tuple.of(
+                sourceMiddlewareAddress, applicationMessage, new byte[32], connectorMessage, middlewareMessage);
+        final var enqueueCallData = toArray(ENQUEUE_MESSAGE.encodeCall(Tuple.singleton(clprMessage)));
+        final var canonicalMessageData =
+                Arrays.copyOfRange(enqueueCallData, ABI_SELECTOR_LENGTH, enqueueCallData.length);
+        return ClprMessagePayload.newBuilder()
+                .message(ClprMessage.newBuilder()
+                        .messageData(Bytes.wrap(canonicalMessageData))
+                        .build())
+                .build();
+    }
+
+    private static byte[] toArray(final ByteBuffer byteBuffer) {
+        final var duplicate = byteBuffer.duplicate();
+        final var bytes = new byte[duplicate.remaining()];
+        duplicate.get(bytes);
+        return bytes;
     }
 
     private static ClprLedgerConfiguration fetchLedgerConfiguration(final List<HederaNode> nodes) {
@@ -528,6 +629,18 @@ public class ClprSuite implements LifecycleTest {
         }
     }
 
+    private static String asContractIdLiteral(final ContractID contractId) {
+        return contractId.getShardNum() + "." + contractId.getRealmNum() + "." + contractId.getContractNum();
+    }
+
+    private static Address asHeadlongAddress(final String hexAddress) {
+        return com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress(hexAddress);
+    }
+
+    private static Address asHeadlongAddress(final byte[] address) {
+        return com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress(address);
+    }
+
     private static ContextualActionOp updateMessageQueueMetadataForLedger(
             final AtomicReference<HederaNode> node,
             final Supplier<ClprLedgerId> ledgerIdSupplier,
@@ -560,9 +673,21 @@ public class ClprSuite implements LifecycleTest {
             final Supplier<ClprLedgerId> ledgerIdSupplier,
             final AtomicReference<ClprMessageBundle> exposingMessageBundle,
             final int maxNumMsg) {
+        return fetchMessageBundleForLedger(
+                node, ledgerIdSupplier, exposingMessageBundle, maxNumMsg, bundle -> true, "be available");
+    }
+
+    private static ContextualActionOp fetchMessageBundleForLedger(
+            final AtomicReference<HederaNode> node,
+            final Supplier<ClprLedgerId> ledgerIdSupplier,
+            final AtomicReference<ClprMessageBundle> exposingMessageBundle,
+            final int maxNumMsg,
+            final Predicate<ClprMessageBundle> predicate,
+            final String reason) {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
-                final var messageBundle = awaitMessageBundle(client, ledgerIdSupplier.get(), maxNumMsg);
+                final var messageBundle =
+                        awaitMessageBundle(client, ledgerIdSupplier.get(), maxNumMsg, predicate, reason);
                 exposingMessageBundle.set(requireNonNull(messageBundle, "Message bundle required"));
             }
         });
@@ -607,15 +732,25 @@ public class ClprSuite implements LifecycleTest {
 
     private static ClprMessageBundle awaitMessageBundle(
             final ClprClient client, final ClprLedgerId ledgerId, final int maxNumMsg) {
+        return awaitMessageBundle(client, ledgerId, maxNumMsg, bundle -> true, "be available");
+    }
+
+    private static ClprMessageBundle awaitMessageBundle(
+            final ClprClient client,
+            final ClprLedgerId ledgerId,
+            final int maxNumMsg,
+            final Predicate<ClprMessageBundle> predicate,
+            final String reason) {
         final var deadline = Instant.now().plus(CLPR_QUERY_TIMEOUT);
         do {
             final var bundle = client.getMessages(ledgerId, maxNumMsg, 1000);
-            if (bundle != null) {
+            if (bundle != null && predicate.test(bundle)) {
                 return bundle;
             }
             sleepQuietly(CLPR_QUERY_POLL_INTERVAL);
         } while (Instant.now().isBefore(deadline));
-        throw new IllegalStateException("Timed out waiting for message bundle for ledger " + ledgerId);
+        throw new IllegalStateException(
+                "Timed out waiting for message bundle for ledger " + ledgerId + " to " + reason);
     }
 
     private static void sleepQuietly(final Duration duration) {

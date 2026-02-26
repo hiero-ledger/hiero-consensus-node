@@ -106,6 +106,8 @@ import "services/hook_dispatch.proto";
 import "interledger/clpr_set_ledger_configuration.proto";
 import "interledger/clpr_update_message_queue_metadata.proto";
 import "interledger/clpr_process_message_bundle.proto";
+import "interledger/clpr_enqueue_message.proto";
+import "interledger/clpr_handle_message_payload.proto";
 
 /**
  * A wrapper around signed transaction bytes.<br/>
@@ -687,6 +689,16 @@ message TransactionBody {
          * A transaction body for submitting a bundle of CLPR messages for processing.
          */
         org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody clprProcessMessageBundle = 102;
+
+        /**
+         * An internal-only transaction body for enqueueing a CLPR message payload to the outbound queue.
+         */
+        org.hiero.hapi.interledger.clpr.ClprEnqueueMessageTransactionBody clprEnqueueMessage = 103;
+
+        /**
+         * An internal-only transaction body for delivering a CLPR payload to local middleware handling.
+         */
+        org.hiero.hapi.interledger.clpr.ClprHandleMessagePayloadTransactionBody clprHandleMessagePayload = 104;
     }
 
     /**

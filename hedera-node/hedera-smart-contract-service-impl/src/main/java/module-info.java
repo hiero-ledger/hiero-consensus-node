@@ -18,6 +18,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.interledger.clpr;
     requires transitive com.esaulpaugh.headlong;
     requires transitive dagger;
     requires transitive javax.inject;

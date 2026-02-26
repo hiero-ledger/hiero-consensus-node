@@ -106,7 +106,7 @@ public class ClprStateProofManager {
         final var metadata = metadataState.get();
         if (metadata != null
                 && metadata.ledgerId() != null
-                && metadata.ledgerId().ledgerId() != Bytes.EMPTY) {
+                && metadata.ledgerId().ledgerId().length() > 0) {
             return metadata.ledgerId();
         }
         return emptyLedgerId();
@@ -177,9 +177,9 @@ public class ClprStateProofManager {
             return null;
         }
         ClprLedgerId resolvedLedgerId = ledgerId;
-        if (ledgerId.ledgerId() == Bytes.EMPTY) {
+        if (ledgerId.ledgerId().length() == 0) {
             final var localLedgerId = getLocalLedgerId();
-            if (localLedgerId == null || localLedgerId.ledgerId() == Bytes.EMPTY) {
+            if (localLedgerId == null || localLedgerId.ledgerId().length() == 0) {
                 return null;
             }
             resolvedLedgerId = localLedgerId;
