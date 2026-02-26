@@ -235,8 +235,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
                 : ConcurrentNodeStatusTracker.Status.NOT_KNOWN;
         nodeStatusTracker.set(node, status);
         if (node.equals(lastNodeAwaitingReporting)) {
-            synchronized (node) {
-                node.notifyAll();
+            // Need a local var to make sure lastNodeAwaitingReporting is not changed in
+            // a different thread
+            final Long toNotify = lastNodeAwaitingReporting;
+            synchronized (toNotify) {
+                toNotify.notifyAll();
             }
         }
     }
