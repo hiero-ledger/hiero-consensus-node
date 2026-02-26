@@ -54,12 +54,16 @@ merkleDb.longListReservedBufferSize,             1024
 virtualMap.copyFlushThreshold,                   1024
 virtualMap.numHashThreads,                          1
 virtualMap.numCleanerThreads,                       1
+merkleDb.useDiskIndices,                       true                        # uses on-disk indices, reduces off-heap memory usage
+virtualMap.copyFlushCandidateThreshold,        10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+
 
                                           #############################
                                           #       State Retention     #
                                           #############################
 state.roundsToKeepForSigning,                       5                      # down from 26, fewer state copies in RAM
 state.signedStateDisk,                              1                      # down from 5, fewer disk copies
+state.periodicSnapshotsEnabled                      false                  # disable periodic snapshots
 
                                           #############################
                                           #          PCES             #

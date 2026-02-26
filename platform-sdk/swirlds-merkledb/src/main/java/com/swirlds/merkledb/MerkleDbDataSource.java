@@ -223,7 +223,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.preferDiskBasedIndices = diskBasedIndices;
+        this.preferDiskBasedIndices =
+                diskBasedIndices || config.getConfigData(MerkleDbConfig.class).useDiskIndices();
 
         this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
 
