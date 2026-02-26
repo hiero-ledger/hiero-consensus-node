@@ -47,6 +47,7 @@ public class HintsContext {
 
     private final HintsLibrary library;
     private final Supplier<Configuration> configProvider;
+    private final HintsSigningMetrics signingMetrics;
 
     @Nullable
     private HintsConstruction construction;
@@ -57,9 +58,13 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library, @NonNull final Supplier<Configuration> configProvider) {
+    public HintsContext(
+            @NonNull final HintsLibrary library,
+            @NonNull final Supplier<Configuration> configProvider,
+            @NonNull final HintsSigningMetrics signingMetrics) {
         this.library = requireNonNull(library);
         this.configProvider = requireNonNull(configProvider);
+        this.signingMetrics = requireNonNull(signingMetrics);
     }
 
     /**
@@ -213,6 +218,7 @@ public class HintsContext {
      * A signing process spawned from this context.
      */
     public class Signing {
+        private final long startNanos;
         private final long thresholdWeight;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
@@ -231,6 +237,7 @@ public class HintsContext {
                 @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
                 @NonNull final Runnable onCompletion) {
+            this.startNanos = System.nanoTime();
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
             this.aggregationKey = requireNonNull(aggregationKey);
@@ -247,6 +254,7 @@ public class HintsContext {
                                     signatures.keySet(),
                                     weightOfSignatures.get(),
                                     thresholdWeight);
+                            signingMetrics.recordAttemptCompletedWithoutSignature();
                         }
                         onCompletion.run();
                     },
@@ -297,6 +305,8 @@ public class HintsContext {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 future.complete(aggregatedSignature);
+                final long elapsedNanos = System.nanoTime() - startNanos;
+                signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
             }
         }
     }

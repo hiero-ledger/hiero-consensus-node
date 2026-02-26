@@ -16,8 +16,8 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.Codec;
@@ -148,12 +148,6 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  */
 @ConstructableIgnored
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
-
-    /**
-     * The number of seconds to wait for the full leaf rehash process to finish
-     * (see {@link #fullLeafRehashIfNecessary()}) before we fail with an exception.
-     */
-    private static final int MAX_FULL_REHASHING_TIMEOUT = 600; // 10 minutes
 
     /**
      * The number of elements to have in the buffer used during rehashing on start.
@@ -582,9 +576,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         try {
-            final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
-            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", secondsSpent);
-            setHashPrivate(fullRehashFuture.get(MAX_FULL_REHASHING_TIMEOUT - secondsSpent, SECONDS));
+            final long millisSpent = System.currentTimeMillis() - start;
+            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
+            setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new MerkleSynchronizationException(message, e);
