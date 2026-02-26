@@ -83,6 +83,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.entityid.impl;
     requires com.hedera.node.app.service.entityid;
+    requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.roster.impl;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.schedule.impl;

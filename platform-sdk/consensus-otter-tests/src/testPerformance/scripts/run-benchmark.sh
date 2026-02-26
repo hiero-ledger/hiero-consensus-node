@@ -206,6 +206,10 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
                     cp "$NODE_DIR/output/otter.log" "$DEST_DIR/otter-${NODE_NAME}.log"
                     ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
+                if [[ -f "$NODE_DIR/output/gc.log" ]]; then
+                    cp "$NODE_DIR/output/gc.log" "$DEST_DIR/gc-${NODE_NAME}.log"
+                    ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
+                fi
                 for CSV in "$NODE_DIR"/data/stats/MainNetStats*.csv; do
                     if [[ -f "$CSV" ]]; then
                         cp "$CSV" "$STATS_DIR/"
