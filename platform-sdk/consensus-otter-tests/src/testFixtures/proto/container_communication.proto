@@ -12,6 +12,8 @@ option java_multiple_files = true;
 message InitRequest {
   // ID of the node.
   com.hedera.hapi.platform.state.NodeId self_id = 1;
+  // Whether GC logging should be enabled for the consensus node process.
+  bool gc_logging_enabled = 2;
 }
 
 // Request to kill the application immediately.

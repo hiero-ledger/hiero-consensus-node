@@ -1,6 +1,31 @@
 {
   "buckets": [
     {
+      "name": "NormalTransfers",
+      "burstPeriod": 2,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoTransfer"
+          ],
+          "opsPerSec": 100
+        }
+      ]
+    },
+    {
+      "name": "HighVolumeTransfers",
+      "burstPeriod": 2,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoTransfer"
+          ],
+          "opsPerSec": 1000
+        }
+      ]
+    },
+    {
       "name": "NormalCreation",
       "burstPeriod": 2,
       "throttleGroups": [
