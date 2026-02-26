@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
@@ -120,6 +121,7 @@ public class CongestionPricingTest {
     Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
+        final int burstTxns = 24;
 
         return hapiTest(
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
@@ -133,20 +135,26 @@ public class CongestionPricingTest {
                 }),
                 new SysFileOverrideOp(THROTTLES, () -> resourceAsString("testSystemFiles/extreme-limits.json")),
                 sleepFor(2_000),
-                blockingOrder(IntStream.range(0, 20)
+                blockingOrder(IntStream.range(0, burstTxns)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
                             uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
-                                            .payingWith(CIVILIAN_ACCOUNT))
+                                            .payingWith(CIVILIAN_ACCOUNT)
+                                            .txnId("uncheckedTxn" + i))
                                     .payingWith(GENESIS)
-                                    .noLogging()
+                                    .noLogging(),
+                            sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
                         .toArray(HapiSpecOperation[]::new)),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(CIVILIAN_ACCOUNT)
-                        .via("congestedTransfer"),
+                        .via("congestedTransfer")
+                        .hasRetryPrecheckFrom(BUSY)
+                        .setRetryLimit(20),
+                // Allow throttles to settle so follow-up record query and cleanup overrides aren't BUSY-throttled.
+                sleepFor(2_000),
                 getTxnRecord("congestedTransfer").payingWith(GENESIS).providingFeeTo(congestionFee -> {
                     log.info("Congestion fee for transfer is {}", congestionFee);
                     sevenXPrice.set(congestionFee);
