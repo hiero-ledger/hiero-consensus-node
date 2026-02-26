@@ -374,10 +374,6 @@ public class ClprStateProofManager {
      * deterministic, synchronized counter for distributed coordination (e.g., round-robin
      * node assignment for remote ledger communication).</p>
      *
-     * <p>Note: the consensus timestamp ({@code Instant}) can also be exposed from the same
-     * platform state source via {@code ReadablePlatformStateStore.getConsensusTimestamp()}
-     * if needed in the future.</p>
-     *
      * @return the latest consensus round, or {@code 0L} if the state snapshot is unavailable
      */
     public long getLatestConsensusRound() {
@@ -389,5 +385,27 @@ public class ClprStateProofManager {
         final var readableStates = state.getReadableStates(PlatformStateService.NAME);
         final var platformStateStore = new ReadablePlatformStateStore(readableStates);
         return platformStateStore.getRound();
+    }
+
+    /**
+     * Returns the latest consensus timestamp from the platform state.
+     *
+     * <p>The consensus timestamp is agreed upon by all consensus nodes and advances at
+     * wall-clock rate, making it ideal for time-based rotation cycles. Unlike the consensus
+     * round (whose advancement rate is unpredictable), the timestamp provides a stable,
+     * predictable period that aligns naturally with scheduler frequencies.</p>
+     *
+     * @return the latest consensus timestamp, or {@code null} if the state snapshot is unavailable
+     */
+    @Nullable
+    public java.time.Instant getLatestConsensusTimestamp() {
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(PlatformStateService.NAME);
+        final var platformStateStore = new ReadablePlatformStateStore(readableStates);
+        return platformStateStore.getConsensusTimestamp();
     }
 }

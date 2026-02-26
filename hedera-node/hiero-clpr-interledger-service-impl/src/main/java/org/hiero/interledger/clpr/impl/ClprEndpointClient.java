@@ -149,11 +149,13 @@ public class ClprEndpointClient {
                     .sorted(Comparator.comparingLong(NodeInfo::nodeId))
                     .toList();
             final int selfIndex = selfIndex(sortedRoster, selfNodeInfo.nodeId());
-            final long consensusRound = stateProofManager.getLatestConsensusRound();
-            final long roundsPerRotation = Math.max(1, clprConfig.connectionFrequency() / 1000); // ~ 5
-            // The cycle is a quantization window that ensures nodes observing slightly different consensus rounds
+            // The cycle is a quantization window that ensures nodes observing slightly different consensus time
             // still agree on the assignment.
-            final long cycle = consensusRound / roundsPerRotation;
+            final var consensusTimestamp = stateProofManager.getLatestConsensusTimestamp();
+            final long rotationPeriodSeconds = Math.max(1, clprConfig.connectionFrequency() / 1000);
+            final long cycle = consensusTimestamp != null
+                    ? consensusTimestamp.getEpochSecond() / rotationPeriodSeconds
+                    : 0L;
 
             for (final var entry : configsByLedgerId.entrySet()) {
                 final var remoteLedgerId = entry.getKey();

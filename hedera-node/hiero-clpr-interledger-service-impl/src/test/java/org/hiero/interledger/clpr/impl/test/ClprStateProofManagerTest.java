@@ -188,6 +188,29 @@ class ClprStateProofManagerTest extends ClprTestBase {
         assertEquals(0L, emptyManager.getLatestConsensusRound());
     }
 
+    @Test
+    void getLatestConsensusTimestampReturnsTimestampFromState() {
+        final long expectedSeconds = 1_700_000_000L;
+        final int expectedNanos = 123_456_789;
+        final var stateWithPlatform = buildMerkleStateWithPlatformTimestamp(expectedSeconds, expectedNanos);
+        final var lifecycleManager = mock(StateLifecycleManager.class);
+        when(lifecycleManager.getLatestImmutableState()).thenReturn(stateWithPlatform);
+        final var accessor = new BlockProvenStateAccessor(lifecycleManager);
+        final var managerWithPlatform = new ClprStateProofManager(accessor, devModeConfig);
+
+        final var timestamp = managerWithPlatform.getLatestConsensusTimestamp();
+        assertNotNull(timestamp);
+        assertEquals(expectedSeconds, timestamp.getEpochSecond());
+        assertEquals(expectedNanos, timestamp.getNano());
+    }
+
+    @Test
+    void getLatestConsensusTimestampReturnsNullWhenNoSnapshot() {
+        final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
+        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        assertNull(emptyManager.getLatestConsensusTimestamp());
+    }
+
     private ClprSetLedgerConfigurationTransactionBody validTransaction(final StateProof proof) {
         return ClprSetLedgerConfigurationTransactionBody.newBuilder()
                 .ledgerConfigurationProof(proof)
@@ -243,6 +266,28 @@ class ClprStateProofManagerTest extends ClprTestBase {
         writablePlatformState.put(PlatformState.newBuilder()
                 .consensusSnapshot(
                         ConsensusSnapshot.newBuilder().round(round).build())
+                .build());
+        if (writableStates instanceof CommittableWritableStates committableStates) {
+            committableStates.commit();
+        }
+        state.copy();
+        state.computeHash();
+        return state;
+    }
+
+    private VirtualMapState buildMerkleStateWithPlatformTimestamp(final long seconds, final int nanos) {
+        final var state = VirtualMapStateTestUtils.createTestState();
+        state.initializeState(ledgerConfigStateMetadata());
+        state.initializeState(ledgerMetadataStateMetadata());
+        state.initializeState(platformStateMetadata());
+        final var writableStates = state.getWritableStates(PlatformStateService.NAME);
+        final var writablePlatformState =
+                writableStates.<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
+        writablePlatformState.put(PlatformState.newBuilder()
+                .consensusSnapshot(ConsensusSnapshot.newBuilder()
+                        .consensusTimestamp(
+                                new com.hedera.hapi.node.base.Timestamp(seconds, nanos))
+                        .build())
                 .build());
         if (writableStates instanceof CommittableWritableStates committableStates) {
             committableStates.commit();
