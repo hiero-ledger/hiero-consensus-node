@@ -91,9 +91,13 @@ class BEVM {
     // Custom SLoad optional tracking
     StorageAccessTracker _tracker;
 
-    // Top-level shared warm-address stack.
+    // Top-level shared warm-address stack.  This is a stack of warmed-up
+    // addresses used in gas cost accounting.  It gets popped if a contract
+    // reverts, un-warming addresses the reverted contract warmed.
     final ArrayList<AdrKey> _warmAdrStkTopLevel = new ArrayList<>();
-    // Nested warm-address stack, points to some top-level stack
+    // Nested warm-address stack, points to some top-level stack.  Child
+    // contracts have child BEVMs and those must use the original top-level
+    // warm-stack.
     ArrayList<AdrKey> _warmAdrStk;
     // Stack depth on entry, used to unwind on Revert
     int _warmAdrStkPtr;
@@ -1589,50 +1593,36 @@ class BEVM {
 
 
     // Load from the global/permanent store
-    private ExceptionalHaltReason sLoad() {
-        long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
+    private ExceptionalHaltReason customSLoad( ) {
+        UInt256 key = popUInt256();
 
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        AdrKey ak = getSlot(_recv.getAddress(), key0, key1, key2, key3);
+        AdrKey ak = getSlot(_recv.getAddress(), key);
         long gas = _gasCalc.getSloadOperationGasCost() +
             (isWarm(ak) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
-        // UInt256 already in AdrKey
-        UInt256 val = _recv.getStorageValue( ak._ui256 );
+        // Get value via the key
+        UInt256 val = _recv.getStorageValue( key );
+        if( _isSidecarEnabled && _tracker != null )
+            _tracker.trackIfFirstRead(_contractId, key, val);
+
         return push( val );
     }
 
-    private ExceptionalHaltReason customSLoad( ) {
-        // Read key before SLOAD replaces it with value
-        long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
-
-        var halt = sLoad();
-        if( halt==null && _isSidecarEnabled && _tracker != null ) {
-            // The base SLOAD operation returns its read value on the stack
-            long val0 = STK0[_sp-1], val1 = STK1[_sp-1], val2 = STK2[_sp-1], val3 = STK3[_sp-1];
-            UInt256 key = UI256.intern(key0,key1,key2,key3);
-            UInt256 val = UI256.intern(val0,val1,val2,val3);
-            _tracker.trackIfFirstRead(_contractId, key, val);
-        }
-        return halt;
-    }
-
-    private ExceptionalHaltReason sStore() {
-        long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
-        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-
+    // Store into the global/permanent store
+    private ExceptionalHaltReason customSStore() {
         if( _recvMutable == null )  return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // Attempt to write to read-only
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // Intern and wrap key
-        UInt256 key = UI256.intern(key0, key1, key2, key3);
-        UInt256 val = UI256.intern(val0, val1, val2, val3);
+        UInt256 key = popUInt256();
+        UInt256 val = popUInt256();
         _wrap0._u = _recvMutable.getStorageValue(key);
         _wrap1._u = _recvMutable.getOriginalStorageValue(key);
 
@@ -1649,23 +1639,15 @@ class BEVM {
         _frame.incrementGasRefund(_gasCalc.calculateStorageRefundAmount(val, _wrap0, _wrap1));
         // Do the store
         _recvMutable.setStorageValue(key, val);
+        // Preserve last k/v stored for top-level frame exit
         _lastSKey = key;
         _lastSVal = val;
-        return null;
-    }
 
-    private ExceptionalHaltReason customSStore() {
-        // Read key and value before SSTORE pops it
-        long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
-        long val0 = STK0[_sp-2], val1 = STK1[_sp-2], val2 = STK2[_sp-2], val3 = STK3[_sp-2];
-
-        var halt = sStore();
-        if( halt==null && _isSidecarEnabled && _tracker != null ) {
-            UInt256 key = UI256.intern(key0,key1,key2,key3);
-            UInt256 val = UI256.intern(val0,val1,val2,val3);
+        // Record update in sidecar
+        if( _isSidecarEnabled && _tracker != null )
             _tracker.trackIfFirstRead(_contractId, key, val);
-        }
-        return halt;
+
+        return null;
     }
 
     // ---------------------

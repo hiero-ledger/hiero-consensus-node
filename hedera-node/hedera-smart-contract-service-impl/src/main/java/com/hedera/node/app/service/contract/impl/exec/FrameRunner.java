@@ -83,7 +83,7 @@ public class FrameRunner {
         // We compute the called contract's Hedera id up front because it could
         // self-destruct, preventing us from looking up its id after the fact
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
-        // <Soapbox> Pass the these golden instances to Bonneville through this
+        // <Soapbox> Pass these golden instances to Bonneville through this
         // silly back door channel, because the endless wrappers & injectors
         // stop me from doing it the obvious way - CNC. </soapbox>
         messageCall._evm.setProcessors(messageCall,(CustomContractCreationProcessor)contractCreation);
