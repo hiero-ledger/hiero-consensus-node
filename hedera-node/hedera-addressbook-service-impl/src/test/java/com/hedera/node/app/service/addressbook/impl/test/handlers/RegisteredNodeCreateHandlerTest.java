@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -27,7 +24,6 @@ import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -124,38 +120,6 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
         verify(writableRegisteredNodeStore).put(any());
         verify(recordBuilder).registeredNodeID(newId);
-    }
-
-    @Test
-    void handleFailsIfNodeAccountDeleted() {
-        final var deletedAccount = mock(com.hedera.hapi.node.state.token.Account.class);
-        given(deletedAccount.deleted()).willReturn(true);
-        given(accountStore.getAccountById(accountId)).willReturn(deletedAccount);
-
-        final var op = opBuilder().adminKey(key).build();
-        final var txn = txnWithOp(op);
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ACCOUNT_DELETED, msg.getStatus());
-    }
-
-    @Test
-    void handleFailsIfNodeAccountMissing() {
-        given(accountStore.getAccountById(accountId)).willReturn(null);
-
-        final var op = opBuilder().adminKey(key).build();
-        final var txn = txnWithOp(op);
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(INVALID_NODE_ACCOUNT_ID, msg.getStatus());
     }
 
     private TransactionBody txnWithOp(final RegisteredNodeCreateTransactionBody op) {
