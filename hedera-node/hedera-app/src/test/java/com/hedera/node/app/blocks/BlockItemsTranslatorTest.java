@@ -195,6 +195,7 @@ class BlockItemsTranslatorTest {
                 "CRYPTO_UPDATE",
                 "FILE_CREATE",
                 "NODE_CREATE",
+                "REGISTERED_NODE_CREATE",
                 "TOKEN_CREATE",
                 "CONSENSUS_CREATE_TOPIC",
                 "SCHEDULE_CREATE",

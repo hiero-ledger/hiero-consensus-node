@@ -46,12 +46,15 @@ import java.util.Arrays;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#NODE_UPDATE}.
  */
 @Singleton
 public class NodeUpdateHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(NodeUpdateHandler.class);
     private final AddressBookValidator addressBookValidator;
 
     @Inject
@@ -168,7 +171,13 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
 
         final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);
-        nodeStore.put(nodeBuilder.build());
+        final var updatedNode = nodeBuilder.build();
+        nodeStore.put(updatedNode);
+        log.info(
+                "Updated Node {} from {} to {}",
+                op.nodeId(),
+                Node.JSON.toJSON(existingNode),
+                Node.JSON.toJSON(updatedNode));
     }
 
     @NonNull

@@ -634,7 +634,7 @@ message StateValue {
     com.hedera.hapi.node.state.addressbook.RegisteredNode AddressBookService_I_REGISTERED_NODES = 56;
 
     /**
-     * A state identifier for the next node Identifier.
+     * A state identifier for the next node Identifier. Singleton state.
      */
     com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 57;
 
@@ -828,7 +828,7 @@ enum SingletonType {
   AddressBookService_I_REGISTERED_NODES = 56;
 
   /**
-   * A state identifier for the highest node identifier allocated so far.
+   * A state identifier for the highest node identifier allocated so far. Singleton state.
    */
   EntityIdService_I_NODE_ID = 57;
 

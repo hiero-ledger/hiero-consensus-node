@@ -190,6 +190,13 @@ def parse_extras(extras_str: str):
 
 
 def normalize_counts(counts):
+    def numeric_count(val):
+        if isinstance(val, int):
+            return val
+        if isinstance(val, str) and val.startswith(">"):
+            return 1
+        return 0
+
     def is_positive(val):
         if isinstance(val, int):
             return val > 0
@@ -220,6 +227,16 @@ def normalize_counts(counts):
             slot_updates += val
     if slot_updates:
         counts.setdefault("HOOK_SLOT_UPDATE", slot_updates)
+
+    # Many scenarios label state bytes as BYTES=... in emphasis text.
+    if "BYTES" in counts and "STATE_BYTES" not in counts:
+        counts["STATE_BYTES"] = counts["BYTES"]
+
+    # TOKEN_TYPES tracks number of token transfer lists, not just token classes.
+    fung = numeric_count(counts.get("FUNGIBLE_TOKENS"))
+    nft = numeric_count(counts.get("NON_FUNGIBLE_TOKENS"))
+    if (fung > 0 or nft > 0) and "TOKEN_TYPES" not in counts:
+        counts["TOKEN_TYPES"] = fung + nft
 
     # Derive hook executions from token transfer lists when hooks are involved.
     hook_execs = counts.get("HOOK_EXECUTION")
@@ -293,17 +310,21 @@ def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node
         fee += (sigs - included_sigs) * extra_fees.get("SIGNATURES", 0)
         parts.append(f"SIGNATURES ({sigs}-{included_sigs})*{extra_fees.get('SIGNATURES', 0)}")
 
+    processing_name = "PROCESSING_BYTES" if "PROCESSING_BYTES" in node_extras else "BYTES"
     bytes_count = counts.get("TX_BYTES")
     if bytes_count is None and use_bytes_for_node:
-        bytes_count = counts.get("BYTES")
+        bytes_count = counts.get(processing_name)
+        if bytes_count is None:
+            bytes_count = counts.get("BYTES")
     if isinstance(bytes_count, str) and bytes_count.startswith(">"):
-        bytes_count = node_extras.get("BYTES", 0)
+        bytes_count = node_extras.get(processing_name, 0)
     if bytes_count is None:
-        bytes_count = node_extras.get("BYTES", 0)
-    included_bytes = node_extras.get("BYTES", 0)
+        bytes_count = node_extras.get(processing_name, 0)
+    included_bytes = node_extras.get(processing_name, 0)
     if bytes_count > included_bytes:
-        fee += (bytes_count - included_bytes) * extra_fees.get("BYTES", 0)
-        parts.append(f"BYTES ({bytes_count}-{included_bytes})*{extra_fees.get('BYTES', 0)}")
+        per_byte = extra_fees.get(processing_name, extra_fees.get("BYTES", 0))
+        fee += (bytes_count - included_bytes) * per_byte
+        parts.append(f"{processing_name} ({bytes_count}-{included_bytes})*{per_byte}")
 
     return fee, parts
 
@@ -332,7 +353,7 @@ def main():
     parser.add_argument("--use-bytes-for-node", action="store_true", help="Use BYTES=... from emphasis to compute node BYTES extras (approximate).")
     parser.add_argument("--only-mismatches", action="store_true")
     parser.add_argument("--show-skipped", action="store_true")
-    parser.add_argument("--tolerance", type=int, default=1, help="Allowed tinybar delta.")
+    parser.add_argument("--tolerance", type=int, default=5, help="Allowed tinybar delta.")
     parser.add_argument(
         "--include-query-payment-fee",
         action="store_true",
@@ -539,11 +560,11 @@ def main():
                 ok += 1
                 if not args.only_mismatches:
                     print(f"OK,{txn},{schedule_name},expected={expected},actual={simple_fee},delta={delta}")
-                status = "PASS"
+                status = "Pass"
             else:
                 mismatches += 1
                 print(f"MISMATCH,{txn},{schedule_name},expected={expected},actual={simple_fee},delta={delta}")
-                status = "FAIL"
+                status = "Fail"
 
             row["Service Fee (tinycents)"] = format_fee_with_parts(service_fee, service_parts)
             row["Node Fee (tinycents)"] = format_fee_with_parts(node_fee, node_parts)

@@ -74,6 +74,7 @@ import java.time.Duration;
  * @param keepSendingEventsWhenUnhealthy     when enabled, instead of completely reducing number of syncs when system is
  *                                           unhealthy, we will just stop receiving and processing remote events, while
  *                                           we still continue sending our own events
+ * @param pingPeriod                         period at which ping messages are sent to peers during syncs
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -98,4 +99,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
-        @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy) {}
+        @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
+        @ConfigProperty(defaultValue = "1s") Duration pingPeriod) {}

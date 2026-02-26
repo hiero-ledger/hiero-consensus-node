@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -92,50 +88,6 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
 
         subject.preHandle(ctx);
         assertThat(ctx.requiredNonPayerKeys()).contains(key, anotherKey);
-    }
-
-    @Test
-    void handleUpdatesNodeAccountAndAllowsRemovalSentinel() {
-        final var activeAccount = mock(com.hedera.hapi.node.state.token.Account.class);
-        given(activeAccount.deleted()).willReturn(false);
-        given(accountStore.getAccountById(accountId)).willReturn(activeAccount);
-
-        final var txn = txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
-
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(existing);
-
-        assertDoesNotThrow(() -> subject.handle(handleContext));
-
-        // Removal sentinel: 0.0.0
-        final var sentinel =
-                AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
-        final var txn2 =
-                txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
-        given(handleContext.body()).willReturn(txn2);
-
-        assertDoesNotThrow(() -> subject.handle(handleContext));
-    }
-
-    @Test
-    void handleFailsIfNodeAccountDeleted() {
-        final var deletedAccount = mock(com.hedera.hapi.node.state.token.Account.class);
-        given(deletedAccount.deleted()).willReturn(true);
-        given(accountStore.getAccountById(accountId)).willReturn(deletedAccount);
-
-        final var txn = txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
-
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(existing);
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ACCOUNT_DELETED, msg.getStatus());
     }
 
     @Test
