@@ -723,8 +723,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (historyLibrary == null) {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
                 // convenience API directly here since we don't have a chain-of-trust proof
-                final var vk = signature.slice(0, 1480);
-                final var sig = signature.slice(1480, signature.length() - 1480);
+                final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
+                final var sig =
+                        signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
                 final boolean valid =
                         hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {

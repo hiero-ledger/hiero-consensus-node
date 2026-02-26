@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "210: [FLOW] Merge Queue Controller"
+on:
+  push:
+    branches:
+      - trunk-merge/**
+  # Added workflow dispatch for testing purposes
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  actions: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+jobs:
+  # Trigger the MQ XTS Tests
+  trigger-merge-queue-xts-tests:
+    name: Merge Queue XTS Required Tests
+    uses: ./.github/workflows/zxc-xts-tests.yaml
+    with:
+      ref: ${{ github.ref }}
+      branch_name: ${{ github.ref_name }}
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      solo-ge-0440: "true"
+      helm-release-name: "mirror-1"
+      custom-job-label: "Merge Queue XTS:"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
+      enable-hedera-node-jrs-panel: "true"
+      enable-sdk-tck-regression-panel: "true"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
+      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
+      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+
+  # Trigger the MQ Performance/Longevity Tests
+  #  trigger-merge-queue-performance-longevity-tests:
+  #    name: Merge Queue Performance/Longevity Tests
+  #    uses: ./.github/workflows/zxc-performance-tests.yaml
+  #    Ensure we use ${{ vars.MQPT_CLUSTER }} to determine which cluster to run the tests on
+
+  # Update the variable `MQPT_CLUSTER` in Github
+  # Options are: Dallas_n10, Dallas_n11, Dallas_n12
+  # This job will be removed before Merge Queues are required
+  # This job is ONLY for testing purposes to rapidly iterate and test
+  update-mqpt-cluster-variable:
+    name: Update MQPT_CLUSTER Variable
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Calculate Next Dallas Cluster Name
+        run: |
+          current_cluster="${{ vars.MQPT_CLUSTER }}"
+          if [[ "${current_cluster}" == "Dallas_n10" ]]; then
+              next_cluster="Dallas_n11"
+          elif [[ "${current_cluster}" == "Dallas_n11" ]]; then
+              next_cluster="Dallas_n12"
+          elif [[ "${current_cluster}" == "Dallas_n12" ]]; then
+              next_cluster="Dallas_n10"
+          else
+              echo "Error: Invalid cluster name '${current_cluster}'. Expected 'Dallas_n10', 'Dallas_n11', or 'Dallas_n12'."
+              exit 1
+          fi
+          echo "Next cluster: ${next_cluster}"
+          echo "NEXT_CLUSTER=$next_cluster" >> "${GITHUB_ENV}"
+
+      - name: Update MQPT_CLUSTER to input value
+        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        with:
+          name: "MQPT_CLUSTER"
+          value: "${{ env.NEXT_CLUSTER }}"
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
