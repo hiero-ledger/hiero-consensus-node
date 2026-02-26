@@ -1220,7 +1220,6 @@ class BEVM {
         // Fail early, if we do not have cold-account gas
         var gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getColdAccountAccessCost();
         if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
         if( _adrChk!=null ) {
@@ -1388,9 +1387,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason blockHash() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        var halt = useGas(_gasCalc.getBlockHashOperationGasCost());
-        if( halt!=null ) return halt;
         long soughtBlock = popLong();
         if( soughtBlock == Long.MAX_VALUE )
             return push0();
@@ -1594,7 +1590,6 @@ class BEVM {
 
     // Load from the global/permanent store
     private ExceptionalHaltReason sLoad() {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
 
         // Warmup address; true if already warm.  This is a per-transaction
@@ -1627,7 +1622,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason sStore() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
 
@@ -1679,7 +1673,6 @@ class BEVM {
 
     // Pop
     private ExceptionalHaltReason pop(  ) {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         _sp--;
         return null;
     }
@@ -1710,7 +1703,6 @@ class BEVM {
 
     // ---------------------
     private ExceptionalHaltReason customLog(int ntopics) {
-        if( _sp < ntopics ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = popInt();
         int len = popInt();
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;

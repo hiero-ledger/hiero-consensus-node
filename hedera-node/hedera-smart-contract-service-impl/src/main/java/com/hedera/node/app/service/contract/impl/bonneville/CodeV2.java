@@ -76,6 +76,9 @@ public class CodeV2 implements Code {
         // backing store is immutable or not.  This means I'll end up making
         // Yet Another Defensive Copy because the underlying Codes API is
         // busted.
+
+        // TODO: The call to `account.getCode()` makes a copy 100% of the time
+        // during the HeliSwap benchmark and does not cache itself.
         return make(act.getCode().toArrayUnsafe());
     }
 

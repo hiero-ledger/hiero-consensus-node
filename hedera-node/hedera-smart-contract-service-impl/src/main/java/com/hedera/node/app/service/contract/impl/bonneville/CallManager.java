@@ -165,7 +165,7 @@ public abstract class CallManager {
      *   @param contract contract
      *   @param sender sender
      *   @param value passed Wei value
-     *   @param isStatic child is a static frame
+     *   @param isStatic the child frame is static
      *   @return null for non-halting return, or a {@see ExceptionHaltReason} otherwise.
      */
     static ExceptionalHaltReason _abstractCall(BEVM bevm, SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean isStatic ) {

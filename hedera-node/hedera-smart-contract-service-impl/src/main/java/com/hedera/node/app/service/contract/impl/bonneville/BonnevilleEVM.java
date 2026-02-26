@@ -110,6 +110,7 @@ public class BonnevilleEVM extends HEVM {
         _opStackMin[0x3C] = 4; _opGas[0x3C] = GAS_DYNAMIC; // CUSTOMEXTCODECOPY
         _opStackMin[0x3D] = 0; _opGas[0x3D] = GAS_BASE;    // RETURNDATASIZSE
         _opStackMin[0x3E] = 3; _opGas[0x3E] = GAS_DYNAMIC; // RETURNDATACOPY
+        _opStackMin[0x3F] = 1; _opGas[0x3F] = GAS_DYNAMIC; // CUSTOMEXTCODEHASH
         _opStackMin[0x40] = 2; _opGas[0x40] = GAS_DYNAMIC; // BLOCKHASH
         _opStackMin[0x41] = 0; _opGas[0x41] = GAS_BASE;    // COINBASE
         _opStackMin[0x42] = 0; _opGas[0x42] = GAS_BASE;    // TIMESTAMP
@@ -157,7 +158,7 @@ public class BonnevilleEVM extends HEVM {
 
         // LOG0...LOG4 are dynamic (memory expansion + topics loop)
         for (int op = 0xA0; op <= 0xA4; op++) {
-            _opStackMin[op] = (byte) (op - 0xA0); // topics are checked again in method; this is a cheap early reject
+            _opStackMin[op] = (byte) (op - 0xA0 + 2); // topics are checked again in method; this is a cheap early reject
             _opGas[op] = GAS_DYNAMIC;
         }
 
