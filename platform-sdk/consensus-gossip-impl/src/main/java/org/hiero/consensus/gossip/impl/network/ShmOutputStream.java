@@ -31,5 +31,7 @@ public class ShmOutputStream extends OutputStream {
         buffer.position(position);
         buffer.putInt(len);
         buffer.position(position + len + 4);
+        buffer.force();
+
     }
 }

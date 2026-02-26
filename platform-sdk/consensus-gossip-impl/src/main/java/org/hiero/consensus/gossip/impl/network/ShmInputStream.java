@@ -1,10 +1,16 @@
 package org.hiero.consensus.gossip.impl.network;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.MappedByteBuffer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ShmInputStream extends InputStream {
+
+    private static final Logger logger = LogManager.getLogger(ShmInputStream.class);
     private final MappedByteBuffer buffer;
     private int toRead = 0;
     private int currentOffset = 0;
@@ -34,6 +40,7 @@ public class ShmInputStream extends InputStream {
         System.arraycopy(bufferBytes, currentOffset, b, off, chunk);
         toRead -= chunk;
         currentOffset += chunk;
+        //logger.info(RECONNECT.getMarker(),"Read chunk {}", chunk);
         return chunk;
     }
 

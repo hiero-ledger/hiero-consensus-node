@@ -1,6 +1,7 @@
 package org.hiero.consensus.gossip.impl.network;
 
 import com.swirlds.config.api.Configuration;
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.SocketException;
@@ -29,6 +30,9 @@ public class ShmConnection implements Connection {
             throws Exception {
 
 
+        deleteIfOld("/opt/shared/channel-" + selfId + "-"+ nodeId);
+        deleteIfOld("/opt/shared/channel-" + nodeId + "-"+ selfId);
+
         FileChannel selfToOther = new RandomAccessFile("/opt/shared/channel-" + selfId + "-"+ nodeId, "rw").getChannel();
         FileChannel otherToSelf = new RandomAccessFile("/opt/shared/channel-" + nodeId + "-"+ selfId, "rw").getChannel();
 
@@ -45,6 +49,12 @@ public class ShmConnection implements Connection {
 //
 //        logger.debug(NETWORK.getMarker(), "`connect` : finished, {} connected to {}", selfId, otherPeer.nodeId());
 
+    }
+
+    private static void deleteIfOld(final String s) {
+        if ( System.currentTimeMillis() - new File(s).lastModified() > 10000 ) {
+            new File(s).delete();
+        };
     }
 
     @Override
@@ -102,3 +112,4 @@ public class ShmConnection implements Connection {
         return "";
     }
 }
+
