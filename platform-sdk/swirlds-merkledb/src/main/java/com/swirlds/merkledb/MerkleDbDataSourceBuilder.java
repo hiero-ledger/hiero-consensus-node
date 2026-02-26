@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -34,8 +33,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     private long initialCapacity = 0;
 
-    private long hashesRamToDiskThreshold = 0;
-
     /**
      * Constructor for deserialization purposes.
      * @param configuration configuration to use
@@ -48,16 +45,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      * Creates a new data source builder with the specified table configuration.
      *
      * @param initialCapacity initial capacity of the map
-     * @param hashesRamToDiskThreshold threshold where we switch from storing internal hashes in ram to storing them on disk
      * @param configuration platform configuration
      */
-    public MerkleDbDataSourceBuilder(
-            @NonNull final Configuration configuration,
-            final long initialCapacity,
-            final long hashesRamToDiskThreshold) {
+    public MerkleDbDataSourceBuilder(@NonNull final Configuration configuration, final long initialCapacity) {
         this.configuration = requireNonNull(configuration);
         this.initialCapacity = initialCapacity;
-        this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
     }
 
     @SuppressWarnings("deprecation")
@@ -171,24 +163,5 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int hashCode() {
-        return Objects.hash(initialCapacity, hashesRamToDiskThreshold);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean equals(final Object obj) {
-        if (!(obj instanceof MerkleDbDataSourceBuilder that)) {
-            return false;
-        }
-        return (initialCapacity == that.initialCapacity) && (hashesRamToDiskThreshold == that.hashesRamToDiskThreshold);
     }
 }

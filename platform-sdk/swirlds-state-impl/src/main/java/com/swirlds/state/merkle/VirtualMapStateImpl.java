@@ -127,8 +127,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(
-                configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
+        dsBuilder = new MerkleDbDataSourceBuilder(configuration, merkleDbConfig.initialCapacity());
 
         this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
