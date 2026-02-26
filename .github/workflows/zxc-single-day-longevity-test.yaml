@@ -86,7 +86,7 @@ env:
 
   #Release version from jFrog
   NLG_VERSION: 0.13.0
-  BlockNode_version: 0.21.1
+  BlockNode_version: v0.28.0-rc1
   NUM_OF_BLOCK_NODES: 7
 
 jobs:
@@ -521,7 +521,7 @@ jobs:
           export BLOCK_NODE_VERSION="${{ env.BlockNode_version }}"
 
           #FIXME: when root access and entrypoint fixed
-          if [ 0 -eq 1 ]
+          if [ 1 -eq 1 ]
           then
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
@@ -529,6 +529,7 @@ jobs:
           done
           sleep 30
           fi
+          exit 0
           #WORKAROUND:
 
           # Generate the blocknode-values.yaml file inline
