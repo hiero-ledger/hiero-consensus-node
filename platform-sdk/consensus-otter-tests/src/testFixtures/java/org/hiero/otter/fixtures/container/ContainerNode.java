@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -355,6 +356,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         try {
             final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
             transactions.forEach(t -> builder.addPayload(t.toByteString()));
+            builder.setTimestamp(InstantUtils.instantToMicros(Instant.now()));
             final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
             if (answer.getNumFailed() > 0) {
                 fail("%d out of %d transaction(s) failed to submit for node %d."

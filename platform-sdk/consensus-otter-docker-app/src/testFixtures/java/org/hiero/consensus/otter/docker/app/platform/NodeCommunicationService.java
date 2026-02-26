@@ -3,6 +3,7 @@ package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
@@ -11,11 +12,13 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -196,6 +199,10 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     public synchronized void submitTransaction(
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
+
+
+        log.info(RECONNECT.getMarker(), "Transaction delay " + (InstantUtils.instantToMicros(Instant.now())-request.getTimestamp()));
+
         log.debug(DEMO_INFO.getMarker(), "Received submit transaction request: {}", request);
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);

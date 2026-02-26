@@ -172,6 +172,8 @@ message EventMessage {
 message TransactionRequest {
   // Serialized transaction data.
   repeated bytes payload = 1;
+
+  uint64 timestamp = 2;
 }
 
 // Response to a transaction submission request.
