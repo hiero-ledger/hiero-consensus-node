@@ -74,6 +74,13 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+/**
+ * Tests for CryptoCreate simple fees.
+ * Validates that fees are correctly calculated based on:
+ * - Number of signatures (extras beyond included)
+ * - Number of keys (extras beyond included)
+ * - Transaction processing bytes and hook execution inputs
+ */
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoCreateSimpleFeesTest {
