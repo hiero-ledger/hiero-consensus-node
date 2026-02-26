@@ -533,7 +533,7 @@ jobs:
           do
 
            #create PVC values.yaml from template
-           for pvc_name in 
+           for pvc_name in archive-storage logging-storage live-storage verification-storage
            do
              sed -e "s@%NODE_ID%@${i}@g" -e "s@%PVC_NAME%@${pvc_name}@g" "${{ github.workspace }}"/.github/workflows/support/citr/block-node-pvc.yaml > block-node-pvc_${pvc_name}_${i}.yaml
              echo "kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml"
