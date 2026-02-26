@@ -182,7 +182,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         /**
          * Simulates a round of events coming to consensus and being handled by the Hedera node.
          *
-         * <p>We advance consensus time by 1 second in fake time for each round, unless some other
+         * <p>We advance consensus time by 1 milli second in fake time for each round, unless some other
          * event like a synthetic "sleep" has already advanced the time.
          */
         private void handleTransactions() {

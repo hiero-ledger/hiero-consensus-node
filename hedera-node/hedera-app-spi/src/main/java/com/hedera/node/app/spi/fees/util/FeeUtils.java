@@ -30,7 +30,8 @@ public class FeeUtils {
         return new Fees(
                 tinycentsToTinybars(feeResult.getNodeTotalTinycents(), rate),
                 tinycentsToTinybars(feeResult.getNetworkTotalTinycents(), rate),
-                tinycentsToTinybars(feeResult.getServiceTotalTinycents(), rate));
+                tinycentsToTinybars(feeResult.getServiceTotalTinycents(), rate),
+                feeResult.getHighVolumeMultiplier());
     }
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {

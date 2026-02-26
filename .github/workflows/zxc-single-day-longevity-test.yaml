@@ -308,6 +308,9 @@ jobs:
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
+
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
@@ -820,7 +823,7 @@ jobs:
           VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
-          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ -z "${VALIDATOR}" ]]; then
+          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" ]]; then
             RESULT="failure"
           else
             RESULT="success"

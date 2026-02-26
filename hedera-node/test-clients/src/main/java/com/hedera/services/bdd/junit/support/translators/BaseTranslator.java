@@ -520,6 +520,9 @@ public class BaseTranslator {
                 .paidStakingRewards(parts.paidStakingRewards());
         final var receiptBuilder = TransactionReceipt.newBuilder()
                 .status(requireNonNull(parts.transactionResult()).status());
+        if (parts.transactionResult().highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(parts.transactionResult().highVolumePricingMultiplier());
+        }
         if (!txnId.scheduled() || parts.isTopLevel()) {
             recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
         } else {

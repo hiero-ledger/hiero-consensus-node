@@ -93,7 +93,7 @@ public class MetricRegistryTest {
             assertThatThrownBy(() -> registry.register(
                             LongCounter.builder("test_counter").addStaticLabels(new Label("env", "production"))))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContainingAll("Label", "conflicts with existing", "env");
+                    .hasMessageContainingAll("conflicts with existing", "env");
         }
 
         @Test

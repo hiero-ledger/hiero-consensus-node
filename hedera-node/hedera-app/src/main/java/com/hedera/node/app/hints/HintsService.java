@@ -88,12 +88,6 @@ public interface HintsService extends Service {
     HintsContext.Signing sign(@NonNull Bytes blockHash);
 
     /**
-     * Sets the current roster for the network.
-     * @param roster the roster
-     */
-    void initCurrentRoster(@NonNull Roster roster);
-
-    /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
      * @param cb the callback to invoke with the current writable hints store
      */

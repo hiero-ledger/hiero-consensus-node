@@ -212,7 +212,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.time = Objects.requireNonNull(time);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.syncConfig = syncConfig;
-        this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
+        this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this, syncConfig.pingPeriod());
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
@@ -380,14 +380,16 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     logger.warn(EXCEPTION.getMarker(), "Interrupted while waiting for message", e);
                     break;
                 }
-                if (message == null) {
-                    final GossipPing ping = pingHandler.possiblyInitiatePing();
-                    if (ping != null) {
-                        sendPingSameThread(ping, output);
-                    }
-                } else {
+                if (message != null) {
                     message.write(output);
                 }
+
+                final GossipPing ping = pingHandler.possiblyInitiatePing();
+                if (ping != null) {
+                    sendPingSameThread(ping, output);
+                    output.flush();
+                }
+
                 if (outputQueue.isEmpty()) {
                     // otherwise we will keep pushing messages to output, and they will get autoflushed, or we will
                     // reach the end of the queue and do explicit flush

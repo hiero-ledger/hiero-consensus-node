@@ -95,7 +95,7 @@ class HintsLibraryImplTest {
         final var ak = Bytes.wrap(keys.aggregationKey());
         final var vk = Bytes.wrap(keys.verificationKey());
         assertEquals(1712L, ak.length());
-        assertEquals(1480L, vk.length());
+        assertEquals(HintsLibraryImpl.VK_LENGTH, vk.length());
 
         final var message = Bytes.wrap("Hello World");
         final List<Integer> signingParties = ids;

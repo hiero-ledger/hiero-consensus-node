@@ -208,6 +208,15 @@ message TransactionRecord {
      * or when the recipient has set `receiver_sig_required`.
      */
     repeated PendingAirdropRecord new_pending_airdrops = 22;
+
+    /**
+     * A high volume pricing multiplier.
+     * <p>
+     * This SHALL be the multiplier that is applied to the transaction
+     * fees charged for this transaction if the high volume flag is set.
+     * This is scaled by 1000.
+     */
+    uint64 high_volume_pricing_multiplier = 23;
 }
 
 /**

@@ -11,6 +11,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,8 @@ import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterBuilder;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimplePlatformEventGraph;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -270,6 +273,68 @@ class SyncFilteringTest {
 
         final Set<Hash> filteredSet =
                 filtered.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
+
+        assertEquals(expectedEvents, filteredSet);
+    }
+
+    @Test
+    void filterLikelyDuplicates_zeroAncestorTime_explicitGraph() {
+
+        final Duration selfThreshold = Duration.ofMillis(120);
+        final Duration ancestorThreshold = Duration.ofMillis(0);
+        final Duration nonAncestorThreshold = Duration.ofMillis(150);
+
+        final Random random = getRandomPrintSeed();
+
+        final Instant baseTime = Instant.now();
+        final FakeTime time = new FakeTime(baseTime, Duration.ZERO);
+
+        final List<PlatformEvent> events = new SimpleGraphs<>(SimplePlatformEventGraph::new)
+                .mopGraph(random)
+                .events();
+
+        for (int i = 0; i < events.size(); i++) {
+            events.get(i).setTimeReceived(baseTime.plus(i * 10, ChronoUnit.MILLIS));
+        }
+
+        time.tick(Duration.ofMillis(200));
+
+        final NodeId selfId = NodeId.of(3); // this is the node which created event id 2 in graph below
+
+        final List<PlatformEvent> filtered = SyncUtils.filterLikelyDuplicates(
+                selfId, nonAncestorThreshold, ancestorThreshold, selfThreshold, time.now(), events);
+
+        final Set<Hash> filteredSet =
+                filtered.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
+
+        /*
+         * event timestamps are base + index*10ms; current time is base+200ms
+         * 8   9   10  11
+         * │ / │ X │ \ │
+         * 4   5   6   7
+         * │ / │ X │ \ │
+         * 0   1   2   3
+         */
+
+        final Set<Hash> expectedEvents = new HashSet<>();
+
+        // old enough self events
+        expectedEvents.add(events.get(6).getHash()); // old enough self event
+        expectedEvents.add(events.get(2).getHash()); // old enough self event
+        // we skip event 10, as it is too fresh self-event
+
+        // all non-self ancestors
+        expectedEvents.add(events.get(1).getHash()); // ancestor of included self-event
+        expectedEvents.add(events.get(3).getHash()); // ancestor of included self-event
+        expectedEvents.add(events.get(0).getHash()); // ancestor of excluded self-event
+        expectedEvents.add(events.get(5).getHash()); // ancestor of excluded self-event
+        expectedEvents.add(events.get(7).getHash()); // ancestor of excluded self-event
+
+        // all non-ancestors
+        expectedEvents.add(events.get(4).getHash()); // old other event
+        // we skip event 8, as it is too fresh other event
+        // we skip event 9, as it is too fresh other event
+        // we skip event 11, as it is too fresh other event
 
         assertEquals(expectedEvents, filteredSet);
     }

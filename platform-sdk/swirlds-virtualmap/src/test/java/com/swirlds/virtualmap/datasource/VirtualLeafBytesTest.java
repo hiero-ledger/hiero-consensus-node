@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -239,5 +241,100 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes deserialized = VirtualLeafBytes.parseFrom(BufferedData.wrap(bytes));
         assertEquals(leafBytes, deserialized, "Deserialized leaf should match original");
         assertEquals(deserialized, leafBytes, "Original leaf should match deserialized");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
+    @DisplayName("writeToForHashing writes 0x00 + Protobuf-tagged key and value bytes")
+    void writeToForHashing_withValue() {
+        final long keyId = RANDOM.nextLong();
+        final Bytes key = TestKey.longToKey(keyId);
+        final TestValue value = new TestValue("Hash me!");
+        final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(777, key, value, TestValueCodec.INSTANCE);
+
+        final Bytes kb = leafBytes.keyBytes();
+        final Bytes vb = leafBytes.valueBytes();
+
+        final int keySize =
+                ProtoWriterTools.sizeOfDelimited(VirtualLeafBytes.FIELD_LEAFRECORD_KEY, Math.toIntExact(kb.length()));
+        final int valueSize =
+                ProtoWriterTools.sizeOfDelimited(VirtualLeafBytes.FIELD_LEAFRECORD_VALUE, Math.toIntExact(vb.length()));
+        final int len = 1 + keySize + valueSize;
+
+        final byte[] actual = new byte[len];
+        leafBytes.writeToForHashing(BufferedData.wrap(actual));
+
+        final byte[] expected = new byte[len];
+        final var out = BufferedData.wrap(expected);
+        out.writeByte((byte) 0x00);
+        ProtoWriterTools.writeTag(out, VirtualLeafBytes.FIELD_LEAFRECORD_KEY);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
+        kb.writeTo(out);
+
+        ProtoWriterTools.writeTag(out, VirtualLeafBytes.FIELD_LEAFRECORD_VALUE);
+        out.writeVarInt(Math.toIntExact(vb.length()), false);
+        vb.writeTo(out);
+
+        assertEquals(len, actual.length, "output length should match expected");
+        assertArrayEquals(expected, actual, "hashing bytes should match");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
+    @DisplayName("writeToForHashing writes 0x00 + Protobuf-tagged key when value is null")
+    void writeToForHashing_withNullValue() {
+        final long keyId = RANDOM.nextLong();
+        final Bytes key = TestKey.longToKey(keyId);
+        final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(888, key, null);
+
+        final Bytes kb = leafBytes.keyBytes();
+        final int keySize =
+                ProtoWriterTools.sizeOfDelimited(VirtualLeafBytes.FIELD_LEAFRECORD_KEY, Math.toIntExact(kb.length()));
+        final int len = 1 + keySize;
+
+        final byte[] actual = new byte[len];
+        leafBytes.writeToForHashing(BufferedData.wrap(actual));
+
+        final byte[] expected = new byte[len];
+        final var out = BufferedData.wrap(expected);
+        out.writeByte((byte) 0x00);
+        ProtoWriterTools.writeTag(out, VirtualLeafBytes.FIELD_LEAFRECORD_KEY);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
+        kb.writeTo(out);
+
+        assertArrayEquals(expected, actual, "hashing bytes should match");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
+    @DisplayName("writeToForHashing includes tagged empty value bytes")
+    void writeToForHashing_withEmptyValueBytes() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(999, key, Bytes.EMPTY);
+
+        final Bytes kb = leafBytes.keyBytes();
+        final Bytes vb = leafBytes.valueBytes();
+
+        final int keySize =
+                ProtoWriterTools.sizeOfDelimited(VirtualLeafBytes.FIELD_LEAFRECORD_KEY, Math.toIntExact(kb.length()));
+        final int valueSize =
+                ProtoWriterTools.sizeOfDelimited(VirtualLeafBytes.FIELD_LEAFRECORD_VALUE, Math.toIntExact(vb.length()));
+        final int len = 1 + keySize + valueSize;
+
+        final byte[] actual = new byte[len];
+        leafBytes.writeToForHashing(BufferedData.wrap(actual));
+
+        final byte[] expected = new byte[len];
+        final var out = BufferedData.wrap(expected);
+        out.writeByte((byte) 0x00);
+        ProtoWriterTools.writeTag(out, VirtualLeafBytes.FIELD_LEAFRECORD_KEY);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
+        kb.writeTo(out);
+
+        ProtoWriterTools.writeTag(out, VirtualLeafBytes.FIELD_LEAFRECORD_VALUE);
+        out.writeVarInt(0, false);
+        // empty value bytes add no extra bytes but length 0 is written
+
+        assertArrayEquals(expected, actual, "hashing bytes should match");
     }
 }

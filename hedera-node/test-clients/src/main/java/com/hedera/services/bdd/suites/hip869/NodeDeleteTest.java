@@ -12,18 +12,21 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
@@ -37,6 +40,7 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -87,9 +91,13 @@ public class NodeDeleteTest {
                         .payingWith("payer")
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedDeletion"),
-                getTxnRecord("failedDeletion").logged(),
                 // The fee is charged here because the payer is not privileged
-                safeValidateChargedUsdWithin("failedDeletion", 0.001, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        FeesChargingUtils.validateFees(
+                                "failedDeletion",
+                                0.001,
+                                NODE_DELETE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "failedDeletion")))),
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
@@ -99,9 +107,15 @@ public class NodeDeleteTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("multipleSigsDeletion"),
-                safeValidateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        FeesChargingUtils.validateFees(
+                                "multipleSigsDeletion",
+                                0.0011276316,
+                                NODE_DELETE_BASE_FEE_USD
+                                        + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
+                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsDeletion")))),
                 nodeDelete("node100").via("deleteNode"),
-                getTxnRecord("deleteNode").logged(),
                 // The fee is not charged here because the payer is privileged
                 validateChargedUsdWithin("deleteNode", 0.0, 1.0));
     }

@@ -1,0 +1,55 @@
+version: 0.1
+merge:
+  required_statuses:
+
+    # MATS
+    - "MATS / Get Commit Info"
+    - "MATS / Standard Compile Code / Compile Application Code"
+    - "MATS / Unit Tests / Unit Tests"
+    - "MATS / Standard Spotless / Spotless Check"
+    - "MATS / Standard Dependency (Module Info) / Dependency Module Check"
+    - "MATS / Snyk Scan / Snyk Checks"
+    - "MATS / Otter Tests / Fast Otter Tests"
+    - "MATS / HAPI Tests / HAPI Tests (Token)"
+    - "MATS / HAPI Tests / HAPI Tests (Smart Contracts)"
+    - "MATS / HAPI Tests / HAPI Tests (Restart)"
+    - "MATS / HAPI Tests / HAPI Tests (ND Reconnect)"
+    - "MATS / HAPI Tests / HAPI Tests (Misc)"
+    - "MATS / HAPI Tests / HAPI Tests (Misc Records)"
+    - "MATS / HAPI Tests / HAPI Tests (ISS)"
+    - "MATS / HAPI Tests / HAPI Tests (Crypto)"
+    - "MATS / HAPI Tests / HAPI Tests (Atomic Batch)"
+
+    # MATS Gradle Determinism
+    - "MATS / Gradle Determinism / Gradle: Generate OS Matrix"
+    - "MATS / Gradle Determinism / Gradle: Generate Baseline"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2025)"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2022)"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-24.04)"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-22.04)"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-md)"
+    - "MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-lg)"
+
+    # MATS Docker Determinism
+    - "MATS / Docker Determinism / Docker: Generate Baseline"
+    - "MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
+    - "MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
+
+    # XTS Required Checks
+    - "Merge Queue XTS Required Tests / XTS Timing Sensitive Tests / Timing Sensitive Tests"
+    - "Merge Queue XTS Required Tests / XTS Hammer Tests / Hammer Tests"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Time Consuming)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Misc)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Misc Records)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Crypto)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Simple Fees)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Token)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Smart Contracts)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (BN Comms)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Atomic Batch)"
+    - "Merge Queue XTS Required Tests / XTS Otter Tests / Full Otter Tests"
+    - "Merge Queue XTS Required Tests / XTS Chaos Otter Tests / Chaos Otter Tests"
+    - "Merge Queue XTS Required Tests / Hedera Node JRS Panel / Merge Queue XTS: Abbrev Update Test"
+    - "Merge Queue XTS Required Tests / SDK TCK Regression Panel / Merge Queue XTS: SDK TCK Regression"
+
+    # Merge Queue Checks

@@ -87,11 +87,11 @@ jobs:
 
       - name: Unit Testing
         id: gradle-test
-        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReport
+        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReportPartitioned
 
       - name: Publish Unit Test Report
         id: publish-unit-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: Unit Test Results"
           json_thousands_separator: ","
@@ -111,14 +111,14 @@ jobs:
         uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
         with:
           token: ${{ secrets.codecov-token }}
-          files: gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+          directory: ./gradle/aggregation/build/reports/jacoco-xml
 
       - name: Publish to Codacy
         id: publish-codacy
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java $(find gradle/aggregation/build/reports/jacoco-xml/*.xml -printf '-r %p ')
 
       - name: Upload Test Reports
         id: upload-test-reports

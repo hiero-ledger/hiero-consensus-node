@@ -16,7 +16,7 @@ import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.util.impl.calculator.AtomicBatchFeeCalculator;
 import com.hedera.node.app.service.util.impl.calculator.UtilPrngFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;

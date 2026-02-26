@@ -968,6 +968,7 @@ FodyWeavers.xsd
 
 ### Gradle template
 .gradle
+.gradle-local/
 **/build/
 !src/**/build/
 

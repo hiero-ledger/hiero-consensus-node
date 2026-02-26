@@ -44,8 +44,6 @@ import java.util.Objects;
  */
 public class VirtualLeafBytes<V> {
 
-    public static final FieldDefinition FIELD_MERKLELEAF_STATEITEM =
-            new FieldDefinition("state_item", FieldType.MESSAGE, false, false, true, 3);
     public static final FieldDefinition FIELD_LEAFRECORD_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_LEAFRECORD_KEY =
@@ -243,26 +241,24 @@ public class VirtualLeafBytes<V> {
                 : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();
     }
 
-    // Output size must be at least getSizeInBytesForHashing()
+    /**
+     * Writes this virtual leaf bytes object to the given sequential data for hashing.
+     * <p>
+     * Note that the bytes to hash include the 0x00 prefix byte, key bytes, and value bytes (if present).
+     * Path is not included.
+     *
+     * @param out the sequential data to write to
+     */
     public void writeToForHashing(final WritableSequentialData out) {
         // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
         // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
         out.writeByte((byte) 0x00);
 
         final Bytes kb = keyBytes();
-        final int keyLen = Math.toIntExact(kb.length());
-        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
-
         final Bytes vb = valueBytes();
-        if (vb != null) {
-            final int valueLen = Math.toIntExact(vb.length());
-            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
-        }
 
-        ProtoWriterTools.writeTag(out, FIELD_MERKLELEAF_STATEITEM);
-        out.writeVarInt(innerLen, false);
         ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
-        out.writeVarInt(keyLen, false);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
         kb.writeTo(out);
         if (vb != null) {
             ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);

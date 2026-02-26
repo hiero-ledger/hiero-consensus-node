@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.openmetrics;
 
+import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.WARNING;
+
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -72,8 +75,8 @@ class OpenMetricsHttpServer implements MetricsExporter {
         server.start();
 
         logger.log(
-                System.Logger.Level.INFO,
-                "OpenMetrics HTTP server started. hostname={}, port={}, path={}",
+                INFO,
+                "OpenMetrics HTTP server started. hostname={0}, port={1,number,#}, path={2}",
                 config.hostname(),
                 config.port(),
                 config.path());
@@ -95,7 +98,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
                 exchange.sendResponseHeaders(405, -1);
             }
         } catch (RuntimeException e) {
-            logger.log(System.Logger.Level.WARNING, "Unexpected error while handling metrics request", e);
+            logger.log(WARNING, "Unexpected error while handling metrics request", e);
             // Best-effort: Only attempt to send 500 if we haven't committed response yet
             try {
                 if (exchange.getResponseCode() == -1) {
@@ -127,7 +130,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
         }
 
         if (!isHandlingRequest.compareAndSet(false, true)) {
-            logger.log(System.Logger.Level.WARNING, "Another request is being processed, rejecting this one");
+            logger.log(WARNING, "Another request is being processed, rejecting this one");
             exchange.getResponseHeaders().set("Retry-After", "3"); // Suggest retry after 3 seconds
             exchange.getResponseHeaders().set("Cache-Control", "no-store");
             exchange.sendResponseHeaders(429, -1); // Too Many Requests
@@ -159,10 +162,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
     }
 
     private void handleNoSnapshotSupplier(HttpExchange exchange) throws IOException {
-        logger.log(
-                System.Logger.Level.INFO,
-                "No snapshot supplier configured yet. method={}",
-                exchange.getRequestMethod());
+        logger.log(INFO, "No snapshot supplier configured yet. method={0}", exchange.getRequestMethod());
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(204, -1); // No Content
     }
@@ -192,6 +192,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
 
     @Override
     public void close() {
+        logger.log(INFO, "Stopping OpenMetrics HttpServer...");
         server.stop(1);
         executorService.shutdownNow();
     }

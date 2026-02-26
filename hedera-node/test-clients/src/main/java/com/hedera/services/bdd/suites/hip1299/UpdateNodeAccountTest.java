@@ -28,12 +28,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
@@ -206,7 +208,7 @@ public class UpdateNodeAccountTest {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, newNodeAccount, "adminKey")
                             .via("updateTxn"),
-                    validateChargedUsd("updateTxn", 0.0012),
+                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -463,7 +465,7 @@ public class UpdateNodeAccountTest {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn"),
-                    validateChargedUsd("updateTxn", 0.0012),
+                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -495,7 +497,7 @@ public class UpdateNodeAccountTest {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithoutAdminKey, "adminKey")
                             .via("updateTxn"),
-                    validateChargedUsd("updateTxn", 0.0012),
+                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -949,7 +951,7 @@ public class UpdateNodeAccountTest {
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn")
                             .hasKnownStatus(NODE_ACCOUNT_HAS_ZERO_BALANCE),
-                    validateChargedUsd("updateTxn", 0.0012),
+                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                     viewNode(
                             "testNode",
                             node -> assertNotEquals(

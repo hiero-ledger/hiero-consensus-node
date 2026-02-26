@@ -39,6 +39,7 @@ public class AutoAccountCreator {
 
     /**
      * Constructs an {@link AutoAccountCreator} with the given {@link HandleContext}.
+     *
      * @param handleContext the context to use for the creation
      */
     public AutoAccountCreator(@NonNull final HandleContext handleContext) {
@@ -49,11 +50,12 @@ public class AutoAccountCreator {
     /**
      * Creates an account for the given alias.
      *
-     * @param alias                      the alias to create the account for
-     * @param requiredAutoAssociations   the requiredAutoAssociations to set on the account
+     * @param alias the alias to create the account for
+     * @param requiredAutoAssociations the requiredAutoAssociations to set on the account
+     * @param highVolume
      * @return the account ID of the created account
      */
-    public AccountID create(@NonNull final Bytes alias, int requiredAutoAssociations) {
+    public AccountID create(@NonNull final Bytes alias, int requiredAutoAssociations, final boolean highVolume) {
         requireNonNull(alias);
 
         final var accountsConfig = handleContext.configuration().getConfigData(AccountsConfig.class);
@@ -74,6 +76,10 @@ public class AutoAccountCreator {
         } else {
             final var key = asKeyFromAlias(alias);
             syntheticCreation = createZeroBalanceAccount(alias, key, autoAssociations);
+        }
+
+        if (highVolume) {
+            syntheticCreation.highVolume(true);
         }
 
         // Dispatch the auto-creation record as a preceding record; note we pass null for the
@@ -116,6 +122,7 @@ public class AutoAccountCreator {
 
     /**
      * Create a transaction body for new account with the given balance and other common fields.
+     *
      * @param balance initial balance of the account
      * @param maxAutoAssociations maxAutoAssociations of the account
      * @return transaction body for new account
