@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.ingest;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -23,12 +24,17 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -501,6 +507,87 @@ final class SubmissionManagerTest extends AppTestBase {
             // And the deduplication cache is updated for the main transaction only
             verify(deduplicationCache).add(txBodyWithEmptyBatch.transactionIDOrThrow());
             verify(deduplicationCache, times(1)).add(any());
+        }
+    }
+
+    /**
+     * End-to-end tests using a real {@link TransactionPoolNexus} (not mocked) to prove
+     * that platform unhealthiness causes {@code PLATFORM_TRANSACTION_NOT_CREATED} through
+     * the full SubmissionManager -> TransactionPoolNexus chain, and that increasing the
+     * unhealthy duration threshold prevents the rejection.
+     */
+    @Nested
+    @DisplayName("End-to-end: unhealthy duration -> pool rejection -> PLATFORM_TRANSACTION_NOT_CREATED")
+    class UnhealthyDurationEndToEndTest extends AppTestBase {
+        @Mock
+        private Metrics mockedMetrics;
+
+        @Mock
+        private SpeedometerMetric platformTxnRejections;
+
+        @Mock
+        private DeduplicationCache deduplicationCache;
+
+        private static final TransactionLimits TX_LIMITS = new TransactionLimits(6_144, 245_760);
+        private static final int TX_QUEUE_SIZE = 100_000;
+
+        private TransactionBody txBody;
+        private Bytes txBytes;
+
+        @BeforeEach
+        void setup() {
+            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            txBytes = randomBytes(25);
+            txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("With default 1s threshold, unhealthy duration >= 1s causes PLATFORM_TRANSACTION_NOT_CREATED")
+        void unhealthyPlatformCausesPlatformTransactionNotCreated() {
+            // Given a real TransactionPoolNexus with the default 1-second threshold
+            final var realPool = new TransactionPoolNexus(
+                    TX_LIMITS,
+                    TX_QUEUE_SIZE,
+                    TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                    new NoOpMetrics(),
+                    new FakeTime());
+            realPool.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+            final var submissionManager = new SubmissionManager(realPool, deduplicationCache, config, mockedMetrics);
+
+            // When the platform has been unhealthy for 2 seconds (exceeding 1s threshold)
+            realPool.reportUnhealthyDuration(Duration.ofSeconds(2));
+
+            // Then submitting a transaction throws PLATFORM_TRANSACTION_NOT_CREATED
+            assertThatThrownBy(() -> submissionManager.submit(txBody, txBytes, false))
+                    .isInstanceOf(PreCheckException.class)
+                    .extracting(t -> ((PreCheckException) t).responseCode())
+                    .isEqualTo(PLATFORM_TRANSACTION_NOT_CREATED);
+        }
+
+        @Test
+        @DisplayName("With increased 5s threshold, 2s unhealthy duration is tolerated")
+        void increasedThresholdToleratesTransientUnhealthiness() throws PreCheckException {
+            // Given a real TransactionPoolNexus with a 5-second threshold (CI override)
+            final var tolerantPool = new TransactionPoolNexus(
+                    TX_LIMITS, TX_QUEUE_SIZE, Duration.ofSeconds(5), new NoOpMetrics(), new FakeTime());
+            tolerantPool.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+            final var submissionManager =
+                    new SubmissionManager(tolerantPool, deduplicationCache, config, mockedMetrics);
+
+            // When the platform has been unhealthy for 2 seconds (would fail with 1s default)
+            tolerantPool.reportUnhealthyDuration(Duration.ofSeconds(2));
+
+            // Then submitting a transaction succeeds — the increased threshold prevents rejection
+            assertThatNoException().isThrownBy(() -> submissionManager.submit(txBody, txBytes, false));
+
+            // And the deduplication cache is updated, confirming the transaction was accepted
+            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
         }
     }
 }

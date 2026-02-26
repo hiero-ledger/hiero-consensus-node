@@ -72,6 +72,7 @@ val basePrCheckTags =
         "hapiTestCrypto" to "CRYPTO",
         "hapiTestCryptoSerial" to "(CRYPTO&SERIAL)",
         "hapiTestToken" to "TOKEN",
+        "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
@@ -89,6 +90,8 @@ val concurrentTasks =
     setOf(
         "hapiTestCrypto",
         "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
         "hapiTestSmartContract",
         "hapiTestSmartContractSerial",
     )
@@ -117,7 +120,7 @@ val remoteCheckTags =
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
                     "hapiTestToken",
-                    "hapiTestTokenMATS",
+                    "hapiTestTokenSerial",
                     "hapiTestSmartContract",
                     "hapiTestSmartContractSerial",
                 )
@@ -138,7 +141,8 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
-        put("hapiTestSmartContractSerial", "27800")
+        put("hapiTestTokenSerial", "27800")
+        put("hapiTestSmartContractSerial", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -154,8 +158,10 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         )
+        // TODO Add 'hedera.transaction.maximumPermissibleUnhealthySeconds=5' for all tasks using
+        // 'subprocessConcurrent'
         put(
             "hapiTestCryptoSerial",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -210,6 +216,7 @@ val prCheckNetSizeOverrides =
         put("hapiTestCrypto", "3")
         put("hapiTestCryptoSerial", "3")
         put("hapiTestToken", "3")
+        put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
         put("hapiTestSmartContractSerial", "4")
 
@@ -226,8 +233,9 @@ tasks {
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
                 if (
-                    (taskName.contains("Crypto") || taskName.contains("SmartContract")) &&
-                        !taskName.contains("Serial")
+                    (taskName.contains("Crypto") ||
+                        taskName.contains("Token") ||
+                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
@@ -342,7 +350,15 @@ tasks.register<Test>("testSubprocess") {
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=6",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
