@@ -224,9 +224,8 @@ tasks {
             dependsOn(
                 if (
                     (taskName.contains("Crypto") ||
-                            taskName.contains("Token") ||
-                            taskName.contains("SimpleFees"))
-                    && !taskName.contains("Serial")
+                        taskName.contains("Token") ||
+                        taskName.contains("SimpleFees")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
