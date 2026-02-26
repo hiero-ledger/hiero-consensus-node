@@ -2,8 +2,8 @@
 
 ## Background
 
-Every virtual map copy should be hashed. Currently, a new copy is created every round, but
-it may change in the future. Virtual maps may be huge. Hashing all map elements may be
+Every virtual map copy should be hashed. Currently, a new copy is created every few rounds,
+but it may change in the future. Virtual maps may be huge. Hashing all map elements may be
 prohibitively expensive. Fortunately, the number of changes, or dirty leaves, in every
 copy is relatively small. Only this small subset of virtual map data is hashed and then
 combined with unchanged hashes from previous rounds to produce a new root hash.

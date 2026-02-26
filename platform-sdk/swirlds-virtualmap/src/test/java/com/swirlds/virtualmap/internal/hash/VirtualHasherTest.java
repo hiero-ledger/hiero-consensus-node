@@ -383,7 +383,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
-        // Iterate a few times, doing the same thing. If there are race conditions among the hashing threads,
+        // Iterate multiple times, doing the same thing. If there are race conditions among the hashing threads,
         // this will *likely* find it.
         for (int i = 0; i < 500; i++) {
             final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());

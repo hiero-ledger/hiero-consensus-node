@@ -62,7 +62,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
-@SuppressWarnings("rawtypes")
 public final class MerkleDbDataSource implements VirtualDataSource {
 
     private static final Logger logger = LogManager.getLogger(MerkleDbDataSource.class);
@@ -138,6 +137,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     private final MemoryIndexDiskKeyValueStore hashChunkStore;
 
+    /**
+     * Hash chunk cache threshold. All hash chunks with IDs less than the threshold will
+     * be put to the cache on writes, other chunks will be written directly to disk.
+     */
     private final int hashChunkCacheThreshold;
 
     /**
@@ -642,6 +645,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * @throws IOException If there was a problem saving changes to data source
      */
     @Override
+    @SuppressWarnings("rawtypes")
     public void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
@@ -770,7 +774,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (path == INVALID_PATH) {
             // Cache the result if not already cached
             if (leafRecordCache != null && cached == null) {
-                leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
             }
             return null;
         }
@@ -846,7 +850,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         if (leafRecordCache != null) {
             // Path may be INVALID_PATH here. Still needs to be cached (negative result)
-            leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+            leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
         }
 
         return path;

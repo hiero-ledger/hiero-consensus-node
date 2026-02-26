@@ -121,6 +121,21 @@ public class VirtualHashChunk {
         return dataRank;
     }
 
+    /**
+     * Reads a hash chunk from a specified sequential input. It's caller responsibility
+     * to read the chunk with the same height as was used to serialize the chunk previously
+     * using the {@link #writeTo(WritableSequentialData)} method.
+     *
+     * <p>Serialized hash data length together with the provided chunk height define the
+     * data rank and where the deserialized hashes will be written in the hashData array.
+     * For example, if the height is 5, but only 4 hashes are available in the input,
+     * data rank will be initialized to 2, and the 4 hashes will be written at offsets
+     * 0, 8, 16, and 24. See hash-chunks.md for details.
+     *
+     * @param in Input to read the chunk from
+     * @param height Hash chunk height
+     * @return A deserialized hash chunk
+     */
     public static VirtualHashChunk parseFrom(final ReadableSequentialData in, final int height) {
         if (in == null) {
             return null;
@@ -196,6 +211,15 @@ public class VirtualHashChunk {
         return size;
     }
 
+    /**
+     * Writes the chunk to a specified sequential output. Serialized bytes will include the
+     * chunk path and hash data in packed format. Chunk height is not serialized as it's
+     * expected to be the same across all chunks. When chunks are deserialized, it's caller
+     * responsibility to call {@link #parseFrom(ReadableSequentialData, int)} with the same
+     * chunk height as was used when the chunk was serialized.
+     *
+     * @param out Output to write the chunk to
+     */
     public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_PATH);
@@ -451,7 +475,8 @@ public class VirtualHashChunk {
         final int chunkRank = Path.getRank(this.path);
         final int pathRank = Path.getRank(path);
         // No synchronization as setHashAtPath() should not be called in parallel for paths
-        // at different ranks
+        // at different ranks. Field visibility is guaranteed by the caller, typically
+        // VirtualHasher fork-join tasks
         dataRank = Math.max(dataRank, pathRank - chunkRank);
     }
 

@@ -38,7 +38,6 @@ import org.hiero.base.crypto.Hash;
  * <p>There should be one {@link VirtualHasher} shared across all copies of a {@link VirtualMap}
  * "family".
  */
-@SuppressWarnings("rawtypes")
 public final class VirtualHasher {
 
     // When virtual tree is of size 1 (only the root node and a single leaf), root hash should
@@ -509,6 +508,7 @@ public final class VirtualHasher {
      * @param pool the pool to use for hashing tasks.
      * @return the root hashing task, or null if there are no dirty leaves to hash.
      */
+    @SuppressWarnings("rawtypes")
     private ChunkHashTask hashImpl(
             final @NonNull LongFunction<VirtualHashChunk> hashChunkPreloader,
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,

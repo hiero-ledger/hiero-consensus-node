@@ -340,6 +340,8 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         hashChunk.calcHash(leftPath, firstLeafPath, lastLeafPath).serialize(out);
 
         if (size == 2) {
+            // The right path is always in the same chunk as the left path, so calcHash() below
+            // will work as expected
             final long rightPath = getRightChildPath(parent);
             // Is null? false
             out.writeBoolean(false);
