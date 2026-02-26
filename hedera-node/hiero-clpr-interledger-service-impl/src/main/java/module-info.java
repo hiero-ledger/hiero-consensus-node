@@ -7,6 +7,7 @@ module org.hiero.interledger.clpr.impl {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.interledger.clpr;
@@ -14,7 +15,6 @@ module org.hiero.interledger.clpr.impl {
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.pbj.grpc.client.helidon;
-    requires transitive com.hedera.pbj.runtime;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto;
