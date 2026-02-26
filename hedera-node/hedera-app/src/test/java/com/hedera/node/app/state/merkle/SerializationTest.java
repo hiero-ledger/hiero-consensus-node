@@ -162,14 +162,14 @@ class SerializationTest extends MerkleTestBase {
                 new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), config);
         stateLifecycleManager.initWithState(randomState.getState());
 
-        final VirtualMapState originalTree = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState immutableState = stateLifecycleManager.getLatestImmutableState();
         // the state is not hashed yet
-        final var originalTreeCopy = stateLifecycleManager.getMutableState();
-        originalTree.release();
+        final var mutableState = stateLifecycleManager.getMutableState();
+        immutableState.release();
         final var originalRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         originalRegistry.register(schemaV1);
         originalRegistry.migrate(
-                originalTreeCopy,
+                mutableState,
                 null,
                 v1,
                 config,
