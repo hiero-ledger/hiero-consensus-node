@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -42,7 +43,6 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
@@ -67,14 +67,9 @@ class SignedStateFileReadWriteTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final var registry = ConstructableRegistry.getInstance();
         platformVersion =
                 SemanticVersion.newBuilder().major(RandomUtils.nextInt(1, 100)).build();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.platform");
-        registry.registerConstructables("com.swirlds.state");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.merkledb");
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     @BeforeEach

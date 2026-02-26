@@ -91,7 +91,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT = 1L;
 
     /* ---------- Consensus service ---------- */
-
+    public static final double TOPIC_CREATE_FEE = 0.01;
     public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
     public static final long CONS_CREATE_TOPIC_INCLUDED_KEYS = 0L;
     public static final long CONS_CREATE_TOPIC_WITH_CUSTOM_FEES = 0L;
