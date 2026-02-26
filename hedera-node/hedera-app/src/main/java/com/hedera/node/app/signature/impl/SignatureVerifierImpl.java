@@ -62,22 +62,18 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
 
         // Gather each TransactionSignature to send to the platform and the resulting SignatureVerificationFutures
         final var futures = HashMap.<Key, SignatureVerificationFuture>newHashMap(sigs.size());
-        for (ExpandedSignaturePair sigPair : sigs) {
-            final TransactionSignature txSig;
+        final Bytes message = messageType == RAW ? signedBytes: MiscCryptoUtils.keccak256DigestOf(signedBytes);
+        for (final ExpandedSignaturePair sigPair : sigs) {
+
             final var kind = sigPair.sigPair().signature().kind();
-            if (kind == ECDSA_SECP256K1) {
-                Bytes message = signedBytes;
-                if (messageType == RAW) {
-                    message = MiscCryptoUtils.keccak256DigestOf(message);
-                }
-                txSig = new TransactionSignature(
-                        message, sigPair.keyBytes(), sigPair.signature(), SignatureType.ECDSA_SECP256K1);
-            } else if (kind == ED25519) {
-                txSig = new TransactionSignature(
-                        signedBytes, sigPair.keyBytes(), sigPair.signature(), SignatureType.ED25519);
-            } else {
+            if (kind != ECDSA_SECP256K1 && kind != ED25519 ) {
                 throw new IllegalArgumentException("Unsupported signature type: " + kind);
             }
+            final TransactionSignature txSig = kind == ECDSA_SECP256K1? new TransactionSignature(
+                        message, sigPair.keyBytes(), sigPair.signature(), SignatureType.ECDSA_SECP256K1):
+                    new TransactionSignature(
+                        signedBytes, sigPair.keyBytes(), sigPair.signature(), SignatureType.ED25519);
+
             cryptoEngine.verifySync(txSig);
             final SignatureVerificationFuture future =
                     new SignatureVerificationFutureImpl(sigPair.key(), sigPair.evmAlias(), txSig);

@@ -14,6 +14,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,6 +66,18 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      */
     private final RateLimitedLogger rateLimitedLogger;
 
+    /**
+     * Cache of public keys per roster and node ID. Avoids repeated roster entry lookups,
+     * X.509 certificate parsing, and public key extraction for every event. The outer map is
+     * keyed by {@link Roster} reference identity (rosters from {@link RosterHistory} are
+     * interned by hash), and the inner map is keyed by {@link NodeId}.
+     *
+     * <p>A {@code null} value in the inner map means the public key could not be resolved
+     * for that node (missing roster entry, null certificate, etc.) and the lookup should
+     * not be re-attempted until the roster changes.
+     */
+    private final Map<Roster, Map<NodeId, PublicKey>> publicKeyCache = new HashMap<>();
+
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
             .withDescription("Events for which signature validation failed")
@@ -112,25 +126,10 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
                     event.getBirthRound());
             return false;
         }
+
         final NodeId eventCreatorId = event.getCreatorId();
-        final RosterEntry rosterEntry;
-        try {
-            rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
-        } catch (RosterEntryNotFoundException e) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Node {} doesn't exist in applicable roster. Event: {}",
-                    eventCreatorId,
-                    event);
-            return false;
-        }
-
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
-
-        final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
+        final PublicKey publicKey = lookupPublicKey(applicableRoster, eventCreatorId);
         if (publicKey == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", eventCreatorId);
             return false;
         }
 
@@ -147,6 +146,60 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         }
 
         return isSignatureValid;
+    }
+
+    /**
+     * Look up the public key for a given node in the given roster, using the cache to avoid
+     * repeated roster entry lookups, X.509 certificate parsing, and public key extraction.
+     *
+     * @param roster the roster to look up the node in
+     * @param nodeId the node ID to look up
+     * @return the public key, or null if it could not be resolved
+     */
+    @Nullable
+    private PublicKey lookupPublicKey(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
+        final Map<NodeId, PublicKey> rosterCache =
+                publicKeyCache.computeIfAbsent(roster, k -> new HashMap<>());
+
+        if (rosterCache.containsKey(nodeId)) {
+            return rosterCache.get(nodeId);
+        }
+
+        final PublicKey publicKey = resolvePublicKey(roster, nodeId);
+        rosterCache.put(nodeId, publicKey);
+        return publicKey;
+    }
+
+    /**
+     * Resolve the public key for a given node from the roster by looking up the roster entry,
+     * decoding the X.509 certificate, and extracting the public key.
+     *
+     * @param roster the roster to look up the node in
+     * @param nodeId the node ID to look up
+     * @return the public key, or null if it could not be resolved
+     */
+    @Nullable
+    private PublicKey resolvePublicKey(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
+        final RosterEntry rosterEntry;
+        try {
+            rosterEntry = RosterUtils.getRosterEntry(roster, nodeId.id());
+        } catch (RosterEntryNotFoundException e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Node {} doesn't exist in applicable roster",
+                    nodeId);
+            return null;
+        }
+
+        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+        final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
+
+        if (publicKey == null) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", nodeId);
+        }
+
+        return publicKey;
     }
 
     /**
@@ -190,5 +243,6 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     @Override
     public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
+        this.publicKeyCache.clear();
     }
 }
