@@ -43,12 +43,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_F
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
+
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -275,6 +278,7 @@ public class TokenFreezeSimpleFeesTest {
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing freeze key signature
+                                .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freezeTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
@@ -453,10 +457,11 @@ public class TokenFreezeSimpleFeesTest {
                         tokenUnfreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing freeze key signature
+                                .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unfreezeTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE, 0.1),
+                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE),
                         validateChargedAccount("unfreezeTxn", PAYER));
             }
 
