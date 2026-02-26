@@ -14,9 +14,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,11 +75,21 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * event. The outer map is keyed by {@link Roster} reference identity (rosters from
      * {@link RosterHistory} are interned by hash), and the inner map is keyed by {@link NodeId}.
      *
-     * <p>A {@code null} value in the inner map means the verifier could not be created for that
-     * node (missing roster entry, null certificate, etc.) and the lookup should not be
-     * re-attempted until the roster changes.
+     * <p>This cache is accessed concurrently since the event signature validator uses a
+     * {@code CONCURRENT} task scheduler. The reference is replaced atomically on roster changes.
+     *
+     * <p>A sentinel {@link #MISSING_VERIFIER} value in the inner map means the verifier could
+     * not be created for that node (missing roster entry, null certificate, etc.) and the lookup
+     * should not be re-attempted until the roster changes.
      */
-    private final Map<Roster, Map<NodeId, BytesSignatureVerifier>> verifierCache = new HashMap<>();
+    private volatile ConcurrentMap<Roster, ConcurrentMap<NodeId, BytesSignatureVerifier>> verifierCache =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Sentinel value used in the cache to distinguish "we tried and failed to create a verifier"
+     * from "we haven't tried yet". {@link ConcurrentHashMap} does not allow null values.
+     */
+    private static final BytesSignatureVerifier MISSING_VERIFIER = (data, signature) -> false;
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
@@ -156,22 +166,25 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * call for a (roster, node) pair, this resolves the public key from the roster and creates
      * a {@link BytesSignatureVerifier} via the factory. Subsequent calls return the cached instance.
      *
+     * <p>This method is safe for concurrent access. {@link ConcurrentHashMap#computeIfAbsent}
+     * guarantees that the factory is called at most once per key.
+     *
      * @param roster the roster to look up the node in
      * @param nodeId the node ID to look up
      * @return the cached verifier, or null if the public key could not be resolved
      */
     @Nullable
     private BytesSignatureVerifier lookupVerifier(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
-        final Map<NodeId, BytesSignatureVerifier> rosterCache =
-                verifierCache.computeIfAbsent(roster, k -> new HashMap<>());
+        final ConcurrentMap<NodeId, BytesSignatureVerifier> rosterCache =
+                verifierCache.computeIfAbsent(roster, k -> new ConcurrentHashMap<>());
 
-        if (rosterCache.containsKey(nodeId)) {
-            return rosterCache.get(nodeId);
-        }
+        final BytesSignatureVerifier verifier =
+                rosterCache.computeIfAbsent(nodeId, k -> {
+                    final BytesSignatureVerifier created = createVerifier(roster, k);
+                    return created != null ? created : MISSING_VERIFIER;
+                });
 
-        final BytesSignatureVerifier verifier = createVerifier(roster, nodeId);
-        rosterCache.put(nodeId, verifier);
-        return verifier;
+        return verifier == MISSING_VERIFIER ? null : verifier;
     }
 
     /**
@@ -248,6 +261,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     @Override
     public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.verifierCache.clear();
+        // Replace with a new map rather than clearing — concurrent readers still hold
+        // a reference to the old map and can safely finish their lookups.
+        this.verifierCache = new ConcurrentHashMap<>();
     }
 }
