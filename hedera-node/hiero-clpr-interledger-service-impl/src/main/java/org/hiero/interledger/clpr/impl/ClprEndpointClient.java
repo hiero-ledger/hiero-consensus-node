@@ -151,6 +151,8 @@ public class ClprEndpointClient {
             final int selfIndex = selfIndex(sortedRoster, selfNodeInfo.nodeId());
             final long consensusRound = stateProofManager.getLatestConsensusRound();
             final long roundsPerRotation = Math.max(1, clprConfig.connectionFrequency() / 1000); // ~ 5
+            // The cycle is a quantization window that ensures nodes observing slightly different consensus rounds
+            // still agree on the assignment.
             final long cycle = consensusRound / roundsPerRotation;
 
             for (final var entry : configsByLedgerId.entrySet()) {
