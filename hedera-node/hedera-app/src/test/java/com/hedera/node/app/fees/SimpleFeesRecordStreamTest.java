@@ -209,7 +209,18 @@ public class SimpleFeesRecordStreamTest {
                             json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
                             json.key("status",record.getReceipt().getStatus().name());
                             json.key("signed_txn_size",signedTxnBytes.size());
+                            json.key("sigmap_pair_size", signedTxn.getSigMap().getSigPairList().size());
+                            json.key("serialized_size", signedTxn.getSerializedSize());
+                            json.key("serial_numbers_count",record.getReceipt().getSerialNumbersCount());
+                            json.key("assessed_custom_fees_count", record.getAssessedCustomFeesCount());
+                            json.key("automatic_token_assocations_count",record.getAutomaticTokenAssociationsCount());
+                            json.key("high_volume_pricing_muliplier",record.getHighVolumePricingMultiplier());
+                            json.key("new_pending_airdrops_count",record.getNewPendingAirdropsCount());
+                            json.key("paid_staking_rewards_count",record.getPaidStakingRewardsCount());
+                            json.key("record_serialized_size",record.getSerializedSize());
+                            json.key("token_transfer_lists_count",record.getTokenTransferListsCount());
                             json.key("memo",body.memo());
+                            json.key("body", body.toString());
                             //{ "name":"CRYPTO_TRANSFER", "account" : 10231006 , "seconds" : 1770230700 , "nanos" : 779324416 ,
                             // "nonce" : 0 , "fee" : 112235 , "status":"SUCCESS", "signedTxnBytes" : 183 , "custom_fees_count" : 0 , "memo":""}
                             json.endRecord();
