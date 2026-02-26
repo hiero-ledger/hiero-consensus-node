@@ -159,7 +159,7 @@ public class ClprEndpointClient {
                     continue;
                 }
                 if (!isAssignedToLedger(remoteLedgerId, cycle, selfIndex, sortedRoster.size())) {
-                    log.debug(
+                    log.info(
                             "CLPR Endpoint: Skipping ledger {} (not assigned this cycle; cycle={}, selfIndex={})",
                             remoteLedgerId,
                             cycle,
@@ -199,6 +199,11 @@ public class ClprEndpointClient {
         }
         final int ledgerHash = Math.floorMod(remoteLedgerId.ledgerId().hashCode(), rosterSize);
         final int assignedIndex = Math.floorMod(ledgerHash + (int) cycle, rosterSize);
+        log.info(
+                "CLPR Endpoint: Current cycle {}; Assigned node {} for {}",
+                cycle,
+                assignedIndex,
+                remoteLedgerId);
         return assignedIndex == selfIndex;
     }
 
