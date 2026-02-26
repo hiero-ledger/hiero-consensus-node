@@ -3,6 +3,8 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -19,8 +21,10 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
+import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -227,6 +231,42 @@ class SimpleFeeCalculatorImplTest {
 
         // Should not throw and should return a valid fee
         assertThat(result.totalTinycents()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("State signature transaction is free without a service fee calculator")
+    void calculateTxFee_stateSignatureTransaction_isAlwaysFree() {
+        final var simpleFeeContext = createMockSimpleFeeContext(STATE_SIGNATURE_TRANSACTION);
+        final var calculator =
+                new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
+        final var txnBody = TransactionBody.newBuilder()
+                .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
+                .build();
+
+        final var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
+
+        assertThat(result.totalTinycents()).isZero();
+        verify(congestionMultipliers, never())
+                .maxCurrentMultiplier(
+                        any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class));
+    }
+
+    @Test
+    @DisplayName("System delete is free without a service fee calculator")
+    void calculateTxFee_systemDeleteTransaction_isAlwaysFree() {
+        final var simpleFeeContext = createMockSimpleFeeContext(SYSTEM_DELETE);
+        final var calculator =
+                new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
+        final var txnBody = TransactionBody.newBuilder()
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
+                .build();
+
+        final var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
+
+        assertThat(result.totalTinycents()).isZero();
+        verify(congestionMultipliers, never())
+                .maxCurrentMultiplier(
+                        any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class));
     }
 
     @Test

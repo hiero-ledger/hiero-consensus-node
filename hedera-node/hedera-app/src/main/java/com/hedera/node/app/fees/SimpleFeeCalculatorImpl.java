@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -42,6 +56,22 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     private static final Logger log = LogManager.getLogger(SimpleFeeCalculatorImpl.class);
+
+    public static final Set<HederaFunctionality> FREE_OR_INTERNAL_TRANSACTIONS = Set.of(
+            HISTORY_PROOF_KEY_PUBLICATION,
+            HINTS_KEY_PUBLICATION,
+            CRS_PUBLICATION,
+            HINTS_PREPROCESSING_VOTE,
+            HINTS_PARTIAL_SIGNATURE,
+            HISTORY_ASSEMBLY_SIGNATURE,
+            HISTORY_PROOF_VOTE,
+            LEDGER_ID_PUBLICATION,
+            STATE_SIGNATURE_TRANSACTION,
+            UNCHECKED_SUBMIT,
+            HOOK_DISPATCH,
+            NODE_STAKE_UPDATE,
+            SYSTEM_DELETE,
+            SYSTEM_UNDELETE);
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
@@ -116,6 +146,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
+        final var functionality = simpleFeeContext.functionality();
+        if (isFreeOrInternal(functionality)) {
+            return new FeeResult();
+        }
+
         // Extract primitive counts (no allocations)
         final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
@@ -128,11 +163,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
         result.setNetworkMultiplier(multiplier);
 
-        final var serviceFeeCalculator =
-                serviceFeeCalculators.get(txnBody.data().kind());
+        final var serviceFeeCalculator = requireNonNull(
+                serviceFeeCalculators.get(txnBody.data().kind()),
+                "No ServiceFeeCalculator registered for " + txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
-        final var functionality = simpleFeeContext.functionality();
         final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
@@ -144,6 +179,14 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         }
 
         return result;
+    }
+
+    private boolean isFreeOrInternal(@NonNull final HederaFunctionality functionality) {
+        if (FREE_OR_INTERNAL_TRANSACTIONS.contains(functionality)) {
+            return true;
+        }
+        final var serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
+        return serviceFeeDefinition != null && serviceFeeDefinition.free();
     }
 
     /**

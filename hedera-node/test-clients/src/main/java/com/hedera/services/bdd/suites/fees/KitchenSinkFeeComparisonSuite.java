@@ -2604,48 +2604,43 @@ public class KitchenSinkFeeComparisonSuite {
     private static List<SpecOperation> networkTransactions(String prefix, Map<String, Long> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        if (prefix.startsWith("simple")) {
-            ops.add(withOpContext((spec, opLog) -> LOG.warn(
-                    "Skipping SystemDelete/SystemUndelete for simple fees; simpleFeesSchedules.json lacks entries.")));
-        } else {
-            // ===== SystemDelete (file) =====
-            addWithSigVariants(
-                    ops,
-                    prefix + "SystemDelete",
-                    "no extras",
-                    feeMap,
-                    new String[] {SYSTEM_DELETE_ADMIN},
-                    txnName -> fileCreate(txnName + "SysFile")
-                            .contents("sys-delete")
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
-                    (txnName, signers) -> systemFileDelete(txnName + "SysFile")
-                            .updatingExpiry(1L)
-                            .payingWith(SYSTEM_DELETE_ADMIN)
-                            .signedBy(signers)
-                            .fee(ONE_HUNDRED_HBARS));
+        // ===== SystemDelete (file) =====
+        addWithSigVariants(
+                ops,
+                prefix + "SystemDelete",
+                "no extras",
+                feeMap,
+                new String[] {SYSTEM_DELETE_ADMIN},
+                txnName -> fileCreate(txnName + "SysFile")
+                        .contents("sys-delete")
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS),
+                (txnName, signers) -> systemFileDelete(txnName + "SysFile")
+                        .updatingExpiry(1L)
+                        .payingWith(SYSTEM_DELETE_ADMIN)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
 
-            // ===== SystemUndelete (file) =====
-            addWithSigVariants(
-                    ops,
-                    prefix + "SystemUndelete",
-                    "no extras",
-                    feeMap,
-                    new String[] {SYSTEM_UNDELETE_ADMIN},
-                    txnName -> blockingOrder(
-                            fileCreate(txnName + "SysFile")
-                                    .contents("sys-undelete")
-                                    .payingWith(PAYER)
-                                    .fee(ONE_HUNDRED_HBARS),
-                            systemFileDelete(txnName + "SysFile")
-                                    .updatingExpiry(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS)
-                                    .payingWith(SYSTEM_DELETE_ADMIN)
-                                    .fee(ONE_HUNDRED_HBARS)),
-                    (txnName, signers) -> systemFileUndelete(txnName + "SysFile")
-                            .payingWith(SYSTEM_UNDELETE_ADMIN)
-                            .signedBy(signers)
-                            .fee(ONE_HUNDRED_HBARS));
-        }
+        // ===== SystemUndelete (file) =====
+        addWithSigVariants(
+                ops,
+                prefix + "SystemUndelete",
+                "no extras",
+                feeMap,
+                new String[] {SYSTEM_UNDELETE_ADMIN},
+                txnName -> blockingOrder(
+                        fileCreate(txnName + "SysFile")
+                                .contents("sys-undelete")
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        systemFileDelete(txnName + "SysFile")
+                                .updatingExpiry(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS)
+                                .payingWith(SYSTEM_DELETE_ADMIN)
+                                .fee(ONE_HUNDRED_HBARS)),
+                (txnName, signers) -> systemFileUndelete(txnName + "SysFile")
+                        .payingWith(SYSTEM_UNDELETE_ADMIN)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
 
         // ===== Freeze (abort) =====
         addWithSigVariants(
