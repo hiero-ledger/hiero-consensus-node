@@ -22,8 +22,8 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.merkle.vm.VirtualMapWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
@@ -159,7 +159,7 @@ class SerializationTest extends MerkleTestBase {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), config);
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), config);
         stateLifecycleManager.initWithState(randomState.getState());
 
         final VirtualMapState originalTree = stateLifecycleManager.getLatestImmutableState();

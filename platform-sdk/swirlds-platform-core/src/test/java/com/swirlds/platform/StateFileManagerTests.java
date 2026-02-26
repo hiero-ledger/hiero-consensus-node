@@ -38,8 +38,8 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -99,8 +99,8 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), context.getConfiguration());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                context.getMetrics(), context.getTime(), context.getConfiguration());
     }
 
     @AfterEach
@@ -424,8 +424,8 @@ class StateFileManagerTests {
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
         destroyStateLifecycleManager(stateLifecycleManager);
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), context.getConfiguration());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                context.getMetrics(), context.getTime(), context.getConfiguration());
 
         stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getMutableState().release();

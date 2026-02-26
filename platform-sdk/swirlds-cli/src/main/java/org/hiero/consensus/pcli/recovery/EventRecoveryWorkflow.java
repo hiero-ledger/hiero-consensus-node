@@ -33,8 +33,8 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.platform.util.HederaUtils;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -119,8 +119,9 @@ public final class EventRecoveryWorkflow {
         // FUTURE-WORK: Follow Browser approach
         final SwirldMain hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
 
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
@@ -238,7 +239,8 @@ public final class EventRecoveryWorkflow {
         final Configuration configuration = platformContext.getConfiguration();
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new StateLifecycleManagerImpl(platformContext.getMetrics(), platformContext.getTime(), configuration);
+                new VirtualMapStateLifecycleManager(
+                        platformContext.getMetrics(), platformContext.getTime(), configuration);
         stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
         final ReservedSignedState workingSignedState =

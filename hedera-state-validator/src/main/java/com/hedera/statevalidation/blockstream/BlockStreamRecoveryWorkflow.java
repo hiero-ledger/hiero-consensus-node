@@ -15,8 +15,8 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,10 +59,11 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final String expectedHash)
             throws IOException {
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                getPlatformContext().getMetrics(),
-                getPlatformContext().getTime(),
-                getPlatformContext().getConfiguration());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        getPlatformContext().getMetrics(),
+                        getPlatformContext().getTime(),
+                        getPlatformContext().getConfiguration());
 
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
@@ -149,8 +150,9 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 false);
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext, selfId, outputPath, signedState, stateLifecycleManager);

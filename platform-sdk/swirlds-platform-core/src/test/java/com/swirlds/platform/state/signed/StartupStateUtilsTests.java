@@ -32,8 +32,8 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
@@ -159,7 +159,7 @@ public class StartupStateUtilsTests {
     }
 
     private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
-        return new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+        return new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
     }
 
     @Test

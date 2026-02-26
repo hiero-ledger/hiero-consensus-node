@@ -18,8 +18,8 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.time.Duration;
@@ -107,7 +107,7 @@ final class ReconnectTest {
 
         final VirtualMapState stateCopy;
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), configuration);
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             stateLifecycleManager.initWithState(createTestState());
             final SignedState signedState = new RandomSignedStateGenerator()

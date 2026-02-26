@@ -33,8 +33,8 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -231,7 +231,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .build();
 
             final StateLifecycleManager stateLifecycleManager =
-                    new StateLifecycleManagerImpl(metrics, timeManager.time(), currentConfiguration);
+                    new VirtualMapStateLifecycleManager(metrics, timeManager.time(), currentConfiguration);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()

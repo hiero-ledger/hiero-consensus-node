@@ -43,9 +43,9 @@ import org.hiero.base.crypto.Hash;
  * <b>Important:</b> {@link #copyMutableState()} is NOT supposed to be called from multiple threads.
  * It only provides the happens-before guarantees that are described above.
  */
-public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMapState, VirtualMap> {
+public class VirtualMapStateLifecycleManager implements StateLifecycleManager<VirtualMapState, VirtualMap> {
 
-    private static final Logger log = LogManager.getLogger(StateLifecycleManagerImpl.class);
+    private static final Logger log = LogManager.getLogger(VirtualMapStateLifecycleManager.class);
 
     /**
      * Metrics for the state object
@@ -88,7 +88,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
      * @param time the time object
      * @param configuration the configuration
      */
-    public StateLifecycleManagerImpl(
+    public VirtualMapStateLifecycleManager(
             @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);

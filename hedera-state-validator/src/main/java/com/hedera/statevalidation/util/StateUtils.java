@@ -64,9 +64,9 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
@@ -183,7 +183,7 @@ public final class StateUtils {
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
             final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                    new StateLifecycleManagerImpl(
+                    new VirtualMapStateLifecycleManager(
                             platformContext.getMetrics(),
                             platformContext.getTime(),
                             platformContext.getConfiguration());

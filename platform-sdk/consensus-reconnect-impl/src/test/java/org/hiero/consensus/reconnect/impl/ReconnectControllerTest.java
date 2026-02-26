@@ -38,8 +38,8 @@ import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -137,7 +137,7 @@ class ReconnectControllerTest {
                 .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
                 .getOrCreateConfig();
 
-        stateLifecycleManager = new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), configuration);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
         stateLifecycleManager.initWithState(createTestState());
         // Create test states
         testSignedState = new RandomSignedStateGenerator(random)

@@ -33,7 +33,7 @@ class StateMetrics {
     }
 
     /**
-     * Records the time it takes {@link StateLifecycleManagerImpl#copyMutableState()} to finish (in microseconds)
+     * Records the time it takes {@link VirtualMapStateLifecycleManager#copyMutableState()} to finish (in microseconds)
      *
      * @param micros
      * 		the amount of time in microseconds

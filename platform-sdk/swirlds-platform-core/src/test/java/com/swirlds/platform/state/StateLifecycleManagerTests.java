@@ -20,8 +20,8 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -59,7 +59,7 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        stateLifecycleManager = new StateLifecycleManagerImpl(
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         stateLifecycleManager.initWithState(initialState);
     }
@@ -97,7 +97,7 @@ class StateLifecycleManagerTests {
                 2,
                 state1.getRoot().getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
-                        + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
+                        + "signed state and the previous immutable state in VirtualMapStateLifecycleManager.");
         final VirtualMapState consensusState1 = stateLifecycleManager.getMutableState();
         assertEquals(
                 1,
@@ -113,7 +113,7 @@ class StateLifecycleManagerTests {
                 2,
                 state2.getRoot().getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
-                        + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
+                        + "signed state and the previous immutable state in VirtualMapStateLifecycleManager.");
         assertEquals(
                 1,
                 consensusState2.getRoot().getReservationCount(),

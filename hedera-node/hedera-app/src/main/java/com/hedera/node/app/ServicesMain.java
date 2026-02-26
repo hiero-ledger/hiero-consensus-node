@@ -57,8 +57,8 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
@@ -97,7 +97,7 @@ public class ServicesMain {
      *     registering their no-op constructors as the default factories for their
      *     class ids.</li>
      *     <li>Create the application's {@link Hedera} singleton, which initializes an instance of
-     *     {@link StateLifecycleManagerImpl} to manage state instances.</li>
+     *     {@link VirtualMapStateLifecycleManager} to manage state instances.</li>
      *     <li>Determine this node's <b>self id</b> by searching the <i>config.txt</i>
      *     in the working directory for any address book entries with IP addresses
      *     local to this machine; if there is more than one such entry, fail unless
@@ -181,7 +181,6 @@ public class ServicesMain {
         final VirtualMapState state = initialState.get().getState();
 
         // Determine whether we are starting from genesis or restarting from a saved state.
-        // A genesis state has no creation software version set in the platform state.
         final boolean isGenesis = initialState.get().isGenesisState();
 
         if (isGenesis) {

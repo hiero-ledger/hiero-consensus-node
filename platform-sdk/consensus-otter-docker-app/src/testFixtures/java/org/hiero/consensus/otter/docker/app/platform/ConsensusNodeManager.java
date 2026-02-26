@@ -26,8 +26,8 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
@@ -111,7 +111,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager =
-                new StateLifecycleManagerImpl(metrics, time, platformConfig);
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
