@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Merge Queue Performance Test Controller - Adhoc"
+name: "ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller"
 on:
   workflow_dispatch:
     inputs:
