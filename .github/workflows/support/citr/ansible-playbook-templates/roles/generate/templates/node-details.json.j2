@@ -1,0 +1,21 @@
+{
+  "entries": [
+{% for node_name, proxy_ips in node_proxy_list.items() | sort %}
+  {
+    "stake" : {{ hostvars[node_name]['stake'] }},
+    "nodeAccount" : "{{ hostvars[node_name]['NODE_ID'] }}",
+    "nodeId" : {{ hostvars[node_name]['NODE_NUM'] }},
+    "certHash" : "{{ node_proxy_shasum[node_name] }}",
+    "rsaPubKey" : "{{ node_pubkey[node_name] }}",
+    "endpoints" : [
+{% for proxy_ip in proxy_ips  | sort | reverse %}
+        { "ipAddressV4" : "{{ proxy_ip }}", "port" : 50211 },
+        { "ipAddressV4" : "{{ proxy_ip }}", "port" : 50212 }{% if not loop.last %},{% endif %}
+
+{% endfor %}
+    ],
+    "description": "{{ hostvars[node_name]['address_book_description'] | default("") }}"
+  }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}
