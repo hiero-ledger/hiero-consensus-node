@@ -103,7 +103,7 @@ class ClprEndpointClientTest extends ClprTestBase {
         when(selfNodeInfo.zeroWeight()).thenReturn(false);
         // Single-node roster: ensures round-robin always assigns all ledgers to this node
         when(networkInfo.addressBook()).thenReturn(List.of(selfNodeInfo));
-        when(stateProofManager.getLatestConsensusRound()).thenReturn(0L);
+        when(stateProofManager.getLatestConsensusTimestamp()).thenReturn(Instant.ofEpochSecond(0));
         selfAccountId = AccountID.newBuilder().accountNum(3).build();
         payerAccountId = AccountID.newBuilder().accountNum(2).build();
         when(selfNodeInfo.accountId()).thenReturn(selfAccountId);
@@ -217,21 +217,19 @@ class ClprEndpointClientTest extends ClprTestBase {
         when(node2.zeroWeight()).thenReturn(false);
         when(networkInfo.addressBook()).thenReturn(List.of(node0, selfNodeInfo, node2));
 
-        // Choose a consensus round such that the remote ledger is NOT assigned to this node.
-        // selfIndex = 1, N = 3, roundsPerRotation = max(1, 5000/1000) = 5
+        // Choose a consensus timestamp such that the remote ledger is NOT assigned to this node.
+        // selfIndex = 1, N = 3, rotationPeriodSeconds = max(1, 5000/1000) = 5
+        // cycle = epochSecond / 5
         // We need: (ledgerHash + cycle) mod 3 != 1
-        // Brute-force: try round=0 -> cycle=0 -> assignedIndex = ledgerHash mod 3
-        // If ledgerHash mod 3 != 1, round=0 works; otherwise try round=5 -> cycle=1
         final int ledgerHash = Math.floorMod(remoteClprLedgerId.ledgerId().hashCode(), 3);
-        // Pick a round where (ledgerHash + cycle) mod 3 != 1
-        long testRound = 0;
+        long testEpochSecond = 0;
         for (int c = 0; c < 3; c++) {
             if (Math.floorMod(ledgerHash + c, 3) != 1) {
-                testRound = (long) c * 5; // cycle = testRound / 5 = c
+                testEpochSecond = (long) c * 5; // cycle = epochSecond / 5 = c
                 break;
             }
         }
-        when(stateProofManager.getLatestConsensusRound()).thenReturn(testRound);
+        when(stateProofManager.getLatestConsensusTimestamp()).thenReturn(Instant.ofEpochSecond(testEpochSecond));
 
         final var localConfig = localClprConfig;
         final var remoteStored = remoteClprConfig
@@ -265,18 +263,19 @@ class ClprEndpointClientTest extends ClprTestBase {
         when(node2.zeroWeight()).thenReturn(false);
         when(networkInfo.addressBook()).thenReturn(List.of(node0, selfNodeInfo, node2));
 
-        // Choose a consensus round such that the remote ledger IS assigned to this node.
-        // selfIndex = 1, N = 3, roundsPerRotation = 5
+        // Choose a consensus timestamp such that the remote ledger IS assigned to this node.
+        // selfIndex = 1, N = 3, rotationPeriodSeconds = 5
+        // cycle = epochSecond / 5
         // We need: (ledgerHash + cycle) mod 3 == 1
         final int ledgerHash = Math.floorMod(remoteClprLedgerId.ledgerId().hashCode(), 3);
-        long testRound = 0;
+        long testEpochSecond = 0;
         for (int c = 0; c < 3; c++) {
             if (Math.floorMod(ledgerHash + c, 3) == 1) {
-                testRound = (long) c * 5;
+                testEpochSecond = (long) c * 5;
                 break;
             }
         }
-        when(stateProofManager.getLatestConsensusRound()).thenReturn(testRound);
+        when(stateProofManager.getLatestConsensusTimestamp()).thenReturn(Instant.ofEpochSecond(testEpochSecond));
 
         final var localConfig = localClprConfig;
         final var remoteNodeAccountId = AccountID.newBuilder().accountNum(7).build();
