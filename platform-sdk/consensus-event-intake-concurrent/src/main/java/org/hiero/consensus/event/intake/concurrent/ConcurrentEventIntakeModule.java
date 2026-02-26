@@ -23,6 +23,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -110,11 +111,15 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
                 .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::clear), INJECT);
 
         // --- Wire metrics ---
+        // Per-stage metrics are recorded inside the processor itself (hashing, validation,
+        // deduplication, verification). We only need to register the stage names here and
+        // wire the orphan buffer output metric externally.
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("intake");
-            processorWiring
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("intake", platformEvent));
+            pipelineTracker.registerMetric(
+                    DefaultEventIntakeProcessor.STAGE_HASHING, EventOrigin.GOSSIP, EventOrigin.STORAGE);
+            pipelineTracker.registerMetric(DefaultEventIntakeProcessor.STAGE_VALIDATION);
+            pipelineTracker.registerMetric(DefaultEventIntakeProcessor.STAGE_DEDUPLICATION);
+            pipelineTracker.registerMetric(DefaultEventIntakeProcessor.STAGE_VERIFICATION);
             pipelineTracker.registerMetric("orphanBuffer");
             orphanBufferWiring
                     .getSplitOutput()
@@ -132,7 +137,7 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
                 new DefaultEventFieldValidator(metrics, time, transactionLimits);
         final EventIntakeProcessor processor = new DefaultEventIntakeProcessor(
                 metrics, time, eventHasher, eventFieldValidator, SigningFactory::createVerifier,
-                rosterHistory, intakeEventCounter);
+                rosterHistory, intakeEventCounter, pipelineTracker);
         processorWiring.bind(processor);
 
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);

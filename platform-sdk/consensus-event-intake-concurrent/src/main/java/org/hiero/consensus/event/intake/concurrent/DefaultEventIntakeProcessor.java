@@ -29,6 +29,7 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -77,6 +78,10 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
     private volatile EventWindow eventWindow = EventWindow.getGenesisEventWindow();
     private final IntakeEventCounter intakeEventCounter;
 
+    // --- Pipeline delay tracking (null when metrics are disabled) ---
+    @Nullable
+    private final EventPipelineTracker pipelineTracker;
+
     // --- Signature verification metrics ---
     private final RateLimitedLogger rateLimitedLogger;
 
@@ -102,6 +107,15 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
             .withFormat(FORMAT_10_2);
     private final RunningAverageMetric avgDuplicatePercent;
 
+    /** Stage name for pipeline tracking after hashing. */
+    static final String STAGE_HASHING = "hashing";
+    /** Stage name for pipeline tracking after field validation. */
+    static final String STAGE_VALIDATION = "validation";
+    /** Stage name for pipeline tracking after deduplication. */
+    static final String STAGE_DEDUPLICATION = "deduplication";
+    /** Stage name for pipeline tracking after signature verification. */
+    static final String STAGE_VERIFICATION = "verification";
+
     /**
      * Constructor.
      *
@@ -112,6 +126,7 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
      * @param verifierFactory    creates a {@link BytesSignatureVerifier} for a given public key
      * @param rosterHistory      the complete roster history
      * @param intakeEventCounter tracks event counts in the intake pipeline
+     * @param pipelineTracker    optional tracker for per-stage event delay metrics
      */
     public DefaultEventIntakeProcessor(
             @NonNull final Metrics metrics,
@@ -120,13 +135,15 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
             @NonNull final EventFieldValidator eventFieldValidator,
             @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker) {
 
         this.eventHasher = Objects.requireNonNull(eventHasher);
         this.eventFieldValidator = Objects.requireNonNull(eventFieldValidator);
         this.verifierFactory = Objects.requireNonNull(verifierFactory);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.pipelineTracker = pipelineTracker;
 
         this.rateLimitedLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
@@ -150,6 +167,7 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
     @Nullable
     public PlatformEvent processUnhashedEvent(@NonNull final PlatformEvent event) {
         eventHasher.hashEvent(event);
+        recordStage(STAGE_HASHING, event);
         return processHashedEvent(event);
     }
 
@@ -166,17 +184,18 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
         }
 
         // 2. Validate event fields (null checks, byte lengths, transaction limits, etc.)
-        //    The validator handles its own metrics and intakeEventCounter on failure.
         if (!eventFieldValidator.isValid(event)) {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             return null;
         }
+        recordStage(STAGE_VALIDATION, event);
 
         // 3. Deduplicate by (descriptor, signature) pair
         if (!deduplicate(event)) {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             return null;
         }
+        recordStage(STAGE_DEDUPLICATION, event);
 
         // 4. Verify signature (RUNTIME events are trusted — we just created and signed them)
         if (event.getOrigin() != EventOrigin.RUNTIME) {
@@ -186,8 +205,19 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
                 return null;
             }
         }
+        recordStage(STAGE_VERIFICATION, event);
 
         return event;
+    }
+
+    /**
+     * Record the pipeline delay for the given event at the named stage.
+     * No-op when pipeline tracking is disabled.
+     */
+    private void recordStage(@NonNull final String stage, @NonNull final PlatformEvent event) {
+        if (pipelineTracker != null) {
+            pipelineTracker.recordEvent(stage, event);
+        }
     }
 
     // =========================================================================

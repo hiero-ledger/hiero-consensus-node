@@ -105,11 +105,11 @@ class EventIntakeProcessorTests {
 
         processorWithTrueVerifier = new DefaultEventIntakeProcessor(
                 metrics, time, eventHasher, passingValidator, trueVerifierFactory,
-                rosterHistory, intakeEventCounter);
+                rosterHistory, intakeEventCounter, null);
 
         processorWithFalseVerifier = new DefaultEventIntakeProcessor(
                 metrics, time, eventHasher, passingValidator, falseVerifierFactory,
-                rosterHistory, intakeEventCounter);
+                rosterHistory, intakeEventCounter, null);
     }
 
     private RosterHistory buildRosterHistory(
@@ -166,7 +166,7 @@ class EventIntakeProcessorTests {
     void validationFailure() {
         final EventIntakeProcessor processor = new DefaultEventIntakeProcessor(
                 metrics, time, eventHasher, failingValidator, trueVerifierFactory,
-                rosterHistory, intakeEventCounter);
+                rosterHistory, intakeEventCounter, null);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
