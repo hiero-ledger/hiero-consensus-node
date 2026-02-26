@@ -14,7 +14,7 @@ There are several test suites that are run in the CITR environment, each with it
 | SDLT        | Single Day Longevity Tests    | Longevity tests to ensure stability over extended periods                              | X         |
 | SDPT        | Single Day Performance Tests  | Performance-focused tests to evaluate system responsiveness                            | X         |
 | MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            | X         |
-| MQLT        | Merge Queue Longevity Tests   | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
+| MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
 | Shortgevity | Short Longevity Tests         | Short-term longevity tests for checking performance against a mainnet-like environment |           |
 
 ## MATS
@@ -268,18 +268,18 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
 | Re-connects                             | At most 2 nodes in re-connect at the same time |
 
-## MQLT Merge Queue Longevity Tests
+## MQPT Merge Queue Performance Tests
 
 ### Environment
 
-- MQLT runs inside of self-hosted github runners regularly against Trunk.io Merge Queues
-- MQLT is expected to complete within 3 hours 40 mins of the test suite starting.
-- MQLT has a dry-run equivalent that can be run against any PR, tag, or branch.
+- MQPT runs inside of self-hosted github runners regularly against Trunk.io Merge Queues
+- MQPT is expected to complete within 3 hours 40 mins of the test suite starting.
+- MQPT has a dry-run equivalent that can be run against any PR, tag, or branch.
 
 ### Workflows
 
-- MQLT is triggered by the [ZXF: [CITR] Merge Queue Longevity Test Controller](/.github/workflows/zxf-mini-longevity-test-controller.yaml) workflow.
-- MQLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Merge Queue Longevity Test Controller](/.github/workflows/zxf-mini-longevity-test-controller-adhoc.yaml) workflow.
+- MQPT is triggered by the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller.yaml) workflow.
+- MQPT AdHoc Run is triggered manually via the [ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller-adhoc.yaml) workflow.
 
 ### Hardware
 
