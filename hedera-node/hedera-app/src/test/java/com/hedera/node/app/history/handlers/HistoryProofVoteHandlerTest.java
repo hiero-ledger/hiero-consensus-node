@@ -4,7 +4,6 @@ package com.hedera.node.app.history.handlers;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -20,6 +19,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.TssConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HistoryProofVoteHandlerTest {
     private static final long NODE_ID = 123L;
+    private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
 
     @Mock
     private ProofControllers controllers;
@@ -83,7 +84,6 @@ class HistoryProofVoteHandlerTest {
         subject.handle(context);
 
         verify(controllers).getInProgressById(1L, tssConfig);
-        verifyNoMoreInteractions(context);
     }
 
     @Test
@@ -96,11 +96,12 @@ class HistoryProofVoteHandlerTest {
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(context.consensusNow()).willReturn(CONSENSUS_NOW);
 
         subject.handle(context);
 
         verify(controllers).getInProgressById(1L, tssConfig);
-        verifyNoMoreInteractions(context);
+        verify(controller).addProofVote(NODE_ID, HistoryProofVote.DEFAULT, CONSENSUS_NOW, store);
     }
 
     private void givenVoteWith(final long constructionId, @NonNull final HistoryProofVote vote) {
