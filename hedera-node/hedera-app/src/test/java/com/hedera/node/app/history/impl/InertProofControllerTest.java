@@ -29,7 +29,7 @@ class InertProofControllerTest {
                 Instant.EPOCH, Bytes.EMPTY, store, true, DEFAULT_CONFIG.getConfigData(TssConfig.class)));
         assertDoesNotThrow(
                 () -> subject.addProofKeyPublication(new ProofKeyPublication(123L, Bytes.EMPTY, Instant.EPOCH)));
-        assertDoesNotThrow(() -> subject.addProofVote(123L, HistoryProofVote.DEFAULT, store));
+        assertDoesNotThrow(() -> subject.addProofVote(123L, HistoryProofVote.DEFAULT, Instant.EPOCH, store));
         assertDoesNotThrow(subject::cancelPendingWork);
     }
 }

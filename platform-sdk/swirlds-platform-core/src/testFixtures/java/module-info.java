@@ -24,7 +24,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
