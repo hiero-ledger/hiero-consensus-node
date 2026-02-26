@@ -10,6 +10,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,9 +41,7 @@ class EventStreamPathIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableRegistration.registerAllConstructables();
     }
 
     @Test
