@@ -49,6 +49,9 @@ class ProofControllersTest {
     private HistorySubmissions submissions;
 
     @Mock
+    private HistoryProofMetrics historyProofMetrics;
+
+    @Mock
     private WrapsMpcStateMachine machine;
 
     @Mock
@@ -71,7 +74,14 @@ class ProofControllersTest {
     @BeforeEach
     void setUp() {
         subject = new ProofControllers(
-                executor, keyAccessor, library, submissions, selfNodeInfoSupplier, historyService, machine);
+                executor,
+                keyAccessor,
+                library,
+                submissions,
+                selfNodeInfoSupplier,
+                historyService,
+                historyProofMetrics,
+                machine);
     }
 
     @Test
