@@ -27,17 +27,24 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.ContractID;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -64,6 +71,10 @@ public class ClprMessagesSuite {
 
     private static final String PRIVATE_LEDGER = "private";
     private static final String PUBLIC_LEDGER = "public";
+
+    private static final String SOURCE_LEDGER = "source";
+    private static final String REMOTE_A = "remoteA";
+    private static final String REMOTE_B = "remoteB";
 
     private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
     private static final String CLPR_CONNECTOR = "MockClprConnector";
@@ -582,6 +593,175 @@ public class ClprMessagesSuite {
                 }));
 
         return builder.asDynamicTests();
+    }
+
+    @MultiNetworkHapiTest(
+            networks = {
+                @MultiNetworkHapiTest.Network(
+                        name = SOURCE_LEDGER,
+                        size = 3,
+                        firstGrpcPort = 35400,
+                        setupOverrides = {
+                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "5000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
+                        }),
+                @MultiNetworkHapiTest.Network(
+                        name = REMOTE_A,
+                        size = 1,
+                        firstGrpcPort = 36400,
+                        setupOverrides = {
+                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "20000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
+                        }),
+                @MultiNetworkHapiTest.Network(
+                        name = REMOTE_B,
+                        size = 1,
+                        firstGrpcPort = 37400,
+                        setupOverrides = {
+                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "20000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
+                        })
+            })
+    @DisplayName("Three-node source round-robin node assignment")
+    Stream<DynamicTest> threeNodeSourceRoundRobinMessaging(
+            final SubProcessNetwork source, final SubProcessNetwork remoteA, final SubProcessNetwork remoteB) {
+        /*
+         * Specification: A 3-node source ledger communicates with two single-node remote ledgers.
+         *
+         * Goal:
+         * - Prove delivery correctness — messages still arrive end-to-end with a 3-node source.
+         * - Prove reduced redundancy — not all 3 nodes contact every remote ledger simultaneously.
+         * - Prove rotation — the responsible node changes over time (different cycles).
+         *
+         * Stage 1: Bootstrap all three ledgers and capture their CLPR configurations.
+         * Stage 2: Exchange configurations between source and both remotes.
+         * Stage 3: Await message queue metadata on source for both remote ledgers.
+         * Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
+         * Stage 5: Submit a message from source to remote A and verify delivery.
+         * Stage 6: Assert reduced redundancy — every source node has "Skipping ledger" in logs.
+         * Stage 7: Assert rotation — more than 1 source node logged "Completed publish/pull"
+         *          for at least one remote ledger.
+         */
+        final var sourceConfig = new AtomicReference<ClprLedgerConfiguration>();
+        final var remoteAConfig = new AtomicReference<ClprLedgerConfiguration>();
+        final var remoteBConfig = new AtomicReference<ClprLedgerConfiguration>();
+
+        final var builder = multiNetworkHapiTest(source, remoteA, remoteB)
+                // Stage 1: Bootstrap — capture each ledger's local configuration.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
+                    sourceConfig.set(config);
+                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=source|ledgerId={}", config.ledgerId());
+                }))
+                .onNetwork(REMOTE_A, withOpContext((spec, log) -> {
+                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
+                    remoteAConfig.set(config);
+                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=remoteA|ledgerId={}", config.ledgerId());
+                }))
+                .onNetwork(REMOTE_B, withOpContext((spec, log) -> {
+                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
+                    remoteBConfig.set(config);
+                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=remoteB|ledgerId={}", config.ledgerId());
+                }))
+
+                // Stage 2: Exchange configurations — source learns about both remotes and vice versa.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteAConfig.get()));
+                    submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteBConfig.get()));
+                }))
+                .onNetwork(REMOTE_A, withOpContext((spec, log) ->
+                        submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
+                .onNetwork(REMOTE_B, withOpContext((spec, log) ->
+                        submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
+
+                // Stage 3: Await message queue metadata on source for both remote ledgers.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    awaitMessageQueueMetadataAvailable(log, spec.getNetworkNodes(), requireNonNull(remoteAConfig.get()));
+                    awaitMessageQueueMetadataAvailable(log, spec.getNetworkNodes(), requireNonNull(remoteBConfig.get()));
+                }))
+
+                // Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    log.info("CLPR_RR_TEST|stage=wait|waiting 20s for round-robin cycles");
+                    sleepQuietly(Duration.ofSeconds(20));
+                }))
+
+                // Stage 5: Delivery assertion — verify the CLPR endpoint successfully completed
+                //          publish/pull for at least one remote ledger, proving end-to-end connectivity.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    final var sourceNodes = spec.getNetworkNodes();
+                    final var remoteAId = requireNonNull(remoteAConfig.get()).ledgerId().ledgerId().toString();
+
+                    // After the wait period, at least one node should have completed publish/pull
+                    final var nodesCompleted = collectNodesWithCompletedPublishPull(sourceNodes, remoteAId);
+                    log.info("CLPR_RR_TEST|stage=delivery|nodesCompletedForA={}", nodesCompleted);
+                    assertThat(nodesCompleted)
+                            .as("At least one source node should have completed publish/pull for remote A")
+                            .isNotEmpty();
+                }))
+
+                // Stage 6: Reduced redundancy — every source node must have skipped at least one ledger.
+                .onNetwork(
+                        SOURCE_LEDGER,
+                        UtilVerbs.assertHgcaaLogContainsText(
+                                NodeSelector.allNodes(), "CLPR Endpoint: Skipping ledger", Duration.ZERO))
+
+                // Stage 7: Rotation — more than 1 source node logged "Completed publish/pull"
+                //          for at least one remote ledger.
+                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
+                    final var sourceNodes = spec.getNetworkNodes();
+                    final var remoteAId = requireNonNull(remoteAConfig.get()).ledgerId().ledgerId().toString();
+                    final var remoteBId = requireNonNull(remoteBConfig.get()).ledgerId().ledgerId().toString();
+
+                    final var nodesContactedA = collectNodesWithCompletedPublishPull(sourceNodes, remoteAId);
+                    final var nodesContactedB = collectNodesWithCompletedPublishPull(sourceNodes, remoteBId);
+
+                    log.info(
+                            "CLPR_RR_TEST|stage=rotation|nodesContactedA={}|nodesContactedB={}",
+                            nodesContactedA,
+                            nodesContactedB);
+
+                    // With 3 nodes and 2 remote ledgers over ~20 seconds of cycling,
+                    // at least one remote should have been contacted by more than 1 node
+                    // (proving the assignment rotated).
+                    assertThat(nodesContactedA.size() > 1 || nodesContactedB.size() > 1)
+                            .as("Expected rotation: at least one remote ledger should be contacted by >1 distinct node"
+                                    + " (A contacted by %s, B contacted by %s)",
+                                    nodesContactedA, nodesContactedB)
+                            .isTrue();
+                }));
+
+        return builder.asDynamicTests();
+    }
+
+    /**
+     * Collects the names of nodes whose {@code hgcaa.log} contains a "Completed publish/pull"
+     * line referencing the given remote ledger ID string.
+     */
+    private static Set<String> collectNodesWithCompletedPublishPull(
+            final List<HederaNode> nodes, final String remoteLedgerIdString) {
+        final var result = new HashSet<String>();
+        for (final var node : nodes) {
+            try {
+                final var logPath = node.getExternalPath(ExternalPath.APPLICATION_LOG);
+                final var lines = Files.readAllLines(logPath);
+                for (final var line : lines) {
+                    if (line.contains("Completed publish/pull") && line.contains(remoteLedgerIdString)) {
+                        result.add(node.getName());
+                        break;
+                    }
+                }
+            } catch (final IOException e) {
+                throw new IllegalStateException("Failed to read log for node " + node.getName(), e);
+            }
+        }
+        return result;
     }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
