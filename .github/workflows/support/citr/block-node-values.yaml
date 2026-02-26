@@ -32,10 +32,45 @@ tolerations:
 blockNode:
   persistence:
     archive:
-      size: 16Gi
-    live:
-      size: 4Gi
+      # name of the volume within the statefulset
+      volumeName: "archive-storage"
+      # Name of the subPath in the volume to mount to mountPath in the container
+      subPath: "archive-data"
+      # should match PERSISTENCE_STORAGE_ARCHIVE_ROOT_PATH, leave as is for default.
+      mountPath: "/opt/hiero/block-node/data/historic"
+      size: 800Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "archive-storage-block-node-%NODE_ID%-0"
     logging:
+      # name of the volume within the statefulset
+      volumeName: "logging-storage"
+      mountPath: "/opt/hiero/block-node/logs"
       size: 2Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "logging-storage-block-node-%NODE_ID%-0"
+    live:
+      # name of the volume within the statefulset
+      volumeName: "live-storage"
+      # Name of the subPath in the volume to mount to mountPath in the container
+      subPath: "live-data"
+      # should match PERSISTENCE_STORAGE_LIVE_ROOT_PATH, leave as is for default.
+      mountPath: "/opt/hiero/block-node/data/live"
+      size: 20Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "live-storage-block-node-%NODE_ID%-0"
     verification:
-      size: 500Mi
+      # name of the volume within the statefulset
+      volumeName: "verification-storage"
+      # should match VERIFICATION_ALL_BLOCKS_HASHER_FILE_PATH parent directory
+      mountPath: "/opt/hiero/block-node/verification"
+      size: 1Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "verification-storage-block-node-%NODE_ID%-0"

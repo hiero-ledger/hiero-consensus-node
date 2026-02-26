@@ -518,13 +518,29 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
+          mv block-node-values.yaml block-node-values.yaml.orig
           export BLOCK_NODE_VERSION="${{ env.BlockNode_version }}"
 
-          #FIXME: when root access and entrypoint fixed
+          #create local-path-storage
+          sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
+          echo "kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
+
+
           if [ 1 -eq 1 ]
           then
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
+
+           #create PVC values.yaml from template
+           for pvc_name in 
+           do
+             sed -e "s@%NODE_ID%@${i}@g" -e "s@%PVC_NAME%@${pvc_name}@g" "${{ github.workspace }}"/.github/workflows/support/citr/block-node-pvc.yaml > block-node-pvc_${pvc_name}_${i}.yaml
+             echo "kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml"
+             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml
+           done
+           sleep 10
+           sed -e "s@%NODE_ID%@${i}@g" block-node-values.yaml.orig > block-node-values.yaml
            task solo:block:add
           done
           sleep 30
