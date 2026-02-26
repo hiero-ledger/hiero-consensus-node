@@ -17,10 +17,11 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
-import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -42,9 +43,11 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
     /**
-     * A verifier for checking event signatures.
+     * Factory that creates a {@link BytesSignatureVerifier} for a given public key. The resulting
+     * verifier instance is cached per (roster, node) so that the factory is only called once per
+     * node per roster, avoiding repeated object creation and key extraction overhead.
      */
-    private final SignatureVerifier signatureVerifier;
+    private final Function<PublicKey, BytesSignatureVerifier> verifierFactory;
 
     /**
      * The complete roster history, i.e. all rosters for non-ancient rounds.
@@ -67,16 +70,16 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final RateLimitedLogger rateLimitedLogger;
 
     /**
-     * Cache of public keys per roster and node ID. Avoids repeated roster entry lookups,
-     * X.509 certificate parsing, and public key extraction for every event. The outer map is
-     * keyed by {@link Roster} reference identity (rosters from {@link RosterHistory} are
-     * interned by hash), and the inner map is keyed by {@link NodeId}.
+     * Cache of signature verifiers per roster and node ID. Avoids repeated roster entry lookups,
+     * X.509 certificate parsing, public key extraction, and verifier object creation for every
+     * event. The outer map is keyed by {@link Roster} reference identity (rosters from
+     * {@link RosterHistory} are interned by hash), and the inner map is keyed by {@link NodeId}.
      *
-     * <p>A {@code null} value in the inner map means the public key could not be resolved
-     * for that node (missing roster entry, null certificate, etc.) and the lookup should
-     * not be re-attempted until the roster changes.
+     * <p>A {@code null} value in the inner map means the verifier could not be created for that
+     * node (missing roster entry, null certificate, etc.) and the lookup should not be
+     * re-attempted until the roster changes.
      */
-    private final Map<Roster, Map<NodeId, PublicKey>> publicKeyCache = new HashMap<>();
+    private final Map<Roster, Map<NodeId, BytesSignatureVerifier>> verifierCache = new HashMap<>();
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
@@ -89,18 +92,18 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      *
      * @param metrics                the metrics system
      * @param time                   the time source
-     * @param signatureVerifier      a verifier for checking event signatures
+     * @param verifierFactory        a factory that creates a {@link BytesSignatureVerifier} for a given public key
      * @param rosterHistory          the complete roster history
      * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final SignatureVerifier signatureVerifier,
+            @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
             @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter) {
 
-        this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
+        this.verifierFactory = Objects.requireNonNull(verifierFactory);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
@@ -128,13 +131,13 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         }
 
         final NodeId eventCreatorId = event.getCreatorId();
-        final PublicKey publicKey = lookupPublicKey(applicableRoster, eventCreatorId);
-        if (publicKey == null) {
+        final BytesSignatureVerifier verifier = lookupVerifier(applicableRoster, eventCreatorId);
+        if (verifier == null) {
             return false;
         }
 
         final boolean isSignatureValid =
-                signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
+                verifier.verify(event.getHash().getBytes(), event.getSignature());
 
         if (!isSignatureValid) {
             rateLimitedLogger.error(
@@ -149,37 +152,38 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     }
 
     /**
-     * Look up the public key for a given node in the given roster, using the cache to avoid
-     * repeated roster entry lookups, X.509 certificate parsing, and public key extraction.
+     * Look up the cached signature verifier for a given node in the given roster. On the first
+     * call for a (roster, node) pair, this resolves the public key from the roster and creates
+     * a {@link BytesSignatureVerifier} via the factory. Subsequent calls return the cached instance.
      *
      * @param roster the roster to look up the node in
      * @param nodeId the node ID to look up
-     * @return the public key, or null if it could not be resolved
+     * @return the cached verifier, or null if the public key could not be resolved
      */
     @Nullable
-    private PublicKey lookupPublicKey(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
-        final Map<NodeId, PublicKey> rosterCache =
-                publicKeyCache.computeIfAbsent(roster, k -> new HashMap<>());
+    private BytesSignatureVerifier lookupVerifier(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
+        final Map<NodeId, BytesSignatureVerifier> rosterCache =
+                verifierCache.computeIfAbsent(roster, k -> new HashMap<>());
 
         if (rosterCache.containsKey(nodeId)) {
             return rosterCache.get(nodeId);
         }
 
-        final PublicKey publicKey = resolvePublicKey(roster, nodeId);
-        rosterCache.put(nodeId, publicKey);
-        return publicKey;
+        final BytesSignatureVerifier verifier = createVerifier(roster, nodeId);
+        rosterCache.put(nodeId, verifier);
+        return verifier;
     }
 
     /**
-     * Resolve the public key for a given node from the roster by looking up the roster entry,
-     * decoding the X.509 certificate, and extracting the public key.
+     * Resolve the public key for a given node from the roster and create a
+     * {@link BytesSignatureVerifier} for it.
      *
      * @param roster the roster to look up the node in
      * @param nodeId the node ID to look up
-     * @return the public key, or null if it could not be resolved
+     * @return a verifier for the node's public key, or null if it could not be resolved
      */
     @Nullable
-    private PublicKey resolvePublicKey(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
+    private BytesSignatureVerifier createVerifier(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
         final RosterEntry rosterEntry;
         try {
             rosterEntry = RosterUtils.getRosterEntry(roster, nodeId.id());
@@ -197,9 +201,10 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         if (publicKey == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", nodeId);
+            return null;
         }
 
-        return publicKey;
+        return verifierFactory.apply(publicKey);
     }
 
     /**
@@ -243,6 +248,6 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     @Override
     public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.publicKeyCache.clear();
+        this.verifierCache.clear();
     }
 }

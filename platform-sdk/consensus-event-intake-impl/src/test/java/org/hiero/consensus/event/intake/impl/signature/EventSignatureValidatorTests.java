@@ -15,6 +15,7 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
+import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,7 +24,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
@@ -51,14 +52,16 @@ class EventSignatureValidatorTests {
     private IntakeEventCounter intakeEventCounter;
 
     /**
-     * A verifier that always returns true.
+     * A verifier factory that produces verifiers which always return true.
      */
-    private final SignatureVerifier trueVerifier = (data, signature, publicKey) -> true;
+    private final Function<PublicKey, BytesSignatureVerifier> trueVerifierFactory =
+            publicKey -> (data, signature) -> true;
 
     /**
-     * A verifier that always returns false.
+     * A verifier factory that produces verifiers which always return false.
      */
-    private final SignatureVerifier falseVerifier = (data, signature, publicKey) -> false;
+    private final Function<PublicKey, BytesSignatureVerifier> falseVerifierFactory =
+            publicKey -> (data, signature) -> false;
 
     private EventSignatureValidator validatorWithTrueVerifier;
     private EventSignatureValidator validatorWithFalseVerifier;
@@ -103,10 +106,10 @@ class EventSignatureValidatorTests {
                 PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
         validatorWithTrueVerifier =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifierFactory, rosterHistory, intakeEventCounter);
 
         validatorWithFalseVerifier =
-                new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, falseVerifierFactory, rosterHistory, intakeEventCounter);
     }
 
     public RosterHistory buildRosterHistory(
@@ -135,7 +138,7 @@ class EventSignatureValidatorTests {
     @DisplayName("An event with a lower round than the available in roster history should not validate")
     void rosterNotFoundForRound() {
         final EventSignatureValidator signatureValidator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifierFactory, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
@@ -168,7 +171,7 @@ class EventSignatureValidatorTests {
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifierFactory, rh, intakeEventCounter);
 
         final NodeId nodeId = NodeId.of(88);
 
@@ -258,7 +261,7 @@ class EventSignatureValidatorTests {
     @DisplayName("Ancient events are discarded")
     void ancientEvent() {
         final EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifierFactory, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
