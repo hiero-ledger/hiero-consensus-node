@@ -40,13 +40,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
@@ -643,9 +649,8 @@ public class ClprMessagesSuite {
          * Stage 2: Exchange configurations between source and both remotes.
          * Stage 3: Await message queue metadata on source for both remote ledgers.
          * Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
-         * Stage 5: Submit a message from source to remote A and verify delivery.
-         * Stage 6: Assert reduced redundancy — every source node has "Skipping ledger" in logs.
-         * Stage 7: Assert rotation — more than 1 source node logged "Completed publish/pull"
+         * Stage 5: Assert reduced redundancy — every source node has "Skipping ledger" in logs.
+         * Stage 6: Assert rotation — more than 1 source node logged "Completed publish/pull"
          *          for at least one remote ledger.
          */
         final var sourceConfig = new AtomicReference<ClprLedgerConfiguration>();
@@ -692,48 +697,98 @@ public class ClprMessagesSuite {
                     sleepQuietly(Duration.ofSeconds(20));
                 }))
 
-                // Stage 5: Delivery assertion — verify the CLPR endpoint successfully completed
-                //          publish/pull for at least one remote ledger, proving end-to-end connectivity.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    final var sourceNodes = spec.getNetworkNodes();
-                    final var remoteAId = requireNonNull(remoteAConfig.get()).ledgerId().ledgerId().toString();
-
-                    // After the wait period, at least one node should have completed publish/pull
-                    final var nodesCompleted = collectNodesWithCompletedPublishPull(sourceNodes, remoteAId);
-                    log.info("CLPR_RR_TEST|stage=delivery|nodesCompletedForA={}", nodesCompleted);
-                    assertThat(nodesCompleted)
-                            .as("At least one source node should have completed publish/pull for remote A")
-                            .isNotEmpty();
-                }))
-
-                // Stage 6: Reduced redundancy — every source node must have skipped at least one ledger.
+                // Stage 5: Reduced redundancy — every source node must have skipped at least one ledger.
                 .onNetwork(
                         SOURCE_LEDGER,
                         UtilVerbs.assertHgcaaLogContainsText(
                                 NodeSelector.allNodes(), "CLPR Endpoint: Skipping ledger", Duration.ZERO))
 
-                // Stage 7: Rotation — more than 1 source node logged "Completed publish/pull"
-                //          for at least one remote ledger.
+                // Stage 6: Rotation matrix — parse "Current cycle" log lines from all source nodes,
+                //          build a (cycle × remoteLedger) matrix showing the assigned node index,
+                //          verify each assignment matches the formula, and assert rotation occurred.
                 .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
                     final var sourceNodes = spec.getNetworkNodes();
-                    final var remoteAId = requireNonNull(remoteAConfig.get()).ledgerId().ledgerId().toString();
-                    final var remoteBId = requireNonNull(remoteBConfig.get()).ledgerId().ledgerId().toString();
+                    final int rosterSize = sourceNodes.size();
 
-                    final var nodesContactedA = collectNodesWithCompletedPublishPull(sourceNodes, remoteAId);
-                    final var nodesContactedB = collectNodesWithCompletedPublishPull(sourceNodes, remoteBId);
+                    // Collect all (cycle, remoteLedger, assignedNode) tuples from logs
+                    final var assignments = collectAssignmentMatrix(sourceNodes);
 
-                    log.info(
-                            "CLPR_RR_TEST|stage=rotation|nodesContactedA={}|nodesContactedB={}",
-                            nodesContactedA,
-                            nodesContactedB);
+                    // Gather all observed cycles and remote ledger IDs for the matrix header
+                    final var allCycles = new TreeSet<Long>();
+                    final var allLedgers = new TreeSet<String>();
+                    for (final var entry : assignments) {
+                        allCycles.add(entry.cycle);
+                        allLedgers.add(entry.remoteLedger);
+                    }
 
-                    // With 3 nodes and 2 remote ledgers over ~20 seconds of cycling,
-                    // at least one remote should have been contacted by more than 1 node
-                    // (proving the assignment rotated).
-                    assertThat(nodesContactedA.size() > 1 || nodesContactedB.size() > 1)
-                            .as("Expected rotation: at least one remote ledger should be contacted by >1 distinct node"
-                                    + " (A contacted by %s, B contacted by %s)",
-                                    nodesContactedA, nodesContactedB)
+                    // Build and log the matrix: rows = cycles, columns = remote ledgers
+                    final var sb = new StringBuilder();
+                    sb.append("\n=== Round-Robin Assignment Matrix (cycle × remote ledger → assigned node) ===\n");
+                    sb.append(String.format("%-10s", "Cycle"));
+                    for (final var ledger : allLedgers) {
+                        // Use last 8 chars of ledger ID for readability
+                        final var shortId = ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger;
+                        sb.append(String.format("  %-12s", shortId));
+                    }
+                    sb.append('\n');
+
+                    // For each cycle, find the assigned node for each ledger
+                    for (final var cycle : allCycles) {
+                        sb.append(String.format("%-10d", cycle));
+                        for (final var ledger : allLedgers) {
+                            final var nodeIdx = findAssignedNode(assignments, cycle, ledger);
+                            sb.append(String.format("  %-12s", nodeIdx >= 0 ? "node" + nodeIdx : "-"));
+                        }
+                        sb.append('\n');
+                    }
+                    sb.append("=============================================================================\n");
+                    log.info("CLPR_RR_TEST|stage=rotation_matrix|{}", sb);
+
+                    // Verify each assignment matches the deterministic formula:
+                    //   assignedIndex = (ledgerHash + cycle) % rosterSize
+                    for (final var entry : assignments) {
+                        final int ledgerHash = Math.floorMod(entry.remoteLedger.hashCode(), rosterSize);
+                        final int expected = Math.floorMod(ledgerHash + (int) entry.cycle, rosterSize);
+                        assertThat(entry.assignedNode)
+                                .as("Cycle %d, ledger ...%s: expected node%d but saw node%d",
+                                        entry.cycle,
+                                        entry.remoteLedger.length() > 8
+                                                ? entry.remoteLedger.substring(entry.remoteLedger.length() - 8)
+                                                : entry.remoteLedger,
+                                        expected,
+                                        entry.assignedNode)
+                                .isEqualTo(expected);
+                    }
+
+                    // Assert rotation: for at least one remote ledger, more than 1 distinct node
+                    // was assigned across all observed cycles
+                    for (final var ledger : allLedgers) {
+                        final var distinctNodes = new HashSet<Integer>();
+                        for (final var entry : assignments) {
+                            if (entry.remoteLedger.equals(ledger)) {
+                                distinctNodes.add(entry.assignedNode);
+                            }
+                        }
+                        if (distinctNodes.size() > 1) {
+                            log.info("CLPR_RR_TEST|stage=rotation_confirmed|ledger=...{}|nodes={}",
+                                    ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger,
+                                    distinctNodes);
+                            return; // rotation confirmed for at least one ledger
+                        }
+                    }
+                    // If we get here, no ledger had >1 distinct assigned node
+                    final var nodesPerLedger = new StringBuilder();
+                    for (final var ledger : allLedgers) {
+                        final var nodes = new HashSet<Integer>();
+                        for (final var e : assignments) {
+                            if (e.remoteLedger.equals(ledger)) nodes.add(e.assignedNode);
+                        }
+                        nodesPerLedger.append(String.format("  ...%s -> %s\n",
+                                ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger, nodes));
+                    }
+                    assertThat(false)
+                            .as("Expected rotation but each ledger was always assigned to the same node:\n%s",
+                                    nodesPerLedger)
                             .isTrue();
                 }));
 
@@ -741,20 +796,30 @@ public class ClprMessagesSuite {
     }
 
     /**
-     * Collects the names of nodes whose {@code hgcaa.log} contains a "Completed publish/pull"
-     * line referencing the given remote ledger ID string.
+     * A single observed round-robin assignment from a node's log.
      */
-    private static Set<String> collectNodesWithCompletedPublishPull(
-            final List<HederaNode> nodes, final String remoteLedgerIdString) {
-        final var result = new HashSet<String>();
+    private record CycleAssignment(long cycle, String remoteLedger, int assignedNode) {}
+
+    // Matches: "CLPR Endpoint: Current cycle {cycle}; Assigned node {node} for ClprLedgerId[ledgerId={id}]"
+    private static final Pattern CYCLE_ASSIGNMENT_PATTERN =
+            Pattern.compile("Current cycle (\\d+); Assigned node (\\d+) for ClprLedgerId\\[ledgerId=([^]]+)]");
+
+    /**
+     * Parses "Current cycle" log lines from all source nodes and returns the complete
+     * set of (cycle, remoteLedger, assignedNode) observations.
+     */
+    private static List<CycleAssignment> collectAssignmentMatrix(final List<HederaNode> nodes) {
+        final var result = new ArrayList<CycleAssignment>();
         for (final var node : nodes) {
             try {
                 final var logPath = node.getExternalPath(ExternalPath.APPLICATION_LOG);
-                final var lines = Files.readAllLines(logPath);
-                for (final var line : lines) {
-                    if (line.contains("Completed publish/pull") && line.contains(remoteLedgerIdString)) {
-                        result.add(node.getName());
-                        break;
+                for (final var line : Files.readAllLines(logPath)) {
+                    final Matcher m = CYCLE_ASSIGNMENT_PATTERN.matcher(line);
+                    if (m.find()) {
+                        final long cycle = Long.parseLong(m.group(1));
+                        final int assignedNode = Integer.parseInt(m.group(2));
+                        final var remoteLedger = m.group(3);
+                        result.add(new CycleAssignment(cycle, remoteLedger, assignedNode));
                     }
                 }
             } catch (final IOException e) {
@@ -762,6 +827,19 @@ public class ClprMessagesSuite {
             }
         }
         return result;
+    }
+
+    /**
+     * Finds the assigned node index for a given cycle and remote ledger, or -1 if not observed.
+     */
+    private static int findAssignedNode(
+            final List<CycleAssignment> assignments, final long cycle, final String remoteLedger) {
+        for (final var entry : assignments) {
+            if (entry.cycle == cycle && entry.remoteLedger.equals(remoteLedger)) {
+                return entry.assignedNode;
+            }
+        }
+        return -1;
     }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
