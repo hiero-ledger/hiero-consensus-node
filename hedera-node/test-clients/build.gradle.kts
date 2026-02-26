@@ -331,7 +331,15 @@ tasks.register<Test>("testSubprocess") {
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=6",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
