@@ -751,6 +751,21 @@
           "name": "NodeDelete",
           "baseFee": 9000000,
           "extras": []
+        },
+        {
+          "name": "RegisteredNodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeDelete",
+          "baseFee": 9000000,
+          "extras": []
         }
       ]
     }
