@@ -230,16 +230,43 @@ public abstract class AbstractSequenceMap<K, V> implements SequenceMap<K, V> {
      */
     @Override
     public V computeIfAbsent(final K key, final Function<? super K, ? extends V> mappingFunction) {
+        // Fast path: lockless read. Safe for ConcurrentHashMap, trivially correct for HashMap.
         V value = data.get(key);
-
-        if (value == null) {
-            value = mappingFunction.apply(key);
-            final boolean added = putIfAbsent(key, value);
-            if (!added) {
-                value = null;
-            }
+        if (value != null) {
+            return value;
         }
-        return value;
+
+        // Slow path: acquire sequence lock for atomic check-and-insert
+        final long sequenceNumber = getSequenceNumber(key);
+        SequenceKeySet<K> keys = getSequenceKeySet(sequenceNumber);
+
+        lockSequenceNumber(sequenceNumber);
+        try {
+            // Re-check under lock — another thread may have inserted
+            // between the lockless read and acquiring the lock
+            value = data.get(key);
+            if (value != null) {
+                return value;
+            }
+
+            // Window validity check (same logic as putIfAbsent)
+            if (keys.getSequenceNumber() != sequenceNumber) {
+                if (allowExpansion && sequenceNumber > getFirstSequenceNumberInWindow()) {
+                    expandCapacity(sequenceNumber);
+                    keys = getSequenceKeySet(sequenceNumber);
+                } else {
+                    return null;
+                }
+            }
+
+            // Create, insert, and register — all under lock
+            value = mappingFunction.apply(key);
+            data.put(key, value);
+            keys.getKeys().add(key);
+            return value;
+        } finally {
+            unlockSequenceNumber(sequenceNumber);
+        }
     }
 
     /**

@@ -17,7 +17,7 @@ mainModuleInfo {
     annotationProcessor("com.swirlds.config.processor")
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
-    runtimeOnly("org.hiero.consensus.event.intake.impl")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("org.hiero.consensus.hashgraph.impl")
     runtimeOnly("org.hiero.consensus.pces.impl")
     runtimeOnly("org.hiero.consensus.gossip.impl")
