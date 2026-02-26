@@ -85,7 +85,7 @@ dependencies.constraints {
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
         because("org.apache.logging.log4j.slf4j2.impl")
     }
-    api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
+    api("org.assertj:assertj-core:3.27.7") { because("org.assertj.core") }
     api("org.bouncycastle:bcpkix-jdk18on:$bouncycastle") { because("org.bouncycastle.pkix") }
     api("org.bouncycastle:bcprov-jdk18on:$bouncycastle") { because("org.bouncycastle.provider") }
     api("org.eclipse.collections:eclipse-collections-api:$eclipseCollections") {
