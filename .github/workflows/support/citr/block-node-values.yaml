@@ -28,3 +28,14 @@ tolerations:
     operator: "Equal"
     value: "%NETWORK_ID%"
     effect: "NoSchedule"
+
+blockNode:
+  persistence:
+    archive:
+      size: 16Gi
+    live:
+      size: 4Gi
+    logging:
+      size: 2Gi
+    verification:
+      size: 500Mi
