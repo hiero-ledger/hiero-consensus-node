@@ -9,10 +9,15 @@ import org.apache.tuweni.units.bigints.UInt256;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
-// Utility for interning UInt256 from parts
+// Utility for interning UInt256 from parts.  The goal here is to cut down the
+// number of allocated UInt256's in the EVM, by re-using whenever possible.
 
-// UI256's are only made here, and are always interned so it is safe and
-// expected (and fast) to simply do pointer equality checks.
+// Because they are interned, they can be compared with a plain pointer check.
+// The rest of the EVM can produce non-interned UInt256's, and so you cannot do
+// the compare trick on "other" UInt256's.  The only place doing this trick is
+// the AdrKey code, which DOES take care that all UInt256's it sees are
+// interned, and is reasonably hot so has some pay-off for this trick.
+
 public class UI256 {
 
     // The interning table

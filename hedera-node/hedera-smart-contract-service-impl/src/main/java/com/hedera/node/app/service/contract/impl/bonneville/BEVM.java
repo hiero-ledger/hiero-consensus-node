@@ -389,135 +389,143 @@ class BEVM {
         int pc = 0;
         ExceptionalHaltReason halt = null;
         byte[] codes = _code._codes;
+        byte[] opGas = _bonneville._opGas;
+        byte[] opStackMin = _bonneville._opStackMin;
 
         while( halt==null ) {
             int op = pc < codes.length ? codes[pc] & 0xFF : 0;
             preTrace(trace,pc,op);
             pc++;
 
-            halt = switch( op ) {
+            // Cover most stack checks
+            int need = opStackMin[op] & 0xFF;
+            if (_sp < need)
+                halt = ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
 
-            case 0x00 -> stop();
+            // Cover most gas checks
+            long gas = opGas[op];
+            if( halt == null && gas != BonnevilleEVM.GAS_DYNAMIC ) {
+                if( (_gas -= gas) < 0 )
+                    halt = ExceptionalHaltReason.INSUFFICIENT_GAS;
+            }
 
-                // Arithmetic ops
-            case 0x01 -> add();
-            case 0x02 -> mul();
-            case 0x03 -> sub();
-            case 0x04 -> div();
-            case 0x05 -> sdiv();
-            case 0x06 -> mod();
-            case 0x07 -> smod();
-            case 0x08 -> addmod();
-            case 0x09 -> mulmod();
-            case 0x0A -> exp();
-            case 0x0B -> sign();
-            case 0x10 -> ult();
-            case 0x11 -> ugt();
-            case 0x12 -> slt();
-            case 0x13 -> sgt();
-            case 0x14 -> eq ();
-            case 0x15 -> eqz();
-            case 0x16 -> and();
-            case 0x17 -> or ();
-            case 0x18 -> xor();
-            case 0x19 -> not();
-            case 0x1A -> xbyte();
-            case 0x1B -> shl();
-            case 0x1C -> shr();
-            case 0x1D -> sar();
+            // Run a bytecode
+            if( halt == null )
+                halt = switch( op ) {
 
-            case 0x20 -> keccak256();
+                case 0x00 -> stop();
 
-            // call/input/output arguments
-            case 0x30 -> address();
-            case 0x31 -> balance();
-            case 0x32 -> origin();
-            case 0x33 -> caller();
-            case 0x34 -> callValue();
-            case 0x35 -> callDataLoad();
-            case 0x36 -> callDataSize();
-            case 0x37 -> callDataCopy();
-            case 0x38 -> codeSize();
-            case 0x39 -> codeCopy();
-            case 0x3A -> gasPrice();
-            case 0x3B -> customExtCodeSize();
-            case 0x3C -> customExtCodeCopy();
-            case 0x3D -> returnDataSize();
-            case 0x3E -> returnDataCopy();
-            case 0x3F -> customExtCodeHash();
+                    // Arithmetic ops
+                case 0x01 -> add();
+                case 0x02 -> mul();
+                case 0x03 -> sub();
+                case 0x04 -> div();
+                case 0x05 -> sdiv();
+                case 0x06 -> mod();
+                case 0x07 -> smod();
+                case 0x08 -> addmod();
+                case 0x09 -> mulmod();
+                case 0x0A -> exp();
+                case 0x0B -> sign();
+                case 0x10 -> ult();
+                case 0x11 -> ugt();
+                case 0x12 -> slt();
+                case 0x13 -> sgt();
+                case 0x14 -> eq ();
+                case 0x15 -> eqz();
+                case 0x16 -> and();
+                case 0x17 -> or ();
+                case 0x18 -> xor();
+                case 0x19 -> not();
+                case 0x1A -> xbyte();
+                case 0x1B -> shl();
+                case 0x1C -> shr();
+                case 0x1D -> sar();
 
-            case 0x40 -> blockHash();
-            case 0x41 -> coinBase();
-            case 0x42 -> timeStamp();
-            case 0x43 -> number();
-            case 0x44 -> PRNGSeed();
-            case 0x45 -> gasLimit();
-            case 0x46 -> customChainId();
-            case 0x47 -> selfBalance();
-            case 0x48 -> baseFee();
-            case 0x49 -> blobHash();
-            case 0x4A -> blobBaseFee();
+                case 0x20 -> keccak256();
 
-            case 0x50 -> pop();
+                // call/input/output arguments
+                case 0x30 -> address();
+                case 0x31 -> balance();
+                case 0x32 -> origin();
+                case 0x33 -> caller();
+                case 0x34 -> callValue();
+                case 0x35 -> callDataLoad();
+                case 0x36 -> callDataSize();
+                case 0x37 -> callDataCopy();
+                case 0x38 -> codeSize();
+                case 0x39 -> codeCopy();
+                case 0x3A -> gasPrice();
+                case 0x3B -> customExtCodeSize();
+                case 0x3C -> customExtCodeCopy();
+                case 0x3D -> returnDataSize();
+                case 0x3E -> returnDataCopy();
+                case 0x3F -> customExtCodeHash();
 
-            // Memory, Storage
-            case 0x51 -> mload();
-            case 0x52 -> mstore();
-            case 0x53 -> mstore8();
-            case 0x54 -> customSLoad (); // Hedera custom SLOAD
-            case 0x55 -> customSStore(); // Hedera custom STORE
+                case 0x40 -> blockHash();
+                case 0x41 -> coinBase();
+                case 0x42 -> timeStamp();
+                case 0x43 -> number();
+                case 0x44 -> PRNGSeed();
+                case 0x45 -> gasLimit();
+                case 0x46 -> customChainId();
+                case 0x47 -> selfBalance();
+                case 0x48 -> baseFee();
+                case 0x49 -> blobHash();
+                case 0x4A -> blobBaseFee();
 
-            // The jumps
-            case 0x56 ->        // Jump, target on stack
-            ((pc=jump()   ) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
-            ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
-            ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
-            null;               // No error, pc set correctly
+                case 0x50 -> pop();
 
-            case 0x57 ->        // Conditional jump, target on stack
-            ((pc=jumpi(pc)) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
-            ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
-            ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
-            null;               // No error, pc set correctly
+                // Memory, Storage
+                case 0x51 -> mload();
+                case 0x52 -> mstore();
+                case 0x53 -> mstore8();
+                case 0x54 -> customSLoad (); // Hedera custom SLOAD
+                case 0x55 -> customSStore(); // Hedera custom STORE
 
-            case 0x58 -> pc(pc-1);
-            case 0x59 -> msize();
-            case 0x5A -> gas();
-            case 0x5B -> noop();// Jump Destination, a no-op
-            case 0x5C -> tLoad();
-            case 0x5D -> tStore();
-            case 0x5E -> mCopy();
+                // Jump, target on stack
+                case 0x56 -> ((pc=jump()   ) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION : null;
+                // Conditional jump, target on stack
+                case 0x57 -> ((pc=jumpi(pc)) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION : null;
 
-            // Stack manipulation
-            case 0x5F -> push0Op();
+                case 0x58 -> pc(pc-1);
+                case 0x59 -> msize();
+                case 0x5A -> gas();
+                case 0x5B -> noop();// Jump Destination, a no-op
+                case 0x5C -> tLoad();
+                case 0x5D -> tStore();
+                case 0x5E -> mCopy();
 
-            case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
-                 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F
-                 // push an array of immediate bytes onto stack
-                 -> push(pc, pc += (op-0x60+1));
+                // Stack manipulation
+                case 0x5F -> push0Op();
 
-            case 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F
-                 // Duplicate nth word
-                 -> dup(op-0x80+1);
+                case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
+                     0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F
+                     // push an array of immediate bytes onto the stack
+                     -> push(pc, pc += (op-0x60+1));
 
-            case 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F
-                 // Swap nth word
-                 -> swap(op-0x90+1);
+                case 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F
+                     // Duplicate nth word
+                     -> dup(op-0x80+1);
 
-            case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
+                case 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F
+                     // Swap nth word
+                     -> swap(op-0x90+1);
 
-            case 0xF0 -> CallManager.create            (this,trace, false);
-            case 0xF1 -> CallManager.customCall        (this,trace);
-            case 0xF2 -> CallManager.callCode          (this,trace);
-            case 0xF3 -> ret();
-            case 0xF4 -> CallManager.customDelegateCall(this,trace);
-            case 0xF5 -> CallManager.create            (this,trace, true );
-            case 0xFA -> CallManager.customStaticCall  (this,trace);
-            case 0xFD -> revert();
-            case 0xFF -> customSelfDestruct();
+                case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
 
-            default ->   ExceptionalHaltReason.INVALID_OPERATION;
-            };
+                case 0xF0 -> CallManager.create            (this,trace, false);
+                case 0xF1 -> CallManager.customCall        (this,trace);
+                case 0xF2 -> CallManager.callCode          (this,trace);
+                case 0xF3 -> ret();
+                case 0xF4 -> CallManager.customDelegateCall(this,trace);
+                case 0xF5 -> CallManager.create            (this,trace, true );
+                case 0xFA -> CallManager.customStaticCall  (this,trace);
+                case 0xFD -> revert();
+                case 0xFF -> customSelfDestruct();
+
+                default ->   ExceptionalHaltReason.INVALID_OPERATION;
+                };
 
             if( trace != null ) {
                 if( !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
@@ -565,9 +573,6 @@ class BEVM {
 
     // Add
     private ExceptionalHaltReason add() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         return add(lhs0,lhs1,lhs2,lhs3, rhs0,rhs1,rhs2,rhs3);
@@ -590,9 +595,6 @@ class BEVM {
     private static boolean overflowAdd( long x, long y, long sum ) { return ((x&y) | ((x^y) & ~sum)) < 0; }
 
     private ExceptionalHaltReason mul() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         return mul(lhs0,lhs1,lhs2,lhs3, rhs0,rhs1,rhs2,rhs3);
@@ -635,9 +637,6 @@ class BEVM {
 
     // Subtract
     private ExceptionalHaltReason sub() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
 
@@ -670,9 +669,6 @@ class BEVM {
 
     // Unsigned divide
     private ExceptionalHaltReason div() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         // Divide by 0 or 1
@@ -701,9 +697,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason sdiv() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         // Divide by 0,1,2^n shortcuts
@@ -725,9 +718,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason mod() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long num0 = STK0[--_sp], num1 = STK1[_sp], num2 = STK2[_sp], num3 = STK3[_sp];
         long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
         return mod(num0,num1,num2,num3,
@@ -755,9 +745,6 @@ class BEVM {
 
 
     private ExceptionalHaltReason smod() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         if( lhs0==rhs0 && lhs1==rhs1 && lhs2==rhs2 && lhs3==rhs3 )
@@ -765,9 +752,6 @@ class BEVM {
         return ExceptionalHaltReason.INVALID_OPERATION;
     }
     private ExceptionalHaltReason addmod() {
-        var halt = useGas(_gasCalc.getMidTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
@@ -781,9 +765,6 @@ class BEVM {
                    div0,div1,div2,div3);
     }
     private ExceptionalHaltReason mulmod() {
-        var halt = useGas(_gasCalc.getMidTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
@@ -800,7 +781,6 @@ class BEVM {
 
     // Exponent
     private ExceptionalHaltReason exp() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long base0 = STK0[--_sp], base1 = STK1[_sp], base2 = STK2[_sp], base3 = STK3[_sp];
         long pow0  = STK0[--_sp],  pow1 = STK1[_sp],  pow2 = STK2[_sp],  pow3 = STK3[_sp];
         int numBits =
@@ -836,10 +816,7 @@ class BEVM {
 
     // Sgn extend
     private ExceptionalHaltReason sign() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int x = popInt();
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
         // Push the sign-extend of val, starting from byte x.  if x>=32, then v
         // is used no-change.  If x==31 then we would only extend the high byte.
         if( x >= 31 ) return null;
@@ -904,17 +881,11 @@ class BEVM {
 
     // Unsigned Less Than
     private ExceptionalHaltReason ult() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         return push( uCompareTo() < 0 ? 1 : 0);
     }
 
     // Unsigned Greater Than
     private ExceptionalHaltReason ugt() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         return push( uCompareTo() > 0 ? 1 : 0);
     }
 
@@ -931,42 +902,27 @@ class BEVM {
 
     // Signed Less Than
     private ExceptionalHaltReason slt() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         return push( sCompareTo() < 0 ? 1 : 0);
     }
 
     // Signed Greater Than
     private ExceptionalHaltReason sgt() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         return push( sCompareTo() > 0 ? 1 : 0);
     }
 
     // Equals
     private ExceptionalHaltReason eq() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         return push( uCompareTo() == 0 ? 1 : 0);
     }
 
     // Equals zero
     private ExceptionalHaltReason eqz() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         return push( (lhs0 | lhs1 | lhs2 | lhs3)==0 ? 1L : 0L );
     }
 
     // And
     private ExceptionalHaltReason and() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         return push(lhs0 & rhs0, lhs1 & rhs1, lhs2 & rhs2, lhs3 & rhs3);
@@ -974,9 +930,6 @@ class BEVM {
 
     // Or
     private ExceptionalHaltReason or() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         return push(lhs0 | rhs0, lhs1 | rhs1, lhs2 | rhs2, lhs3 | rhs3);
@@ -984,9 +937,6 @@ class BEVM {
 
     // XOR
     private ExceptionalHaltReason xor() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         return push(lhs0 ^ rhs0, lhs1 ^ rhs1, lhs2 ^ rhs2, lhs3 ^ rhs3);
@@ -994,9 +944,6 @@ class BEVM {
 
     // not, bitwise complement (as opposed to a logical not)
     private ExceptionalHaltReason not() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
         return push(~not0, ~not1, ~not2, ~not3);
     }
@@ -1004,9 +951,6 @@ class BEVM {
 
     // index byte
     private ExceptionalHaltReason xbyte() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = 31 - popInt();
         if( off<0 || off >= 32 ) return push0();
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
@@ -1020,9 +964,6 @@ class BEVM {
 
     // Shl
     private ExceptionalHaltReason shl() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int shf = popInt();
         if( shf >= 256 )
             return push0();
@@ -1048,9 +989,6 @@ class BEVM {
 
     // Shr
     private ExceptionalHaltReason shr() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int shf = popInt();
         if( shf >= 256 )
             return push0();
@@ -1073,9 +1011,6 @@ class BEVM {
         return push(val0,val1,val2,val3);
     }
     private ExceptionalHaltReason sar(  ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int shf = popInt();
         if( shf >= 256 )
             return push0();
@@ -1101,7 +1036,6 @@ class BEVM {
     // ---------------------
     // keccak256
     private ExceptionalHaltReason keccak256() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         int len = popInt();
         int nwords = (len+31)>>5;
@@ -1123,14 +1057,11 @@ class BEVM {
 
     // Recipient
     private ExceptionalHaltReason address() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getRecipientAddress());
     }
 
     // Balance
     private ExceptionalHaltReason balance() {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
         boolean isSystem = _adrChk.isSystemAccount(address);
         long gas = _gasCalc.getBalanceOperationGasCost() +
@@ -1147,30 +1078,21 @@ class BEVM {
 
     // Push passed originator address
     private ExceptionalHaltReason origin() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getOriginatorAddress());
     }
 
     // Push passed ETH value
     private ExceptionalHaltReason caller() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getSenderAddress());
     }
 
     // Push passed ETH value
     private ExceptionalHaltReason callValue() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push((UInt256)_frame.getValue().toBytes());
     }
 
     // Load 32bytes of the call input data
     private ExceptionalHaltReason callDataLoad() {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
         int off = popInt();
         // If start is negative, or very large return a zero word
         if( off > _callData.length )
@@ -1190,8 +1112,6 @@ class BEVM {
 
     // Push size of call data
     private ExceptionalHaltReason callDataSize() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push( _callData.length );
     }
 
@@ -1208,14 +1128,11 @@ class BEVM {
 
     // Push size of code
     private ExceptionalHaltReason codeSize() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push( _code._codes.length );
     }
 
     // Copy code into Memory
     private ExceptionalHaltReason codeCopy() {
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int memOff = popInt();
         int srcOff = popInt();
         int len    = popInt();
@@ -1234,7 +1151,6 @@ class BEVM {
         // Fail early, if we do not have cold-account gas
         var gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getColdAccountAccessCost();
         if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
         if( _adrChk!=null ) {
@@ -1264,7 +1180,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason customExtCodeCopy() {
-        if( _sp < 4 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         Address address = popAddress();
         int doff = popInt();
         int soff = popInt();
@@ -1335,8 +1250,6 @@ class BEVM {
         }
 
     private ExceptionalHaltReason returnDataSize() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getReturnData().size());
     }
     private ExceptionalHaltReason returnDataCopy() {
@@ -1363,7 +1276,6 @@ class BEVM {
 
     // Return from interpreter with data
     private ExceptionalHaltReason ret() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = popInt();
         int len = popInt();
 
@@ -1380,7 +1292,6 @@ class BEVM {
 
     // Revert transaction
     private ExceptionalHaltReason revert() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = popInt();
         int len = popInt();
 
@@ -1398,7 +1309,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason customSelfDestruct() {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         Address beneAdr = popAddress();
         Operation.OperationResult opr = _selfDestruct instanceof CustomSelfDestructOperation csdo
             ? csdo.execute(_frame, _bonneville, beneAdr)
@@ -1411,11 +1321,9 @@ class BEVM {
         return ExceptionalHaltReason.NONE;
     }
 
-    // Conditional jump to named target.  Returns either valid pc,
-    // or -1 for invalid pc or -2 for out of gas
+    // Conditional jump to named target.  Returns either valid pc
+    // or -1 for invalid pc
     private int jumpi(int nextpc) {
-        if( _sp < 2 ) return -3;
-        if( useGas(_gasCalc.getHighTierGasCost())!=null ) return -2;
         long dst  = popLong();
         long cond = popLong();
         if( cond == 0 ) return nextpc; // No jump is jump-to-nextpc
@@ -1425,8 +1333,6 @@ class BEVM {
     }
 
     private int jump() {
-        if( _sp < 1 ) return -3;
-        if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
         long dst = popLong();
         return _code.jumpValid( (int) dst )
             ? (int)dst          // Target
@@ -1434,24 +1340,18 @@ class BEVM {
     }
 
     private ExceptionalHaltReason noop() {
-        return useGas(_gasCalc.getJumpDestOperationGasCost());
+        return null;
     }
 
     private ExceptionalHaltReason pc(int pc) {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(pc);
     }
 
     private ExceptionalHaltReason msize() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_mem._len);
     }
 
     private ExceptionalHaltReason gas() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_gas);
     }
 
@@ -1464,7 +1364,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason tStore() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         var halt = useGas(_gasCalc.getTransientStoreOperationGasCost());
         if( halt!=null ) return halt;
@@ -1475,7 +1374,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason mCopy() {
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int dst = popInt();
         int src = popInt();
         int len = popInt();
@@ -1486,8 +1384,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason gasPrice() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push((UInt256)_frame.getGasPrice().toBytes());
     }
 
@@ -1509,26 +1405,18 @@ class BEVM {
     }
 
     private ExceptionalHaltReason coinBase() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getMiningBeneficiary() );
     }
 
     private ExceptionalHaltReason timeStamp() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getBlockValues().getTimestamp());
     }
 
     private ExceptionalHaltReason number() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getBlockValues().getNumber());
     }
 
     private ExceptionalHaltReason PRNGSeed() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         ProxyWorldUpdater pwu = (ProxyWorldUpdater) _frame.getWorldUpdater();
         com.hedera.pbj.runtime.io.buffer.Bytes entropy = pwu.enhancement().operations().entropy();
         long x0 = entropy.getLong(0);
@@ -1539,14 +1427,10 @@ class BEVM {
     }
 
     private ExceptionalHaltReason gasLimit() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push(_frame.getBlockValues().getGasLimit());
     }
 
     private ExceptionalHaltReason customChainId() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         // Check for having a custom chain id
         var config = FrameUtils.initialFrameOf(_frame).getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
         long chainIdAsInt = config==null
@@ -1556,14 +1440,10 @@ class BEVM {
     }
 
     private ExceptionalHaltReason selfBalance() {
-        var halt = useGas(_gasCalc.getLowTierGasCost());
-        if( halt!=null ) return halt;
         return push((UInt256)_recv.getBalance().toBytes());
     }
 
     private ExceptionalHaltReason baseFee() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         final Optional<Wei> maybeBaseFee = _frame.getBlockValues().getBaseFee();
         if( maybeBaseFee.isEmpty() )
             return ExceptionalHaltReason.INVALID_OPERATION;
@@ -1571,8 +1451,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason blobHash() {
-        var halt = useGas(3);
-        if( halt!=null ) return halt;
         int idx = popInt();
         var maybeVerHashes = _frame.getVersionedHashes();
         if( maybeVerHashes.isEmpty() )
@@ -1585,8 +1463,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason blobBaseFee() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         Wei blobGasPrice = _frame.getBlobGasPrice();
         return push((UInt256)blobGasPrice.toBytes());
     }
@@ -1596,10 +1472,8 @@ class BEVM {
 
     // Memory Load
     private ExceptionalHaltReason mload() {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
-
         var halt = useGas(_gasCalc.getVeryLowTierGasCost() + memoryExpansionGasCost(adr, 32));
         if( halt!=null ) return halt;
         _mem.growMem( adr+32 );
@@ -1609,7 +1483,6 @@ class BEVM {
 
     // Memory Store
     private ExceptionalHaltReason mstore() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
 
@@ -1625,7 +1498,6 @@ class BEVM {
 
     // Memory Store8 - store a *byte*
     private ExceptionalHaltReason mstore8() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
         long gas = 3 + memoryExpansionGasCost(adr,1);
@@ -1740,7 +1612,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason customSLoad( ) {
-        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         // Read key before SLOAD replaces it with value
         long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
 
@@ -1790,7 +1661,6 @@ class BEVM {
     }
 
     private ExceptionalHaltReason customSStore() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         // Read key and value before SSTORE pops it
         long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
         long val0 = STK0[_sp-2], val1 = STK1[_sp-2], val2 = STK2[_sp-2], val3 = STK3[_sp-2];
@@ -1809,40 +1679,28 @@ class BEVM {
 
     // Pop
     private ExceptionalHaltReason pop(  ) {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         _sp--;
         return null;
     }
 
     private ExceptionalHaltReason push0Op() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
         return push( 0L );
     }
 
-    // Push an array of immediate bytes onto stack
+    // Push an array of immediate bytes onto the stack
     private ExceptionalHaltReason push( int pc, int newpc ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
         return push( _code._codes, pc, newpc-pc );
     }
 
     // Duplicate nth word
     private ExceptionalHaltReason dup( int n ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long x0 = STK0[_sp-n], x1 = STK1[_sp-n], x2 = STK2[_sp-n], x3 = STK3[_sp-n];
         return push(x0,x1,x2,x3);
     }
 
     // Swap nth word
     private ExceptionalHaltReason swap( int n ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp <= n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long tmp0 = STK0[_sp-1-n]; STK0[_sp-1-n] = STK0[_sp-1]; STK0[_sp-1] = tmp0;
         long tmp1 = STK1[_sp-1-n]; STK1[_sp-1-n] = STK1[_sp-1]; STK1[_sp-1] = tmp1;
         long tmp2 = STK2[_sp-1-n]; STK2[_sp-1-n] = STK2[_sp-1]; STK2[_sp-1] = tmp2;
