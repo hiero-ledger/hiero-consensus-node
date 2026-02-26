@@ -84,12 +84,12 @@ jobs:
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
           LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
-          
+
           if [[ -z "${LATEST_BN_TAG}" ]]; then
             echo "ERROR: Could not parse LATEST_BN_TAG from response"
             return 1
           fi
-          
+
           echo "Latest Block Node tag: ${LATEST_BN_TAG}"
           echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
 
@@ -98,12 +98,12 @@ jobs:
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
           LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
-          
+
           if [[ -z "${LATEST_MN_TAG}" ]]; then
             echo "ERROR: Could not parse LATEST_MN_TAG from response"
             return 1
           fi
-          
+
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
           echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
