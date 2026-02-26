@@ -629,7 +629,7 @@ tasks:
     desc: solo block node add
     cmds:
       - |
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${BLOCK_NODE_ADD_EXTRA_FLAGS} --dev --chart-version v0.28.0-rc1
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${BLOCK_NODE_ADD_EXTRA_FLAGS} --dev --chart-version v0.27.0
 
   solo:block:destroy:
     silent: true
