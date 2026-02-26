@@ -79,16 +79,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # checkout the latest block node tag if needed
-      - name: Checkout Latest BN Tag
-        run: |
-          cd block-node
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Block Node tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
-          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
-
       - name: Retrieve Latest BN Tag
         run: |
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
@@ -97,7 +87,7 @@ jobs:
           
           if [[ -z "${LATEST_BN_TAG}" ]]; then
             echo "ERROR: Could not parse LATEST_BN_TAG from response"
-            return 0
+            return 1
           fi
           
           echo "Latest Block Node tag: ${LATEST_BN_TAG}"
@@ -111,10 +101,10 @@ jobs:
           
           if [[ -z "${LATEST_MN_TAG}" ]]; then
             echo "ERROR: Could not parse LATEST_MN_TAG from response"
-            return 0
+            return 1
           fi
           
-          echo "Latest Block Node tag: ${LATEST_MN_TAG}"
+          echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
           echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
@@ -273,7 +263,7 @@ jobs:
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.148.0 -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
