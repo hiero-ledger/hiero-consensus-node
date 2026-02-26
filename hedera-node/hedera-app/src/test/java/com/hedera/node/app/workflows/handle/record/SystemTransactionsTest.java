@@ -41,10 +41,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -618,6 +618,12 @@ class SystemTransactionsTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
+        // Mock file 0.0.113
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -689,6 +695,12 @@ class SystemTransactionsTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
+        // Mock file 0.0.113
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
 
         subject = new SystemTransactions(
                 initTrigger,
