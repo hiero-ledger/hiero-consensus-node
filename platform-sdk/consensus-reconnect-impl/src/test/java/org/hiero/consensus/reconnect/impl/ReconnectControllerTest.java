@@ -2,7 +2,6 @@
 package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -125,7 +124,6 @@ class ReconnectControllerTest {
                 .getOrCreateConfig();
 
         stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
-        stateLifecycleManager.initWithState(createTestState());
         // Create test states
         testSignedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)

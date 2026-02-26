@@ -13,7 +13,6 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
@@ -23,12 +22,10 @@ public class StateEventHandlerManagerUtilsTests {
 
     @Test
     void testFastCopyIsMutable() {
-        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
         TestingAppStateInitializer.initPlatformState(state);
-        // Create a fast copy
-        stateLifecycleManager.initWithState(state);
 
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(1).build();
@@ -46,7 +43,6 @@ public class StateEventHandlerManagerUtilsTests {
                 copy.getRoot().getReservationCount(),
                 "Fast copy should return a new state with a reference count of 1.");
         state.release();
-        copy.release();
     }
 
     @AfterEach

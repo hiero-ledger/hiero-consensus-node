@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -104,7 +103,6 @@ final class ReconnectTest {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
-            stateLifecycleManager.initWithState(createTestState());
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)

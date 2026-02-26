@@ -23,7 +23,6 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -50,13 +49,17 @@ class StateLifecycleManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        initialState = newState();
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
-        stateLifecycleManager.initWithState(initialState);
+        // copy just to init immutableLastState
+        initialState = stateLifecycleManager.copyMutableState();
+        TestingAppStateInitializer.initPlatformState(initialState);
+
+        setCreationSoftwareVersionTo(
+                initialState,
+                SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
     }
 
     @AfterEach
@@ -139,17 +142,6 @@ class StateLifecycleManagerTests {
         assertEquals(1, afterMutable.getRoot().getReservationCount(), "Mutable state should have one reference");
         assertEquals(1, newLatestImmutable.getRoot().getReservationCount(), "Latest immutable should have one ref");
         assertEquals(-1, beforeImmutable.getRoot().getReservationCount(), "Old immutable should be released");
-    }
-
-    private static VirtualMapState newState() {
-        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
-        TestingAppStateInitializer.initPlatformState(state);
-
-        setCreationSoftwareVersionTo(
-                state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
-
-        assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
-        return state;
     }
 
     private static SignedState newSignedState() {
