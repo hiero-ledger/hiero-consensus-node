@@ -14,7 +14,7 @@ module org.hiero.interledger.clpr.impl {
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.pbj.grpc.client.helidon;
-    requires com.hedera.pbj.runtime;
+    requires transitive com.hedera.pbj.runtime;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto;

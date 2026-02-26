@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr.queue.deliverinboundmessagereply;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr.queue;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract.CLPR_QUEUE_CONTRACT_ID;
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
-class ClprQueueDeliverInboundMessageReplyTranslatorTest extends CallAttemptTestBase {
+class DeliverInboundMsgReplyTranslatorTest extends CallAttemptTestBase {
     private static final int PACKED_OVERHEAD = 4 + Integer.BYTES;
     private static final TupleType<Tuple> ROUTE_HEADER_TYPE = TupleType.parse("(uint8,bytes32,address)");
 

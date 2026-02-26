@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr.queue.enqueuemessageresponse;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr.queue;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract.CLPR_QUEUE_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
-class ClprQueueEnqueueMessageResponseTranslatorTest extends CallAttemptTestBase {
+class EnqueueMsgResponseTranslatorTest extends CallAttemptTestBase {
     private static final TupleType<Tuple> ROUTE_HEADER_TYPE = TupleType.parse("(uint8,bytes32,address)");
     private static final TupleType<Tuple> BAD_ROUTE_HEADER_TYPE = TupleType.parse("(uint8,address)");
     private static final byte[] REMOTE_LEDGER_ID = new byte[] {
