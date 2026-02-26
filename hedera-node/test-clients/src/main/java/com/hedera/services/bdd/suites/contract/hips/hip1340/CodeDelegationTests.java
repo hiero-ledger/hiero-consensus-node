@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.hips.hip1340;
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS_BYTE_ARRAY;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -665,7 +666,7 @@ public class CodeDelegationTests {
                             }),
 
                     // Clear delegation natively
-                    cryptoUpdate(delegatingEoa.name()).delegationAddress(ByteString.empty()),
+                    cryptoUpdate(delegatingEoa.name()).delegationAddress(ByteString.copyFrom(ZERO_ADDRESS_BYTE_ARRAY)),
 
                     // Verify that the delegation was cleared from the account
                     getAccountInfo(delegatingEoa.name()).hasNoDelegation());

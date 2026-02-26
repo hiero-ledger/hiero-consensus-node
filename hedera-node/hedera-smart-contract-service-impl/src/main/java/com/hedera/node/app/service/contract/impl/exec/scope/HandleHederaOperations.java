@@ -11,8 +11,8 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THRE
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.independentStepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
@@ -576,9 +576,8 @@ public class HandleHederaOperations implements HederaOperations {
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();
 
-        final var streamBuilder = context.dispatch(
-                stepDispatch(context.payer(), body, CryptoUpdateStreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER));
-
+        final var streamBuilder =
+                context.dispatch(independentStepDispatch(context.payer(), body, CryptoUpdateStreamBuilder.class));
         return streamBuilder.status() == SUCCESS;
     }
 }
