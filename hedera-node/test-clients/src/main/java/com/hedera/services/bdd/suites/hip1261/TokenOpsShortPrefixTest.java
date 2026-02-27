@@ -314,10 +314,7 @@ public class TokenOpsShortPrefixTest {
                         .treasury(TREASURY)
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS),
-                tokenPause(TOKEN)
-                        .payingWith(PAYER)
-                        .signedBy(PAYER, PAUSE_KEY)
-                        .fee(ONE_HUNDRED_HBARS),
+                tokenPause(TOKEN).payingWith(PAYER).signedBy(PAYER, PAUSE_KEY).fee(ONE_HUNDRED_HBARS),
                 tokenUnpause(TOKEN)
                         .payingWith(PAYER)
                         .signedBy(PAYER, PAUSE_KEY)
@@ -349,8 +346,6 @@ public class TokenOpsShortPrefixTest {
                         .fee(ONE_HUNDRED_HBARS)
                         .via("feeScheduleUpdateTxn"),
                 validateChargedUsdWithin(
-                        "feeScheduleUpdateTxn",
-                        expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)),
-                        5.0));
+                        "feeScheduleUpdateTxn", expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)), 5.0));
     }
 }
