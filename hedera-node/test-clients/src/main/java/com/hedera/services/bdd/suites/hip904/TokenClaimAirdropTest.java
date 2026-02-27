@@ -1091,6 +1091,32 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @DisplayName("claim with merged credit overflow fails with insufficient balance")
+    final Stream<DynamicTest> mergedCreditOverflowInClaimShowsCurrentStatus() {
+        final var alice = "ALICE_OVERFLOW_SENDER";
+        final var bob = "BOB_OVERFLOW_SENDER";
+        final var receiver = "RECEIVER_OVERFLOW";
+        final var token = "overflowToken";
+        final var hugePendingAmount = Long.MAX_VALUE - 5;
+        return hapiTest(
+                cryptoCreate(alice).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(bob).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(receiver).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(0),
+                tokenCreate(token).treasury(alice).tokenType(FUNGIBLE_COMMON).initialSupply(Long.MAX_VALUE),
+                tokenAssociate(bob, token),
+                // First pending airdrop for almost the entire supply
+                tokenAirdrop(moving(hugePendingAmount, token).between(alice, receiver))
+                        .payingWith(alice),
+                // Fund the second sender after the first pending airdrop exists
+                cryptoTransfer(moving(10, token).between(alice, bob)),
+                // Second pending airdrop; merged receiver credit overflows a long
+                tokenAirdrop(moving(10, token).between(bob, receiver)).payingWith(bob),
+                tokenClaimAirdrop(pendingAirdrop(alice, receiver, token), pendingAirdrop(bob, receiver, token))
+                        .payingWith(receiver)
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("duplicate entries of Non Fungible Tokens should fail")
     final Stream<DynamicTest> duplicatedNFTFail() {
         return hapiTest(flattened(

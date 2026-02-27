@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
@@ -490,6 +491,42 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         // check sender's pending airdrops head id and count
         assertThat(writableAccountStore.get(spenderId).headPendingAirdropId()).isEqualTo(thirdPendingAirdropId);
         assertThat(writableAccountStore.get(spenderId).numberPendingAirdrops()).isEqualTo(2);
+    }
+
+    @Test
+    void mergeTransferOverflowIsCaught() {
+        // Setup base environment, then create two pending airdrops for the same token+receiver but different senders
+        handlerTestBaseInternalSetUp(true);
+        givenPendingFungibleTokenAirdrop(fungibleTokenId, ownerId, tokenReceiverNoAssociationId, Long.MAX_VALUE - 5);
+        givenPendingFungibleTokenAirdrop(fungibleTokenId, spenderId, tokenReceiverNoAssociationId, 10L);
+
+        removeTokenCustomFee(fungibleTokenId);
+        refreshReadableStores();
+        refreshWritableStores();
+        givenStoresAndConfig(handleContext);
+
+        // Ensure senders are associated with the token
+        associateToken(ownerId, fungibleTokenId);
+        associateToken(spenderId, fungibleTokenId);
+
+        // mock record builder
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(CryptoTransferStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
+
+        final var bigPendingId = PendingAirdropId.newBuilder()
+                .senderId(ownerId)
+                .receiverId(tokenReceiverNoAssociationId)
+                .fungibleTokenType(fungibleTokenId)
+                .build();
+        final var smallPendingId = PendingAirdropId.newBuilder()
+                .senderId(spenderId)
+                .receiverId(tokenReceiverNoAssociationId)
+                .fungibleTokenType(fungibleTokenId)
+                .build();
+        givenClaimAirdrop(List.of(bigPendingId, smallPendingId));
+
+        final var msg = assertThrows(HandleException.class, () -> tokenClaimAirdropHandler.handle(handleContext));
+        assertEquals(INSUFFICIENT_TOKEN_BALANCE, msg.getStatus());
     }
 
     private PendingAirdropId setUpFourthPendingAirdrop() {
