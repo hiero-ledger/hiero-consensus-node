@@ -24,7 +24,8 @@ public class V073AddressBookSchema extends Schema<SemanticVersion> {
             SemanticVersion.newBuilder().major(0).minor(73).patch(0).build();
 
     /**
-     * Constructs a new schema instance for version 0.69.0, using the semantic version comparator for version management.
+     * Constructs a new schema instance for version 0.73.0,
+     * using the semantic version comparator for version management.
      */
     public V073AddressBookSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
