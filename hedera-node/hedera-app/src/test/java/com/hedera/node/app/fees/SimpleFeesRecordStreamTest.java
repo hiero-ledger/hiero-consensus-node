@@ -17,7 +17,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +25,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 /*
 to use this first download historical data.
@@ -40,105 +40,6 @@ this will write the csv output file to hedera-app/simple-fees-historical-compari
 
  */
 public class SimpleFeesRecordStreamTest {
-    private static class CSVWriter {
-
-        private final Writer writer;
-        private int fieldCount;
-
-        public CSVWriter(Writer fwriter) {
-            this.writer = fwriter;
-            this.fieldCount = 0;
-        }
-
-        private static String escapeCsv(String value) {
-            if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-                value = value.replace("\"", "\"\"");
-                return "\"" + value + "\"";
-            }
-            return value;
-        }
-
-        public void write(String s) throws IOException {
-            this.writer.write(s);
-        }
-
-        public void field(String value) throws IOException {
-            if (this.fieldCount > 0) {
-                this.write(",");
-            }
-            this.write(escapeCsv(value));
-            this.fieldCount += 1;
-        }
-
-        public void endLine() throws IOException {
-            this.write("\n");
-            this.fieldCount = 0;
-        }
-
-        public void field(int i) throws IOException {
-            this.field(i + "");
-        }
-
-        public void field(long fee) throws IOException {
-            this.field(fee + "");
-        }
-
-        public void fieldPercentage(double diff) throws IOException {
-            this.field(String.format("%9.2f%%", diff));
-        }
-
-        public void close() throws IOException {
-            this.writer.flush();
-            this.writer.close();
-        }
-    }
-
-    private static class JSONFormatter {
-
-        private final FileWriter writer;
-        private boolean start;
-
-        public JSONFormatter(FileWriter writer) {
-            this.writer = writer;
-            this.start = false;
-        }
-
-        public void startRecord() throws IOException {
-            writer.write("{ ");
-            this.start = true;
-        }
-
-        public void key(String name, String value) throws IOException {
-            if (!this.start) {
-                writer.append(", ");
-            }
-            writer.append(String.format("\"%s\":\"%s\"", name, value));
-            this.start = false;
-        }
-
-        public void endRecord() throws IOException {
-            writer.write("}\n");
-        }
-
-        public void key(String name, long value) throws IOException {
-            if (!this.start) {
-                writer.append(", ");
-            }
-            writer.append(String.format("\"%s\" : %s ", name, "" + value));
-        }
-
-        public void key(String name, double value) throws IOException {
-            if (!this.start) {
-                writer.append(", ");
-            }
-            writer.append(String.format("\"%s\" : %.5f", name, value));
-        }
-
-        public void close() throws IOException {
-            this.writer.flush();
-            this.writer.close();
-        }
-    }
 
     private static CSVWriter csv;
     private static JSONFormatter json;
@@ -150,11 +51,11 @@ public class SimpleFeesRecordStreamTest {
      */
     @BeforeAll
     static void beforeAll() throws IOException {
-        csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
+        csv = new CSVWriter(new FileWriter("../../reports/simple-fees-historical-comparison.csv"));
         csv.write(
                 "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details, rate cents, rate hbar");
         csv.endLine();
-        json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
+        json = new JSONFormatter(new FileWriter("../../reports/simple-fees-historical-comparison.json"));
     }
 
     @AfterAll
@@ -167,7 +68,7 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
-    //    @Test
+    @Test
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
@@ -261,7 +162,93 @@ public class SimpleFeesRecordStreamTest {
         json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
         csv.field(rate.getCurrentRate().getHbarEquiv());
         json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
+        json.key("signed_txn_size",signedTxnBytes.size());
         csv.endLine();
         json.endRecord();
     }
+
+    void processStateEvents(String records_dir, String report_file_path) throws IOException {
+        final JSONFormatter json = new JSONFormatter(
+                new FileWriter(report_file_path));
+        System.out.println("records dir is" + records_dir);
+        try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
+            paths.filter(Files::isRegularFile).forEach(file -> {
+                if (!file.toString().endsWith("rcd.gz")) {
+                    return;
+                }
+//                System.out.println("parsing " + file);
+                try (final var fin = new GZIPInputStream(new FileInputStream(file.toFile()))) {
+                    // we have to read the first 4 bytes
+                    final var recordFileVersion =
+                            ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+                    final var recordStreamFile = RecordStreamFile.parseFrom(fin);
+                    recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
+                        try {
+                            final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
+                            final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
+                            final var body = TransactionBody.PROTOBUF.parse(
+                                    Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+                            final Transaction txn = Transaction.newBuilder().body(body).build();
+                            final var record = item.getRecord();
+                            final var txnFee = record.getTransactionFee();
+                            final var rate = record.getReceipt().getExchangeRate();
+                            json.startRecord();
+                            json.key("name", body.data().kind().name());
+                            json.key("seconds", body.transactionID().transactionValidStart().seconds());
+                            json.key("nanos", body.transactionID().transactionValidStart().nanos());
+                            long accountNumber = 0;
+                            if(body.transactionID() != null && body.transactionID().accountID() != null) {
+                                accountNumber = body.transactionID().accountID().accountNum();
+                            }
+                            json.key("account",accountNumber);
+                            long legacyFee = 0;
+                            if (rate.getCurrentRate().getHbarEquiv() != 0) {
+                                legacyFee = txnFee
+                                        * rate.getCurrentRate().getCentEquiv()
+                                        / rate.getCurrentRate().getHbarEquiv();
+                            }
+                            json.key("fee_hbar",txnFee);
+                            json.key("fee_tc", legacyFee);
+                            json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
+                            json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
+                            json.key("status",record.getReceipt().getStatus().name());
+                            json.key("signed_txn_size",signedTxnBytes.size());
+                            json.key("sigmap_pair_size", signedTxn.getSigMap().getSigPairList().size());
+                            json.key("serialized_size", signedTxn.getSerializedSize());
+                            json.key("serial_numbers_count",record.getReceipt().getSerialNumbersCount());
+                            json.key("assessed_custom_fees_count", record.getAssessedCustomFeesCount());
+                            json.key("automatic_token_assocations_count",record.getAutomaticTokenAssociationsCount());
+                            json.key("high_volume_pricing_muliplier",record.getHighVolumePricingMultiplier());
+                            json.key("new_pending_airdrops_count",record.getNewPendingAirdropsCount());
+                            json.key("paid_staking_rewards_count",record.getPaidStakingRewardsCount());
+                            json.key("record_serialized_size",record.getSerializedSize());
+                            json.key("token_transfer_lists_count",record.getTokenTransferListsCount());
+                            json.key("memo",body.memo());
+                            json.key("body", body.toString());
+                            //{ "name":"CRYPTO_TRANSFER", "account" : 10231006 , "seconds" : 1770230700 , "nanos" : 779324416 ,
+                            // "nonce" : 0 , "fee" : 112235 , "status":"SUCCESS", "signedTxnBytes" : 183 , "custom_fees_count" : 0 , "memo":""}
+                            json.endRecord();
+//                            System.out.println("item is " + txn.body().data().kind().name());
+                        } catch (Exception e) {
+                            System.out.println("exception " + e);
+                        }
+                    });
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        System.out.println("wrote report to " + report_file_path);
+        json.close();
+    }
+
+    @Test
+    void convertStateEventsToJSON() throws IOException {
+        processStateEvents("../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3","../../reports/replay-mainnet-legacy.json");
+        processStateEvents("../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3","../../reports/replay-mainnet-simple.json");
+    }
+
+
 }
