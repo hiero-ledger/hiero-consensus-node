@@ -33,7 +33,7 @@ blockNode:
   # if blank will use same as AppVersion of chart.
   version: ""
   config:
-    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "500"
+    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "1000"
     JAVA_OPTS: '-Xms16G -Xmx16G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
   persistence:
     archive:
