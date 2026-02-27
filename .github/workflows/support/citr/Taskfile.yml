@@ -9,7 +9,7 @@ vars:
 env:
   SOLO_NETWORK_SIZE: 7
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
-  CONSENSUS_NODE_VERSION: v0.71.1
+  CONSENSUS_NODE_VERSION: v0.70.1
   VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
   SOLO_HOME: "{{.solo_home_override_dir}}"
@@ -32,4 +32,4 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_NAME: solo-cluster-name
   MIRROR_RELEASE_NAME: release_name
-  BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag v0.71.1 --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml
+  BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag {{.CONSENSUS_NODE_VERSION}} --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml
