@@ -38,7 +38,7 @@ public abstract class BaseBench {
     protected static final String RUN_DELIMITER = "--------------------------------";
 
     @Param({"100"})
-    public int numFiles = 1000;
+    public int numFiles = 500;
 
     @Param({"100000"})
     public int numRecords = 10_000;
