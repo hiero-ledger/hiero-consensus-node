@@ -29,6 +29,10 @@ on:
       gradle-cache-password:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
 
 defaults:
   run:
@@ -54,6 +58,7 @@ jobs:
       path: ${{ steps.baseline.outputs.path }}
       file: ${{ steps.baseline.outputs.file }}
       name: ${{ steps.baseline.outputs.name }}
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # v1.0.5
@@ -67,6 +72,12 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
+
+      # TODO: Remove this step after testing infrastructure failure detection
+      - name: Simulated Infrastructure Failure
+        run: |
+          echo "Simulating infrastructure failure for testing"
+          exit 1
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -115,11 +126,17 @@ jobs:
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+
   generate-matrix:
     name: "Gradle: Generate OS Matrix"
     runs-on: hl-cn-gradle-determinism-lin-ss
     outputs:
       os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -167,6 +184,11 @@ jobs:
           # Set the output (simplified name)
           echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
@@ -176,6 +198,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.generate-matrix.outputs.os-matrix) }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Standardize Git Line Endings
         run: |
@@ -274,3 +298,59 @@ jobs:
         with:
           name: Gradle Manifests [${{ join(matrix.os, ', ') }}]
           path: ${{ env.GRADLE_MANIFEST_PATH }}/**
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.regen-manifest.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-gradle-determinism-lin-ss
+    needs:
+      - generate-baseline
+      - generate-matrix
+      - verify-artifacts
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          job_statuses=(
+            "${{ needs.generate-baseline.result || 'skipped' }}"
+            "${{ needs.generate-matrix.result || 'skipped' }}"
+            "${{ needs.verify-artifacts.result || 'skipped' }}"
+          )
+
+          job_failure_modes=(
+            "${{ needs.generate-baseline.outputs.failure-mode || 'none' }}"
+            "${{ needs.generate-matrix.outputs.failure-mode || 'none' }}"
+            "${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}"
+          )
+
+          failure_mode="none"
+
+          for i in "${!job_statuses[@]}"; do
+            if [[ "${job_statuses[$i]}" == "failure" ]]; then
+              mode="${job_failure_modes[$i]}"
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
+              elif [[ "${mode}" == "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            fi
+          done
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"

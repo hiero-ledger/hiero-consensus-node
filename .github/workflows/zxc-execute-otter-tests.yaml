@@ -163,19 +163,17 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      # TODO: Remove this step after testing infrastructure failure detection
-      - name: Simulated Infrastructure Failure
-        run: |
-          echo "Simulating infrastructure failure for testing"
-          exit 1
-
       - name: Fast Otter Testing
         id: gradle-fast-otter-tests
         if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
+        # TODO: Restore original command after testing failure detection
+        # run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
+        run: |
+          echo "Simulating test failure for testing"
+          exit 1
 
       - name: Publish Fast Otter Testing Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
