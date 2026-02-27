@@ -162,9 +162,10 @@ public class NodeUpdateHandler implements TransactionHandler {
             }
         }
 
-        if (!op.associatedRegisteredNode().isEmpty()) {
-            validateTrue(op.associatedRegisteredNode().size() <= 20, INVALID_NODE_ID);
-            for (final var registeredNodeId : op.associatedRegisteredNode()) {
+        if (op.hasAssociatedRegisteredNodeList()) {
+            final var associatedNodes = op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode();
+            validateTrue(associatedNodes.size() <= 20, INVALID_NODE_ID);
+            for (final var registeredNodeId : associatedNodes) {
                 validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
                 validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
             }
@@ -226,8 +227,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
-        if (!op.associatedRegisteredNode().isEmpty()) {
-            nodeBuilder.associatedRegisteredNode(op.associatedRegisteredNode());
+        if (op.hasAssociatedRegisteredNodeList()) {
+            nodeBuilder.associatedRegisteredNode(
+                    op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
         }
         return nodeBuilder;
     }
@@ -252,7 +254,8 @@ public class NodeUpdateHandler implements TransactionHandler {
                 && !op.hasGossipCaCertificate()
                 && !op.hasGrpcCertificateHash()
                 && !op.hasDeclineReward()
-                && !op.hasGrpcProxyEndpoint();
+                && !op.hasGrpcProxyEndpoint()
+                && !op.hasAssociatedRegisteredNodeList();
     }
 
     /**
