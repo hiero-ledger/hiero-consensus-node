@@ -14,6 +14,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
+import com.hedera.node.app.workflows.synchronous.SynchronousWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -58,6 +59,7 @@ import org.apache.logging.log4j.Logger;
  * a warning is logged, but we continue to function without TLS. This is useful during testing and local development
  * where TLS may not be available.
  */
+@SuppressWarnings({"deprecation", "rawtypes"})
 @Singleton
 public final class NettyGrpcServerManager implements GrpcServerManager {
     /**
@@ -120,6 +122,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * @param ingestWorkflow The implementation of the {@link IngestWorkflow} to use for transaction rpc methods
      * @param userQueryWorkflow The implementation of the {@link QueryWorkflow} to use for user query rpc methods
      * @param operatorQueryWorkflow The implementation of the {@link QueryWorkflow} to use for node operator query rpc methods
+     * @param synchronousWorkflow The implementation of the {@link SynchronousWorkflow} for synchronous transaction rpc methods
      * @param metrics Used to get/create metrics for each transaction and query method.
      */
     @Inject
@@ -129,11 +132,13 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull @UserQueries final QueryWorkflow userQueryWorkflow,
             @NonNull @OperatorQueries final QueryWorkflow operatorQueryWorkflow,
+            @NonNull final SynchronousWorkflow synchronousWorkflow,
             @NonNull final Metrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         requireNonNull(ingestWorkflow);
         requireNonNull(userQueryWorkflow);
         requireNonNull(operatorQueryWorkflow);
+        requireNonNull(synchronousWorkflow);
         requireNonNull(metrics);
 
         final Supplier<Stream<RpcServiceDefinition>> rpcServiceDefinitions =
@@ -147,8 +152,19 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
 
         // Convert the various RPC service definitions into transaction or query endpoints using the
         // GrpcServiceBuilder.
-        services =
+        final var regularServices =
                 buildServiceDefinitions(rpcServiceDefinitions, m -> true, ingestWorkflow, userQueryWorkflow, metrics);
+
+        // Build the synchronous service definition and add it to the shared service set
+        final var syncMarshaller = new DataBufferMarshaller(MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
+        final var syncBuilder = new GrpcServiceBuilder(
+                        "proto.SynchronousService", ingestWorkflow, userQueryWorkflow, syncMarshaller, syncMarshaller)
+                .synchronousWorkflow(synchronousWorkflow)
+                .synchronousTransaction("syncTransaction");
+        final var syncServiceDef = syncBuilder.build(metrics, configProvider);
+
+        services = Stream.concat(regularServices.stream(), Stream.of(syncServiceDef))
+                .collect(Collectors.toUnmodifiableSet());
 
         final var grpcConfig = configProvider.getConfiguration().getConfigData(GrpcConfig.class);
         if (grpcConfig.nodeOperatorPortEnabled()) {

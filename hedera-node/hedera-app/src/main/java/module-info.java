@@ -128,6 +128,8 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.impl.producers;
     exports com.hedera.node.app.records.impl.producers.formats;
     exports com.hedera.node.app.grpc.impl.netty;
+    exports com.hedera.node.app.grpc.impl;
+    exports com.hedera.node.app.workflows.synchronous;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
