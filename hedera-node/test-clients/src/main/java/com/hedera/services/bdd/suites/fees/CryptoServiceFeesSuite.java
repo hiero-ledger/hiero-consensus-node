@@ -178,7 +178,7 @@ public class CryptoServiceFeesSuite {
                 validateChargedUsdWithin(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 0.01));
     }
 
-    @LeakyHapiTest
+    @HapiTest
     @DisplayName("CryptoApproveAllowance transaction has expected base fee")
     final Stream<DynamicTest> cryptoApproveAllowanceBaseUSDFee() {
         final String SUPPLY_KEY = "supplyKeyApproveAllowance";
