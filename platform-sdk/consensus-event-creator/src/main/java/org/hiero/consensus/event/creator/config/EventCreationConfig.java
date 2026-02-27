@@ -12,8 +12,7 @@ import java.time.Duration;
  *                                            rate for the entire network is equal to this value times the number of
  *                                            nodes. A value of 0 means that there is no limit to the number of events
  *                                            that can be created (as long as those events are legal to create).
- * @param creationAttemptRate                 the rate (in hz) at which a node will attempt to create new events. If
- *                                            this value is higher than the max creation rate, it will still be
+ * @param frequency                           the rate at which a node will attempt to create new events. It will still be
  *                                            constrained by the max creation rate. This being said, it is recommended
  *                                            to attempt event creation faster than the max creation rate in situations
  *                                            where creation rate is also throttled by the tipset algorithm (i.e. we are
@@ -39,6 +38,7 @@ import java.time.Duration;
 public record EventCreationConfig(
         @ConfigProperty(defaultValue = "20") double maxCreationRate,
         @ConfigProperty(defaultValue = "100") double creationAttemptRate,
+        @ConfigProperty(defaultValue = "10ms") Duration frequency,
         @ConfigProperty(defaultValue = "10") double antiSelfishnessFactor,
         @ConfigProperty(defaultValue = "10") int tipsetSnapshotHistorySize,
         @ConfigProperty(defaultValue = "1024") int eventIntakeThrottle,

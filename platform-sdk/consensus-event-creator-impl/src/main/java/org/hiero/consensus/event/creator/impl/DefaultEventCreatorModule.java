@@ -69,7 +69,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
                 new ComponentWiring<>(model, EventCreationManager.class, wiringConfig.eventCreationManager());
 
         // Set up heartbeat wire
-        model.buildHeartbeatWire(eventCreationConfig.creationAttemptRate())
+        model.buildHeartbeatWire(eventCreationConfig.frequency())
                 .solderTo(
                         eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
                         OFFER);
