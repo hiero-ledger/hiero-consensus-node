@@ -124,6 +124,11 @@ public class WrappedRecordBlockHashMigration {
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+
+        // Archive the jumpstart file so the migration doesn't run again
+        final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
+        Files.move(jumpstartFilePath, archivedPath);
+        log.info("Archived jumpstart file to {}", archivedPath);
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
