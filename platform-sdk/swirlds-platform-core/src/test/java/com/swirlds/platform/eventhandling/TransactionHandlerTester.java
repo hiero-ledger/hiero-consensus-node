@@ -17,8 +17,8 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -63,12 +63,9 @@ public class TransactionHandlerTester implements AutoCloseable {
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                vm -> state.getState(),
-                platformContext.getConfiguration());
-        stateLifecycleManager.initState(state.getState());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+        stateLifecycleManager.initWithState(state.getState());
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
                     return null;

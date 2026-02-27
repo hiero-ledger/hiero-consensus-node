@@ -21,6 +21,9 @@ import java.time.Duration;
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
  * @param maxReadDepth the max allowed depth of nested protobuf messages
  * @param maxReadBytesSize the max size in bytes of protobuf messages to read
+ * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -61,8 +64,14 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableStateProofs,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean enableCutover) {
+        @ConfigProperty(defaultValue = "4096") @Min(512) @NetworkProperty
+        int blockFileBufferOuterSizeKb,
+
+        @ConfigProperty(defaultValue = "1024") @Min(128) @NetworkProperty
+        int blockFileBufferInnerSizeKb,
+
+        @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
+        int blockFileBufferGzipSizeKb) {
 
     /**
      * Whether to stream to block nodes.

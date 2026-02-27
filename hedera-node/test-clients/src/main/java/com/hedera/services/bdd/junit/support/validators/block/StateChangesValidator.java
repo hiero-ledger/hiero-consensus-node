@@ -66,10 +66,12 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.Mnemonics;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -118,12 +120,13 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private final long hintsThresholdDenominator;
-    private final Hash genesisStateHash;
+    private final Hash initializedGenesisStateHash;
     private final Path pathToNode0SwirldsLog;
     private final Bytes expectedRootHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
     private final Map<Long, List<WrapsMessageDetails>> wrapsMessages = new LinkedHashMap<>();
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
@@ -289,19 +292,19 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
-        this.state = hedera.newStateRoot();
-        final var emptyState = state;
-        final var emptyStateHash = emptyState.getHash();
-        state = state.copy();
+        this.stateLifecycleManager = hedera.getStateLifecycleManager();
+        final var genesisState = hedera.getStateLifecycleManager().getMutableState();
+        this.state = stateLifecycleManager.copyMutableState();
+        final var genesisStateHash = genesisState.getHash();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
-        final var stateToBeCopied = state;
-        state = state.copy();
+        final var initializedGenesisState = state;
+        this.state = hedera.getStateLifecycleManager().copyMutableState();
+        // get the state hash before applying the state changes from current block
+        this.initializedGenesisStateHash = initializedGenesisState.getHash();
+        assertEquals(genesisStateHash, initializedGenesisStateHash, "Genesis state hash should be empty");
+        logger.info("Genesis state hash was empty - {}", genesisStateHash);
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
-        // get the state hash before applying the state changes from current block
-        this.genesisStateHash = stateToBeCopied.getRoot().getHash();
-        assertEquals(emptyStateHash, genesisStateHash, "Genesis state hash should be empty");
-        logger.info("Genesis state hash was empty - {}", emptyStateHash);
         this.proofSeqFactory =
                 (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
 
@@ -312,7 +315,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
-        var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
+        var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
 
         final int n = blocks.size();
         final int lastVerifiableIndex =
@@ -331,7 +334,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
-                this.state = stateToBeCopied.copy();
+                this.state = stateLifecycleManager.copyMutableState();
                 startOfStateHash =
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
             }
@@ -484,7 +487,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         assertEntityCountsMatch(entityCounts);
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
-        state.copy();
+        stateLifecycleManager.copyMutableState();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
         logger.info("Validating root hash {} for {}", rootHash, state.getInfoJson());
 
