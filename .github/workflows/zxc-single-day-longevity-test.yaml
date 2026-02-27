@@ -694,7 +694,7 @@ jobs:
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
           done
           
-          exit 0 #FIXME: shoul I restart CNs ?
+          exit 0 #FIXME: should I restart CNs ?
           
           if [ 0 -eq 1 ]
           then
@@ -1066,6 +1066,7 @@ jobs:
           #done
 
       - name: Enable BNs after accounts were created
+        if: false
         run: |
           set +x
           set +e

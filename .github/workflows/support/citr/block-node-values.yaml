@@ -30,6 +30,11 @@ tolerations:
     effect: "NoSchedule"
 
 blockNode:
+  # if blank will use same as AppVersion of chart.
+  version: ""
+  config:
+    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "500"
+    JAVA_OPTS: '-Xms16G -Xmx16G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
   persistence:
     archive:
       # name of the volume within the statefulset
