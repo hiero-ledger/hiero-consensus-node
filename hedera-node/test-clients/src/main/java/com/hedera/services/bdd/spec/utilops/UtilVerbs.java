@@ -227,6 +227,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -798,10 +799,10 @@ public class UtilVerbs {
         // Build version-by-block mapping: all blocks up to the freeze used the genesis version.
         // At genesis (configVersion=0) the handler returns the raw version without a build suffix,
         // but the hash computation always sets .build("0"), so we add it here.
-        final var versions = new java.util.TreeMap<Long, com.hedera.hapi.node.base.SemanticVersion>();
+        final var versions = new TreeMap<Long, com.hedera.hapi.node.base.SemanticVersion>();
         versions.put(
                 0L,
-                com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj(
+                protoToPbj(
                         genesisServicesVersion.toBuilder().setBuild("0").build(),
                         com.hedera.hapi.node.base.SemanticVersion.class));
         return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum, versions);
