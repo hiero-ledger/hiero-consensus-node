@@ -2,6 +2,7 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -205,13 +206,17 @@ public class TipsetEventCreator implements EventCreator {
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
     }
+    long lastNano = System.nanoTime();
 
     /**
      * {@inheritDoc}
      */
-    @Nullable
     @Override
+    @Nullable
     public PlatformEvent maybeCreateEvent() {
+
+        logger.info(RECONNECT.getMarker(), "Heartbeat delay " + (System.nanoTime()-lastNano));
+        lastNano = System.nanoTime();
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
             return null;
         }
