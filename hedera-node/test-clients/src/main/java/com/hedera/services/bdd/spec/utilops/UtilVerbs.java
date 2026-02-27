@@ -779,12 +779,32 @@ public class UtilVerbs {
         return new GetWrappedRecordHashesOp(entriesRef);
     }
 
+    /**
+     * Verifies the node's jumpstart hash computation via three-way comparison:
+     * file entries, .rcd replay, and the node's logged hash.
+     *
+     * @param jumpstartContents      raw bytes of the jumpstart file
+     * @param wrappedHashes          per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash       the hash the node logged during migration
+     * @param freezeBlockNum         the last block the migration processed
+     * @param genesisServicesVersion services version from {@code getVersionInfo()} at genesis
+     */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final byte[] jumpstartContents,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
-            @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+            @NonNull final String freezeBlockNum,
+            @NonNull final com.hederahashgraph.api.proto.java.SemanticVersion genesisServicesVersion) {
+        // Build version-by-block mapping: all blocks up to the freeze used the genesis version.
+        // At genesis (configVersion=0) the handler returns the raw version without a build suffix,
+        // but the hash computation always sets .build("0"), so we add it here.
+        final var versions = new java.util.TreeMap<Long, com.hedera.hapi.node.base.SemanticVersion>();
+        versions.put(
+                0L,
+                com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj(
+                        genesisServicesVersion.toBuilder().setBuild("0").build(),
+                        com.hedera.hapi.node.base.SemanticVersion.class));
+        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum, versions);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
