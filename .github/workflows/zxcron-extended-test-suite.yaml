@@ -64,6 +64,9 @@ jobs:
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
+    concurrency:
+      group: xts-candidate-tag-operations
+      cancel-in-progress: true
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
