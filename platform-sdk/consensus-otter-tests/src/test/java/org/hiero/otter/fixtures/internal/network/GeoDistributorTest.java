@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
-import org.hiero.otter.fixtures.network.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,11 +21,11 @@ import org.junit.jupiter.api.Test;
 @DisplayName("GeoDistributor Test")
 class GeoDistributorTest {
 
-    private GeographicLatencyConfiguration defaultConfig;
+    private GeoMeshTopologyConfiguration defaultConfig;
 
     @BeforeEach
     void setUp() {
-        defaultConfig = new GeographicLatencyConfiguration(
+        defaultConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(20.0),
                 withPercentage(40.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -106,7 +106,7 @@ class GeoDistributorTest {
         final Node node1 = mock(Node.class);
         nodes.put(node1, new Location("AETHERMOOR", "Region-1"));
 
-        final GeographicLatencyConfiguration highSameRegionConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration highSameRegionConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(80.0),
                 withPercentage(15.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -190,7 +190,7 @@ class GeoDistributorTest {
         nodes.put(mock(Node.class), new Location("AETHERMOOR", "Region-1"));
         nodes.put(mock(Node.class), new Location("AETHERMOOR", "Region-2"));
 
-        final GeographicLatencyConfiguration sameContinentPreferredConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration sameContinentPreferredConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(10.0),
                 withPercentage(80.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -212,7 +212,7 @@ class GeoDistributorTest {
         final Map<Node, Location> nodes = new HashMap<>();
         nodes.put(mock(Node.class), new Location("AETHERMOOR", "Region-1"));
 
-        final GeographicLatencyConfiguration allSameRegionConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration allSameRegionConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(100.0),
                 withPercentage(0.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -233,7 +233,7 @@ class GeoDistributorTest {
         final Map<Node, Location> nodes = new HashMap<>();
         nodes.put(mock(Node.class), new Location("AETHERMOOR", "Region-1"));
 
-        final GeographicLatencyConfiguration allSameContinentConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration allSameContinentConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(0.0),
                 withPercentage(100.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -254,7 +254,7 @@ class GeoDistributorTest {
         final Map<Node, Location> nodes = new HashMap<>();
         nodes.put(mock(Node.class), new Location("AETHERMOOR", "Region-1"));
 
-        final GeographicLatencyConfiguration allIntercontinentalConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration allIntercontinentalConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(0.0),
                 withPercentage(0.0),
                 LatencyRange.of(Duration.ofMillis(10)),
@@ -284,7 +284,7 @@ class GeoDistributorTest {
         nodes.put(mock(Node.class), new Location("GOLDENREACH", "Region-1"));
 
         // Use configuration that strongly favors intercontinental distribution
-        final GeographicLatencyConfiguration intercontinentalConfig = new GeographicLatencyConfiguration(
+        final GeoMeshTopologyConfiguration intercontinentalConfig = new GeoMeshTopologyConfiguration(
                 withPercentage(0.0),
                 withPercentage(0.0),
                 LatencyRange.of(Duration.ofMillis(10)),

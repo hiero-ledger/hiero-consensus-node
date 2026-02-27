@@ -108,11 +108,12 @@ env:
 permissions:
   id-token: write
   contents: write
+  actions: read
 
 jobs:
   validate:
     name: Validate
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -141,6 +142,12 @@ jobs:
           echo "::group::Show SemVer Binary Version Info"
           semver --version
           echo "::endgroup::"
+
+      - name: Checkout Code
+        if: ${{ github.event.repository.private == true }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Verify Workflow Parameters
         id: parameters
@@ -202,7 +209,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
@@ -238,7 +245,7 @@ jobs:
 
   build-artifact:
     name: Build Artifact
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - validate
     steps:
@@ -311,7 +318,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
@@ -399,7 +406,7 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     needs:
       - validate
       - build-artifact
@@ -551,6 +558,7 @@ jobs:
       custom-job-name: "Publish Production Image (GCP)"
       ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
+      access-token: ${{ secrets.access-token }}
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
@@ -570,6 +578,7 @@ jobs:
       custom-job-name: "Publish Production Image (JFrog)"
       ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
+      access-token: ${{ secrets.access-token }}
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
@@ -577,10 +586,11 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - gcp-production-image
       - jfr-production-image
+      - validate
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
@@ -694,7 +704,9 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
+    outputs:
+      create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
       - validate
     if: ${{ inputs.release-profile != 'none' }}
@@ -751,7 +763,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
@@ -808,39 +820,69 @@ jobs:
 
           echo "::group::Building Release Archives"
             cd "${SDK_RELEASE_DIR}" || exit "${?}"
-            zip -r "${LIB_ARCHIVE_FILE}" data/lib
-            zip -r "${APPS_ARCHIVE_FILE}" data/apps
+            if [[ -d "data/lib" ]] && [[ "$(ls -A data/lib)" ]]; then
+                zip -r "${LIB_ARCHIVE_FILE}" data/lib
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=823,title=No Libraries Found::No Library files were found to include in the libraries archive."
+            fi
+
+            if [[ -d "data/apps" ]] && [[ "$(ls -A data/apps)" ]]; then
+                zip -r "${APPS_ARCHIVE_FILE}" data/apps
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=829,title=No Apps Found::No apps files were found to include in the application archive."
+            fi
 
             # remove testing tools (if present) before building the public release artifact
             rm -vf data/apps/*TestingTool.jar || true
-            zip -r "${PUBLIC_ARCHIVE_FILE}" *
+
+            if [[ -d "data" ]] && [[ "$(ls -A data)" ]]; then
+                zip -r "${PUBLIC_ARCHIVE_FILE}" *
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=838,title=Nothing Found for Public Archive::No files were found to include in the public archive."
+            fi
+
           echo "::endgroup::"
 
           echo "::group::Sign Release Archives"
             cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
-            sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
-            sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
-            sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
+            if [[ -f "${LIB_ARCHIVE_FILE}" ]]; then
+              echo "Signing the library archive: ${LIB_ARCHIVE_FILE}"
+              sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
+              gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
+              gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=849,title=Library Archive Missing::The library archive file is missing; skipping signing."
+            fi
 
-            gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
-            gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
+            if [[ -f "${APPS_ARCHIVE_FILE}" ]]; then
+              echo "Signing the application archive: ${APPS_ARCHIVE_FILE}"
+              sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
+              gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
+              gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=858,title=Application Archive Missing::The application archive file is missing; skipping signing."
+            fi
 
-            gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
-            gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
+            if [[ -f "${PUBLIC_ARCHIVE_FILE}" ]]; then
+              echo "Signing the public archive: ${PUBLIC_ARCHIVE_FILE}"
+              sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
+              gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
+              gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=867,title=Public Archive Missing::The public archive file is missing; skipping signing."
+            fi
           echo "::endgroup::"
 
       - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -848,10 +890,16 @@ jobs:
           RELEASE_TAG: v${{ needs.validate.outputs.version }}
         run: |
           SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
-          gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+          if [[ -d "${SDK_ARCHIVE_DIR}" ]] && [[ "$(ls -A ${SDK_ARCHIVE_DIR})" ]]; then
+            echo "::group::Uploading SDK Release Artifacts to GCP Bucket"
+            gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+          else
+            echo "::error file=node-zxc-build-release-artifact.yaml,line=911,title=SDK Archive Directory Missing::The SDK archive directory is missing; cannot upload release artifacts."
+            exit 1
+          fi
 
       - name: Set GH Create Release Flag
-        id: set-gh-release-flags
+        id: set-gh-release-flag
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: |
           CREATE_RELEASE="false"
@@ -862,19 +910,24 @@ jobs:
 
           echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Create github release
-        if: ${{ steps.set-gh-release-flags.outputs.create-release == 'true' }}
-        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
-        with:
-          tag: ${{ inputs.ref-name }}
-          prerelease: false
-          draft: false
-          generateReleaseNotes: true
-          skipIfReleaseExists: true
+  create-github-release:
+    name: Create GitHub Release
+    if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    needs:
+      - publish
+      - validate
+    with:
+      ref: ${{ needs.validate.outputs.commit-id }}
+      release-version: ${{ inputs.ref-name }}
+      create-release-notes: true
+      create-release: true
+    secrets:
+      gh-access-token: ${{ secrets.access-token }}
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate
       - local-node-images

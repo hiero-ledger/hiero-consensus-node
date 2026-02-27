@@ -21,7 +21,7 @@ env:
 jobs:
   check-trigger:
     name: Check Trigger Conditions
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hl-cn-default-lin-sm
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
@@ -66,7 +66,7 @@ jobs:
 
   check-branch:
     name: Check Branching Conditions
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hl-cn-default-lin-sm
     needs:
       - check-trigger
     outputs:
@@ -95,7 +95,7 @@ jobs:
 
   create-branch:
     name: Create Release Branch
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
 
@@ -192,7 +192,7 @@ jobs:
 
   create-tag:
     name: Create Release Tag
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
       - create-branch

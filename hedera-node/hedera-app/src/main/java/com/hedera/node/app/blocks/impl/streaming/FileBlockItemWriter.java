@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
+import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
@@ -10,8 +11,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
@@ -37,6 +39,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
@@ -61,6 +64,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
+
+    /**
+     * Number of bytes in a single kilobyte.
+     */
+    private static final int ONE_KB_BYTES = 1024;
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
@@ -87,6 +95,21 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     private long blockNumber;
 
+    /**
+     * Buffer size to use for the outer file writer - in bytes.
+     */
+    private final int blockFileBufferOuterSizeBytes;
+
+    /**
+     * Buffer size to use for the inner file writer - in bytes.
+     */
+    private final int blockFileBufferInnerSizeBytes;
+
+    /**
+     * Buffer size to use for the GZIP file writer - in bytes.
+     */
+    private final int blockFileBufferGzipSizeBytes;
+
     private enum State {
         UNINITIALIZED,
         OPEN,
@@ -97,24 +120,29 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * Construct a new FileBlockItemWriter.
      *
      * @param configProvider configuration provider
-     * @param nodeInfo information about the current node
+     * @param selfNodeAccountIdManager information about the current node
      * @param fileSystem the file system to use for writing block files
      */
     public FileBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NodeInfo nodeInfo,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem) {
         requireNonNull(configProvider, "The supplied argument 'configProvider' cannot be null!");
-        requireNonNull(nodeInfo, "The supplied argument 'nodeInfo' cannot be null!");
+        requireNonNull(selfNodeAccountIdManager, "The supplied argument 'nodeInfo' cannot be null!");
         requireNonNull(fileSystem, "The supplied argument 'fileSystem' cannot be null!");
 
         this.state = State.UNINITIALIZED;
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
 
+        blockFileBufferOuterSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferOuterSizeKb();
+        blockFileBufferInnerSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferInnerSizeKb();
+        blockFileBufferGzipSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferGzipSizeKb();
+
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
-        nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
+        nodeScopedBlockDir =
+                blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
 
         this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
@@ -237,6 +265,16 @@ public class FileBlockItemWriter implements BlockItemWriter {
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
+            // Verify old proofs without block timestamp or sibling hashes are skipped
+            if (pendingProof.blockTimestamp() == null
+                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
+                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != NUM_SIBLINGS_PER_BLOCK) {
+                logger.warn(
+                        "Pending proof metadata from {} doesn't match required fields (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                break;
+            }
             Block partialBlock = null;
             final var name = proofJson.getName();
             Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
@@ -306,15 +344,25 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
+
+            /*
+            A block will contain many smaller items and writing each item individually is very inefficient. Because of
+            this, a series of nested buffers are used to write the contents of a block to disk. The outermost buffer
+            is the largest, and it collects the original items meant to be written. Then, once this buffer is full (or
+            flushed) the contents are sent to a GZIP buffer that compresses the raw items. Once the items are compressed
+            and fill the buffer, they are finally sent to the lowest buffer (the one doing the actual writing to disk).
+            Finally, once this lowest level buffer is full (or flushed) the contents are written to disk. By doing this
+            nested approach, we can minimize the number of synchronous calls writing to disk and improve performance.
+
+            While each buffer can be independently sized, a general rule of thumb for sizing is:
+            OuterBufferSize > InnerBufferSize > GZIPBufferSize in a 16:4:1 ratio
+            e.g. Outer: 4096 KB, Inner: 1024 KB, GZIP: 256 KB
+             */
+
             out = Files.newOutputStream(blockFilePath);
-            out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-            // This can significantly improve the performance when writing many small amounts of data.
-            out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
+            out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
+            out = new GZIPOutputStream(out, blockFileBufferGzipSizeBytes);
+            out = new BufferedOutputStream(out, blockFileBufferOuterSizeBytes);
 
             this.writableStreamingData = new WritableStreamingData(out);
         } catch (final IOException e) {
@@ -322,7 +370,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (out != null) {
                 try {
                     out.close();
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     logger.error("Error closing the FileBlockItemWriter output stream", ex);
                 }
             }

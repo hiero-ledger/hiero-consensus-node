@@ -143,6 +143,25 @@ class LeakyBucketDeterministicThrottleTest {
     }
 
     @Test
+    void leaksAsExpected() {
+        // setup:
+        long gasLimitForTX = 100_000;
+
+        double elapsed = 1_234;
+        double toLeak = (elapsed / ONE_SECOND_IN_NANOSECONDS) * DEFAULT_CAPACITY;
+
+        Instant originalDecision = Instant.ofEpochSecond(1_234_567L, 0);
+        Instant now = Instant.ofEpochSecond(1_234_567L, (long) elapsed);
+
+        subject.allow(originalDecision, gasLimitForTX);
+        subject.leakUntil(now);
+
+        assertEquals(
+                (long) (DEFAULT_CAPACITY - gasLimitForTX + toLeak),
+                subject.delegate().bucket().brimfulCapacityFree());
+    }
+
+    @Test
     void capacityReturnsCorrectValue() {
         assertEquals(DEFAULT_CAPACITY, subject.capacity());
     }

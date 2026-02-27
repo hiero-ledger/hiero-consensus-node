@@ -39,17 +39,16 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.
@@ -58,11 +57,9 @@ public final class ConfigUtils {
 
     private ConfigUtils() {}
 
-    public static String STATE_DIR = System.getProperty("state.dir");
+    public static String STATE_DIR;
 
-    public static String STATE_FILE_NAME = "SignedState.swh";
-
-    public static String TMP_DIR = System.getProperty("tmp.dir", "");
+    public static String TMP_DIR;
 
     public static String NODE_NAME = System.getProperty("node.name");
 
@@ -94,6 +91,8 @@ public final class ConfigUtils {
     private static Configuration configuration;
 
     private static void initConfiguration() {
+        STATE_DIR = System.getProperty("state.dir");
+        TMP_DIR = System.getProperty("tmp.dir", "");
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
@@ -108,7 +107,6 @@ public final class ConfigUtils {
                 .withConfigDataType(VersionConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(TokensConfig.class)
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
@@ -137,6 +135,10 @@ public final class ConfigUtils {
                     new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
+    }
+
+    public static void resetConfiguration() {
+        configuration = null;
     }
 
     public static Configuration getConfiguration() {

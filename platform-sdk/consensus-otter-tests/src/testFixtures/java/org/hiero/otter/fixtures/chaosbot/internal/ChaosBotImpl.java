@@ -2,23 +2,26 @@
 package org.hiero.otter.fixtures.chaosbot.internal;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.chaosbot.internal.RandomUtil.randomGaussianDuration;
 
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
+import org.hiero.otter.fixtures.chaosbot.Experiment;
+import org.hiero.otter.fixtures.chaosbot.Experiment.Step;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
@@ -28,79 +31,75 @@ public class ChaosBotImpl implements ChaosBot {
 
     private static final Logger log = LogManager.getLogger();
 
-    // These values will become configurable in the future.
-    private static final Duration CHAOS_INTERVAL = Duration.ofMinutes(3L);
-    private static final Duration CHAOS_DEVIATION = Duration.ofMinutes(2L);
-
+    /** The test environment the chaos bot is running in. */
     private final TestEnvironment env;
+
+    /** The minimum interval between experiments. */
+    private final Duration minInterval;
+
+    /** The maximum interval between experiments. */
+    private final Duration maxInterval;
+
+    /** The list of experiments the chaos bot will run. Experiments are picked randomly. */
+    private final List<Experiment> experiments;
+
+    /**
+     * The random number generator used by the chaos bot. May be initialized with a configurable seed to make
+     * the chaos bot's behavior reproducible.
+     */
     private final Randotron randotron;
-    private final ExperimentFactory factory;
-    private final Map<Class<?>, Integer> statistics = new HashMap<>();
+
+    /** The scheduled steps of experiments to execute, ordered by their timestamp. */
+    private final PriorityQueue<Step> scheduledSteps = new PriorityQueue<>(Comparator.comparing(Step::timestamp));
+
+    /** Statistics about how many times each experiment has been run. */
+    private final Map<String, Integer> statistics = new HashMap<>();
 
     /**
      * Create a new chaos bot.
      *
      * @param env the test environment
+     * @param configuration the chaos bot configuration
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public ChaosBotImpl(@NonNull final TestEnvironment env) {
-        this(env, Randotron.create());
-    }
-
-    /**
-     * Create a new chaos bot with a specific random seed.
-     *
-     * @param env the test environment
-     * @param seed the random seed
-     */
-    public ChaosBotImpl(@NonNull final TestEnvironment env, final long seed) {
-        this(env, Randotron.create(seed));
-    }
-
-    private ChaosBotImpl(@NonNull final TestEnvironment env, @NonNull final Randotron randotron) {
+    public ChaosBotImpl(@NonNull final TestEnvironment env, @NonNull final ChaosBotConfiguration configuration) {
         this.env = requireNonNull(env);
-        this.randotron = requireNonNull(randotron);
-        this.factory = new ExperimentFactory(env, randotron);
+        this.minInterval = configuration.minInterval();
+        this.maxInterval = configuration.maxInterval();
+        this.experiments = List.copyOf(configuration.experiments());
+        this.randotron = configuration.seed() == null ? Randotron.create() : Randotron.create(configuration.seed());
     }
 
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("DataFlowIssue")
     @Override
     public void runChaos(@NonNull final Duration duration) {
+        log.info("Run chaos bot for {}", duration);
+
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
-        final Instant endTime = timeManager.now().plus(duration);
+        final Instant chaosEndTime = timeManager.now().plus(duration);
 
-        final PriorityQueue<Experiment> runningExperiments =
-                new PriorityQueue<>(Comparator.comparing(Experiment::endTime));
-        Instant nextStart = calculateNextStart(randotron, timeManager.now());
+        scheduleNextExperiment();
 
-        while (timeManager.now().isBefore(endTime)) {
-            final Instant nextBreak = findEarliestInstant(endTime, nextStart, nextExperimentEnd(runningExperiments));
+        // This is the main loop of the chaos bot. Note that scheduledSteps is always non-empty because
+        // scheduleNextExperiment() always adds at least one step and the moment an experiment is started,
+        // we also call scheduleNextExperiment() to schedule the next experiment.
+        while (timeManager.now().isBefore(chaosEndTime)) {
+            final Instant nextBreak = scheduledSteps.peek().timestamp();
             timeManager.waitFor(Duration.between(timeManager.now(), nextBreak));
 
-            while (nextExperimentEnd(runningExperiments)
-                    .isBefore(timeManager.now().plusNanos(1L))) {
-                final Experiment finishedExperiment = runningExperiments.poll();
-                assert finishedExperiment != null; // nextExperimentEnd would have returned Instant.MAX if empty
-                finishedExperiment.end();
-            }
-
-            if (nextStart.isBefore(timeManager.now().plusNanos(1L))) {
-                final Experiment experiment = factory.createExperiment();
-                if (experiment != null) {
-                    statistics.merge(experiment.getClass(), 1, Integer::sum);
-                }
-                if (experiment != null) {
-                    runningExperiments.add(experiment);
-                }
-                nextStart = calculateNextStart(randotron, timeManager.now());
-            }
+            do {
+                final Experiment.Step step = scheduledSteps.poll();
+                step.action().run();
+            } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
         }
 
         log.info("Chaos bot finished. Statistics of experiments run:");
-        for (final Map.Entry<Class<?>, Integer> entry : statistics.entrySet()) {
-            log.info("  {}: {}", entry.getKey().getSimpleName(), entry.getValue());
+        for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
+            log.info("  {}: {}", entry.getKey(), entry.getValue());
         }
 
         // End any remaining experiments.
@@ -128,21 +127,38 @@ public class ChaosBotImpl implements ChaosBot {
         }
     }
 
-    @NonNull
-    private static Instant nextExperimentEnd(@NonNull final PriorityQueue<Experiment> runningExperiments) {
-        return runningExperiments.isEmpty()
-                ? Instant.MAX
-                : runningExperiments.peek().endTime();
-    }
+    /*
+     * This method creates a new {@link Step} and adds it to {@link #scheduledSteps}. The new step will do two things
+     * when executed: it will start a randomly selected experiment, and it will call
+     * {@link #scheduleNextExperiment()} again to schedule the next experiment. In other words, the moment experiment A
+     * is started, the next experiment B is scheduled. This ensures that there is always at least one scheduled step in
+     * the queue.
+     */
+    private void scheduleNextExperiment() {
+        // Pick a random delay and a random experiment. Chaos test should be run long enough so that each experiment
+        // will be run at least once without the need to iterate through all experiments.
+        final Duration delay = randotron.nextDuration(minInterval, maxInterval);
+        final Experiment experiment = experiments.stream()
+                .skip(randotron.nextInt(experiments.size()))
+                .findFirst()
+                .orElseThrow();
+        log.info("Scheduling experiment {} in {}.", experiment, delay);
 
-    @NonNull
-    private static Instant findEarliestInstant(
-            @NonNull final Instant i1, @NonNull final Instant i2, @NonNull final Instant i3) {
-        return i1.isBefore(i2) ? (i1.isBefore(i3) ? i1 : i3) : (i2.isBefore(i3) ? i2 : i3);
-    }
+        final Instant startTime = env.timeManager().now().plus(delay);
 
-    @NonNull
-    private Instant calculateNextStart(@NonNull final Randotron randotron, @NonNull final Instant now) {
-        return now.plus(randomGaussianDuration(randotron, CHAOS_INTERVAL, CHAOS_DEVIATION));
+        // Create a step that does two things:
+        final Step startExperiment = new Step(startTime, () -> {
+            // 1. Start the experiment and schedule its remaining steps
+            final List<Step> remainingSteps = experiment.start(env.network(), startTime, randotron);
+            if (remainingSteps.isEmpty()) {
+                log.info("Experiment '{}' could not be started.", experiment.name());
+            } else {
+                scheduledSteps.addAll(remainingSteps);
+                statistics.merge(experiment.name(), 1, Integer::sum);
+            }
+            // 2. Schedule the next experiment
+            scheduleNextExperiment();
+        });
+        scheduledSteps.add(startExperiment);
     }
 }

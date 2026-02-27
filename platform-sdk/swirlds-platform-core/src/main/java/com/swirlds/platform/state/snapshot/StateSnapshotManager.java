@@ -2,10 +2,10 @@
 package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This class is responsible for managing the signed state writing pipeline.

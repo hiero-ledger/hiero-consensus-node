@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.threading;
 
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +10,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.ThrowingRunnable;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 
 /**
  * A parallel executor that executes a {@link Runnable} after a specified sync phase (not step). It also has a special

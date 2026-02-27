@@ -7,7 +7,6 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -45,15 +44,6 @@ public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
     @Override
     public V get(@NonNull K key) {
         return delegate.get(key);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public Iterator<K> keys() {
-        return delegate.keys();
     }
 
     /**

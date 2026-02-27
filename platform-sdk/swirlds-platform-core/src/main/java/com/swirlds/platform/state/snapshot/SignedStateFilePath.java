@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
@@ -197,25 +196,15 @@ public class SignedStateFilePath {
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
-                        final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
-                        if (!exists(stateFile)) {
-                            logger.warn(
-                                    EXCEPTION.getMarker(),
-                                    "Saved state file ({}) not found, but directory exists '{}'",
-                                    stateFile.getFileName(),
-                                    subDir.toAbsolutePath());
-                            continue;
-                        }
-
-                        final Path metdataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
+                        final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
                         final SavedStateMetadata metadata;
                         try {
-                            metadata = SavedStateMetadata.parse(metdataPath);
+                            metadata = SavedStateMetadata.parse(stateMetadataPath);
                         } catch (final IOException e) {
                             logger.error(
                                     EXCEPTION.getMarker(),
                                     "Unable to read saved state metadata file '{}'",
-                                    metdataPath);
+                                    stateMetadataPath);
                             continue;
                         }
 

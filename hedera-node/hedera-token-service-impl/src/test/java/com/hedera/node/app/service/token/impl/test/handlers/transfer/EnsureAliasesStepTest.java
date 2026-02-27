@@ -282,7 +282,6 @@ class EnsureAliasesStepTest extends StepsBase {
                                 aaWith(ownerId, -1_000),
                                 aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         txn = asTxn(body, payerId);
         given(handleContext.body()).willReturn(txn);

@@ -11,7 +11,7 @@ on:
 
 jobs:
   performance-tests-start:
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-default-lin-sm
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -28,7 +28,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -36,6 +36,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access to Dallas Cluster
         id: auth-k8s-dal
@@ -44,7 +45,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: List SSH Resources
         run: tsh -i "${{ steps.auth-ssh.outputs.identity-file }}" ls
@@ -68,7 +69,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Call clean Chi
         run: |

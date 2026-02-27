@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -89,7 +90,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         lenient()
                 .when(gasCalculator.transactionIntrinsicGasCost(
                         org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
+                .thenReturn((long) config.getConfigData(HooksConfig.class).evmHookIntrinsicGasCost());
         subject = new HookDispatchHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
@@ -98,7 +99,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         given(handleContext.body()).willReturn(hookDispatchWithCreation());
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(evmHookStore).createEvmHook(any());
+        verify(evmHookStore).createEvmHook(any(), anyLong());
     }
 
     @Test

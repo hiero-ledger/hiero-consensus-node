@@ -45,7 +45,7 @@ jobs:
   # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-bn-regression-lin-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -79,15 +79,33 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # checkout the latest block node tag if needed
-      - name: Checkout Latest BN Tag
+      - name: Retrieve Latest BN Tag
         run: |
-          cd block-node
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Block Node tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
-          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
+          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
+          LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+
+          if [[ -z "${LATEST_BN_TAG}" ]]; then
+            echo "ERROR: Could not parse LATEST_BN_TAG from response"
+            return 1
+          fi
+
+          echo "Latest Block Node tag: ${LATEST_BN_TAG}"
+          echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
+
+      - name: Retrieve Latest MN Tag
+        run: |
+          mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
+          LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+
+          if [[ -z "${LATEST_MN_TAG}" ]]; then
+            echo "ERROR: Could not parse LATEST_MN_TAG from response"
+            return 1
+          fi
+
+          echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
+          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -143,7 +161,7 @@ jobs:
 
       # Set up the gradle environment
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -165,14 +183,14 @@ jobs:
           # Extract package versions from the parent package.json
           SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
+          PROTO_VERSION=$(node -e "console.log(require('../packages/proto/package.json').version)")
 
           echo "Using SDK version: ${SDK_VERSION}"
           echo "Using long version: ${LONG_VERSION}"
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
+          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -182,7 +200,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hashgraph/solo@latest
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -245,7 +263,7 @@ jobs:
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.140.0 -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
@@ -261,18 +279,23 @@ jobs:
       # produce protobuf source artifact
       - name: Produce Protobuf proto artifact
         working-directory: block-node
-        run: ${GRADLE_EXEC} :block-node-protobuf-sources:generateBlockNodeProtoArtifact
+        run: ${GRADLE_EXEC} :protobuf-sources:generateBlockNodeProtoArtifact
 
       # untar protobuf sources
       - name: Untar Protobuf Sources
         working-directory: block-node/protobuf-sources
         run: |
           mkdir -p proto
-          # Extract the 'v' from the tag if it exists
-          PROTO_TAG="${{ env.BLOCK_NODE_TAG }}"
-          PROTO_TAG="${PROTO_TAG#v}"
+          # Use the generated protobuf artifact (matches local project version)
+          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
+          if [[ -z "$PROTO_FILE" ]]; then
+            echo "Error: No protobuf artifact found"
+            ls -la
+            exit 1
+          fi
+          echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
-          tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
+          tar -xzf "$PROTO_FILE" -C proto
 
       - name: Install grpcurl
         run: |
@@ -356,10 +379,8 @@ jobs:
         if: always()
         run: |
           # Get CN Logs
-          solo consensus diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
-          BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
-          LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
-          echo "Latest log folder is $LOG_FOLDER"
+          solo deployment diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          LOG_FOLDER="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
@@ -407,7 +428,7 @@ jobs:
 
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-bn-regression-lin-sm
     needs: block-node-regression
     if: ${{ always() }}
     steps:

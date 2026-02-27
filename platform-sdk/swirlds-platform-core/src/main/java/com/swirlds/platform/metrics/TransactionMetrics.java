@@ -7,10 +7,10 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * Collection of metrics related to transactions

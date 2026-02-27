@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,72 +14,280 @@ import java.util.List;
  * All values are in tinycents.
  */
 public class FeeResult {
-    /** The service component in tinycents. */
-    public long service = 0;
-    /** The node component in tinycents. */
-    public long node = 0;
-    /** The network component in tinycents. */
-    public long network = 0;
-    /** Details about the fee, broken down by label. */
-    public List<FeeDetail> details = new ArrayList<>();
+    private long serviceBase = 0;
+    private final List<FeeDetail> serviceExtrasDetails = new ArrayList<>();
+    private long serviceTotal = 0;
+    private long nodeBase = 0;
+    private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
+    private long nodeTotal = 0;
+    private int networkMultiplier = 0;
+    private long highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
-    /** Add a service fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addServiceFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        service = clampedAdd(service, count * cost);
+    public FeeResult() {}
+
+    public FeeResult(long serviceTotal, long nodeTotal, int networkMultiplier) {
+        this.serviceTotal = serviceTotal;
+        this.nodeTotal = nodeTotal;
+        this.networkMultiplier = networkMultiplier;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
-    /** Add a node fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addNodeFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        node = clampedAdd(node, count * cost);
+    /**
+     * Get the total Service component in tiny cents.
+     *
+     * @return the total service fee in tiny cents
+     */
+    public long getServiceTotalTinycents() {
+        return serviceTotal;
     }
 
-    /** Add a network fee with details.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addNetworkFee(long cost) {
-        details.add(new FeeDetail(1, cost));
-        network = clampedAdd(network, cost);
+    /**
+     * Set the Service baseFee in tiny cents.
+     *
+     * @param cost the base fee component of this service fee in tinycents.
+     *
+     */
+    public void setServiceBaseFeeTinycents(long cost) {
+        this.serviceBase = cost;
+        this.serviceTotal = clampedAdd(serviceTotal, cost);
     }
 
-    /** the total fee in tinycents. */
-    public long total() {
-        return clampedAdd(clampedAdd(this.node, this.network), this.service);
+    /**
+     * Get the Service base fee in tiny cents.
+     *
+     * @return service base fee
+     *
+     */
+    public long getServiceBaseFeeTinycents() {
+        return this.serviceBase;
     }
 
-    /** Utility class representing the details of a particular fee component. */
-    public static class FeeDetail {
-        public long count;
-        public long fee;
-
-        public FeeDetail(long count, long fee) {
-            this.count = count;
-            this.fee = fee;
+    /**
+     * Add a Service extra fee in tiny cents.
+     *
+     * @param name the name of this extra
+     * @param unitCost the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     * @param included how many of the extra were included for free
+     */
+    public void addServiceExtraFeeTinycents(String name, long unitCost, long used, long included) {
+        var charged = Math.max(0, used - included);
+        if (charged > 0) {
+            serviceExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
+            serviceTotal = clampedAdd(serviceTotal, clampedMultiply(unitCost, charged));
         }
+    }
+    /**
+     * Applies a multiplier to the service and node totals using a fixed-point scale.
+     *
+     * @param rawMultiplier the multiplier value in fixed-point form
+     * @param scale the fixed-point scale (e.g. 1000 for 3 decimal places)
+     */
+    public void applyMultiplier(final long rawMultiplier, final long scale) {
+        if (rawMultiplier <= 0 || scale <= 0) {
+            throw new IllegalArgumentException(
+                    "Multiplier and scale must be positive (multiplier=" + rawMultiplier + ", scale=" + scale + ")");
+        }
+        if (rawMultiplier == scale) {
+            return;
+        }
+        serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
+        nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
+        scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
+        scaleFeeDetails(nodeExtrasDetails, rawMultiplier, scale);
+        recomputeTotals();
+    }
 
-        @Override
-        public String toString() {
-            return "FeeDetail{" + this.count + ", " + this.fee + "}";
+    /**
+     * Details about the service fee extras, broken down by label.
+     *
+     * @return the service extra details
+     */
+    public List<FeeDetail> getServiceExtraDetails() {
+        return this.serviceExtrasDetails;
+    }
+
+    /**
+     * Get the total Node component of the fee in tinycents.
+     *
+     * @return the total node fee in tiny cents
+     */
+    public long getNodeTotalTinycents() {
+        return nodeTotal;
+    }
+
+    /**
+     * Set the Node baseFee in tiny cents.
+     *
+     * @param cost the actual computed cost of this service fee in tinycents.
+     *
+     */
+    public void setNodeBaseFeeTinycents(long cost) {
+        this.nodeBase = cost;
+        this.nodeTotal = clampedAdd(nodeTotal, cost);
+    }
+
+    /**
+     * Get the Service base fee in tiny cents.
+     *
+     * @return service base fee
+     *
+     */
+    public long getNodeBaseFeeTinycents() {
+        return this.nodeBase;
+    }
+
+    /**
+     * Add a Node extra fee in tiny cents.
+     *
+     * @param name the name of this extra
+     * @param unitCost the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     * @param included how many of the extra were included for free
+     */
+    public void addNodeExtraFeeTinycents(String name, long unitCost, long used, long included) {
+        var charged = Math.max(0, used - included);
+        if (charged > 0) {
+            nodeExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
+            nodeTotal = clampedAdd(nodeTotal, clampedMultiply(unitCost, charged));
         }
     }
+
+    /**
+     * Details about the service fee extras, broken down by label.
+     *
+     * @return the node extra details
+     */
+    public List<FeeDetail> getNodeExtraDetails() {
+        return this.nodeExtrasDetails;
+    }
+
+    /**
+     * Set the network multiplier
+     *
+     * @param networkMultiplier the network multiplier
+     */
+    public void setNetworkMultiplier(int networkMultiplier) {
+        this.networkMultiplier = networkMultiplier;
+    }
+
+    /**
+     * Get the network multiplier
+     *
+     * @return the network multiplier
+     */
+    public int getNetworkMultiplier() {
+        return this.networkMultiplier;
+    }
+
+    /**
+     * Get the Network component in tiny cents. This will always
+     * be a multiple of the Node fee
+     *
+     * @return the network fee in tiny cents
+     */
+    public long getNetworkTotalTinycents() {
+        return clampedMultiply(this.getNodeTotalTinycents(), this.networkMultiplier);
+    }
+
+    public long getHighVolumeMultiplier() {
+        return highVolumeMultiplier;
+    }
+
+    /**
+     * Set the high-volume multiplier metadata applied to this fee result.
+     *
+     * @param highVolumeMultiplier the raw high-volume multiplier
+     */
+    public void setHighVolumeMultiplier(final long highVolumeMultiplier) {
+        if (highVolumeMultiplier <= 0) {
+            throw new IllegalArgumentException("High-volume multiplier must be positive");
+        }
+        this.highVolumeMultiplier = highVolumeMultiplier;
+    }
+
+    public void clearFees() {
+        this.serviceExtrasDetails.clear();
+        this.serviceBase = 0;
+        this.serviceTotal = 0;
+        this.nodeExtrasDetails.clear();
+        this.nodeBase = 0;
+        this.nodeTotal = 0;
+        this.networkMultiplier = 0;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
+    }
+
+    /**
+     * The total computed fee of this transaction (Service + Node + Network) in tiny cents.
+     *
+     * @return the total fee in tiny cents
+     */
+    public long totalTinycents() {
+        return clampedAdd(
+                clampedAdd(this.getNodeTotalTinycents(), this.getNetworkTotalTinycents()),
+                this.getServiceTotalTinycents());
+    }
+
+    /**
+     * Scales the given amount by the given multiplier.
+     */
+    private static long scaleAmount(final long amount, final long rawMultiplier, final long scale) {
+        return clampedMultiply(amount, rawMultiplier) / scale;
+    }
+    /**
+     * Scales the per-unit cost of each fee detail by the given multiplier.
+     */
+    private static void scaleFeeDetails(final List<FeeDetail> details, final long rawMultiplier, final long scale) {
+        if (details.isEmpty()) {
+            return;
+        }
+        final var scaled = new ArrayList<FeeDetail>(details.size());
+        for (final var detail : details) {
+            scaled.add(new FeeDetail(
+                    detail.name(),
+                    scaleAmount(detail.perUnit(), rawMultiplier, scale),
+                    detail.used(),
+                    detail.included(),
+                    detail.charged()));
+        }
+        details.clear();
+        details.addAll(scaled);
+    }
+    /**
+     * Recomputes the totals based on the base fees and extra details.
+     */
+    private void recomputeTotals() {
+        long serviceSum = serviceBase;
+        for (final var detail : serviceExtrasDetails) {
+            serviceSum = clampedAdd(serviceSum, clampedMultiply(detail.perUnit(), detail.charged()));
+        }
+        serviceTotal = serviceSum;
+
+        long nodeSum = nodeBase;
+        for (final var detail : nodeExtrasDetails) {
+            nodeSum = clampedAdd(nodeSum, clampedMultiply(detail.perUnit(), detail.charged()));
+        }
+        nodeTotal = nodeSum;
+    }
+    /**
+     * Details about a fee extra, including the name, per-unit cost, and how many were used and included.
+     * @param charged how many of the extra were charged
+     * @param included how many of the extra were included for free
+     * @param name the name of this extra
+     * @param perUnit the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     */
+    public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}
 
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + this.total() + ", details=" + details + '}';
-    }
-
-    private static long clampedAdd(final long a, final long b) {
-        try {
-            return Math.addExact(a, b);
-        } catch (final ArithmeticException ae) {
-            return a > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
-        }
+        return "FeeResult{" + "totalFee=" + this.totalTinycents() + ", serviceBaseFee="
+                + getServiceBaseFeeTinycents() + ", serviceDetails="
+                + getServiceExtraDetails() + ", nodeBaseFee="
+                + getNodeBaseFeeTinycents() + ", nodeDetails="
+                + getNodeExtraDetails() + ", networkMultiplier="
+                + getNetworkMultiplier() + ", networkFee="
+                + getNetworkTotalTinycents() + ", highVolumeMultiplier="
+                + getHighVolumeMultiplier() + '}';
     }
 }

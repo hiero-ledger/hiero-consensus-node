@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includ
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getNonFeeDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -53,9 +54,8 @@ public class DuplicateManagementTest {
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
-    @HapiTest
-    @SuppressWarnings("java:S5960")
     @Tag(MATS)
+    @HapiTest
     final Stream<DynamicTest> hasExpectedDuplicates() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
@@ -89,6 +89,9 @@ public class DuplicateManagementTest {
                                 recordWith().status(DUPLICATE_TRANSACTION))),
                 sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 withOpContext((spec, opLog) -> {
+                    final var flag =
+                            spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+
                     var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
                     var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
                     allRunFor(spec, cheapGet, costlyGet);
@@ -96,14 +99,32 @@ public class DuplicateManagementTest {
                     var costlyRecord = costlyGet.getResponseRecord();
                     opLog.info("cheapRecord: {}", cheapRecord);
                     opLog.info("costlyRecord: {}", costlyRecord);
-                    var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
-                    var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                    assertEquals(
-                            3 * cheapPrice - 1,
-                            costlyPrice,
-                            String.format(
-                                    "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
-                                    costlyPrice, cheapPrice));
+                    if ("true".equals(flag)) {
+                        var cheapPrice = getDeduction(
+                                        cheapRecord.getTransferList(),
+                                        cheapRecord.getTransactionID().getAccountID())
+                                .orElse(0);
+                        var costlyPrice = getDeduction(
+                                        costlyRecord.getTransferList(),
+                                        costlyRecord.getTransactionID().getAccountID())
+                                .orElse(0);
+                        assertEquals(
+                                3 * cheapPrice,
+                                costlyPrice,
+                                String.format(
+                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        costlyPrice, cheapPrice));
+
+                    } else {
+                        var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
+                        var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
+                        assertEquals(
+                                3 * cheapPrice - 1,
+                                costlyPrice,
+                                String.format(
+                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        costlyPrice, cheapPrice));
+                    }
                 }));
     }
 

@@ -5,13 +5,10 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A utility class for testing purposes. Each named {@link InMemoryDataSource} is stored in a map.
@@ -23,28 +20,6 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
     private static final AtomicInteger dbIndex = new AtomicInteger(0);
 
     private static final Map<String, InMemoryDataSource> snapshots = new ConcurrentHashMap<>();
-
-    private static final long CLASS_ID = 0x29e653a8c81959b8L;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
 
     /**
      * {@inheritDoc}
@@ -78,19 +53,6 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
         final InMemoryDataSource snapshot = new InMemoryDataSource(source);
         snapshots.put(destinationDir.toString(), snapshot);
         return destinationDir;
-    }
-
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        // no configuration data to serialize
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        // no configuration data to deserialize
     }
 
     protected InMemoryDataSource createDataSource(final String name) {

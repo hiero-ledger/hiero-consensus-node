@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link TeachingSynchronizer} with simulated delay.
@@ -31,10 +28,9 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      * Create a new teaching synchronizer with simulated latency.
      */
     public BenchmarkSlowTeachingSynchronizer(
-            @NonNull final Configuration configuration,
-            final MerkleDataInputStream in,
-            final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final SerializableDataInputStream in,
+            final SerializableDataOutputStream out,
+            final TeacherTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
@@ -42,15 +38,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(
-                configuration,
-                Time.getCurrent(),
-                getStaticThreadManager(),
-                in,
-                out,
-                root,
-                breakConnection,
-                reconnectConfig);
+        super(Time.getCurrent(), getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

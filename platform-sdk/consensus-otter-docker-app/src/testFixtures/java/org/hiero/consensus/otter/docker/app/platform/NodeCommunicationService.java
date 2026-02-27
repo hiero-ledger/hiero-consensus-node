@@ -133,12 +133,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        consensusNodeManager = new ConsensusNodeManager(
-                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager =
+                    new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
-        setupStreamingEventDispatcher();
+            setupStreamingEventDispatcher();
 
-        consensusNodeManager.start();
+            consensusNodeManager.start();
+        });
     }
 
     /**
@@ -149,7 +151,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
-                rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
     }
 
     /**
@@ -274,10 +276,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         try {
             action.run();
         } catch (final IllegalArgumentException e) {
+            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
             responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
         } catch (final UnsupportedOperationException e) {
+            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
             responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
         } catch (final Exception e) {
+            log.error(DEMO_INFO.getMarker(), "Error processing gRPC request", e);
             responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
         }
     }

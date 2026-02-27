@@ -141,7 +141,7 @@ public final class ParsedBucket extends Bucket {
                 }
                 final BucketEntry newEntry = new BucketEntry(keyHashCode, value, keyBytes);
                 entries.add(newEntry);
-                checkLargestBucket(entries.size());
+                checkLargestBucket();
                 return true;
             }
         } catch (IOException e) {
@@ -159,7 +159,6 @@ public final class ParsedBucket extends Bucket {
         bucketIndex = 0;
         entries.clear();
 
-        int entriesCount = 0;
         while (in.hasRemaining()) {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
@@ -171,13 +170,12 @@ public final class ParsedBucket extends Bucket {
                 in.limit(in.position() + entryBytesSize);
                 entries.add(new BucketEntry(in));
                 in.limit(oldLimit);
-                entriesCount++;
             } else {
                 throw new IllegalArgumentException("Unknown bucket field: " + fieldNum);
             }
         }
 
-        checkLargestBucket(entriesCount);
+        checkLargestBucket();
     }
 
     public void writeTo(final WritableSequentialData out) {

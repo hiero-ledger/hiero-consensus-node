@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpecOperation.UnknownFieldLocation.OP_BODY;
 import static com.hedera.services.bdd.spec.HapiSpecOperation.UnknownFieldLocation.SIGNED_TRANSACTION;
@@ -105,7 +105,6 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TokenCreateSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
 /**
  * Validates the {@code TokenCreate} transaction, including its:
  * <ul>
@@ -113,7 +112,8 @@ import org.junit.jupiter.api.Tag;
  *     <li>Default values.</li>
  * </ul>
  */
-@Tag(TOKEN)
+@HapiTestLifecycle
+@Tag(ATOMIC_BATCH)
 class AtomicTokenCreateSpecs {
 
     private static final String NON_FUNGIBLE_UNIQUE_FINITE = "non-fungible-unique-finite";

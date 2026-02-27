@@ -15,10 +15,13 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
+import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -33,22 +36,23 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThreaded;
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
@@ -61,6 +65,9 @@ import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,6 +111,9 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Mock
     private Platform platform;
 
+    @Mock
+    private SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
+
     @BeforeEach
     void setUpEach() throws Exception {
         // create in memory temp dir
@@ -121,9 +131,10 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.recordFileVersion", 6)
                 .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
-                .withService(PLATFORM_STATE_SERVICE)
+                .withService(new PlatformStateService())
                 .build();
 
         // Preload the specific state we want to test with
@@ -137,8 +148,8 @@ final class BlockRecordManagerTest extends AppTestBase {
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
                 .commit();
-
-        blockRecordWriterFactory = new BlockRecordWriterFactoryImpl(app.configProvider(), NODE_INFO, SIGNER, fs);
+        blockRecordWriterFactory =
+                new BlockRecordWriterFactoryImpl(app.configProvider(), SIGNER, fs, selfNodeAccountIdManager);
     }
 
     @AfterEach
@@ -153,6 +164,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @ParameterizedTest
     @CsvSource({"GENESIS, false", "NON_GENESIS, false", "GENESIS, true", "NON_GENESIS, true"})
     void testRecordStreamProduction(final String startMode, final boolean concurrent) throws Exception {
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         // setup initial block info
         final long STARTING_BLOCK;
         if (startMode.equals("GENESIS")) {
@@ -188,6 +200,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 ? new StreamFileProducerConcurrent(
                         blockRecordFormat, blockRecordWriterFactory, ForkJoinPool.commonPool(), app.hapiVersion())
                 : new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -195,9 +208,11 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
+                platform,
+                wrappedRecordHashesDiskWriter,
+                InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
-                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
             assertThat(blockRecordManager.blockTimestamp()).isNotNull();
             assertThat(blockRecordManager.blockNo()).isEqualTo(blockRecordManager.lastBlockNo() + 1);
@@ -238,6 +253,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files
@@ -254,6 +270,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Test
     void testBlockInfoMethods() throws Exception {
         // setup initial block info, pretend that previous block was 2 seconds before first test transaction
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -280,6 +297,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var merkleState = app.workingStateAccessor().getState();
         final var producer =
                 new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -287,8 +305,10 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
-            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+                platform,
+                wrappedRecordHashesDiskWriter,
+                InitTrigger.RESTART)) {
+            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
             Bytes runningHash = STARTING_RUNNING_HASH_OBJ.hash();
@@ -373,6 +393,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files
@@ -440,7 +461,9 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -457,7 +480,9 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));
@@ -465,10 +490,8 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {
-        final var virtualMapLabel =
-                "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap) {
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
+        return new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {

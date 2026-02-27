@@ -2,19 +2,20 @@
 package org.hiero.consensus.event.creator.impl.pool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.Randotron;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.utility.ByteUtils;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,12 @@ class TransactionPoolNexusTest {
     public void beforeEach() {
         fakeTime = new FakeTime();
         final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
-        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics(), fakeTime);
+        nexus = new TransactionPoolNexus(
+                txConfig,
+                TX_QUEUE_SIZE,
+                TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                new NoOpMetrics(),
+                fakeTime);
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
@@ -159,5 +165,57 @@ class TransactionPoolNexusTest {
         assertTrue(firstTimestamped.receivedTime().isAfter(initialTime));
         assertTrue(secondTimestamped.receivedTime().isAfter(initialTime));
         assertTrue(thirdTimestamped.receivedTime().isAfter(initialTime));
+    }
+
+    /**
+     * Verifies that the default 1-second unhealthy threshold causes transaction rejections
+     * when the platform is unhealthy for longer than that duration — reproducing the CI flake
+     * where CPU-starved subprocess nodes trip the health check under concurrent load.
+     */
+    @Test
+    void testDefaultThresholdRejectsWhenUnhealthyTooLong() {
+        final Bytes tx = Bytes.wrap(new byte[] {1, 2, 3});
+
+        // Healthy platform accepts transactions
+        assertTrue(nexus.submitApplicationTransaction(tx));
+
+        // Report unhealthy for exactly 1 second — already unhealthy (isLessThan is strict: 1s < 1s is false)
+        nexus.reportUnhealthyDuration(Duration.ofSeconds(1));
+        assertFalse(nexus.submitApplicationTransaction(tx));
+
+        // Report unhealthy for longer than 1 second — still rejects
+        nexus.reportUnhealthyDuration(Duration.ofMillis(1001));
+        assertFalse(nexus.submitApplicationTransaction(tx));
+
+        // Recovery: report healthy again
+        nexus.reportUnhealthyDuration(Duration.ZERO);
+        assertTrue(nexus.submitApplicationTransaction(tx));
+    }
+
+    /**
+     * Verifies that increasing the unhealthy threshold allows the platform to tolerate
+     * longer periods of unhealthiness without rejecting transactions — the fix for
+     * CI flakiness caused by CPU starvation under concurrent subprocess tests.
+     */
+    @Test
+    void testIncreasedThresholdToleratesLongerUnhealthyDuration() {
+        final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        final var tolerantNexus =
+                new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, Duration.ofSeconds(5), new NoOpMetrics(), fakeTime);
+        tolerantNexus.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+        final Bytes tx = Bytes.wrap(new byte[] {1, 2, 3});
+
+        // Unhealthy for 1 second — would fail with default, but accepted with 5s threshold
+        tolerantNexus.reportUnhealthyDuration(Duration.ofSeconds(1));
+        assertTrue(tolerantNexus.submitApplicationTransaction(tx));
+
+        // Unhealthy for 3 seconds — still within 5s threshold
+        tolerantNexus.reportUnhealthyDuration(Duration.ofSeconds(3));
+        assertTrue(tolerantNexus.submitApplicationTransaction(tx));
+
+        // Unhealthy for 5 seconds — at threshold, now rejects
+        tolerantNexus.reportUnhealthyDuration(Duration.ofSeconds(5));
+        assertFalse(tolerantNexus.submitApplicationTransaction(tx));
     }
 }

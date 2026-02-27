@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
@@ -47,7 +48,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -59,7 +59,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TokenCreateSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@Tag(TestTags.TOKEN)
+@Tag(ATOMIC_BATCH)
 class AtomicTokenCreateCustomFeesTest {
 
     private static final String TOKEN_TREASURY = "treasury";

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -65,7 +65,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of Evm38ValidationSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicEvm38ValidationSuite {
 

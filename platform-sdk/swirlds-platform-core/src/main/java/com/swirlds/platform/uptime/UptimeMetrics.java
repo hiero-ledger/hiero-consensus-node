@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -10,6 +8,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

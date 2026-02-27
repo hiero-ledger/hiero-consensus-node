@@ -3,6 +3,8 @@
 ###################################
 # NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
 *                                               @hiero-ledger/github-maintainers
+**/*.gradle.*                                   @hiero-ledger/github-maintainers
+
 #########################
 ##### Example apps ######
 #########################
@@ -14,6 +16,7 @@
 ##### State Validator ######
 ############################
 /hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hedera-state-validator/**/*.gradle             @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### Hedera Node  ######
@@ -21,9 +24,10 @@
 
 # Hedera Node Root Protections
 /hedera-node/                                   @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/**/*.gradle                        @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Hedera Node Deployments - Configuration & Grafana Dashboards
-/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @beeradb
+/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @akdev
 /hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 
@@ -53,6 +57,7 @@
 ###############################
 # add @rsinha as an explicit codeowner once hiero-invite has been added
 /hedera-cryptography/                               @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hedera-cryptography/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### Platform SDK ######
@@ -68,11 +73,10 @@
 /platform-sdk/swirlds-base/                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-benchmarks/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-cli/                          @hiero-ledger/hiero-consensus-node-consensus-codeowners
-/platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-common/src/**/java/com/swirlds/common/merkle/ @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-component-framework/          @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-config-*/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/swirlds-fchashmap/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/swirlds-fcqueue/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-logging/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-logging-*/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-merkle/                       @hiero-ledger/hiero-consensus-node-foundation-codeowners
@@ -83,14 +87,20 @@
 /platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
+/hiero-observability                                @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hiero-observability/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+
 ####################
 #####   HAPI  ######
 ####################
 
-/hapi/                                              @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hapi/                                              @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hapi/**/*.gradle                                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Protobuf
 /hapi/hedera-protobuf-java-api/src/main/proto/services/ @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/ @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/state/virtual_map_state.proto @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
@@ -119,7 +129,6 @@ gradlew                                             @hiero-ledger/github-maintai
 gradlew.bat                                         @hiero-ledger/github-maintainers
 **/build-logic/                                     @hiero-ledger/github-maintainers
 **/gradle.*                                         @hiero-ledger/github-maintainers
-**/*.gradle.*                                       @hiero-ledger/github-maintainers
 
 # Codacy Tool Configurations
 /config/                                            @hiero-ledger/github-maintainers

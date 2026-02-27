@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -39,11 +40,11 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
@@ -138,8 +139,10 @@ class FileAppendHandlerTest extends FileTestBase {
         refreshStoresWithCurrentFileOnlyInReadable();
 
         BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
-        BDDMockito.given(mockStoreFactory.getStore(ReadableFileStore.class)).willReturn(readableStore);
-        BDDMockito.given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
+                .willReturn(readableStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
+                .willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         // No-op
@@ -164,8 +167,10 @@ class FileAppendHandlerTest extends FileTestBase {
         file = createFileEmptyMemoAndKeys();
         refreshStoresWithCurrentFileOnlyInReadable();
         BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
-        BDDMockito.given(mockStoreFactory.getStore(ReadableFileStore.class)).willReturn(readableStore);
-        BDDMockito.given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
+                .willReturn(readableStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
+                .willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         // No-op
@@ -327,6 +332,30 @@ class FileAppendHandlerTest extends FileTestBase {
                 .build();
 
         file = new File(fileId, expirationTime, null, Bytes.wrap(contents), memo, false, 0L);
+
+        given(handleContext.body()).willReturn(txBody);
+        writableFileState = writableFileStateWithOneKey();
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
+        given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertEquals(ResponseCodeEnum.UNAUTHORIZED, msg.getStatus());
+    }
+
+    @Test
+    @DisplayName("Fails handle if keys list is empty on file to be appended")
+    void failsForImmutableFileWithEmptyKeyList() {
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(wellKnownId()))
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(
+                                Timestamp.newBuilder().seconds(111111).build())
+                        .build())
+                .build();
+
+        file = new File(fileId, expirationTime, KeyList.DEFAULT, Bytes.wrap(contents), memo, false, 0L);
 
         given(handleContext.body()).willReturn(txBody);
         writableFileState = writableFileStateWithOneKey();

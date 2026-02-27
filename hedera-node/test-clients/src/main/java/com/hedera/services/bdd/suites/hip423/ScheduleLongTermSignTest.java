@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 public class ScheduleLongTermSignTest {
 
     private static final long ONE_MINUTE = 60;
-    private static final long THIRTY_MINUTES = 30 * ONE_MINUTE;
+    public static final long THIRTY_MINUTES = 30 * ONE_MINUTE;
     private static final String PAYING_ACCOUNT = "payingAccount";
     private static final String RECEIVER = "receiver";
     private static final String SENDER = "sender";

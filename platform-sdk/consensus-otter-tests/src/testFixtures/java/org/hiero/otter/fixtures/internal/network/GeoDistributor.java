@@ -13,7 +13,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
-import org.hiero.otter.fixtures.network.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 
 /**
  * Utility class for distributing nodes geographically based on a target latency configuration.
@@ -53,7 +53,7 @@ public class GeoDistributor {
      * @return the calculated location for the new node
      */
     public static Location calculateNextLocation(
-            @NonNull final GeographicLatencyConfiguration configuration, @NonNull final Map<Node, Location> nodes) {
+            @NonNull final GeoMeshTopologyConfiguration configuration, @NonNull final Map<Node, Location> nodes) {
         requireNonNull(configuration);
 
         final List<Continent> continents = extractContinents(nodes);
@@ -117,7 +117,7 @@ public class GeoDistributor {
     }
 
     private static double scoreConfiguration(
-            @NonNull final GeographicLatencyConfiguration configuration, @NonNull final List<Continent> continents) {
+            @NonNull final GeoMeshTopologyConfiguration configuration, @NonNull final List<Continent> continents) {
         final long totalNodes = continents.stream()
                 .flatMap(continent -> continent.regions.stream())
                 .mapToLong(region -> region.nodeCount)

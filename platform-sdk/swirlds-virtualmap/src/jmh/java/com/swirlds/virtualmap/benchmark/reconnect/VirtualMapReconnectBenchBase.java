@@ -4,22 +4,20 @@ package com.swirlds.virtualmap.benchmark.reconnect;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import java.io.FileNotFoundException;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -40,7 +38,6 @@ public abstract class VirtualMapReconnectBenchBase {
     protected final ReconnectConfig reconnectConfig = new TestConfigBuilder()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
             .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .withValue(ReconnectConfig_.MAX_ACK_DELAY, "1000ms")
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
@@ -51,41 +48,29 @@ public abstract class VirtualMapReconnectBenchBase {
     protected void setupEach() {
         teacherBuilder = createBuilder();
         learnerBuilder = createBuilder();
-        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
     }
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
+        ConstructableRegistration.registerAllConstructables();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
-    }
-
-    protected MerkleInternal createTreeForMap(VirtualMap map) {
-        final var tree = MerkleTestUtils.buildLessSimpleTree();
-        tree.getChild(1).asInternal().setChild(3, map);
-        tree.reserve();
-        return tree;
+        registry.registerConstructable(
+                new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(PullVirtualTreeResponse.class, PullVirtualTreeResponse::new));
     }
 
     protected void reconnect() throws Exception {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
         try {
-            final var node = MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+            final var node = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
             node.release();
             Assertions.assertTrue(learnerMap.isHashed(), "Learner root node must be hashed");
         } finally {
-            teacherTree.release();
-            learnerTree.release();
+            teacherMap.release();
+            learnerMap.release();
             copy.release();
         }
     }

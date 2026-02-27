@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
@@ -77,10 +76,8 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(ADHOC)
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";
@@ -118,7 +115,7 @@ public class Hip1195StreamParityTest {
         return hapiTest(
                 aToken.getInfo(),
                 bToken.getInfo(),
-                cryptoCreate(PAYER),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OWNER)
                         .maxAutomaticTokenAssociations(2)
                         .withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),

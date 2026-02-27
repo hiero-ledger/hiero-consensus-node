@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,19 +22,16 @@ public class StateEventHandlerManagerUtilsTests {
 
     @Test
     void testFastCopyIsMutable() {
-        final String virtualMapLabel =
-                "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
         TestingAppStateInitializer.initPlatformState(state);
-        state.getRoot().reserve();
 
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(1).build();
-        // Create a fast copy
-        final MerkleNodeState copy = state.copy();
-        TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(copy, softwareVersion);
-        // Increment the reference count because this reference becomes the new value
-        copy.getRoot().reserve();
+
+        final VirtualMapState copy = stateLifecycleManager.getMutableState();
+        setCreationSoftwareVersionTo(copy, softwareVersion);
 
         assertFalse(copy.isImmutable(), "The copy state should be mutable.");
         assertEquals(
@@ -38,10 +40,9 @@ public class StateEventHandlerManagerUtilsTests {
                 "Fast copy should not change the reference count of the state it copies.");
         assertEquals(
                 1,
-                state.getRoot().getReservationCount(),
+                copy.getRoot().getReservationCount(),
                 "Fast copy should return a new state with a reference count of 1.");
         state.release();
-        copy.release();
     }
 
     @AfterEach

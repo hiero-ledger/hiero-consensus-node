@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
 
 import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +20,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.chaosbot.internal.ChaosBotImpl;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 
@@ -26,6 +28,8 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  * Implementation of {@link TestEnvironment} for tests running on a container network.
  */
 public class ContainerTestEnvironment implements TestEnvironment {
+
+    private static final String ENV_NAME = "container";
 
     /** Capabilities supported by the container test environment */
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(
@@ -37,15 +41,16 @@ public class ContainerTestEnvironment implements TestEnvironment {
     /** The granularity of time defining how often continuous assertions are checked */
     private static final Duration GRANULARITY = Duration.ofMillis(10);
 
+    private final Path rootOutputDirectory;
     private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager(GRANULARITY);
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
-     * Constructor with default values for using random node-ids
+     * Constructor with default values for using random node-ids and default directory for container logs.
      */
     public ContainerTestEnvironment() {
-        this(true);
+        this(true, getDefaultOutputDirectory(ENV_NAME), true);
     }
 
     /**
@@ -54,10 +59,22 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public ContainerTestEnvironment(final boolean useRandomNodeIds) {
+        this(useRandomNodeIds, getDefaultOutputDirectory(ENV_NAME), true);
+    }
 
+    /**
+     * Constructor for the {@link ContainerTestEnvironment} class with custom output directory.
+     *
+     * @param useRandomNodeIds    {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param rootOutputDirectory the root directory where container logs will be written per test
+     * @param proxyEnabled        {@code true} if the toxiproxy should be enabled; {@code false} otherwise
+     */
+    public ContainerTestEnvironment(
+            final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory, final boolean proxyEnabled) {
         ContainerLogConfigBuilder.configure();
 
-        final Path rootOutputDirectory = Path.of("build", "container");
+        this.rootOutputDirectory = rootOutputDirectory;
+
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
@@ -67,7 +84,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds);
+        network = new ContainerNetwork(
+                timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds, proxyEnabled);
     }
 
     /**
@@ -122,8 +140,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public ChaosBot createChaosBot() {
-        return new ChaosBotImpl(this);
+    public ChaosBot createChaosBot(@NonNull final ChaosBotConfiguration configuration) {
+        return new ChaosBotImpl(this, configuration);
     }
 
     /**
@@ -131,8 +149,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public ChaosBot createChaosBot(final long seed) {
-        return new ChaosBotImpl(this, seed);
+    public Path outputDirectory() {
+        return rootOutputDirectory;
     }
 
     /**

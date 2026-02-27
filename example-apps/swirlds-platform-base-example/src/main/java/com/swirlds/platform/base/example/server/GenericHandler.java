@@ -3,7 +3,6 @@ package com.swirlds.platform.base.example.server;
 
 import com.google.common.base.Preconditions;
 import com.sun.net.httpserver.HttpExchange;
-import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.platform.base.example.ext.BaseContext;
 import com.swirlds.platform.base.example.store.persistence.exception.EntityNotFoundException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +20,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 
 /**
  * A generic {@link HttpHandlerDefinition} that deals with most generic http operations. Users can set individuals
