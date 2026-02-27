@@ -2,6 +2,7 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -17,7 +18,6 @@ import java.nio.file.Path;
 import java.util.concurrent.ForkJoinPool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -104,15 +104,7 @@ public abstract class BaseBench {
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
 
         try {
-            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructables("com.swirlds.virtualmap");
-            registry.registerConstructables("com.swirlds.virtualmap.datasource");
-            registry.registerConstructables("com.swirlds.virtualmap.internal.merkle");
-            registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.benchmark");
-            registry.registerConstructables("com.swirlds.common.crypto");
-            registry.registerConstructables("com.swirlds.common");
-            registry.registerConstructables("org.hiero");
+            ConstructableRegistration.registerAllConstructables();
         } catch (ConstructableRegistryException ex) {
             logger.error("Failed to construct registry", ex);
         }
