@@ -176,6 +176,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_REJECT_FEE_USD = 0.0009;
     public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
 
+    public static final double TOKEN_AIRDROP_BASE_FEE_USD = 0;
+    public static final long TOKEN_AIRDROPS_INCLUDED_COUNT = 0L;
+
     /* ---------- Schedule service ---------- */
 
     public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
