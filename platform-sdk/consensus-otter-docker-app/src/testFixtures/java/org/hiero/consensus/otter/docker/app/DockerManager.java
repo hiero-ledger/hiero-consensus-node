@@ -110,8 +110,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         command.add("-XX:+AlwaysPreTouch");
         command.add("-XX:ConcGCThreads=4");
         command.add("-XX:+DisableExplicitGC");
-        //command.add("-Xms64g");
-        //command.add("-Xmx64g");
+        command.add("-Xms16g");
+        command.add("-Xmx16g");
 
         command.addAll(List.of(
                 "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS, CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id())));
