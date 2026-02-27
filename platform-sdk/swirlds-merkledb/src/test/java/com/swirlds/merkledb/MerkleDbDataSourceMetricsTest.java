@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,7 +40,6 @@ class MerkleDbDataSourceMetricsTest {
     static void setup() throws Exception {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
                 "MerkleDbDataSourceMetricsTest", MerkleDbTestUtils.CONFIGURATION);
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
     }
 
     @BeforeEach

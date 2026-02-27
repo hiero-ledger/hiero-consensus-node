@@ -2,8 +2,9 @@
 package com.swirlds.virtualmap.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.junit.jupiter.api.BeforeAll;
@@ -86,13 +87,10 @@ public class VirtualTestBase {
     private VirtualLeafBytes<TestValue> lastGLeaf;
 
     @BeforeAll
-    static void globalSetup() throws Exception {
+    static void globalSetup() throws ConstructableRegistryException {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     protected VirtualLeafBytes<TestValue> leaf(long path, long key, long value) {
