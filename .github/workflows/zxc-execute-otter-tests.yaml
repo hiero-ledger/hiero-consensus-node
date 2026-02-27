@@ -7,7 +7,7 @@ on:
         description: "Fast Otter Testing Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-full-otter-tests:
         description: "Full Otter Testing Enabled"
         type: boolean
@@ -80,6 +80,8 @@ jobs:
     name: "Full Otter Tests"
     runs-on: hl-cn-otter-full-lin
     if: ${{ inputs.enable-full-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -129,10 +131,22 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   fast-otter:
     name: "Fast Otter Tests"
     runs-on: hl-cn-otter-fast-lin
     if: ${{ inputs.enable-fast-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -148,6 +162,12 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
+
+      # TODO: Remove this step after testing infrastructure failure detection
+      - name: Simulated Infrastructure Failure
+        run: |
+          echo "Simulating infrastructure failure for testing"
+          exit 1
 
       - name: Fast Otter Testing
         id: gradle-fast-otter-tests
@@ -190,10 +210,22 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   chaos-otter:
     name: "Chaos Otter Tests"
     runs-on: hl-cn-otter-chaos-lin
     if: ${{ inputs.enable-chaos-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -251,6 +283,16 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -274,19 +316,23 @@ jobs:
             "${{ needs.chaos-otter.result || 'skipped' }}"
           )
 
-          # final outputs
+          job_failure_modes=(
+            "${{ needs.full-otter.outputs.failure-mode || 'none' }}"
+            "${{ needs.fast-otter.outputs.failure-mode || 'none' }}"
+            "${{ needs.chaos-otter.outputs.failure-mode || 'none' }}"
+          )
+
           failure_mode="none"
 
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${job_statuses[@]}"; then
-            failure_mode="test"
-          fi
+          for i in "${!job_statuses[@]}"; do
+            if [[ "${job_statuses[$i]}" == "failure" ]]; then
+              mode="${job_failure_modes[$i]}"
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
+              elif [[ "${mode}" == "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            fi
+          done
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
