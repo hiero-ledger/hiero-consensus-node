@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
+import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
@@ -10,14 +11,12 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
-import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,17 +35,17 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final VirtualMapState state;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
 
     public BlockStreamRecoveryWorkflow(
-            @NonNull final VirtualMapState state,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedRootHash) {
-        this.state = state;
+        this.stateLifecycleManager = stateLifecycleManager;
         this.targetRound = targetRound;
         this.outputPath = outputPath;
         this.expectedRootHash = expectedRootHash;
@@ -59,11 +58,18 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final VirtualMapState state = StateUtils.getDefaultState();
+
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        getPlatformContext().getMetrics(),
+                        getPlatformContext().getTime(),
+                        getPlatformContext().getConfiguration());
+
+        stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
-                new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
-        workflow.applyBlocks(blocks, selfId, PlatformContextHelper.getPlatformContext());
+                new BlockStreamRecoveryWorkflow(stateLifecycleManager, targetRound, outputPath, expectedHash);
+        workflow.applyBlocks(blocks, selfId, getPlatformContext());
     }
 
     public void applyBlocks(
@@ -71,6 +77,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext) {
         AtomicBoolean foundStartingRound = new AtomicBoolean();
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
         final long initRound = roundOf(state);
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
@@ -125,7 +132,7 @@ public class BlockStreamRecoveryWorkflow {
         }
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
-        state.copy();
+        stateLifecycleManager.copyMutableState();
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
@@ -143,11 +150,9 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 false);
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                vm -> new VirtualMapStateImpl(vm, platformContext.getMetrics()),
-                platformContext.getConfiguration());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext, selfId, outputPath, signedState, stateLifecycleManager);
@@ -171,6 +176,7 @@ public class BlockStreamRecoveryWorkflow {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
             }
             final var serviceName = stateName.substring(0, delimIndex);
+            final var state = stateLifecycleManager.getMutableState();
             final var writableStates = state.getWritableStates(serviceName);
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");
