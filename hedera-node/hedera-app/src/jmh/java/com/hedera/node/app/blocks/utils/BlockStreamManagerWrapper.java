@@ -217,11 +217,6 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public @NonNull VirtualMapState copy() {
-            return this; // No-op for benchmark
-        }
-
-        @Override
         public VirtualMap getRoot() {
             return null; // Not needed for benchmark
         }

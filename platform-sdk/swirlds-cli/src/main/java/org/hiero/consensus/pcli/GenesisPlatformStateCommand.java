@@ -15,8 +15,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
@@ -60,11 +59,8 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                (virtualMap) -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
-                platformContext.getConfiguration());
+        final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
