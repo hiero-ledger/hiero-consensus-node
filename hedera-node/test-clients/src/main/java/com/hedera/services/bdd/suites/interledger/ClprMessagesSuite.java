@@ -641,7 +641,6 @@ public class ClprMessagesSuite {
          * Specification: A 3-node source ledger communicates with two single-node remote ledgers.
          *
          * Goal:
-         * - Prove delivery correctness — messages still arrive end-to-end with a 3-node source.
          * - Prove reduced redundancy — not all 3 nodes contact every remote ledger simultaneously.
          * - Prove rotation — the responsible node changes over time (different cycles).
          *
