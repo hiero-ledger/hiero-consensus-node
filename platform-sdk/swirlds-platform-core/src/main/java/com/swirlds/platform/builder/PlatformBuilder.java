@@ -68,6 +68,7 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -577,6 +578,16 @@ public final class PlatformBuilder {
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
+
+        // Register the event creation stage (self-only, step 1) and wire monitoring
+        // before intake initialization so step numbers are sequential.
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("eventCreation", EventOrigin.RUNTIME);
+            eventCreatorModule
+                    .createdEventOutputWire()
+                    .solderForMonitoring(event -> pipelineTracker.recordEvent("eventCreation", event));
+        }
+
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
         initializePcesModule(
                 platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
