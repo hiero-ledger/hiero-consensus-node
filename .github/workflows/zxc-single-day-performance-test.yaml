@@ -1466,7 +1466,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
   performance-HCSLoadTest:
-    if: false
     needs:
       - performance-NftTransferLoadTest-report
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1482,7 +1481,6 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-CryptoTransferLoadTest:
-    if: false
     needs:
       - performance-HCSLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1498,7 +1496,6 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-HeliSwapLoadTest:
-    if: false
     needs:
       - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1514,7 +1511,6 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-SmartContractLoadTest:
-    if: false
     needs:
       - performance-HeliSwapLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1647,7 +1643,6 @@ jobs:
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
-    if: false
     name: Calculate Result
     runs-on: hl-cn-sdpt-lin-lg
     #if: ${{ always() }}
