@@ -48,16 +48,32 @@ RUN for jar in data/lib/netty-*.jar data/lib/grpc-netty*.jar; do \
         [ -f "$jar" ] && zip -dq "$jar" 'META-INF/native-image/*' 2>/dev/null || true; \
     done
 
-# Extract JNA native library (needed at runtime for LazySodium/libsodium)
-# In native-image the classpath JARs aren't available, so JNA can't self-extract.
-RUN mkdir -p /build/jna-libs && \
+# Extract native libraries from JARs (native-image can't self-extract from classpath JARs)
+RUN mkdir -p /build/native-libs && \
     ARCH=$(uname -m) && \
     case "$ARCH" in \
-        x86_64)  JNA_ARCH="linux-x86-64" ;; \
-        aarch64) JNA_ARCH="linux-aarch64" ;; \
+        x86_64)  JNA_ARCH="linux-x86-64"; BESU_ARCH="linux-x86-64"; BESU_ARCH2="lib/x86-64"; KZG_ARCH="amd64" ;; \
+        aarch64) JNA_ARCH="linux-aarch64"; BESU_ARCH="linux-aarch64"; BESU_ARCH2="lib/aarch64"; KZG_ARCH="aarch64" ;; \
         *)       echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac && \
-    unzip -j data/lib/jna-*.jar "com/sun/jna/$JNA_ARCH/libjnidispatch.so" -d /build/jna-libs/
+    # JNA
+    unzip -jo data/lib/jna-*.jar "com/sun/jna/$JNA_ARCH/libjnidispatch.so" -d /build/native-libs/ && \
+    # Besu secp256k1 (ECDSA - needed for all Ethereum transactions)
+    unzip -jo data/lib/secp256k1-*.jar "$BESU_ARCH2/libsecp256k1.so" -d /build/native-libs/ 2>/dev/null || true && \
+    # Besu secp256r1 (EC operations)
+    unzip -jo data/lib/secp256r1-*.jar "$BESU_ARCH/libbesu_native_ec.so" -d /build/native-libs/ 2>/dev/null || true && \
+    unzip -jo data/lib/secp256r1-*.jar "$BESU_ARCH/libbesu_native_ec_crypto.so" -d /build/native-libs/ 2>/dev/null || true && \
+    # Besu arithmetic (BN128 precompiles)
+    unzip -jo data/lib/arithmetic-*.jar "$BESU_ARCH/libeth_arithmetic.so" -d /build/native-libs/ 2>/dev/null || true && \
+    # Besu gnark (EIP-196/EIP-2537 BLS precompiles)
+    unzip -jo data/lib/gnark-*.jar "$BESU_ARCH/libgnark_jni.so" -d /build/native-libs/ 2>/dev/null || true && \
+    unzip -jo data/lib/gnark-*.jar "$BESU_ARCH/libgnark_eip_196.so" -d /build/native-libs/ 2>/dev/null || true && \
+    unzip -jo data/lib/gnark-*.jar "$BESU_ARCH/libgnark_eip_2537.so" -d /build/native-libs/ 2>/dev/null || true && \
+    # KZG (EIP-4844 precompile)
+    unzip -jo data/lib/jc-kzg-4844-*.jar "ethereum/ckzg4844/lib/$KZG_ARCH/libckzg4844jni.so" -d /build/native-libs/ 2>/dev/null || true && \
+    # Blake2bf (Blake2 precompile - x86_64 only)
+    unzip -jo data/lib/blake2bf-*.jar "$BESU_ARCH/libblake2bf.so" -d /build/native-libs/ 2>/dev/null || true && \
+    ls -la /build/native-libs/
 
 # Build the native image with G1 GC
 RUN native-image \
@@ -67,7 +83,7 @@ RUN native-image \
     --no-fallback \
     --gc=G1 \
     "--initialize-at-build-time=org.slf4j,com.fasterxml.jackson,com.google.common,org.apache.commons,com.google.gson,com.google.errorprone,javax.annotation,io.perfmark,org.yaml.snakeyaml" \
-    "--initialize-at-run-time=com.sun.jna,io.netty" \
+    "--initialize-at-run-time=com.sun.jna,io.netty,org.hiero.base.utility.MemoryUtils,com.hedera.pbj.runtime.io.UnsafeUtils" \
     -J-Xmx8g \
     com.hedera.node.app.ServicesMain
 
@@ -87,8 +103,8 @@ WORKDIR /app
 # Copy the native binary
 COPY --from=builder /build/hedera-node ./hedera-node
 
-# Copy JNA native library for LazySodium
-COPY --from=builder /build/jna-libs/libjnidispatch.so /usr/lib/
+# Copy all native libraries (JNA, Besu crypto, KZG, etc.)
+COPY --from=builder /build/native-libs/ /usr/lib/
 
 # Copy configuration
 ARG CONFIGURATION_PROFILE=small-memory
@@ -101,5 +117,6 @@ COPY hedera-node/log4j2.xml ./
 COPY hedera-node/data/onboard/ data/onboard/
 COPY hedera-node/data/keys/ data/keys/
 
+ENV LD_LIBRARY_PATH=/usr/lib
 ENTRYPOINT ["/bin/sh", "-c", \
-    "./hedera-node -Djna.boot.library.path=/usr/lib -Dio.netty.transport.noNative=true -Xmx256m -Xss512k -local 0; rc=$?; echo \"#### Hedera Node Stopped (Exit Code: $rc) at $(date '+%Y-%m-%d %H:%M:%S') ####\"; exit $rc"]
+    "./hedera-node -Djna.boot.library.path=/usr/lib -Djna.library.path=/usr/lib -Djava.library.path=/usr/lib -Dio.netty.transport.noNative=true -Xmx256m -Xss512k -local 0; rc=$?; echo \"#### Hedera Node Stopped (Exit Code: $rc) at $(date '+%Y-%m-%d %H:%M:%S') ####\"; exit $rc"]

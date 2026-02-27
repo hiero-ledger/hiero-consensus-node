@@ -51,11 +51,12 @@ merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
 merkleDb.iteratorInputBufferBytes,               1024
 merkleDb.longListReservedBufferSize,             1024
-virtualMap.copyFlushThreshold,                   1024
 virtualMap.numHashThreads,                          1
 virtualMap.numCleanerThreads,                       1
-merkleDb.useDiskIndices,                       true                        # uses on-disk indices, reduces off-heap memory usage
-virtualMap.copyFlushCandidateThreshold,        10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+virtualMap.copyFlushCandidateThreshold           1000
+merkleDb.useDiskIndices,                         true                        # uses on-disk indices, reduces off-heap memory usage
+virtualMap.copyFlushCandidateThreshold,         10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+platformStatus.observingStatusDelay,                0s
 
 
                                           #############################

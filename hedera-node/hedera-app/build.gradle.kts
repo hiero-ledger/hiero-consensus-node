@@ -258,6 +258,17 @@ tasks.register<Exec>("nativeCompile") {
     ).joinToString(",")
     // Log4j (org.apache.logging) is NOT at build time - it starts timer threads during class init
 
+    // Packages that must be initialized at run time to avoid Unsafe field offset
+    // mismatches between build-time JVM and native-image runtime object layout.
+    // org.hiero.base.utility - MemoryUtils caches Buffer.address field offset
+    // com.hedera.pbj.runtime.io - UnsafeUtils caches the same offset
+    val runTimePackages = listOf(
+        "com.sun.jna",
+        "io.netty",
+        "org.hiero.base.utility.MemoryUtils",
+        "com.hedera.pbj.runtime.io.UnsafeUtils",
+    ).joinToString(",")
+
     commandLine(
         "native-image",
         "-cp", classpath,
@@ -265,6 +276,7 @@ tasks.register<Exec>("nativeCompile") {
         "-o", "hedera-node",
         "--no-fallback",
         "--initialize-at-build-time=$buildTimePackages",
+        "--initialize-at-run-time=$runTimePackages",
         "-J-Xmx8g",
         "com.hedera.node.app.ServicesMain",
     )
