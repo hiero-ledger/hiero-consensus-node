@@ -519,7 +519,7 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
           mv block-node-values.yaml block-node-values.yaml.orig
-          export BLOCK_NODE_VERSION="${{ env.BlockNode_version }}"
+          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
 
           #create local-path-storage
           sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
