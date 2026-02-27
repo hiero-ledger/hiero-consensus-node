@@ -200,11 +200,10 @@ public class VirtualMapStateImpl implements VirtualMapState {
     }
 
     /**
-     * {@inheritDoc}
+     * Creates a copy of the current state.
      */
     @NonNull
-    @Override
-    public VirtualMapStateImpl copy() {
+    VirtualMapStateImpl copy() {
         return new VirtualMapStateImpl(this);
     }
 

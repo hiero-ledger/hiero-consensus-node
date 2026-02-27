@@ -28,6 +28,7 @@ import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -380,7 +381,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // protocol, so nobody will broadcast events to us anymore; this means we won't be overloading intake pipeline
         // with random events, no need to make extra checks here
         this.syncMetrics.broadcastEventReceived();
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
         eventHandler.accept(platformEvent);
     }
 
@@ -520,7 +521,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param gossipEvent event received from the remote peer
      */
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
         platformEvent.setSenderId(peerId);
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);
