@@ -88,7 +88,15 @@ val basePrCheckTags =
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial","hapiTestTimeConsuming", "hapiTestTimeConsumingSerial", "hapiTestStateThrottling")
+    setOf(
+        "hapiTestCrypto",
+        "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
+        "hapiTestTimeConsuming",
+        "hapiTestTimeConsumingSerial",
+        "hapiTestStateThrottling",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
@@ -221,8 +229,9 @@ tasks {
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
                 if (
-                    (taskName.contains("Crypto") || taskName.contains("Token") || taskName.contains("TimeConsuming")) &&
-                        !taskName.contains("Serial")
+                    (taskName.contains("Crypto") ||
+                        taskName.contains("Token") ||
+                        taskName.contains("TimeConsuming")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
