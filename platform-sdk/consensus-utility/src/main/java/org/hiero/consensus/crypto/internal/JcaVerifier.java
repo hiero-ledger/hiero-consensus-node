@@ -36,7 +36,7 @@ public class JcaVerifier implements BytesSignatureVerifier {
     }
 
     @Override
-    public boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
+    public synchronized boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
         try {
             data.updateSignature(verifier);
             return signature.verifySignature(verifier);

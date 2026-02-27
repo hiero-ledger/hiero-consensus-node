@@ -66,10 +66,8 @@ public abstract class AbstractHeartbeatScheduler {
             throw new IllegalArgumentException("Period must be positive");
         }
 
-        if (period.toMillis() == 0) {
-            throw new IllegalArgumentException(
-                    "Time is measured at millisecond precision, and so periods less than 1ms are not supported. "
-                            + "Requested period: " + period);
+        if (period.toNanos() < 1000) {
+            throw new IllegalArgumentException("Periods less than 1us are not supported");
         }
 
         final HeartbeatTask task = new HeartbeatTask(model, HEARTBEAT_SCHEDULER_NAME, time, period, exceptionHandler);

@@ -5,13 +5,15 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.StandardWiringModel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Timer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A scheduler that produces heartbeats at a specified rate.
  */
 public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
-    private final Timer timer = new Timer();
-
+    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     /**
      * Constructor.
      *
@@ -33,7 +35,7 @@ public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
         started = true;
 
         for (final HeartbeatTask task : tasks) {
-            timer.scheduleAtFixedRate(task, 0, task.getPeriod().toMillis());
+            timer.scheduleAtFixedRate(task, 0, task.getPeriod().toNanos() / 1000, TimeUnit.MICROSECONDS );
         }
     }
 
@@ -45,6 +47,6 @@ public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
         if (!started) {
             throw new IllegalStateException("Cannot stop the heartbeat before it has started");
         }
-        timer.cancel();
+        timer.shutdownNow();
     }
 }
