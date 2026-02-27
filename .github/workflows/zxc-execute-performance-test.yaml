@@ -189,7 +189,7 @@ jobs:
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Setup Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
@@ -359,7 +359,7 @@ jobs:
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
         if: ${{ !cancelled() }}
