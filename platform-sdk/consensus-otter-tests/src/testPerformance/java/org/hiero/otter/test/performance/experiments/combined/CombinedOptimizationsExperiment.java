@@ -41,7 +41,6 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.creationAttemptRate", 10000)
-                    .withConfigValue("platform.wiring.healthMonitorHeartbeatPeriod", "500us")
                     .withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
