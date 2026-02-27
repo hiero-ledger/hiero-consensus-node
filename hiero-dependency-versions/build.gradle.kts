@@ -10,7 +10,7 @@ dependencies {
 
 val besu = "25.2.2"
 val bouncycastle = "1.81"
-val dagger = "2.56.2"
+val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.73.0"
 val hederaCryptography = "3.6.0"
