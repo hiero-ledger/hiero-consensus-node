@@ -259,7 +259,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         final var newFromPositiveBalancesCount =
                 fromRelBalance > 0 ? fromTreasury.numberPositiveBalances() - 1 : fromTreasury.numberPositiveBalances();
         final var newToPositiveBalancesCount =
-                toRelBalance > 0 ? toTreasury.numberPositiveBalances() + 1 : toTreasury.numberPositiveBalances();
+                toRelBalance == 0 ? toTreasury.numberPositiveBalances() + 1 : toTreasury.numberPositiveBalances();
         accountStore.put(fromTreasuryCopy
                 .numberPositiveBalances(newFromPositiveBalancesCount)
                 .numberOwnedNfts(fromNftsOwned - fromRelBalance)
