@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.*;
@@ -21,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import dagger.Binds;
 import dagger.Module;
@@ -33,7 +35,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
@@ -88,7 +89,7 @@ public interface V067Module {
     @Singleton
     @ServicesV067
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV067 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV067 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -97,7 +98,7 @@ public interface V067Module {
     @Singleton
     @ServicesV067
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV067 @NonNull final EVM evm,
+            @ServicesV067 @NonNull final HEVM evm,
             @ServicesV067 @NonNull final FeatureFlags featureFlags,
             @ServicesV067 @NonNull final AddressChecks addressChecks,
             @ServicesV067 @NonNull final PrecompileContractRegistry registry,
@@ -110,7 +111,7 @@ public interface V067Module {
     @Provides
     @Singleton
     @ServicesV067
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesV067 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,

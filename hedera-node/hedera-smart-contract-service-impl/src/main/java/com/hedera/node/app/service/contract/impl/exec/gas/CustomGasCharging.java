@@ -36,7 +36,7 @@ public class CustomGasCharging {
     /** One HBAR denominated in tinybars */
     public static final long ONE_HBAR_IN_TINYBARS = 100_000_000L;
 
-    private final GasCalculator gasCalculator;
+    public final GasCalculator gasCalculator;
 
     /**
      * @param gasCalculator the gas calculator to use

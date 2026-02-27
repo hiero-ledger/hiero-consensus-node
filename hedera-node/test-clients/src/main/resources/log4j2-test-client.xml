@@ -36,7 +36,8 @@
 			<AppenderRef ref="TransactionStateLogs"/>
 		</Logger>
 
-		<Root level="INFO">
+                <Root level="INFO">
+                        <MarkerFilter marker="CONFIG" onMatch="DENY" onMismatch="NEUTRAL"/>
 			<AppenderRef ref="Console"/> 
 			<AppenderRef ref="RollingFile"/>
 		</Root>
@@ -44,5 +45,10 @@
 			<AppenderRef ref="Console"/>
 			<AppenderRef ref="RollingFile"/>
 		</Logger>
+                
+                <Logger name="com.swirlds.platform.config.internal.PlatformConfigUtils" level="INFO" additivity="false">
+                  <AppenderRef ref="Console"/>
+                  <AppenderRef ref="RollingFile"/>
+                </Logger>
 	</Loggers>
 </Configuration>

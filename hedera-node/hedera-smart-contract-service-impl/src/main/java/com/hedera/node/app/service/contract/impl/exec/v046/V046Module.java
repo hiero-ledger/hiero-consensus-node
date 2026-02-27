@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
@@ -36,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -47,7 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
@@ -94,7 +95,7 @@ public interface V046Module {
     @Singleton
     @ServicesV046
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV046 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV046 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -103,7 +104,7 @@ public interface V046Module {
     @Singleton
     @ServicesV046
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV046 @NonNull final EVM evm,
+            @ServicesV046 @NonNull final HEVM evm,
             @ServicesV046 @NonNull final FeatureFlags featureFlags,
             @ServicesV046 @NonNull final AddressChecks addressChecks,
             @ServicesV046 @NonNull final PrecompileContractRegistry registry,
@@ -116,7 +117,7 @@ public interface V046Module {
     @Provides
     @Singleton
     @ServicesV046
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesV046 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
@@ -126,7 +127,7 @@ public interface V046Module {
         registerShanghaiOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.SHANGHAI);
+        return new HEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.SHANGHAI);
     }
 
     @Provides

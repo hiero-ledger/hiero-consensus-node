@@ -132,6 +132,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         final var inputOffset = clampedToLong(frame.getStackItem(1));
         final var inputSize = clampedToLong(frame.getStackItem(2));
         final var inputData = frame.readMemory(inputOffset, inputSize);
+        final var code = codeFactory.createCode(inputData, false);
         final var contractAddress = setupPendingCreation(frame);
 
         if (contractAddress == null) {
@@ -153,7 +154,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .sender(senderAddress)
                 .value(value)
                 .apparentValue(value)
-                .code(codeFactory.createCode(inputData, false))
+                .code(code)
                 .completer(child -> complete(frame, child))
                 .build();
         frame.incrementRemainingGas(cost);
@@ -168,7 +169,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         frame.pushStackItem(UInt256.ZERO);
     }
 
-    private void complete(@NonNull final MessageFrame frame, @NonNull final MessageFrame childFrame) {
+     public void complete(@NonNull final MessageFrame frame, @NonNull final MessageFrame childFrame) {
         frame.setState(MessageFrame.State.CODE_EXECUTING);
         frame.incrementRemainingGas(childFrame.getRemainingGas());
         frame.addLogs(childFrame.getLogs());

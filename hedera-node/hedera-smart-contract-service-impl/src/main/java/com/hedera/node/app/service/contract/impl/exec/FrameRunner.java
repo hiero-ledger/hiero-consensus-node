@@ -20,6 +20,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
@@ -80,8 +81,12 @@ public class FrameRunner {
 
         final var recipientAddress = frame.getRecipientAddress();
         // We compute the called contract's Hedera id up front because it could
-        // selfdestruct, preventing us from looking up its id after the fact
+        // self-destruct, preventing us from looking up its id after the fact
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
+        // <Soapbox> Pass these golden instances to Bonneville through this
+        // silly back door channel, because the endless wrappers & injectors
+        // stop me from doing it the obvious way - CNC. </soapbox>
+        messageCall._evm.setProcessors(messageCall,(CustomContractCreationProcessor)contractCreation);
 
         // Now run the transaction implied by the frame
         tracer.traceOriginAction(frame);

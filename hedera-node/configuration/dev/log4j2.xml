@@ -27,7 +27,7 @@
 
     <RollingFile name="QueriesRollingFile" fileName="output/queries.log"
       filePattern="output/queries-%i.log">
-      <BurstFilter level="INFO" rate="50" maxBurst="500"/>
+      <BurstFilter level="WARN" rate="50" maxBurst="500"/>
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
       </PatternLayout>
@@ -100,7 +100,7 @@
       <AppenderRef ref="fileLog"/>
     </Root>
 
-    <Logger name="com.swirlds" level="INFO" additivity="false">
+    <Logger name="com.swirlds" level="WARN" additivity="false">
       <AppenderRef ref="fileLog">
         <Filters>
           <!-- MerkleDb & Virtual Merkle -->
@@ -136,7 +136,7 @@
       <Filters>
         <!-- Filter out levels above INFO (ex: DEBUG & TRACE) -->
         <!-- Intentionally left disabled by default -->
-        <!-- <ThresholdFilter level="INFO"                 onMatch="NEUTRAL" onMismatch="DENY" />-->
+        <ThresholdFilter level="ERROR"                 onMatch="NEUTRAL" onMismatch="DENY" />
 
         <!-- In the following, enable a marker with onMatch="ACCEPT" and disable with onMatch="DENY". -->
         <!-- More markers can be added, but ensure that every onMismatch="NEUTRAL", except the last is "DENY". -->
@@ -325,15 +325,15 @@
     </Logger>
 
     <!-- Send transaction state logs to their own appender   -->
-    <Logger name="com.hedera.node.app.state.logging.TransactionStateLogger" level="info" additivity="false">
+    <Logger name="com.hedera.node.app.state.logging.TransactionStateLogger" level="WARN" additivity="false">
       <AppenderRef ref="TransactionStateLogs"/>
     </Logger>
 
-    <Logger name="com.hedera" level="info" additivity="false">
+    <Logger name="com.hedera" level="WARN" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="WARN" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="BlockNodeCommsFile"/>
     </Logger>
@@ -349,7 +349,7 @@
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="grpc-access-log" level="INFO" additivity="false">
+    <Logger name="grpc-access-log" level="WARN" additivity="false">
       <AppenderRef ref="GrpcAccessLog" />
     </Logger>
   </Loggers>

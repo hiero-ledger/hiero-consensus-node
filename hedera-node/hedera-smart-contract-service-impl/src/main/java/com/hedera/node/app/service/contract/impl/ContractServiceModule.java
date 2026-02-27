@@ -19,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v065.V065Module;
 import com.hedera.node.app.service.contract.impl.exec.v066.V066Module;
 import com.hedera.node.app.service.contract.impl.exec.v067.V067Module;
+import com.hedera.node.app.service.contract.impl.exec.vXXX.VXXXModule;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
@@ -61,6 +62,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V065Module.class,
             V066Module.class,
             V067Module.class,
+            VXXXModule.class,
             ProcessorModule.class
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
@@ -207,4 +209,14 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_067)
     TransactionProcessor bindV067Processor(@ServicesV067 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version X.XX
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_XXX)
+    TransactionProcessor bindVXXXProcessor(@ServicesVXXX @NonNull final TransactionProcessor processor);
 }
