@@ -206,7 +206,6 @@ public class TipsetEventCreator implements EventCreator {
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
     }
-    long lastNano = System.nanoTime();
 
     /**
      * {@inheritDoc}
@@ -215,8 +214,6 @@ public class TipsetEventCreator implements EventCreator {
     @Nullable
     public PlatformEvent maybeCreateEvent() {
 
-        logger.info(RECONNECT.getMarker(), "Heartbeat delay " + (System.nanoTime()-lastNano));
-        lastNano = System.nanoTime();
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
             return null;
         }
