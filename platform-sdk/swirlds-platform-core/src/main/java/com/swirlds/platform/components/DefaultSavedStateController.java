@@ -129,8 +129,9 @@ public class DefaultSavedStateController implements SavedStateController {
         }
 
         final boolean periodicSnapshotsEnabled = stateConfig.periodicSnapshotsEnabled();
-        if (periodicSnapshotsEnabled && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
-                > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
+        if (periodicSnapshotsEnabled
+                && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
+                        > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
             return PERIODIC_SNAPSHOT;
         } else {
             // the period hasn't yet elapsed or periodic snapshots are disabled
