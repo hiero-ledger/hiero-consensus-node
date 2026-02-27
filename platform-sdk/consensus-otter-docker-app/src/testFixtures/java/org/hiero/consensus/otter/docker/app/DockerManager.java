@@ -105,6 +105,13 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         if (request.getGcLoggingEnabled()) {
             command.add("-Xlog:gc:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");
         }
+        command.add("-XX:+UseZGC");
+        command.add("-XX:+ZGenerational");
+        command.add("-XX:+AlwaysPreTouch");
+        command.add("-XX:ConcGCThreads=4");
+        command.add("-XX:+DisableExplicitGC");
+        //command.add("-Xms64g");
+        //command.add("-Xmx64g");
 
         command.addAll(List.of(
                 "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS, CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id())));

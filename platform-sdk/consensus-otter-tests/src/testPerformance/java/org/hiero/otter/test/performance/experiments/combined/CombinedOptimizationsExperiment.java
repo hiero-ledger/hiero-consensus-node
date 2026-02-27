@@ -51,6 +51,7 @@ public class CombinedOptimizationsExperiment {
                     try {
                         node.keysAndCerts(KeysAndCertsGenerator.generate(
                                 node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
+                        node.withGcLogging();
                     } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
                         throw new RuntimeException(e);
                     }
