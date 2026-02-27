@@ -176,7 +176,7 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestMisc",
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         )
         put(
             "hapiTestMiscSerial",
