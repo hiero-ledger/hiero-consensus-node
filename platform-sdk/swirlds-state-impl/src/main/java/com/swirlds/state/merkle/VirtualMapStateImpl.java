@@ -127,8 +127,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(
-                configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
+        dsBuilder = new MerkleDbDataSourceBuilder(configuration, merkleDbConfig.initialCapacity());
 
         this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
@@ -743,7 +742,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
      */
     @Override
     public Hash getHashForPath(long path) {
-        return virtualMap.getRecords().findHash(path);
+        return path == 0
+                ? virtualMap.getRecords().rootHash()
+                : virtualMap.getRecords().findHash(path);
     }
 
     @Override

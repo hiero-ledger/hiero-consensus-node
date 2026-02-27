@@ -15,7 +15,6 @@ import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
 import com.hedera.statevalidation.util.reflect.HalfDiskHashMapAccessor;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
@@ -49,13 +48,12 @@ public class ValidateLeafIndexHalfDiskHashMap {
             return;
         }
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        log.debug(vds.getHashChunkStore().getFilesSizeStatistics());
 
         final var hdhm = new HalfDiskHashMapAccessor(vds.getKeyToPath());
-        final var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue());
         final var pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
         final var dfc = hdhm.getFileCollection();
-        final var leafStoreDFC = leafStore.getFileCollection();
+        final var leafStoreDFC = vds.getKeyValueStore().getFileCollection();
         final var stalePathsInfos = new CopyOnWriteArrayList<StalePathInfo>();
         final var nullLeafsInfo = new CopyOnWriteArrayList<NullLeafInfo>();
         final var unexpectedKeyInfos = new CopyOnWriteArrayList<UnexpectedKeyInfo>();

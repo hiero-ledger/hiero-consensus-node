@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -23,6 +25,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  *
@@ -561,5 +565,54 @@ class ConcurrentArrayTest {
         assertEquals(N - N / 1000, arr.size());
         assertEquals(1, arr.get(0));
         assertEquals(N - 1, arr.get(N - N / 1000 - 1));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 5, 8, 100, 10000})
+    void simpleParallelTraverseTest(final int size) throws Exception {
+        final ConcurrentArray<String> arr = new ConcurrentArray<>();
+        for (int i = 0; i < size; i++) {
+            arr.add("Value " + i);
+        }
+        arr.seal();
+        final Set<String> values = ConcurrentHashMap.newKeySet();
+        final ExecutorService exec = Executors.newFixedThreadPool(5);
+        try {
+            final Future<?> f = arr.parallelTraverse(exec, (i, v) -> {
+                assertEquals("Value " + i, v);
+                values.add(v);
+            });
+            f.get();
+        } finally {
+            exec.shutdown();
+        }
+        assertEquals(size, values.size(), "All values should be iterated");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 5, 8, 100, 10000})
+    void mergedParallelTraverseTest(final int size) throws Exception {
+        final int numArrays = 8;
+        final ConcurrentArray<String> arr = new ConcurrentArray<>();
+        arr.seal();
+        for (int k = 0; k < numArrays; k++) {
+            final ConcurrentArray<String> kArr = new ConcurrentArray<>();
+            for (int i = 0; i < size; i++) {
+                kArr.add("Value " + (k * size + i));
+            }
+            kArr.seal();
+            arr.merge(kArr);
+        }
+        final Set<String> values = ConcurrentHashMap.newKeySet();
+        final ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            final Future<?> f = arr.parallelTraverse(exec, (i, v) -> {
+                values.add(v);
+            });
+            f.get();
+        } finally {
+            exec.shutdown();
+        }
+        assertEquals(numArrays * size, values.size(), "All values should be iterated");
     }
 }

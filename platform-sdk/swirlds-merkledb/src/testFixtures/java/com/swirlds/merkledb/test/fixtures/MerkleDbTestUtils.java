@@ -21,6 +21,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -37,6 +38,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -45,6 +49,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
@@ -156,6 +161,38 @@ public class MerkleDbTestUtils {
     /** Get the amount of direct memory used in bytes */
     public static long getDirectMemoryUsedBytes() {
         return DIRECT_MEMORY_POOL.getMemoryUsed();
+    }
+
+    public static Stream<VirtualHashChunk> createHashChunkStream(
+            final int minPathInc,
+            final int maxPathInc,
+            final Function<Integer, Integer> valueFunction,
+            final int hashChunkHeight) {
+        final int firstLeafPath = maxPathInc / 2;
+        final Map<Long, VirtualHashChunk> chunks = new HashMap<>();
+        for (int i = minPathInc; i <= maxPathInc; i++) {
+            if (i == 0) {
+                // No hash chunk for path 0
+                continue;
+            }
+            final long chunkId = VirtualHashChunk.pathToChunkId(i, hashChunkHeight);
+            VirtualHashChunk chunk = chunks.get(chunkId);
+            if (chunk == null) {
+                chunk = new VirtualHashChunk(
+                        VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight), hashChunkHeight);
+                chunks.put(chunkId, chunk);
+            }
+            final boolean isLeaf = i >= firstLeafPath;
+            final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
+            if (isLeaf || (rank % hashChunkHeight == 0)) {
+                chunk.setHashAtPath(i, hash(valueFunction.apply(i)));
+            }
+        }
+        return chunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
+    }
+
+    public static Stream<VirtualHashChunk> createHashChunkStream(final int lastLeafPath, final int hashChunkHeight) {
+        return createHashChunkStream(1, lastLeafPath, i -> i, hashChunkHeight);
     }
 
     /**

@@ -12,6 +12,7 @@ open module com.swirlds.virtualmap {
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
             com.swirlds.merkledb,
+            com.swirlds.merkledb.test.fixtures,
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core,
             com.swirlds.state.impl,

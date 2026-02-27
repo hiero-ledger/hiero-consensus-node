@@ -3,10 +3,10 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.Hash;
 
 /**
  * A {@link VirtualHashListener} implementation used by the learner during reconnect. During reconnect,
@@ -45,8 +45,8 @@ public class ReconnectHashListener implements VirtualHashListener {
      * {@inheritDoc}
      */
     @Override
-    public void onNodeHashed(final long path, final Hash hash) {
-        flusher.updateHash(path, hash);
+    public void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {
+        flusher.updateHashChunk(chunk);
     }
 
     /**

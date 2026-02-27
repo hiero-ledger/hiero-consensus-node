@@ -38,7 +38,7 @@ public class DataFileCompactor {
 
     private static final Logger logger = LogManager.getLogger(DataFileCompactor.class);
 
-    public static final String HASH_STORE_DISK = "HashStoreDisk";
+    public static final String ID_TO_HASH_CHUNK = "IdToHashChunk";
     public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
     public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
 
@@ -252,9 +252,14 @@ public class DataFileCompactor {
                             final DataFileWriter newFileWriter = currentWriter.get();
                             final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
                             assert itemBytesWithTag != null;
-                            long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
-                            // update the index
-                            index.putIfEqual(path, dataLocation, newLocation);
+                            // Check if the index was changed while this thread was reading data. If
+                            // changed, there is no need to write the data as the following CAS call
+                            // would fail anyway
+                            if (index.get(path) == dataLocation) {
+                                long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
+                                // update the index
+                                index.putIfEqual(path, dataLocation, newLocation);
+                            }
                         } catch (final IOException z) {
                             logger.error(
                                     EXCEPTION.getMarker(),
@@ -467,17 +472,13 @@ public class DataFileCompactor {
             return false;
         }
 
-        final int filesCount = filesToCompact.size();
-        logger.info(MERKLE_DB.getMarker(), "[{}] Starting compaction", storeName);
-
-        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
-
         final long start = System.currentTimeMillis();
-
+        final int filesCount = filesToCompact.size();
+        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.debug(
+        logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting merging {} files / {}",
+                "[{}] Starting compaction {} files / {}",
                 storeName,
                 filesCount,
                 formatSizeBytes(filesToCompactSize));

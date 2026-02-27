@@ -10,6 +10,7 @@ import java.util.Spliterators.AbstractSpliterator;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -347,10 +348,12 @@ final class ConcurrentArray<T> {
         return StreamSupport.stream(new ConcurrentArraySpliterator<>(numberOfElements, head), false);
     }
 
-    public StandardFuture<Void> parallelTraverse(Executor executor, Consumer<T> action) {
+    public StandardFuture<Void> parallelTraverse(Executor executor, BiConsumer<Integer, T> action) {
         if (!isImmutable()) {
             throw new IllegalArgumentException("You can not call parallelTraverse on a mutable ConcurrentArray");
         }
+
+        final int batch = Runtime.getRuntime().availableProcessors() / 2;
 
         final StandardFuture<Void> result = new StandardFuture<>();
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
@@ -358,25 +361,31 @@ final class ConcurrentArray<T> {
         int nextIndex = 0;
         int numberOfElements = elementCount.get();
         for (SubArray<T> cur = head; cur != null && nextIndex < numberOfElements; cur = cur.next) {
-            count.incrementAndGet();
             final T[] array = cur.array;
             final int size = cur.size.get();
-            executor.execute(() -> {
-                try {
-                    for (int i = 0; i < size; ++i) {
-                        action.accept(array[i]);
+            count.addAndGet(size);
+            for (int j = 0; j < batch; j++) {
+                final int fj = j;
+                final int arrayStart = nextIndex;
+                executor.execute(() -> {
+                    for (int i = fj; i < size; i += batch) {
+                        final T element = array[i];
+                        try {
+                            action.accept(arrayStart + i, element);
+                            if (count.decrementAndGet() == 0) {
+                                result.complete(null);
+                            }
+                        } catch (final Exception e) {
+                            logger.error(EXCEPTION.getMarker(), "Exception in parallelTraverse", e);
+                            // Don't cancel the result future more than once
+                            if (exceptionThrown.compareAndSet(false, true)) {
+                                result.cancelWithError(e);
+                                break;
+                            }
+                        }
                     }
-                    if (count.decrementAndGet() == 0) {
-                        result.complete(null);
-                    }
-                } catch (Exception e) {
-                    logger.error(EXCEPTION.getMarker(), "Exception in parallelTraverse", e);
-                    // Don't cancel the result future more than once
-                    if (exceptionThrown.compareAndSet(false, true)) {
-                        result.cancelWithError(e);
-                    }
-                }
-            });
+                });
+            }
             nextIndex += size;
         }
         if (count.decrementAndGet() == 0) {

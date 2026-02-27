@@ -18,7 +18,6 @@ import com.swirlds.common.test.fixtures.set.RandomAccessSet;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
@@ -54,10 +53,9 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
     @Override
     protected VirtualDataSourceBuilder createBuilder() {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         // Set initial capacity to a low value to reduce memory usage in tests. If needed,
         // the data source (HDHM bucket index) will be resized automatically
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {

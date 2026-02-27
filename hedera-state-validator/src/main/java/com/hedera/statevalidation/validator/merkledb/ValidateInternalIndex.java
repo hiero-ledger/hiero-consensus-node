@@ -2,25 +2,24 @@
 package com.hedera.statevalidation.validator.merkledb;
 
 import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationError;
-import static com.hedera.statevalidation.util.ParallelProcessingUtils.doNothing;
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.processRange;
-import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,92 +50,77 @@ public class ValidateInternalIndex {
             return;
         }
 
-        final long inMemoryHashThreshold;
-        var lastLeafPath = dataSource.getLastLeafPath();
-        var internalNodesIndex = dataSource.getPathToDiskLocationInternalNodes();
-        var internalStore = new MemoryIndexDiskKeyValueStoreAccessor(dataSource.getHashStoreDisk());
-        var dfc = internalStore.getFileCollection();
-        var pathToHashRam = dataSource.getHashStoreRam();
-        var inMemoryExceptionCount = new AtomicInteger();
+        final long firstLeafPath = dataSource.getFirstLeafPath();
+        final long lastLeafPath = dataSource.getLastLeafPath();
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
+        final long lastChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, hashChunkHeight);
 
-        final ForkJoinTask<?> inMemoryTask;
-        if (pathToHashRam != null) {
-            inMemoryHashThreshold = dataSource.getHashesRamToDiskThreshold();
-            assertTrue(
-                    pathToHashRam.size() <= inMemoryHashThreshold,
-                    "The size of the pathToHashRam should be less than or equal to the in memory hash threshold");
-            var rightBoundary = Math.min(inMemoryHashThreshold, lastLeafPath);
-            if (inMemoryHashThreshold >= lastLeafPath) {
-                assertEquals(0, internalNodesIndex.size(), "The size of the index should be 0");
-                log.info(
-                        "Skipping test for {} as the in memory hash threshold is greater than the last leaf path, so the index is not used",
-                        virtualMap.getLabel());
-                return;
-            }
-            LongConsumer inMemoryIndexProcessor = path -> {
-                try {
-                    Hash actual = pathToHashRam.get(path);
-                    assertNotNull(actual, "The pathToHashRam should not be null");
-                    assertNotEquals(actual, VirtualNodeCache.NULL_HASH, "The hash cannot be null hash");
-                    assertEquals(IMPERMISSIBLE_VALUE, internalNodesIndex.get(path));
-                } catch (IOException e) {
-                    inMemoryExceptionCount.incrementAndGet();
-                }
-            };
-            inMemoryTask = processRange(0, rightBoundary, inMemoryIndexProcessor);
-            assertEquals(
-                    lastLeafPath,
-                    internalNodesIndex.size() - 1,
-                    "The size of the index should be equal to the last leaf path");
-        } else {
-            inMemoryHashThreshold = 0;
-            inMemoryTask = doNothing();
-            assertEquals(
-                    lastLeafPath + 1,
-                    internalNodesIndex.size(),
-                    "The size of the index should be equal to the difference between the last leaf path and the first leaf path in the index");
-        }
+        final LongList hashChunkIndex = dataSource.getIdToDiskLocationHashChunks();
+        final DataFileCollection dfc = dataSource.getHashChunkStore().getFileCollection();
+        log.debug("Size of hash chunk index: {}", hashChunkIndex.size());
 
-        var nullErrorCount = new AtomicInteger(0);
-        var onDiskExceptionCount = new AtomicInteger(0);
-        var successCount = new AtomicInteger(0);
+        final var onDiskExceptionCount = new AtomicInteger(0);
+        final var nullErrorCount = new AtomicInteger(0);
+        final var successCount = new AtomicLong(0);
 
-        // iterate over internalNodeIndex and validate it
-        LongConsumer indexProcessor = path -> {
-            long dataLocation = internalNodesIndex.get(path, -1);
-            // read from dataLocation using datasource
+        LongConsumer indexProcessor = chunkId -> {
+            final long dataLocation = hashChunkIndex.get(chunkId, -1);
             assertNotEquals(-1, dataLocation);
             try {
-                var data = dfc.readDataItem(dataLocation);
+                final BufferedData data = dfc.readDataItem(dataLocation);
                 if (data == null) {
-                    printFileDataLocationError(log, "Missing entry on disk!", dfc, dataLocation);
                     nullErrorCount.incrementAndGet();
-                } else {
-                    var hashRecord = VirtualHashRecord.parseFrom(data);
-                    assertEquals(hashRecord.path(), path);
-                    assertNotNull(hashRecord.hash());
-                    successCount.incrementAndGet();
+                    printFileDataLocationError(log, "Missing entry on disk!", dfc, dataLocation);
+                    return;
                 }
-            } catch (Exception e) {
+                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(data, hashChunkHeight);
+                assertNotNull(hashChunk);
+                final long expectedChunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+                assertEquals(expectedChunkPath, hashChunk.path(), "Wrong chunk path");
+                assertEquals(hashChunk.getChunkId(), chunkId, "Wrong chunk ID");
+                assertEquals(hashChunkHeight, hashChunk.height(), "Wrong chunk height");
+
+                final long hashChunkPath = hashChunk.path();
+                final Hash calculatedChunkHash = hashChunk.chunkRootHash(firstLeafPath, lastLeafPath);
+                if (chunkId == 0) {
+                    // The root chunk. Compare the hash with VM root hash
+                    assertEquals(calculatedChunkHash, virtualMap.getHash(), "Hash mismatch for root chunk");
+                } else {
+                    // Find the parent chunk that contains the hash for hashChunkPath
+                    final long parentChunkPath = VirtualHashChunk.pathToChunkPath(hashChunkPath, hashChunkHeight);
+                    final long parentChunkId = VirtualHashChunk.chunkPathToChunkId(parentChunkPath, hashChunkHeight);
+
+                    // Load the parent chunk
+                    final VirtualHashChunk parentChunk = dataSource.loadHashChunk(parentChunkId);
+                    assertNotNull(parentChunk, "Chunk with ID " + parentChunkId + " is not found");
+                    assertEquals(parentChunk.path(), parentChunkPath);
+                    assertEquals(parentChunk.getChunkId(), parentChunkId);
+
+                    // The hashChunkPath is at the parent chunk's last rank, so we can use getHashAtPath
+                    final Hash storedHash = parentChunk.getHashAtPath(hashChunkPath);
+
+                    // Compare the calculated hash with the stored hash
+                    assertEquals(calculatedChunkHash, storedHash, "Hash mismatch for chunk ID " + chunkId);
+                }
+                successCount.incrementAndGet();
+            } catch (IOException e) {
                 printFileDataLocationError(log, e.getMessage(), dfc, dataLocation);
                 onDiskExceptionCount.incrementAndGet();
             }
         };
 
-        log.debug("Size of index: " + internalNodesIndex.size());
+        final ForkJoinTask<?> chunkValidationTask = processRange(0, lastChunkId + 1, indexProcessor);
+        chunkValidationTask.join();
 
-        ForkJoinTask<?> onDiskTask = processRange(inMemoryHashThreshold, lastLeafPath, indexProcessor);
-        inMemoryTask.join();
-        onDiskTask.join();
+        assertEquals(0, nullErrorCount.get(), "Some chunks are null");
+        assertEquals(0, onDiskExceptionCount.get(), "Some operations failed with exceptions");
 
+        final long chunkCount = lastChunkId + 1;
         assertEquals(
-                0,
-                nullErrorCount.get(),
-                "Some entries on disk are missing even though pointers are present in the index");
-        assertEquals(0, inMemoryExceptionCount.get(), "Some read from memory operations failed");
-        assertEquals(0, onDiskExceptionCount.get(), "Some read from disk operations failed");
-        log.debug("Successfully checked {} entries", successCount.get());
-        // FUTURE WORK: record these in the reporting data structure
-        // https://github.com/hashgraph/hedera-services/issues/7229
+                chunkCount,
+                successCount.get(),
+                "Not all chunks were validated successfully, exp: " + chunkCount + ", act: " + successCount.get());
+
+        log.info("Successfully validated {} chunks (including root)", successCount.get());
     }
 }
