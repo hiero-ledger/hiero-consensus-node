@@ -152,7 +152,6 @@ public class TransactionDispatcher {
         if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             return false;
         }
-
         return switch (feeContext.body().data().kind()) {
             case CONSENSUS_CREATE_TOPIC,
                     CONSENSUS_DELETE_TOPIC,
@@ -197,7 +196,25 @@ public class TransactionDispatcher {
                     ETHEREUM_TRANSACTION,
                     HOOK_STORE,
                     HOOK_DISPATCH -> true;
-            default -> false;
+            // TODO: we need to handle these
+            case UNSET -> false;
+            case CRYPTO_ADD_LIVE_HASH -> false;
+            case CRYPTO_DELETE_LIVE_HASH -> false;
+            case FREEZE -> false;
+            case UNCHECKED_SUBMIT -> false;
+            case NODE_STAKE_UPDATE -> false;
+            case STATE_SIGNATURE_TRANSACTION -> false;
+            case HINTS_PREPROCESSING_VOTE -> false;
+            case HINTS_KEY_PUBLICATION -> false;
+            case HINTS_PARTIAL_SIGNATURE -> false;
+            case HISTORY_PROOF_SIGNATURE -> false;
+            case HISTORY_PROOF_KEY_PUBLICATION -> false;
+            case HISTORY_PROOF_VOTE -> false;
+            case CRS_PUBLICATION -> false;
+            case LEDGER_ID_PUBLICATION -> false;
+            case REGISTERED_NODE_CREATE -> false;
+            case REGISTERED_NODE_UPDATE -> false;
+            case REGISTERED_NODE_DELETE -> false;
         };
     }
 
