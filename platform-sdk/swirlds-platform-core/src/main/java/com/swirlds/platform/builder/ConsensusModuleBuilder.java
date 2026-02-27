@@ -14,9 +14,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.GeneralSecurityException;
@@ -24,6 +23,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.crypto.KeyGeneratingException;
@@ -41,6 +41,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -167,11 +168,30 @@ public class ConsensusModuleBuilder {
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final long startingRound = 0L;
+        final Runnable flushIntake = () -> {};
+        final Runnable flushTransactionHandling = () -> {};
+        final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
+        final Consumer<PlatformStatusAction> statusActionConsumer = status -> {};
+        final Runnable stateHasherFlusher = () -> {};
+        final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
         final PcesModule pcesModule = createPcesModule();
         pcesModule.initialize(
-                model, configuration, metrics, time, selfId, recycleBin, startingRound, eventPipelineTracker);
+                model,
+                configuration,
+                metrics,
+                time,
+                selfId,
+                recycleBin,
+                startingRound,
+                flushIntake,
+                flushTransactionHandling,
+                latestImmutableStateSupplier,
+                statusActionConsumer,
+                stateHasherFlusher,
+                signalEndOfPcesReplay,
+                eventPipelineTracker);
         return pcesModule;
     }
 
@@ -252,7 +272,7 @@ public class ConsensusModuleBuilder {
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new StateLifecycleManagerImpl(metrics, time, vm -> new VirtualMapStateImpl(vm, metrics), configuration);
+                new VirtualMapStateLifecycleManager(metrics, time, configuration);
         final GossipModule gossipModule = createGossipModule();
         gossipModule.initialize(
                 model,

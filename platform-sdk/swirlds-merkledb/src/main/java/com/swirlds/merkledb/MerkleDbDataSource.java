@@ -45,7 +45,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -223,7 +222,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.preferDiskBasedIndices = diskBasedIndices;
+        this.preferDiskBasedIndices =
+                diskBasedIndices || config.getConfigData(MerkleDbConfig.class).useDiskIndices();
 
         this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
 
@@ -541,20 +541,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 });
             }
 
-            // Functionally, leaves don't have to be sorted. However, performance wise, sorting
-            // is beneficial, as adjacent leaves are written together, which reduces the number
-            // of random reads later
-            final List<VirtualLeafBytes> sortedDirtyLeaves = leafRecordsToAddOrUpdate
-                    .parallel()
-                    .sorted(Comparator.comparingLong(VirtualLeafBytes::path))
-                    .toList();
-            final List<VirtualLeafBytes> deletedLeaves = leafRecordsToDelete.toList();
+            final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
+            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
 
             // Use an executor to make sure the data source is not closed in parallel. See
             // the comment in close() for details
             storeLeavesExecutor.execute(() -> {
                 try {
-                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, sortedDirtyLeaves);
+                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
                     throw new UncheckedIOException(e);
@@ -567,8 +561,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // the comment in close() for details
             storeLeafKeysExecutor.execute(() -> {
                 try {
-                    writeLeavesToKeyToPath(
-                            firstLeafPath, lastLeafPath, sortedDirtyLeaves, deletedLeaves, isReconnectContext);
+                    writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaf keys", tableName, e);
                     throw new UncheckedIOException(e);
@@ -1151,7 +1144,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Write all the given leaf records to pathToKeyValue */
     private void writeLeavesToPathToKeyValue(
-            final long firstLeafPath, final long lastLeafPath, @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves)
+            final long firstLeafPath, final long lastLeafPath, @NonNull final VirtualLeafBytes<?>[] dirtyLeaves)
             throws IOException {
         if (lastLeafPath < 0) {
             // Empty store
@@ -1160,10 +1153,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             pathToKeyValue.updateValidKeyRange(firstLeafPath, lastLeafPath);
         }
 
-        if (sortedDirtyLeaves.isEmpty()) {
+        if (dirtyLeaves.length == 0) {
             // Nothing to do
             return;
         }
+
+        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+        // is beneficial, as adjacent leaves are written together, which reduces the number
+        // of random reads later. Treat dirtyLeaves as immutable.
+        VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
+        Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
 
         pathToKeyValue.startWriting();
 
@@ -1190,11 +1189,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private void writeLeavesToKeyToPath(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves,
-            @NonNull final List<VirtualLeafBytes> deletedLeaves,
+            @NonNull final VirtualLeafBytes<?>[] dirtyLeaves,
+            @NonNull final VirtualLeafBytes<?>[] deletedLeaves,
             boolean isReconnect)
             throws IOException {
-        if (sortedDirtyLeaves.isEmpty() && deletedLeaves.isEmpty()) {
+        if (dirtyLeaves.length == 0 && deletedLeaves.length == 0) {
             // Nothing to do
             return;
         }
@@ -1202,7 +1201,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         keyToPath.startWriting();
 
         // Iterate over leaf records
-        for (final VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
+        for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
             final long path = leafBytes.path();
             // Update key to path index
             keyToPath.put(leafBytes.keyBytes(), path);
@@ -1214,14 +1213,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Iterate over leaf records to delete
         for (VirtualLeafBytes<?> leafBytes : deletedLeaves) {
-            final long path = leafBytes.path();
             // Update key to path index. In some cases (e.g. during reconnect), some leaves in the
             // deletedLeaves stream have been moved to different paths in the tree. This is good
             // indication that these leaves should not be deleted. This is why putIfEqual() and
             // deleteIfEqual() are used below rather than unconditional put() and delete() as for
             // dirtyLeaves stream above
             if (isReconnect) {
-                keyToPath.deleteIfEqual(leafBytes.keyBytes(), path);
+                keyToPath.deleteIfEqual(leafBytes.keyBytes(), leafBytes.path());
             } else {
                 keyToPath.delete(leafBytes.keyBytes());
             }

@@ -23,6 +23,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -31,6 +33,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOPIC_CREATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -43,6 +46,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,7 +100,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(1, 0, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -115,7 +126,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 2, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -132,7 +148,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 0, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -149,7 +170,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 1, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -168,7 +194,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 2, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -196,7 +227,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 3, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 3L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -224,7 +260,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(4, 5, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 4L,
+                                    KEYS, 5L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -244,7 +285,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 2, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -271,7 +317,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 5, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 5L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
 
         @HapiTest
@@ -298,7 +349,12 @@ public class TopicCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 8, txnSize), 0.01));
+                            "create-topic-txn",
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 8L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.01));
         }
     }
 
@@ -754,13 +810,20 @@ public class TopicCreateSimpleFeesTest {
                             assertTrue(initialBalance.get() > afterBalance.get());
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(1, 1));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 1L,
+                                            KEYS, 1L)));
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(1, 1, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -967,20 +1030,10 @@ public class TopicCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("Create Topic with duplicate transaction fails on handle")
             Stream<DynamicTest> topicCreateWithDuplicateTransactionFailsOnHandlePayerChargedFullFee() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
-
-                        // Register a TxnId for the inner txn
                         usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
 
                         // Submit duplicate transactions
@@ -991,8 +1044,7 @@ public class TopicCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
-                                .via("topicCreateTxn")
-                                .logged(),
+                                .via("topicCreateTxn"),
                         createTopic("testAccount")
                                 .blankMemo()
                                 .payingWith(PAYER)
@@ -1002,23 +1054,8 @@ public class TopicCreateSimpleFeesTest {
                                 .txnId(DUPLICATE_TXN_ID)
                                 .via("topicCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances after and assert node was not charged
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(1, 0));
-                            assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "topicCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(1L, 0L, txnSize),
-                                0.01));
+                        validateChargedAccount("topicCreateTxn", PAYER),
+                        validateChargedUsd("topicCreateTxn", TOPIC_CREATE_FEE));
             }
 
             @HapiTest
@@ -1057,14 +1094,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 3));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 3L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 3L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -1097,14 +1141,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 1));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 1L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 1L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -1144,14 +1195,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 5));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 5L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 5L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 5L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -1184,14 +1242,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 1));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 1L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 1L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -1224,14 +1289,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 3));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 3L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 3L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
 
@@ -1264,14 +1336,21 @@ public class TopicCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(3, 2));
+                            log.info(
+                                    "Recorded fee: {}",
+                                    expectedTopicCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 3L,
+                                            KEYS, 2L)));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(3L, 2L, txnSize),
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 3L,
+                                        KEYS, 2L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.01));
             }
         }

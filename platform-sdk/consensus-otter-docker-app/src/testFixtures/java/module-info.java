@@ -3,6 +3,7 @@ module org.hiero.consensus.otter.docker.app {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.platform.core;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.otter.fixtures;
     requires transitive com.google.protobuf;
@@ -15,10 +16,8 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
-    requires com.swirlds.virtualmap;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
-    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;

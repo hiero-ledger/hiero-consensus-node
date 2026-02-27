@@ -2,15 +2,19 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static org.hiero.base.CompareTo.isLessThan;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.config.StateCommonConfig;
@@ -29,21 +33,19 @@ import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.SignedStateMetrics;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
@@ -51,7 +53,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -61,13 +62,10 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -114,7 +112,7 @@ public class SwirldsPlatform implements Platform {
      * NOTE: This is currently set when a state has finished hashing. In the future, this will be set at the moment a
      * new state is created, before it is hashed.
      */
-    private final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+    private final SignedStateNexus latestImmutableStateNexus;
 
     /**
      * For passing notifications between the platform and the application.
@@ -175,28 +173,23 @@ public class SwirldsPlatform implements Platform {
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
         this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = new PlatformCoordinator(blocks.platformComponents(), blocks.applicationCallbacks());
+        this.platformCoordinator = blocks.platformCoordinator();
+        this.latestImmutableStateNexus = blocks.latestImmutableStateNexus();
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
         final Configuration configuration = platformContext.getConfiguration();
-        final Duration replayHealthThreshold =
-                configuration.getConfigData(PcesConfig.class).replayHealthThreshold();
-        final PcesReplayer pcesReplayer = new PcesReplayer(
-                configuration,
-                platformContext.getTime(),
-                platformComponents.pcesReplayerWiring().eventOutput(),
-                platformCoordinator::flushIntakePipeline,
-                platformCoordinator::flushTransactionHandler,
-                () -> latestImmutableStateNexus.getState("PCES replay"),
-                () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, initialState, blocks.consensusStateEventHandler());
+        initializeState(initialState, blocks.consensusStateEventHandler());
 
-        // This object makes a copy of the state. After this point, initialState becomes immutable.
+        // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
+        // - For genesis: the manager creates a genesis state eagerly in its constructor.
+        // - For restart: loadSnapshot() initializes the manager when loading from disk.
+        // - For reconnect: initWithState() re-initializes the manager at runtime.
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
-        final State state = initialState.getState();
-        stateLifecycleManager.initState((VirtualMapState) state);
+        // Startup initialization may hash/freeze the state referenced by the initial SignedState.
+        // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
+        stateLifecycleManager.copyMutableState();
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
@@ -223,7 +216,6 @@ public class SwirldsPlatform implements Platform {
 
         platformComponents.bind(
                 builder,
-                pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
                 latestImmutableStateNexus,
@@ -249,7 +241,7 @@ public class SwirldsPlatform implements Platform {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
                     savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
-            platformCoordinator.injectPcesMinimumGenerationToStore(minimumGenerationNonAncientForOldestState);
+            platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
@@ -297,6 +289,52 @@ public class SwirldsPlatform implements Platform {
     }
 
     /**
+     * Initialize the state.
+     *
+     * @param signedState     the state to initialize
+     */
+    private void initializeState(
+            @NonNull final SignedState signedState,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
+
+        final SemanticVersion previousSoftwareVersion;
+        final InitTrigger trigger;
+
+        if (signedState.isGenesisState()) {
+            previousSoftwareVersion = null;
+            trigger = GENESIS;
+        } else {
+            previousSoftwareVersion = creationSoftwareVersionOf(signedState.getState());
+            trigger = RESTART;
+        }
+
+        final State initialState = signedState.getState();
+
+        // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
+        // of that state here. That copy should have caused the hash to be cleared.
+
+        if (initialState.isHashed()) {
+            throw new IllegalStateException("Expected initial state to be unhashed");
+        }
+
+        consensusStateEventHandler.onStateInitialized(signedState.getState(), this, trigger, previousSoftwareVersion);
+
+        // calculate hash
+        abortAndThrowIfInterrupted(
+                initialState::getHash, // calculate hash
+                "interrupted while attempting to hash the state");
+
+        // If our hash changes as a result of the new address book then our old signatures may become invalid.
+        if (trigger != GENESIS) {
+            signedState.pruneInvalidSignatures();
+        }
+
+        logger.info(STARTUP.getMarker(), """
+                        The platform is using the following initial state:
+                        {}""", getInfoString(signedState.getState()));
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -316,7 +354,7 @@ public class SwirldsPlatform implements Platform {
         platformContext.getMetrics().start();
         platformCoordinator.start();
 
-        replayPreconsensusEvents();
+        platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
         platformCoordinator.startGossip();
     }
 
@@ -326,30 +364,6 @@ public class SwirldsPlatform implements Platform {
         platformContext.getRecycleBin().stop();
         platformCoordinator.stop();
         getMetricsProvider().removePlatformMetrics(selfId);
-    }
-
-    /**
-     * Replay preconsensus events.
-     */
-    private void replayPreconsensusEvents() {
-        platformCoordinator.submitStatusAction(new StartedReplayingEventsAction());
-
-        final IOIterator<PlatformEvent> iterator =
-                platformComponents.pcesModule().storedEvents(pcesReplayLowerBound, startingRound);
-
-        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
-
-        platformCoordinator.injectPcesReplayerIterator(iterator);
-
-        // We have to wait for all the PCES transactions to reach the ISS detector before telling it that PCES replay is
-        // done. The PCES replay will flush the intake pipeline, but we have to flush the hasher
-
-        // FUTURE WORK: These flushes can be done by the PCES replayer.
-        platformCoordinator.flushStateHasher();
-        platformCoordinator.signalEndOfPcesReplay();
-
-        platformCoordinator.submitStatusAction(
-                new DoneReplayingEventsAction(platformContext.getTime().now()));
     }
 
     /**

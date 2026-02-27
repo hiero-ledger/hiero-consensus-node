@@ -20,9 +20,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -34,6 +34,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -43,10 +44,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -219,7 +224,18 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Public topic
@@ -240,7 +256,18 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Private topic
@@ -263,8 +290,20 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                safeValidateInnerTxnChargedUsd(
-                        "createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0, expectedTopicCreateFullFeeUsd(1, 1), 5.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
+                    }
+                }));
     }
 
     @HapiTest

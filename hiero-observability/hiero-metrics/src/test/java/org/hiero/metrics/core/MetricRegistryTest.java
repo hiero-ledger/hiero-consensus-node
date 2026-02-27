@@ -93,7 +93,7 @@ public class MetricRegistryTest {
             assertThatThrownBy(() -> registry.register(
                             LongCounter.builder("test_counter").addStaticLabels(new Label("env", "production"))))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContainingAll("Label", "conflicts with existing", "env");
+                    .hasMessageContainingAll("conflicts with existing", "env");
         }
 
         @Test
@@ -369,6 +369,20 @@ public class MetricRegistryTest {
         registry.register(LongCounter.builder(name));
 
         assertThat(registry.containsMetric(LongGauge.key(name))).isFalse();
+    }
+
+    @Test
+    void testNullSnapshotWhenNoExporter() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+
+        LongCounter counter = registry.register(LongCounter.builder("test_counter"));
+        counter.getOrCreateNotLabeled().increment();
+
+        LongGauge gauge = registry.register(LongGauge.builder("test_gauge").addDynamicLabelNames("label"));
+        gauge.getOrCreateLabeled("label", "1").set(10);
+
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(counter);
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(gauge);
     }
 
     @Test
