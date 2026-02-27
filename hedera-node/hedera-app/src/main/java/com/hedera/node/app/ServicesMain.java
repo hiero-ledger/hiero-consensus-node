@@ -231,9 +231,8 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-        hedera.init(platform, selfId);
 
-        // The migration itself is gated by the appropriate feature flags, so this is safe to invoke
+        // The migration itself is gated by appropriate feature flags
         hedera.wrappedRecordBlockHashMigration()
                 .execute(
                         platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
