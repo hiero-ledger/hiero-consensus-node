@@ -41,13 +41,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
 /**
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.
  */
-@ConstructableIgnored
 public class FakeState implements VirtualMapState {
 
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
