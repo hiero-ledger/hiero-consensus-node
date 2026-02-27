@@ -2,17 +2,15 @@
 plugins {
     id("org.hiero.gradle.build") version "0.7.4"
     id("com.hedera.pbj.pbj-compiler") version "0.14.0" apply false
-    id("org.gradle.test-retry") version "1.6.2" apply false
 }
 
-// Configure the Gradle Test Retry plugin for CI flaky test handling.
+// Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
 // Retries only in CI (when the CI env var is set).
 // Flaky tests (passed after retry) do not fail the build.
 gradle.allprojects {
     pluginManager.withPlugin("java") {
-        apply(plugin = "org.gradle.test-retry")
         tasks.withType(Test::class.java).configureEach {
-            extensions.configure<org.gradle.testretry.TestRetryTaskExtension>("retry") {
+            develocity.testRetry {
                 maxRetries.set(providers.environmentVariable("CI").map { 2 }.orElse(0))
                 maxFailures.set(10)
                 failOnPassedAfterRetry.set(false)
