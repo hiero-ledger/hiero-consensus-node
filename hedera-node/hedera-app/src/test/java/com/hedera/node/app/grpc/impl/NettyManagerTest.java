@@ -11,8 +11,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -21,13 +19,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 final class NettyManagerTest extends GrpcTestBase {
-    private static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
     private NettyGrpcServerManager createServerManager(@NonNull final TestSource testConfig) {
         final var config = createConfig(testConfig);
         return new NettyGrpcServerManager(
                 () -> new VersionedConfigImpl(config, 1),
                 new ServicesRegistryImpl(ConstructableRegistry.getInstance(), config),
+                (req, res) -> {},
                 (req, res) -> {},
                 (req, res) -> {},
                 (req, res) -> {},
