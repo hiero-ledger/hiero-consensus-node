@@ -49,7 +49,6 @@ import org.junit.jupiter.api.DynamicTest;
  */
 // tokens.airdrops.enabled and entities.unlimitedAutoAssociationsEnabled are true by default so it is safe to run this
 // concurrently
-// @Tag(SERIAL)
 @DisplayName("airdrops")
 @HapiTestLifecycle
 public class AirdropSigReqsTest {

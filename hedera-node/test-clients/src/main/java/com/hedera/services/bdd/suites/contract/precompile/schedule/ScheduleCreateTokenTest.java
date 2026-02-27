@@ -34,7 +34,6 @@ import org.junit.jupiter.api.DynamicTest;
 
 // contracts.systemContract.scheduleService.scheduleNative.enabled is true by default so it is safe to run this
 // concurrently
-// @Tag(SERIAL)
 @HapiTestLifecycle
 public class ScheduleCreateTokenTest {
 

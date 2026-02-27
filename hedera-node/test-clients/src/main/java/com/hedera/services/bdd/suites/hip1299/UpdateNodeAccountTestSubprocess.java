@@ -39,7 +39,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 // nodes.updateAccountIdAllowed is true by default so it is safe to run this concurrently
-// @Tag(SERIAL)
 @HapiTestLifecycle
 public class UpdateNodeAccountTestSubprocess {
 

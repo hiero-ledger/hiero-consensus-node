@@ -45,7 +45,6 @@ import org.junit.jupiter.api.DynamicTest;
  * <a href="https://hips.hedera.com/hip/hip-869">HIP-869, "Dynamic Address Book - Stage 1 - HAPI Endpoints"</a>.
  */
 // nodes.updateAccountIdAllowed is true by default so it is safe to run this concurrently
-// @Tag(SERIAL)
 @HapiTestLifecycle
 public class UpdateAccountEnabledTest {
     private static List<X509Certificate> gossipCertificates;
