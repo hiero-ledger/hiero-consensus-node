@@ -194,9 +194,13 @@ public class SimpleFeesRecordStreamTest {
                             final var rate = record.getReceipt().getExchangeRate();
                             json.startRecord();
                             json.key("name", body.data().kind().name());
-                            json.key("account", record.getReceipt().getAccountID().getAccountNum());
-                            json.key("seconds", record.getConsensusTimestamp().getSeconds());
-                            json.key("nanos", record.getConsensusTimestamp().getNanos());
+                            json.key("seconds", body.transactionID().transactionValidStart().seconds());
+                            json.key("nanos", body.transactionID().transactionValidStart().nanos());
+                            long accountNumber = 0;
+                            if(body.transactionID() != null && body.transactionID().accountID() != null) {
+                                accountNumber = body.transactionID().accountID().accountNum();
+                            }
+                            json.key("account",accountNumber);
                             long legacyFee = 0;
                             if (rate.getCurrentRate().getHbarEquiv() != 0) {
                                 legacyFee = txnFee
