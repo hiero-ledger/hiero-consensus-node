@@ -40,7 +40,7 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
-                    .withConfigValue("event.creation.creationAttemptRate", 5000)
+                    .withConfigValue("event.creation.creationAttemptRate", 4000)
                     .withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
