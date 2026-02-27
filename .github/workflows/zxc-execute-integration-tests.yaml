@@ -134,7 +134,7 @@ jobs:
             "${{ steps.upload-otter-turtle-integration-logs.outcome || 'skipped' }}"
             "${{ steps.upload-otter-container-integration-logs.outcome || 'skipped' }}"
           )
-          general_statuses=(
+          test_statuses=(
             "${{ steps.gradle-integration-tests.outcome || 'skipped' }}"
           )
 
@@ -148,8 +148,8 @@ jobs:
             return 1
           }
 
-          if has_failure "${general_statuses[@]}"; then
-            failure_mode="general"
+          if has_failure "${test_statuses[@]}"; then
+            failure_mode="test"
           fi
 
           if has_failure "${workflow_statuses[@]}"; then

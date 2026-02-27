@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "release/**"
+      - infrastructure-failure-detection  # TEMP: remove before merge
 
 defaults:
   run:
@@ -69,15 +70,13 @@ jobs:
             "dry-run-enabled": false
             }'
 
-  report-failure:
-    name: Report MATS execution failure
+  report-status:
+    name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.mats-tests.result != 'success' ||
-      needs.deploy-ci-trigger.result != 'success') &&
-      !cancelled() && always() }}
+    if: ${{ always() }}
 
     steps:
       - name: Harden Runner
@@ -112,12 +111,26 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && always() }}
         continue-on-error: true
         with:
           retention-days: 7
           path: |
             run.log
+
+      - name: Determine Report Category
+        id: report-category
+        run: |
+          if [[ "${{ needs.mats-tests.result }}" == "cancelled" ]]; then
+            echo "category=cancelled" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.mats-tests.result }}" == "success" \
+            && "${{ needs.deploy-ci-trigger.result }}" == "success" ]]; then
+            echo "category=success" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
+            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
+          else
+            echo "category=test" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Get Commit Information
         id: fetch-commit-info
@@ -129,6 +142,7 @@ jobs:
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
+        if: ${{ steps.report-category.outputs.category == 'success' || steps.report-category.outputs.category == 'test' }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
@@ -149,16 +163,17 @@ jobs:
 
       - name: Set Rootly Parameters
         id: set-rootly-parameters
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
+          if [[ "${{ steps.report-category.outputs.category }}" == "infrastructure" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
@@ -186,6 +201,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -193,36 +209,38 @@ jobs:
           echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.set-rootly-parameters.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Create Rootly Alert
-        id: create-rootly-alert
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: "${{ steps.rootly-summary.outputs.title }}"
-          details: "${{ steps.rootly-summary.outputs.summary }}"
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
-          set_as_noise: "false"
-          alert_urgency: "High"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
+      # TEMP: Rootly alert disabled for testing — re-enable before merge
+      # - name: Create Rootly Alert
+      #   id: create-rootly-alert
+      #   if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+      #   uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+      #   continue-on-error: true
+      #   with:
+      #     api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+      #     summary: "${{ steps.rootly-summary.outputs.title }}"
+      #     details: "${{ steps.rootly-summary.outputs.summary }}"
+      #     notification_target_type: "Service"
+      #     notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
+      #     set_as_noise: "false"
+      #     alert_urgency: "High"
+      #     external_id: ${{ github.run_id }}
+      #     external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      #     environments: "CITR"
 
-      - name: Build Slack Payload Message
-        id: payload
+      - name: Build Success Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'success' }}
         run: |
-          cat <<EOF > slack_payload.json
+          cat <<SLACKEOF > slack_payload.json
           {
             "attachments": [
               {
-                "color": "#FF0000",
+                "color": "#00FF00",
                 "blocks": [
                   {
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":exclamation: Hiero Consensus Node - MATS Error Report",
+                      "text": ":white_check_mark: Hiero Consensus Node - MATS Success",
                       "emoji": true
                     }
                   },
@@ -233,7 +251,84 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*MATS Job Resulted in failure on `main`. See status below.*"
+                      "text": "*All MATS jobs passed on \`${{ github.ref_name }}\`.*"
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          SLACKEOF
+
+      - name: Build Test Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'test' }}
+        run: |
+          cat <<SLACKEOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":x: Hiero Consensus Node - MATS Test Failure Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MATS test failure on \`${{ github.ref_name }}\`. See status below.*"
                     },
                     "fields": [
                       {
@@ -243,6 +338,10 @@ jobs:
                       {
                         "type": "mrkdwn",
                         "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Failing Test(s)*: ${{ needs.mats-tests.outputs.failed-tests }}"
                       }
                     ]
                   },
@@ -282,14 +381,6 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
                         "text": "*Workflow run URL*:"
                       },
                       {
@@ -302,30 +393,188 @@ jobs:
               }
             ]
           }
-          EOF
+          SLACKEOF
 
-      - name: Report failure (slack citr-operations)
-        if: ${{ steps.set-rootly-parameters.outputs.service != 'CI/CD Workflows' }}
+      - name: Build Infrastructure Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        run: |
+          cat <<SLACKEOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF8C00",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - MATS Infrastructure Failure Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Infrastructure issue detected on \`${{ github.ref_name }}\` — not a test failure.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow run URL*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          SLACKEOF
+
+      - name: Build Infrastructure Failure Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        run: |
+          cat <<SLACKEOF > slack_payload_summary.json
+          {
+            "attachments": [
+              {
+                "color": "#FF8C00",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":warning: MATS infrastructure failure on \`${{ github.ref_name }}\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          SLACKEOF
+
+      - name: Build Cancelled Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        run: |
+          cat <<SLACKEOF > slack_payload_summary.json
+          {
+            "attachments": [
+              {
+                "color": "#808080",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":no_entry_sign: MATS run cancelled on \`${{ github.ref_name }}\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          SLACKEOF
+
+      - name: Notify success (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'success' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack citr-failures)
-        if: ${{ steps.set-rootly-parameters.outputs.service == 'CI/CD Workflows' }}
+      - name: Notify test failure (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack release-team)
+      - name: Notify test failure (release-team)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
+
+      - name: Notify infrastructure failure (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_FAILURES_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Notify infrastructure failure summary (release-team)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify infrastructure failure summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (release-team)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}  # TEMP: was SLACK_CITR_FAILURES_WEBHOOK
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json

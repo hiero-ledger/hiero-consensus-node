@@ -960,7 +960,7 @@ jobs:
           }
 
           if has_failure "${job_statuses[@]}"; then
-            failure_mode="general"
+            failure_mode="test"
           fi
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"

@@ -566,7 +566,7 @@ jobs:
         id: extended-test-suite-failure
         if: ${{ needs.xts-execution.result != 'success' }}
         run: |
-          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'general' }}"
+          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'test' }}"
           echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
 
       - name: Set Rootly Service Name
@@ -575,7 +575,7 @@ jobs:
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'general' }}" == "workflow" ]]; then
+            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'test' }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"

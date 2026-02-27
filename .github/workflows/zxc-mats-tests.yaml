@@ -369,7 +369,7 @@ jobs:
           failure_mode="none"
           failed_tests=""
 
-          # go through all of the job statuses and check failure mode (none | workflow | general)
+          # go through all of the job statuses and check failure mode (none | workflow | test)
           # if any job failed (failure-mode != none) then set the failure mode for the workflow
           # to that jobs failure mode.
           # only set failure mode once
@@ -392,7 +392,7 @@ jobs:
             fi
           done
 
-          # if any determinism jobs failed, set failure mode to 'general' if not already set to something
+          # if any determinism jobs failed, set failure mode to 'test' if not already set to something
           # other than "none"
           # Add the failed determinism job to the failed-tests list
 
@@ -411,7 +411,7 @@ jobs:
 
             if [[ "${status}" == "failure" ]]; then
               if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="general"
+                failure_mode="test"
               fi
               if [[ -z "${failed_tests}" ]]; then
                 failed_tests="${name}"
