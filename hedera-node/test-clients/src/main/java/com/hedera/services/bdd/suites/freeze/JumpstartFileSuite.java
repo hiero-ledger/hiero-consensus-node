@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -81,6 +82,10 @@ class JumpstartFileSuite implements LifecycleTest {
                 // Verify the jumpstart file was archived after successful migration
                 withOpContext((spec, opLog) -> {
                     for (final var node : spec.targetNetworkOrThrow().nodes()) {
+                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
+                            continue;
+                        }
+
                         final var workingDir = node.metadata().workingDir();
                         final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
                         final var original = cutoverDir.resolve("jumpstart.bin");
