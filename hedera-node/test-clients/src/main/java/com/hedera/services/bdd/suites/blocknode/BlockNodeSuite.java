@@ -331,7 +331,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(6)
+    @Order(5)
     final Stream<DynamicTest> allP0NodesStreamingHappyPath() {
         return validateHappyPath(10);
     }
