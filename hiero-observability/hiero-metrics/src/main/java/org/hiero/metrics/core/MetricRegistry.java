@@ -45,13 +45,16 @@ public final class MetricRegistry implements Closeable {
 
     private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
-    private final MetricRegistrySnapshot snapshot = new MetricRegistrySnapshot();
+
+    @Nullable
+    private final MetricRegistrySnapshot snapshot;
 
     private MetricRegistry(@NonNull List<Label> globalLabels, @Nullable MetricsExporter exporter) {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
         if (exporter != null) {
+            snapshot = new MetricRegistrySnapshot();
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
@@ -59,7 +62,8 @@ public final class MetricRegistry implements Closeable {
                     this.globalLabels,
                     exporter.getClass());
         } else {
-            logger.log(INFO, "Created metric registry. globalLabels={0}", this.globalLabels);
+            snapshot = null;
+            logger.log(INFO, "Created metric registry without exporter. globalLabels={0}", this.globalLabels);
         }
     }
     /**
@@ -116,11 +120,17 @@ public final class MetricRegistry implements Closeable {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
-            M metric =
-                    builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
+            builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+            if (snapshot == null) {
+                builder.doNotSnapshot();
+            }
+
+            M metric = builder.build();
             logger.log(DEBUG, "Registered metric. name={0}", metric.name());
 
-            snapshot.addMetricSnapshot(metric.snapshot());
+            if (snapshot != null) {
+                snapshot.addMetricSnapshot(metric.snapshot());
+            }
 
             return metric;
         }));
