@@ -61,7 +61,9 @@ public record VirtualMapConfig(
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs) {
-// spotless:on
+
+    // spotless:on
+
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 
     public int getNumHashThreads() {

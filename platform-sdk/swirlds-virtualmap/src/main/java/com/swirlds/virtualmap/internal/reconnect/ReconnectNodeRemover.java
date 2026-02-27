@@ -31,7 +31,6 @@ import org.apache.logging.log4j.Logger;
  * to M. Later during flush, key K is in the list of candidates to remove, but with path N (this is where it
  * was originally located in the learner tree). Since the path is different, the leaf will not be actually
  * removed from disk.
- *
  */
 public class ReconnectNodeRemover {
 
@@ -109,7 +108,7 @@ public class ReconnectNodeRemover {
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path
             for (long path = oldFirstLeafPath; path < Math.min(newFirstLeafPath, oldLastLeafPath + 1); path++) {
-                final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
+                final VirtualLeafBytes<?> oldRecord = oldRecords.findLeafRecord(path);
                 assert oldRecord != null;
                 flusher.deleteLeaf(oldRecord);
             }
@@ -126,10 +125,12 @@ public class ReconnectNodeRemover {
      * @param newKey
      * 		the key of the new leaf node
      */
-    public synchronized void newLeafNode(final long path, final Bytes newKey) {
-        final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
+    public void newLeafNode(final long path, final Bytes newKey) {
+        final VirtualLeafBytes<?> oldRecord = oldRecords.findLeafRecord(path);
         if ((oldRecord != null) && !newKey.equals(oldRecord.keyBytes())) {
-            flusher.deleteLeaf(oldRecord);
+            synchronized (this) {
+                flusher.deleteLeaf(oldRecord);
+            }
         }
     }
 
@@ -138,7 +139,7 @@ public class ReconnectNodeRemover {
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
-            final VirtualLeafBytes oldExtraLeafRecord = oldRecords.findLeafRecord(p);
+            final VirtualLeafBytes<?> oldExtraLeafRecord = oldRecords.findLeafRecord(p);
             assert oldExtraLeafRecord != null || p < oldFirstLeafPath;
             if (oldExtraLeafRecord != null) {
                 flusher.deleteLeaf(oldExtraLeafRecord);

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.Path;
 import java.io.IOException;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -34,11 +36,14 @@ public class PullVirtualTreeResponse implements SelfSerializable {
     // Virtual node path
     private long path;
 
-    // Virtual node hash on the learner side. May be NULL_HASH, if the path is outside of path range
-    // in the old learner virtual tree
-    private Hash learnerHash;
+    private boolean isClean;
 
-    private Hash teacherHash;
+    private long firstLeafPath = -1;
+    private long lastLeafPath = -1;
+
+    // If the response is not clean (learner hash != teacher hash), then leafData contains
+    // the leaf data on the teacher side
+    private VirtualLeafBytes<?> leafData;
 
     /**
      * Zero-arg constructor for constructable registry.
@@ -54,15 +59,17 @@ public class PullVirtualTreeResponse implements SelfSerializable {
     public PullVirtualTreeResponse(
             final TeacherPullVirtualTreeView teacherView,
             final long path,
-            final Hash learnerHash,
-            final Hash teacherHash) {
+            final boolean isClean,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final VirtualLeafBytes<?> leafData) {
         this.teacherView = teacherView;
         this.learnerView = null;
         this.path = path;
-        this.learnerHash = learnerHash;
-        assert learnerHash != null;
-        this.teacherHash = teacherHash;
-        // teacherHash may be null (in case the tree is empty)
+        this.isClean = isClean;
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
+        this.leafData = leafData;
     }
 
     /**
@@ -83,9 +90,24 @@ public class PullVirtualTreeResponse implements SelfSerializable {
     public void serialize(final SerializableDataOutputStream out) throws IOException {
         assert teacherView != null;
         out.writeLong(path);
-        final boolean isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
         out.write(isClean ? 0 : 1);
-        teacherView.writeNode(out, path, isClean);
+        if (path == Path.ROOT_PATH) {
+            out.writeLong(firstLeafPath);
+            out.writeLong(lastLeafPath);
+        }
+        if (leafData != null) {
+            assert !isClean;
+            final Bytes keyBytes = leafData.keyBytes();
+            out.writeInt(Math.toIntExact(keyBytes.length()));
+            keyBytes.writeTo(out);
+            final Bytes valueBytes = leafData.valueBytes();
+            if (valueBytes != null) {
+                out.writeInt(Math.toIntExact(valueBytes.length()));
+                valueBytes.writeTo(out);
+            } else {
+                out.writeInt(-1);
+            }
+        }
     }
 
     /**
@@ -95,9 +117,29 @@ public class PullVirtualTreeResponse implements SelfSerializable {
     public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
         assert learnerView != null;
         path = in.readLong();
-        final boolean isClean = in.read() == 0;
-        learnerView.readNode(in, path, isClean);
-        if (learnerView.isLeaf(path)) {
+        isClean = in.read() == 0;
+        if (path == Path.ROOT_PATH) {
+            firstLeafPath = in.readLong();
+            lastLeafPath = in.readLong();
+            return;
+        }
+        final boolean isLeaf = learnerView.isLeaf(path);
+        if (isLeaf && !isClean) {
+            final int keyBytesLen = in.readInt();
+            final byte[] keyBytes = new byte[keyBytesLen];
+            in.readFully(keyBytes);
+            final int valueBytesLen = in.readInt();
+            final byte[] valueBytes;
+            if (valueBytesLen >= 0) {
+                valueBytes = new byte[valueBytesLen];
+                in.readFully(valueBytes);
+            } else {
+                valueBytes = null;
+            }
+            leafData = new VirtualLeafBytes<>(
+                    path, Bytes.wrap(keyBytes), valueBytes != null ? Bytes.wrap(valueBytes) : null);
+        }
+        if (isLeaf) {
             learnerView.getMapStats().incrementLeafHashes(1, isClean ? 1 : 0);
         } else {
             learnerView.getMapStats().incrementInternalHashes(1, isClean ? 1 : 0);
@@ -106,6 +148,22 @@ public class PullVirtualTreeResponse implements SelfSerializable {
 
     public long getPath() {
         return path;
+    }
+
+    public long getFirstLeafPath() {
+        return firstLeafPath;
+    }
+
+    public long getLastLeafPath() {
+        return lastLeafPath;
+    }
+
+    public boolean isClean() {
+        return isClean;
+    }
+
+    public VirtualLeafBytes<?> getLeafData() {
+        return leafData;
     }
 
     /**
