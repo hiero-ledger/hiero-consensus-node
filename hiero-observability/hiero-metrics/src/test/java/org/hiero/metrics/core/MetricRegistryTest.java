@@ -372,6 +372,20 @@ public class MetricRegistryTest {
     }
 
     @Test
+    void testNullSnapshotWhenNoExporter() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+
+        LongCounter counter = registry.register(LongCounter.builder("test_counter"));
+        counter.getOrCreateNotLabeled().increment();
+
+        LongGauge gauge = registry.register(LongGauge.builder("test_gauge").addDynamicLabelNames("label"));
+        gauge.getOrCreateLabeled("label", "1").set(10);
+
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(counter);
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(gauge);
+    }
+
+    @Test
     void testConcurrentMetricsRegistrations() throws InterruptedException {
         MetricRegistry registry = MetricRegistry.builder().build();
 

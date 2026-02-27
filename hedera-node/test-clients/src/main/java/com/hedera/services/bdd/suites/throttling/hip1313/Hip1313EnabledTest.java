@@ -330,13 +330,14 @@ public class Hip1313EnabledTest {
 
     @LeakyHapiTest(
             requirement = {THROTTLE_OVERRIDES},
-            throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
+            throttles = "testSystemFiles/hip1313-no-hv-one-tps-create.json")
     final Stream<DynamicTest> highVolumeTxnFallsBackToNormalThrottleWhenNoHighVolumeBucketExists() {
         return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
+                overridingThrottles("testSystemFiles/hip1313-no-hv-one-tps-create.json"),
                 cryptoCreate("fallbackThrottleA")
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
+                        .deferStatusResolution()
                         .hasPrecheck(OK),
                 cryptoCreate("fallbackThrottleB")
                         .payingWith(CIVILIAN_PAYER)
