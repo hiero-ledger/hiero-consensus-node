@@ -33,7 +33,7 @@ public record WiringConfig(
         @ConfigProperty(defaultValue = "0") double defaultPoolMultiplier,
         @ConfigProperty(defaultValue = "8") int defaultPoolConstant,
         @ConfigProperty(defaultValue = "500") int healthMonitorSchedulerCapacity,
-        @ConfigProperty(defaultValue = "500us") Duration healthMonitorHeartbeatPeriod,
+        @ConfigProperty(defaultValue = "1ms") Duration healthMonitorHeartbeatPeriod,
         @ConfigProperty(defaultValue = "1s") Duration healthLogThreshold,
         @ConfigProperty(defaultValue = "10m") Duration healthLogPeriod,
         @ConfigProperty(defaultValue = "1s") Duration healthyReportThreshold) {}
