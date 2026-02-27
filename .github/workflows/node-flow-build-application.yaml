@@ -25,15 +25,16 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
-      enable-spotless-check: "true"
-      enable-dependency-check: "true"
+      # TEMP: most tests disabled for Slack reporting testing — re-enable before merge
+      enable-spotless-check: "false"
+      enable-dependency-check: "false"
       enable-unit-tests: "true"
-      enable-integration-tests: "true"
-      enable-hapi-tests: "true"
-      enable-otter-tests: "true"
-      enable-snyk-scan: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
+      enable-integration-tests: "false"
+      enable-hapi-tests: "false"
+      enable-otter-tests: "false"
+      enable-snyk-scan: "false"
+      enable-gradle-determinism: "false"
+      enable-docker-determinism: "false"
       java-version: "21.0.6"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
