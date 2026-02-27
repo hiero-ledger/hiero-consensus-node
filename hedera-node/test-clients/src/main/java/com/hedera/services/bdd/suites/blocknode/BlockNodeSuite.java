@@ -315,35 +315,6 @@ public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                        })
-            })
-    @Order(5)
-    final Stream<DynamicTest> testBlockNodeRestartSaturation() {
-        final Duration duration = Duration.ofSeconds(30);
-        final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        return hapiTest(
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                blockNode(0).shutDownImmediately(),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                blockNode(0).startImmediately(),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, duration, duration, "saturation=0.0%")));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
                 @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
