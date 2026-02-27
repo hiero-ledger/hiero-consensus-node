@@ -211,7 +211,7 @@ jobs:
       enable-hapi-tests-misc-records: "true"
       enable-hapi-tests-crypto: "false"
       enable-hapi-tests-simplefees: "true"
-      enable-hapi-tests-token: "true"
+      enable-hapi-tests-token: "false"
       enable-hapi-tests-smart-contract: "true"
       enable-hapi-tests-bn-communication: "true"
       enable-hapi-tests-atomic-batch: "true"

@@ -57,6 +57,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
+    public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -230,7 +231,7 @@ public class WrapsHistoryProver implements HistoryProver {
             final var missingNodes = phaseMessages.get(R1).keySet().stream()
                     .filter(nodeId -> !submittingNodes.contains(nodeId))
                     .toList();
-            return new Outcome.Failed("Still missing messages from R1 nodes " + missingNodes
+            return new Outcome.Failed(MISSING_MESSAGES_FAILURE_PREFIX + missingNodes
                     + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
@@ -251,6 +252,11 @@ public class WrapsHistoryProver implements HistoryProver {
                     construction.targetProof());
         }
         return Outcome.InProgress.INSTANCE;
+    }
+
+    public static boolean isRecoverableFailure(@NonNull final String reason) {
+        requireNonNull(reason);
+        return reason.startsWith(MISSING_MESSAGES_FAILURE_PREFIX);
     }
 
     @Override

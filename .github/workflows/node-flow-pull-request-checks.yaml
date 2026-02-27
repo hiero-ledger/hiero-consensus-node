@@ -36,6 +36,7 @@ jobs:
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-hapi-tests-crypto: "true"
+      enable-hapi-tests-token: "true"
       enable-hapi-tests-time-consuming: "true"
       enable-hapi-tests-state-throttling: "true"
       enable-otter-tests: "true"

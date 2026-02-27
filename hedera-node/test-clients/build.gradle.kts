@@ -72,6 +72,7 @@ val basePrCheckTags =
         "hapiTestCrypto" to "CRYPTO",
         "hapiTestCryptoSerial" to "(CRYPTO&SERIAL)",
         "hapiTestToken" to "TOKEN",
+        "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
@@ -86,9 +87,8 @@ val basePrCheckTags =
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
-val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSerial")
-val timeConsumingTasks = setOf("hapiTestTimeConsuming", "hapiTestTimeConsumingSerial")
-val stateThrottlingTasks = setOf("hapiTestStateThrottling")
+val concurrentTasks =
+    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial","hapiTestTimeConsuming", "hapiTestTimeConsumingSerial", "hapiTestStateThrottling")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -98,9 +98,7 @@ val prCheckTags =
             put(task, "($tags)&(!MATS)")
 
             // MATS task → explicitly REQUIRE MATS
-            if (
-                task !in cryptoTasks && task !in timeConsumingTasks && task !in stateThrottlingTasks
-            ) {
+            if (task !in concurrentTasks) {
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
@@ -116,7 +114,7 @@ val remoteCheckTags =
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
                     "hapiTestToken",
-                    "hapiTestTokenMATS",
+                    "hapiTestTokenSerial",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
@@ -135,18 +133,14 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
-        put("hapiTestTimeConsumingSerial", "27800")
-        put("hapiTestStateThrottling", "28000")
+        put("hapiTestTokenSerial", "27800")
+        put("hapiTestTimeConsumingSerial", "28000")
+        put("hapiTestStateThrottling", "28200")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
-            if (
-                taskName !in cryptoTasks &&
-                    taskName !in timeConsumingTasks &&
-                    taskName !in stateThrottlingTasks
-            )
-                put("$taskName$matsSuffix", port)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", port)
         }
     }
 val prCheckPropOverrides =
@@ -157,8 +151,10 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         )
+        // TODO Add 'hedera.transaction.maximumPermissibleUnhealthySeconds=5' for all tasks using
+        // 'subprocessConcurrent'
         put(
             "hapiTestCryptoSerial",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -188,12 +184,7 @@ val prCheckPropOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
-            if (
-                taskName !in cryptoTasks &&
-                    taskName !in timeConsumingTasks &&
-                    taskName !in stateThrottlingTasks
-            )
-                put("$taskName$matsSuffix", overrides)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", overrides)
         }
     }
 val prCheckPrepareUpgradeOffsets =
@@ -202,12 +193,7 @@ val prCheckPrepareUpgradeOffsets =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, offset: String) ->
-            if (
-                taskName !in cryptoTasks &&
-                    taskName !in timeConsumingTasks &&
-                    taskName !in stateThrottlingTasks
-            )
-                put("$taskName$matsSuffix", offset)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
 // Note: no MATS variants needed for history proofs
@@ -219,16 +205,12 @@ val prCheckNetSizeOverrides =
         put("hapiTestCrypto", "3")
         put("hapiTestCryptoSerial", "3")
         put("hapiTestToken", "3")
+        put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
-            if (
-                taskName !in cryptoTasks &&
-                    taskName !in timeConsumingTasks &&
-                    taskName !in stateThrottlingTasks
-            )
-                put("$taskName$matsSuffix", size)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", size)
         }
     }
 
@@ -239,7 +221,7 @@ tasks {
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
                 if (
-                    (taskName.contains("Crypto") || taskName.contains("TimeConsuming")) &&
+                    (taskName.contains("Crypto") || taskName.contains("Token") || taskName.contains("TimeConsuming")) &&
                         !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
@@ -355,7 +337,15 @@ tasks.register<Test>("testSubprocess") {
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=6",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
