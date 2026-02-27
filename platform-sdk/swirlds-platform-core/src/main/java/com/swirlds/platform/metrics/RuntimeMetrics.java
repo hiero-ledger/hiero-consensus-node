@@ -200,8 +200,7 @@ public final class RuntimeMetrics {
     private static double getMaximumDirectMemSizeInMB() {
         long maxDirectMemoryInBytes = Runtime.getRuntime().maxMemory();
         try {
-            final HotSpotDiagnosticMXBean hsdiag =
-                    ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
+            final HotSpotDiagnosticMXBean hsdiag = ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
             if (hsdiag != null) {
                 final long value =
                         Long.parseLong(hsdiag.getVMOption("MaxDirectMemorySize").getValue());

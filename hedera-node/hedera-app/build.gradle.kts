@@ -148,8 +148,8 @@ tasks.register<JavaExec>("run") {
             "-cp",
             "data/lib/*:data/apps/*",
             "-XX:+UseSerialGC",
-//            "-XX:+UseZGC",
-//            "-XX:+ZGenerational",
+            //            "-XX:+UseZGC",
+            //            "-XX:+ZGenerational",
             "-Xms128M",
             "-Xmx512M",
             "-XX:MinHeapFreeRatio=10",
@@ -212,13 +212,17 @@ tasks.register<Exec>("nativeCompile") {
 
     doFirst {
         // Copy persistent configs into build directory
-        if (persistentConfigDir.exists() &&
-            (persistentConfigDir.listFiles()?.any { it.extension == "json" } == true)
+        if (
+            persistentConfigDir.exists() &&
+                (persistentConfigDir.listFiles()?.any { it.extension == "json" } == true)
         ) {
             buildConfigDir.mkdirs()
-            persistentConfigDir.listFiles()?.filter { it.extension == "json" }?.forEach { file ->
-                file.copyTo(buildConfigDir.resolve(file.name), overwrite = true)
-            }
+            persistentConfigDir
+                .listFiles()
+                ?.filter { it.extension == "json" }
+                ?.forEach { file ->
+                    file.copyTo(buildConfigDir.resolve(file.name), overwrite = true)
+                }
         } else {
             buildConfigDir.mkdirs()
             // No tracing agent configs - native-image will rely on auto-detection
@@ -226,7 +230,9 @@ tasks.register<Exec>("nativeCompile") {
 
         // Strip Netty's internal native-image.properties to avoid conflicting init declarations
         val libDir = file("${nodeWorkingDir.get().asFile}/data/lib")
-        libDir.listFiles()?.filter { it.name.startsWith("netty-") || it.name.startsWith("grpc-netty") }
+        libDir
+            .listFiles()
+            ?.filter { it.name.startsWith("netty-") || it.name.startsWith("grpc-netty") }
             ?.forEach { jar ->
                 val pb = ProcessBuilder("zip", "-d", jar.absolutePath, "META-INF/native-image/*")
                 pb.redirectErrorStream(true)
@@ -240,40 +246,46 @@ tasks.register<Exec>("nativeCompile") {
     // io.netty is NOT included - too many classes need native memory/network at init time.
     // io.grpc is NOT included - gRPC netty triggers Epoll checks at static init.
     // Netty and gRPC default to runtime init (GraalVM 25 default).
-    val buildTimePackages = listOf(
-        "org.bouncycastle",
-        "org.slf4j",
-        "com.fasterxml.jackson",
-        // com.google.protobuf is NOT at build time - it uses Unsafe.objectFieldOffset()
-        // in MessageSchema/UnsafeUtil during class init; offsets computed at build time
-        // don't match native-image runtime object layout, causing data corruption in
-        // protobuf serialization (e.g. ThrottleDefinitions gets corrupted bytes).
-        "com.google.common",
-        "org.apache.commons",
-        "com.google.gson",
-        "com.google.errorprone",
-        "javax.annotation",
-        "io.perfmark",
-        "org.yaml.snakeyaml",
-    ).joinToString(",")
+    val buildTimePackages =
+        listOf(
+                "org.bouncycastle",
+                "org.slf4j",
+                "com.fasterxml.jackson",
+                // com.google.protobuf is NOT at build time - it uses Unsafe.objectFieldOffset()
+                // in MessageSchema/UnsafeUtil during class init; offsets computed at build time
+                // don't match native-image runtime object layout, causing data corruption in
+                // protobuf serialization (e.g. ThrottleDefinitions gets corrupted bytes).
+                "com.google.common",
+                "org.apache.commons",
+                "com.google.gson",
+                "com.google.errorprone",
+                "javax.annotation",
+                "io.perfmark",
+                "org.yaml.snakeyaml",
+            )
+            .joinToString(",")
     // Log4j (org.apache.logging) is NOT at build time - it starts timer threads during class init
 
     // Packages that must be initialized at run time to avoid Unsafe field offset
     // mismatches between build-time JVM and native-image runtime object layout.
     // org.hiero.base.utility - MemoryUtils caches Buffer.address field offset
     // com.hedera.pbj.runtime.io - UnsafeUtils caches the same offset
-    val runTimePackages = listOf(
-        "com.sun.jna",
-        "io.netty",
-        "org.hiero.base.utility.MemoryUtils",
-        "com.hedera.pbj.runtime.io.UnsafeUtils",
-    ).joinToString(",")
+    val runTimePackages =
+        listOf(
+                "com.sun.jna",
+                "io.netty",
+                "org.hiero.base.utility.MemoryUtils",
+                "com.hedera.pbj.runtime.io.UnsafeUtils",
+            )
+            .joinToString(",")
 
     commandLine(
         "native-image",
-        "-cp", classpath,
+        "-cp",
+        classpath,
         "-H:ConfigurationFileDirectories=${buildConfigDir.absolutePath}",
-        "-o", "hedera-node",
+        "-o",
+        "hedera-node",
         "--no-fallback",
         "--initialize-at-build-time=$buildTimePackages",
         "--initialize-at-run-time=$runTimePackages",

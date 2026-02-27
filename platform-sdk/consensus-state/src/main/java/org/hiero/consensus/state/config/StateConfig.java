@@ -84,8 +84,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
         @ConfigProperty(defaultValue = "true") boolean validateInitialState,
-        @ConfigProperty(defaultValue = "true") boolean periodicSnapshotsEnabled
-        ) {
+        @ConfigProperty(defaultValue = "true") boolean periodicSnapshotsEnabled) {
 
     /**
      * Get the main class name that should be used for signed states.
