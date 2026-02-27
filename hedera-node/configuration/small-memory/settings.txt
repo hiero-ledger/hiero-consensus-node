@@ -41,23 +41,21 @@ loadKeysFromPfxFiles,                          false                        # di
 merkleDb.initialCapacity,                        5000
 merkleDb.maxNumOfKeys,                           5000
 merkleDb.hashesRamToDiskThreshold,                  0
-merkleDb.hashStoreRamBufferSize,                   21
-merkleDb.longListChunkSize,                      1024
-merkleDb.leafRecordCacheSize,                       0
+merkleDb.hashStoreRamBufferSize,                10000
+merkleDb.longListChunkSize,                     65536
+merkleDb.leafRecordCacheSize,                   65536
 merkleDb.maxFileChannelsPerFileReader,              2
 merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
-merkleDb.iteratorInputBufferBytes,               1024
-merkleDb.longListReservedBufferSize,             1024
-virtualMap.numHashThreads,                          1
-virtualMap.numCleanerThreads,                       1
-virtualMap.copyFlushCandidateThreshold           1000
-merkleDb.useDiskIndices,                         true                        # uses on-disk indices, reduces off-heap memory usage
-virtualMap.copyFlushCandidateThreshold,         10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+merkleDb.iteratorInputBufferBytes,             1048576                      # 1 MB, down from 16 MB default
+merkleDb.longListReservedBufferSize,           65536                      # 64 KB, down from 256 KB default
+merkleDb.useDiskIndices,                       true                        # uses on-disk indices, reduces off-heap memory usage
+virtualMap.copyFlushCandidateThreshold,        10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+virtualMap.numHashThreads,                          1                      # down from 50% of CPUs
+virtualMap.numCleanerThreads,                       1                      # down from 25% of CPUs
 platformStatus.observingStatusDelay,                0s
-
 
                                           #############################
                                           #       State Retention     #

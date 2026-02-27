@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.benchmark.reconnect;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -54,7 +54,7 @@ public abstract class VirtualMapReconnectBenchBase {
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructable(
                 new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));

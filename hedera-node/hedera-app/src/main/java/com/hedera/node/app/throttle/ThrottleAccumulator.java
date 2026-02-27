@@ -1020,15 +1020,19 @@ public class ThrottleAccumulator {
 
     /**
      * Returns the current instantaneous utilization percentage of the high-volume throttle
-     * for the given functionality, without accounting for time-based capacity leakage.
+     * for the given functionality. It leaks the throttle to account for time-based capacity restoration,
+     * but ignores any recorded usage since we're only interested in the instantaneous utilization.
      * The utilization is expressed in basis points (0 to 10,000), where 10,000 = 100%.
      *
      * @param function the functionality to get the utilization for
+     * @param consensusTime the consensus time to calculate the utilization at
      * @return the utilization percentage in basis points (0 to 10,000),
      * or 0 if no high-volume throttle exists for the functionality
      */
-    public int getHighVolumeThrottleInstantaneousUtilization(@NonNull final HederaFunctionality function) {
+    public int getHighVolumeThrottleInstantaneousUtilizationBps(
+            @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         requireNonNull(function);
+        requireNonNull(consensusTime);
 
         final var manager = highVolumeFunctionReqs.get(function);
         if (manager == null) {
@@ -1036,14 +1040,17 @@ public class ThrottleAccumulator {
         }
 
         // Get the maximum utilization across all throttles for this functionality
-        double maxUtilization = 0.0;
+        int maxUtilizationBps = 0;
         for (final var throttle : manager.managedThrottles()) {
-            final double utilization = throttle.instantaneousPercentUsed();
-            maxUtilization = Math.max(maxUtilization, utilization);
+            // Leak the throttle to account for time-based capacity restoration, but ignore any recorded
+            // usage since we're only interested in the instantaneous utilization
+            throttle.leakUntil(consensusTime);
+            final int utilization = throttle.instantaneousBps();
+            maxUtilizationBps = Math.max(maxUtilizationBps, utilization);
         }
 
-        // instantaneousPercentUsed() returns percent in [0,100], convert to basis points [0,10_000]
-        return (int) Math.min(10_000, Math.round(maxUtilization * 100));
+        // return in basis points [0,10_000]
+        return Math.min(10_000, maxUtilizationBps);
     }
 
     /**

@@ -2,6 +2,7 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.config.api.Configuration;
@@ -104,7 +105,7 @@ public abstract class BaseBench {
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
 
         try {
-            ConstructableTestFixtures.registerAllConstructables();
+            ConstructableRegistration.registerAllConstructables();
         } catch (ConstructableRegistryException ex) {
             logger.error("Failed to construct registry", ex);
         }

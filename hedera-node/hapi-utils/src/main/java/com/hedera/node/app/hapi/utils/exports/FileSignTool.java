@@ -14,11 +14,7 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
-import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
-import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.merkle.utility.SerializableLong;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -54,18 +50,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
-import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and
@@ -240,17 +230,7 @@ public class FileSignTool {
     }
 
     public static void prepare(final StreamType streamType) throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
-        registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
-        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
-        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
+        ConstructableRegistration.registerAllConstructables();
     }
 
     private static ByteString wrapUnsafely(@NonNull final byte[] bytes) {

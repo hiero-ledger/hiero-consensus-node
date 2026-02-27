@@ -232,7 +232,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":tada: Hiero Consensus Node - Build Candidate Promoted",
+                      "text": ":tada: Hiero Consensus Node - Build Candidate Promoted (${{ needs.promote-build-candidate.outputs.build-candidate-tag }})",
                       "emoji": true
                     }
                   },

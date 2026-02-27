@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +36,7 @@ public class EventMigrationTest {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     public static Stream<Arguments> migrationTestArguments() {

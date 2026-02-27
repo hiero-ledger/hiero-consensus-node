@@ -5,7 +5,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -112,7 +112,7 @@ public class VirtualTestBase {
     static void globalSetup() throws ConstructableRegistryException {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
-        ConstructableTestFixtures.registerCoreConstructables();
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     @BeforeEach

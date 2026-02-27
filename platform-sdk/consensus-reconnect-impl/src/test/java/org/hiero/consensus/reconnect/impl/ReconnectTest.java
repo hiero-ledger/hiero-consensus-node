@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -10,17 +9,17 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.time.Duration;
@@ -62,7 +61,7 @@ final class ReconnectTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerSyncConstructables();
+        ConstructableRegistration.registerSyncConstructables();
     }
 
     @AfterAll
@@ -100,18 +99,16 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
-        VirtualMapState stateCopy = null;
-        StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
+        final VirtualMapState stateCopy;
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(createTestState())
+                    .setState(stateLifecycleManager.getMutableState())
                     .build();
-            stateLifecycleManager = new StateLifecycleManagerImpl(
-                    new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, configuration);
-
-            stateCopy = signedState.getState().copy();
+            stateCopy = stateLifecycleManager.copyMutableState();
             // hash the underlying VM
             signedState.getState().getRoot().getHash();
 
@@ -141,9 +138,7 @@ final class ReconnectTest {
             receivedState.get().getState().release();
             thread.join();
         } finally {
-            if (stateCopy != null) {
-                stateCopy.release();
-            }
+            TestStateUtils.destroyStateLifecycleManager(stateLifecycleManager);
         }
     }
 

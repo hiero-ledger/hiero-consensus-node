@@ -11,9 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.stream.StreamFileSigner;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
 import com.swirlds.common.test.fixtures.stream.TestStreamType;
@@ -67,7 +67,7 @@ class StreamObjectTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException, IOException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     static void clearDir() throws IOException {

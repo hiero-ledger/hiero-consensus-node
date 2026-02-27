@@ -4,6 +4,7 @@ package com.swirlds.platform;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
@@ -19,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
@@ -38,9 +39,8 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -81,7 +81,7 @@ class StateFileManagerTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     @BeforeEach
@@ -97,15 +97,13 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                context.getMetrics(),
-                context.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                context.getConfiguration());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                context.getMetrics(), context.getTime(), context.getConfiguration());
     }
 
     @AfterEach
     void tearDown() {
+        destroyStateLifecycleManager(stateLifecycleManager);
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
@@ -423,13 +421,11 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                context.getMetrics(),
-                context.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                context.getConfiguration());
+        destroyStateLifecycleManager(stateLifecycleManager);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                context.getMetrics(), context.getTime(), context.getConfiguration());
 
-        stateLifecycleManager.initState(state.getState());
+        stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getMutableState().release();
     }
 }
