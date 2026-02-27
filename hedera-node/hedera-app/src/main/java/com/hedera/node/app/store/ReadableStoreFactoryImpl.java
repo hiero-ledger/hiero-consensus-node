@@ -25,7 +25,6 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
@@ -153,11 +152,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new ReadableEntityIdStoreImpl(states)));
         // Hints service
-        newMap.put(
-                ReadableHintsStore.class,
-                new StoreEntry(
-                        HintsService.NAME,
-                        (states, entityCounters) -> new ReadableHintsStoreImpl(states, entityCounters)));
+        newMap.put(ReadableHintsStore.class, new StoreEntry(HintsService.NAME, ReadableHintsStoreImpl::new));
         // History service
         newMap.put(
                 ReadableHistoryStore.class,
@@ -205,7 +200,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     }
 
     private record StoreEntry(
-            @NonNull String name, @Nullable BiFunction<ReadableStates, ReadableEntityCounters, ?> fromStates) {
+            @NonNull String name, @Nullable BiFunction<ReadableStates, ReadableEntityIdStore, ?> fromStates) {
         private StoreEntry {
             requireNonNull(name);
             requireNonNull(fromStates);
@@ -213,7 +208,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
 
         @SuppressWarnings("unchecked")
         public <T> T createFrom(
-                @NonNull final ReadableStates readableStates, @NonNull ReadableEntityCounters entityCounters) {
+                @NonNull final ReadableStates readableStates, @NonNull final ReadableEntityIdStore entityCounters) {
             requireNonNull(readableStates);
             return (T) fromStates.apply(readableStates, entityCounters);
         }

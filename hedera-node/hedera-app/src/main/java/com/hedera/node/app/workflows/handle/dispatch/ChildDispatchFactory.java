@@ -35,6 +35,7 @@ import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.NodeIdGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -268,6 +269,7 @@ public class ChildDispatchFactory {
         final var writableEntityIdStore =
                 new WritableEntityIdStoreImpl(childStack.getWritableStates(EntityIdService.NAME));
         final var entityNumGenerator = new EntityNumGeneratorImpl(writableEntityIdStore);
+        final var nodeIdGenerator = new NodeIdGeneratorImpl(writableEntityIdStore);
         final var writableStoreFactory = new WritableStoreFactory(
                 childStack, serviceScopeLookup.getServiceName(txnInfo.txBody()), writableEntityIdStore);
         final var serviceApiFactory = new ServiceApiFactory(childStack, config, apiProviders, nodeFeeAccumulator);
@@ -295,6 +297,7 @@ public class ChildDispatchFactory {
                 exchangeRateManager,
                 childStack,
                 entityNumGenerator,
+                nodeIdGenerator,
                 dispatcher,
                 networkInfo,
                 this,

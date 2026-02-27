@@ -7,8 +7,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,6 +27,8 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
 
     private final ReadableSingletonState<EntityCounts> entityCountsState;
 
+    private final ReadableSingletonState<NodeId> nodeIdState;
+
     /**
      * Create a new {@link ReadableEntityIdStoreImpl} instance.
      *
@@ -34,6 +38,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
+        this.nodeIdState = states.getSingleton(V0720EntityIdSchema.NODE_ID_STATE_ID);
     }
 
     /**
@@ -45,6 +50,12 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
     public long peekAtNextNumber() {
         final var oldEntityNum = entityIdState.get();
         return oldEntityNum == null ? 1 : oldEntityNum.number() + 1;
+    }
+
+    @Override
+    public long peekAtNextNodeId() {
+        final var current = nodeIdState.get();
+        return current == null ? 0 : current.id() + 1;
     }
 
     // Add all getters for number of entities

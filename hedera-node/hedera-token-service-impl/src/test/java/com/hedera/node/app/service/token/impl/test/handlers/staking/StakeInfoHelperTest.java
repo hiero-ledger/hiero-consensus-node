@@ -5,6 +5,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
@@ -25,6 +27,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -75,6 +78,13 @@ class StakeInfoHelperTest {
                         ENTITY_COUNTS_STATE_ID,
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().build(),
+                        c -> {}),
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
+                        // Set highest node id to 8, because the new FakeNetworkInfo() has node Ids 2, 4, 8
+                        () -> NodeId.newBuilder().id(8).build(),
                         c -> {}))));
     }
 
@@ -122,7 +132,6 @@ class StakeInfoHelperTest {
         final var newStates = newStatesInstance(stakingInfosState);
         infoStore = new WritableStakingInfoStore(newStates, entityIdStore);
         entityIdStore.adjustEntityCount(EntityType.STAKING_INFO, 4L);
-        entityIdStore.adjustEntityCount(EntityType.NODE, 4L);
         // Platform address book has node Ids 2, 4, 8
         final var networkInfo = new FakeNetworkInfo();
 
