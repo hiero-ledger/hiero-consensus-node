@@ -83,6 +83,7 @@ val basePrCheckTags =
         "hapiTestMiscRecords" to miscTags,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
     )
 
 val concurrentTasks =
@@ -132,6 +133,7 @@ val prCheckStartPorts =
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
         put("hapiTestTokenSerial", "27800")
+        put("hapiTestAtomicBatchSerial", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -175,6 +177,7 @@ val prCheckPropOverrides =
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestAtomicBatchSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->

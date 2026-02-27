@@ -184,7 +184,6 @@ class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> atomicUnauthorizedAccountCannotUpdateSimpleFeesSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(SIMPLE_FEE_SCHEDULE, NEW_CONTENTS);
     }
