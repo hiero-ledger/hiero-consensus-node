@@ -723,9 +723,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         ? existing.withValue(value, valueCodec)
                         : existing.withValueBytes(valueBytes);
             } else {
+                // There is a leaf with the given key (because path != INVALID_PATH), but it
+                // isn't in the cache, so it must be on disk. Loading the record from disk
+                // with records.findLeafRecord() would be expensive and actually not needed.
+                // The path and the key are known, it's enough to create a new record and
+                // mark it as not moved
                 updated = valueCodec != null
-                        ? new VirtualLeafBytes<>(path, path, key, value, valueCodec)
-                        : new VirtualLeafBytes<>(path, path, key, valueBytes);
+                        ? new VirtualLeafBytes<>(path, false, key, value, valueCodec)
+                        : new VirtualLeafBytes<>(path, false, key, valueBytes);
             }
             cache.putLeaf(updated);
             statistics.countUpdatedEntities();
