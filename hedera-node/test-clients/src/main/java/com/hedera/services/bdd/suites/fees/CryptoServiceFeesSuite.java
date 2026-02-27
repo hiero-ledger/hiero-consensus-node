@@ -38,6 +38,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_WITH_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -421,19 +424,24 @@ public class CryptoServiceFeesSuite {
                 mintToken(nonFungibleTokenWithCustomFee, List.of(copyFromUtf8("memo2"))),
                 tokenAssociate(RECEIVER, nonFungibleToken, nonFungibleTokenWithCustomFee),
                 cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1).between(SENDER, nonTreasurySender))
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(SENDER, nonTreasurySender))
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER),
                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 100L))
                         .payingWith(SENDER)
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .via(hbarXferTxn),
                 cryptoTransfer(moving(1, fungibleToken).between(SENDER, RECEIVER))
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER)
                         .via(htsXferTxn),
                 cryptoTransfer(movingUnique(nonFungibleToken, 1).between(SENDER, RECEIVER))
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER)
                         .via(nftXferTxn),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
@@ -446,11 +454,13 @@ public class CryptoServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
-                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),
-                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.1),
-                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.3),
-                validateChargedUsdWithin(htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, 0.1),
-                validateChargedUsdWithin(nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, 0.3));
+                validateFees(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, NODE_AND_NETWORK_BASE_FEE),
+                validateFees(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, TOKEN_TRANSFER_FEE),
+                validateFees(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, TOKEN_TRANSFER_FEE),
+                validateFees(
+                        htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, TOKEN_TRANSFER_WITH_CUSTOM_FEE),
+                validateFees(
+                        nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
     }
 
     @HapiTest

@@ -841,7 +841,7 @@ public class TxnUtils {
      */
     public static String resourceAsString(@NonNull final String loc) {
         try {
-            try (final var in = TxnUtils.class.getClassLoader().getResourceAsStream(loc);
+            try (final var in = TxnUtils.class.getResourceAsStream("/" + loc);
                     final var bridge = new InputStreamReader(requireNonNull(in));
                     final var reader = new BufferedReader(bridge)) {
                 return reader.lines().collect(joining("\n"));
