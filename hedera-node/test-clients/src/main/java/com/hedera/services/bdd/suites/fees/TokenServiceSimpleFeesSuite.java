@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -73,7 +72,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
-@Tag(MATS)
 @HapiTestLifecycle
 public class TokenServiceSimpleFeesSuite {
     private static final double TOKEN_ASSOCIATE_FEE = 0.05;

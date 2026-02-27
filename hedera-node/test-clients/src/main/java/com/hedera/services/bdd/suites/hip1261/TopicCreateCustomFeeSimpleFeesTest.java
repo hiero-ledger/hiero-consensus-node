@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -48,7 +47,6 @@ import org.junit.jupiter.api.Tag;
  * - Number of keys (extras beyond included)
  * - Custom fee surcharge
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TopicCreateCustomFeeSimpleFeesTest {
