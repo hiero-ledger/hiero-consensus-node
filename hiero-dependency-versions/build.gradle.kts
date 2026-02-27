@@ -44,7 +44,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
