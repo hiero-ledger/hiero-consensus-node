@@ -571,10 +571,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     private void handleBlockNodeBehind(@NonNull final BehindPublisher nodeBehind) {
         requireNonNull(nodeBehind, "nodeBehind must not be null");
         final long blockNumber = nodeBehind.blockNumber();
+        final Instant now = Instant.now();
+
+        // Check if we're within the ignore period (resets in new time window)
+        if (connectionManager.shouldIgnoreBehindPublisher(configuration(), now)) {
+            logger.info("{} Ignoring BehindPublisher response for block {} - within ignore period.", this, blockNumber);
+            return;
+        }
+
         logger.info("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
         // Record the BehindPublisher event and check if the limit has been exceeded.
-        if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), Instant.now())) {
+        if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), now)) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of BehindPublisher responses "

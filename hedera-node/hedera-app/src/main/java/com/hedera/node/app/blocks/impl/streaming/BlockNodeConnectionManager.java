@@ -1125,6 +1125,26 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Checks if the BehindPublisher message should be ignored based on the ignore period.
+     * If the BehindPublisher queue is empty (new window), resets the ignore period.
+     * If not currently ignoring, starts a new ignore period.
+     *
+     * @param blockNodeConfig the configuration for the block node
+     * @param now the current timestamp
+     * @return true if the BehindPublisher message should be ignored, false if it should be processed
+     */
+    public boolean shouldIgnoreBehindPublisher(
+            @NonNull final BlockNodeConfiguration blockNodeConfig, @NonNull final Instant now) {
+        if (!isStreamingEnabled()) {
+            return false;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        return stats.shouldIgnoreBehindPublisher(now, getBehindPublisherIgnorePeriod(), getBehindPublisherTimeframe());
+    }
+
+    /**
      * Gets the configured delay for EndOfStream rate limit violations.
      *
      * @return the delay before retrying after rate limit exceeded
@@ -1170,6 +1190,18 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .behindPublisherTimeFrame();
+    }
+
+    /**
+     * Gets the ignore period for BehindPublisher responses.
+     *
+     * @return the ignore period for BehindPublisher responses
+     */
+    public Duration getBehindPublisherIgnorePeriod() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .behindPublisherIgnorePeriod();
     }
 
     private Duration getForcedSwitchRescheduleDelay() {
