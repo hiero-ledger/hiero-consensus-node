@@ -40,7 +40,7 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
-                    .withConfigValue("event.creation.creationAttemptRate", 1000)
+                    .withConfigValue("event.creation.creationAttemptRate", 500)
                     .withConfigValue("platform.wiring.healthMonitorHeartbeatPeriod", "500us")
                     .withConfigValue("broadcast.enableBroadcast", true);
 

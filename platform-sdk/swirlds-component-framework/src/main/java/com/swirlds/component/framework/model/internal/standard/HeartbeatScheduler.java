@@ -4,7 +4,6 @@ package com.swirlds.component.framework.model.internal.standard;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.StandardWiringModel;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Timer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;

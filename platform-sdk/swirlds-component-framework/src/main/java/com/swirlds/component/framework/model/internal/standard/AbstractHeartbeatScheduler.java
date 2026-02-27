@@ -49,8 +49,8 @@ public abstract class AbstractHeartbeatScheduler {
      * factors.
      *
      * @param period           the period of the heartbeat. For example, setting a period of 100ms will cause the
-     *                         heartbeat to be sent at 10 hertz. Note that time is measured at millisecond precision,
-     *                         and so periods less than 1ms are not supported.
+     *                         heartbeat to be sent at 10 hertz. Note that time is measured at microsecond precision,
+     *                         and so periods less than 1us are not supported.
      * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      * @throws IllegalStateException if start has already been called
@@ -81,8 +81,8 @@ public abstract class AbstractHeartbeatScheduler {
      * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
      * factors.
      *
-     * @param frequency        the frequency of the heartbeat in hertz. Note that time is measured at millisecond
-     *                         precision, and so frequencies greater than 1000hz are not supported.
+     * @param frequency        the frequency of the heartbeat in hertz. Note that time is measured at microsecond
+     *                         precision, and so frequencies greater than 1000000hz are not supported.
      * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      */
@@ -91,7 +91,7 @@ public abstract class AbstractHeartbeatScheduler {
         if (frequency <= 0) {
             throw new IllegalArgumentException("Frequency must be positive");
         }
-        final Duration period = Duration.ofMillis((long) (1000.0 / frequency));
+        final Duration period = Duration.ofNanos((long) (1_000_000_000.0 / frequency));
         return buildHeartbeatWire(period, exceptionHandler);
     }
 
