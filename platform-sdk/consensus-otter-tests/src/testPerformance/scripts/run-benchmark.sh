@@ -3,12 +3,13 @@ set -eo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-RESULTS_BASE_DIR="$HOME/benchmark-results"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+RESULTS_BASE_DIR="${RESULTS_BASE_DIR:-$HOME/benchmark-results}"
 CLEAN_BETWEEN_RUNS=true
 
 # Available experiments (name:ClassName pairs)
 EXPERIMENTS="
+broadcast:BroadcastExperiment
 maxotherparents:MaxOtherParentsExperiment
 antiselfishness:AntiSelfishnessExperiment
 maxcreationrate:MaxCreationRateExperiment
@@ -47,6 +48,7 @@ if [[ "$EXPERIMENT_NAME" != "all" ]]; then
         echo ""
         echo "Usage: $0 [experiment] [num_runs]"
         echo "  experiment: Which experiment to run (default: all)"
+        echo "    - broadcast: Test enabling broadcast"
         echo "    - maxotherparents: Test maxOtherParents configuration"
         echo "    - antiselfishness: Test antiSelfishnessFactor configuration"
         echo "    - maxcreationrate: Test maxCreationRate configuration"
@@ -204,6 +206,10 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
                 fi
                 if [[ -f "$NODE_DIR/output/otter.log" ]]; then
                     cp "$NODE_DIR/output/otter.log" "$DEST_DIR/otter-${NODE_NAME}.log"
+                    ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
+                fi
+                if [[ -f "$NODE_DIR/output/gc.log" ]]; then
+                    cp "$NODE_DIR/output/gc.log" "$DEST_DIR/gc-${NODE_NAME}.log"
                     ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
                 for CSV in "$NODE_DIR"/data/stats/MainNetStats*.csv; do

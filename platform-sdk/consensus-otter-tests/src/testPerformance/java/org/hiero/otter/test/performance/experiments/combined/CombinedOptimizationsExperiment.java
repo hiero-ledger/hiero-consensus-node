@@ -37,10 +37,11 @@ public class CombinedOptimizationsExperiment {
         log.info("=== Combined Experiment: All Optimizations ===");
         runBenchmark(env, "combinedAllOptimizations", DEFAULTS, network -> {
             // Apply all config optimizations
-            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes());
-            network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
-            network.withConfigValue("event.creation.maxCreationRate", 0);
-            network.withConfigValue("event.creation.creationAttemptRate", 1000);
+            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
+                    .withConfigValue("event.creation.antiSelfishnessFactor", 8)
+                    .withConfigValue("event.creation.maxCreationRate", 0)
+                    .withConfigValue("event.creation.creationAttemptRate", 1000)
+                    .withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
