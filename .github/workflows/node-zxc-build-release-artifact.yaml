@@ -54,7 +54,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
+        default: "25.0.2"
       gradle-version:
         description: "Gradle Version:"
         type: string

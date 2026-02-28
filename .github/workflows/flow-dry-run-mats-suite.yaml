@@ -87,7 +87,7 @@ jobs:
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
-      java-version: "21.0.6"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
     secrets:

@@ -27,7 +27,7 @@ The following plugins add comfort features for working with certain parts of the
 
 The project is imported as a Gradle project. Before you can use all features reliably, make sure
 that Gradle is started with the JDK we use in the project, which currently is: **Eclipse Temurin,
-21.0.1**
+25.0.2**
 
 You can use IntelliJ to download the JDK if you do not have it installed.
 

@@ -35,15 +35,15 @@ RUN set -eux; \
         case "${ARCH}" in \
            aarch64|arm64) \
              ESUM='e184dc29a6712c1f78754ab36fb48866583665fa345324f1a79e569c064f95e9'; \
-             BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.1%2B12/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.1_12.tar.gz'; \
+             BINARY_URL='https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jdk_aarch64_linux_hotspot_25.0.2_10.tar.gz'; \
              ;; \
            amd64|i386:x86-64) \
              ESUM='1a6fa8abda4c5caed915cfbeeb176e7fbd12eb6b222f26e290ee45808b529aa1'; \
-             BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.1%2B12/OpenJDK21U-jdk_x64_linux_hotspot_21.0.1_12.tar.gz'; \
+             BINARY_URL='https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jdk_x64_linux_hotspot_25.0.2_10.tar.gz'; \
              ;; \
            ppc64el|powerpc:common64) \
              ESUM='9574828ef3d735a25404ced82e09bf20e1614f7d6403956002de9cfbfcb8638f'; \
-             BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.1%2B12/OpenJDK21U-jdk_ppc64le_linux_hotspot_21.0.1_12.tar.gz'; \
+             BINARY_URL='https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jdk_ppc64le_linux_hotspot_25.0.2_10.tar.gz'; \
              ;; \
            *) \
              echo "Unsupported arch: ${ARCH}"; \
@@ -72,7 +72,7 @@ FROM ubuntu:${UBUNTU_TAG} AS openjdk-base
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-ENV JAVA_VERSION="jdk-21.0.1+12"
+ENV JAVA_VERSION="jdk-25.0.2+10"
 ENV JAVA_HOME="/usr/local/java/"
 
 # Fetch Validated Java Binaries
