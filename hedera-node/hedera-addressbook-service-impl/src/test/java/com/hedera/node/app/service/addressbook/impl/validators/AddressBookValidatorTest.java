@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -21,6 +22,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -107,6 +110,203 @@ class AddressBookValidatorTest {
     void fqdnWebProxyEndpointPassesValidation() {
         assertDoesNotThrow(
                 () -> new AddressBookValidator().validateFqdnEndpoint(GRPC_PROXY_ENDPOINT_FQDN, newNodesConfig()));
+    }
+
+    // --- Registered service endpoint validation tests ---
+
+    @Test
+    void registeredEndpointsForCreateRejectsEmptyList() {
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForCreateAcceptsValidIpv4() {
+        assertDoesNotThrow(() -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(blockNodeEndpoint(new byte[] {127, 0, 0, 1}))));
+    }
+
+    @Test
+    void registeredEndpointsForCreateAcceptsValidIpv6() {
+        assertDoesNotThrow(() -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(blockNodeEndpoint(new byte[16]))));
+    }
+
+    @Test
+    void registeredEndpointsForCreateAcceptsValidDomain() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block.example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+    }
+
+    @Test
+    void registeredEndpointsForCreateRejectsExceedingLimit() {
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 51; i++) {
+            endpoints.add(blockNodeEndpoint(new byte[] {127, 0, 0, 1}));
+        }
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(endpoints));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForCreateAcceptsExactlyFifty() {
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 50; i++) {
+            endpoints.add(blockNodeEndpoint(new byte[] {127, 0, 0, 1}));
+        }
+        assertDoesNotThrow(() -> new AddressBookValidator().validateRegisteredServiceEndpointsForCreate(endpoints));
+    }
+
+    @Test
+    void registeredEndpointsForCreateRejectsMissingAddress() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForCreateRejectsMissingEndpointType() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(443)
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForCreateRejectsInvalidIpv4Length() {
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(blockNodeEndpoint(new byte[] {127, 0, 0}))));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForCreateRejectsInvalidIpv6Length() {
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(blockNodeEndpoint(new byte[15]))));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointsForUpdateAcceptsEmptyList() {
+        assertDoesNotThrow(() -> new AddressBookValidator().validateRegisteredServiceEndpointsForUpdate(List.of()));
+    }
+
+    @Test
+    void registeredEndpointsForUpdateAcceptsValidEndpoints() {
+        assertDoesNotThrow(() -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForUpdate(List.of(blockNodeEndpoint(new byte[] {10, 0, 0, 1}))));
+    }
+
+    @Test
+    void registeredEndpointsForUpdateRejectsExceedingLimit() {
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 51; i++) {
+            endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
+        }
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForUpdate(endpoints));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainWithLeadingHyphen() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("-example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointRejectsNonAsciiDomain() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("bl\u00f6ck.example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainExceeding253Chars() {
+        // Build a domain > 253 chars: 4 labels of 63 chars each = 63*4 + 3 dots = 255
+        final var label = "a".repeat(63);
+        final var domain = label + "." + label + "." + label + "." + label;
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName(domain)
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainWithConsecutiveDots() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("example..com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(PreCheckException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.responseCode());
+    }
+
+    @Test
+    void registeredEndpointAcceptsMirrorNodeType() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(443)
+                .mirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.DEFAULT)
+                .build();
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+    }
+
+    @Test
+    void registeredEndpointAcceptsRpcRelayType() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(8545)
+                .rpcRelay(RegisteredServiceEndpoint.RpcRelayEndpoint.DEFAULT)
+                .build();
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateRegisteredServiceEndpointsForCreate(List.of(endpoint)));
+    }
+
+    private static RegisteredServiceEndpoint blockNodeEndpoint(final byte[] ip) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(ip))
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint.BlockNodeEndpoint blockNodeEndpointType() {
+        return RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                .build();
     }
 
     private NodesConfig newNodesConfig() {

@@ -16,13 +16,15 @@ import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,10 +44,10 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
     private StoreFactory storeFactory;
 
     @Mock
-    private WritableRegisteredNodeStore writableRegisteredNodeStore;
+    private com.hedera.node.app.service.token.ReadableAccountStore accountStore;
 
     @Mock
-    private ReadableAccountStore accountStore;
+    private WritableRegisteredNodeStore writableRegisteredNodeStore;
 
     @Mock
     private ReadableRegisteredNodeStore readableRegisteredNodeStore;
@@ -94,9 +96,9 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
     void handleFailsIfTargetMissing() {
         final var txn = txnWithOp(opBuilder().registeredNodeId(registeredNodeId).build());
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(null);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -126,5 +128,9 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
                         .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
                         .build())
                 .build();
+    }
+
+    private static Configuration newConfig() {
+        return new TestConfigBuilder().withConfigDataType(NodesConfig.class).getOrCreateConfig();
     }
 }
