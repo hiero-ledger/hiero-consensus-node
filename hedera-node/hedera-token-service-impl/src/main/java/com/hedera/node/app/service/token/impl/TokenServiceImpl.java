@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.TokenService;
-import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFeeCalculator;
@@ -52,6 +51,7 @@ import com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableStates;
@@ -103,9 +103,8 @@ public class TokenServiceImpl implements TokenService {
         // Persist genesis decimals (DD-3, DD-8 — immutable after genesis)
         final int configDecimals =
                 configuration.getConfigData(NativeCoinConfig.class).decimals();
-        final var nativeCoinDecimals = NativeCoinDecimals.newBuilder()
-                .decimals(configDecimals)
-                .build();
+        final var nativeCoinDecimals =
+                NativeCoinDecimals.newBuilder().decimals(configDecimals).build();
         writableStates
                 .<NativeCoinDecimals>getSingleton(NATIVE_COIN_DECIMALS_STATE_ID)
                 .put(nativeCoinDecimals);

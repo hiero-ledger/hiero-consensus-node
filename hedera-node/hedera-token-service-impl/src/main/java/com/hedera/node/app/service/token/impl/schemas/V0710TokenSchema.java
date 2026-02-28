@@ -51,9 +51,8 @@ public class V0710TokenSchema extends Schema<SemanticVersion> {
 
         // Non-genesis: the singleton MUST exist in previous state
         if (!ctx.previousStates().contains(NATIVE_COIN_DECIMALS_STATE_ID)) {
-            throw new IllegalStateException(
-                    "State singleton missing: " + NATIVE_COIN_DECIMALS_KEY
-                            + " — cannot determine decimal configuration. State may be corrupted.");
+            throw new IllegalStateException("State singleton missing: " + NATIVE_COIN_DECIMALS_KEY
+                    + " — cannot determine decimal configuration. State may be corrupted.");
         }
 
         // Read persisted value and compare to current config
