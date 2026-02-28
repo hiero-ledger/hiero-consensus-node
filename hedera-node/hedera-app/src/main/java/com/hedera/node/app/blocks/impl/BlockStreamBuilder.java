@@ -220,6 +220,10 @@ public class BlockStreamBuilder
      */
     private long nodeId;
     /**
+     * The id of a registered node created by the transaction.
+     */
+    private long registeredNodeId;
+    /**
      * The id of a file created by the transaction.
      */
     private FileID fileId;
@@ -1251,7 +1255,7 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder registeredNodeID(final long registeredNodeID) {
-        this.nodeId = registeredNodeID;
+        this.registeredNodeId = registeredNodeID;
         return this;
     }
 
@@ -1429,6 +1433,7 @@ public class BlockStreamBuilder
         tokenId = null;
         topicId = null;
         nodeId = 0L;
+        registeredNodeId = 0L;
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
             scheduleId = null;
             scheduledTransactionId = null;
@@ -1581,7 +1586,7 @@ public class BlockStreamBuilder
                         functionality,
                         fileId,
                         serializedSignedTx);
-            case NODE_CREATE, REGISTERED_NODE_CREATE ->
+            case NODE_CREATE ->
                 new NodeOpContext(
                         memo,
                         translationContextExchangeRates,
@@ -1589,6 +1594,15 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         nodeId,
+                        serializedSignedTx);
+            case REGISTERED_NODE_CREATE ->
+                new NodeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        registeredNodeId,
                         serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(
