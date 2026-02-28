@@ -16,7 +16,6 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
-    requires com.swirlds.virtualmap;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.platformstate;

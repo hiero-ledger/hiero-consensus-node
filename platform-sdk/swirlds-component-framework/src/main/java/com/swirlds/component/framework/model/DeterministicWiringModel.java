@@ -171,6 +171,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
      *
      * @return true if the wiring model is running, false otherwise
      */
+    @Override
     public boolean isRunning() {
         return isRunning;
     }
