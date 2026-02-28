@@ -21,15 +21,12 @@ import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreat
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.entityid.NodeIdGenerator;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,7 +49,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     private NodeIdGenerator nodeIdGenerator;
 
     @Mock
-    private com.hedera.node.app.service.token.ReadableAccountStore accountStore;
+    private ReadableAccountStore accountStore;
 
     @Mock
     private WritableRegisteredNodeStore writableRegisteredNodeStore;
@@ -77,14 +74,13 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    @DisplayName("handle fails for description > 100 utf-8 bytes")
-    void handleFailsForTooLongDescription() {
+    @DisplayName("pureChecks fails for description > 100 utf-8 bytes")
+    void pureChecksFailsForTooLongDescription() {
         final var longDesc = "a".repeat(101);
         final var txn = txnWithOp(opBuilder().description(longDesc).build());
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.configuration()).willReturn(newConfig());
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertThat(msg.getStatus()).isEqualTo(INVALID_NODE_DESCRIPTION);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_DESCRIPTION);
     }
 
     @Test
@@ -112,9 +108,9 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         final var txn = txnWithOp(opBuilder().adminKey(key).build());
 
         given(handleContext.body()).willReturn(txn);
-        given(handleContext.configuration()).willReturn(newConfig());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
         given(nodeIdGenerator.newNodeId()).willReturn(newId);
         final var stack = mock(HandleContext.SavepointStack.class);
@@ -149,9 +145,5 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
                         .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
                         .build())
                 .build();
-    }
-
-    private static Configuration newConfig() {
-        return new TestConfigBuilder().withConfigDataType(NodesConfig.class).getOrCreateConfig();
     }
 }

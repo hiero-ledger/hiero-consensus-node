@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateDescription;
+import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateServiceEndpointsForCreate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -10,6 +12,7 @@ import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -17,7 +20,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -39,7 +41,8 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().registeredNodeCreateOrThrow();
         addressBookValidator.validateAdminKey(op.adminKey());
-        addressBookValidator.validateRegisteredServiceEndpointsForCreate(op.serviceEndpoint());
+        validateDescription(op.description());
+        validateServiceEndpointsForCreate(op.serviceEndpoint());
     }
 
     @Override
@@ -53,12 +56,10 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext handleContext) {
         requireNonNull(handleContext);
         final var op = handleContext.body().registeredNodeCreateOrThrow();
-        final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
-
-        addressBookValidator.validateDescription(op.description(), nodesConfig);
 
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
+        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
         final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = new RegisteredNode.Builder()

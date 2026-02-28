@@ -29,7 +29,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -52,9 +51,6 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AddressBookValidator {
-    private static final int MAX_REGISTERED_SERVICE_ENDPOINTS = 50;
-    private static final int MAX_DOMAIN_ASCII_CHARS = 250;
-
     /**
      * Default constructor for injection.
      */
@@ -228,119 +224,5 @@ public class AddressBookValidator {
         } catch (Exception ignore) {
             throw new PreCheckException(INVALID_GOSSIP_CA_CERTIFICATE);
         }
-    }
-
-    /**
-     * Validates registered service endpoints for a create operation. The list must be non-empty
-     * and contain at most {@value MAX_REGISTERED_SERVICE_ENDPOINTS} entries.
-     *
-     * @param endpoints the list of registered service endpoints to validate
-     * @throws PreCheckException if the list is empty, exceeds the limit, or contains invalid endpoints
-     */
-    public void validateRegisteredServiceEndpointsForCreate(@NonNull final List<RegisteredServiceEndpoint> endpoints)
-            throws PreCheckException {
-        requireNonNull(endpoints);
-        validateFalsePreCheck(endpoints.isEmpty(), INVALID_SERVICE_ENDPOINT);
-        validateFalsePreCheck(endpoints.size() > MAX_REGISTERED_SERVICE_ENDPOINTS, INVALID_SERVICE_ENDPOINT);
-        for (final var endpoint : endpoints) {
-            validateRegisteredServiceEndpoint(endpoint);
-        }
-    }
-
-    /**
-     * Validates registered service endpoints for an update operation. An empty list is allowed
-     * (means "not set" in proto3 repeated semantics). If non-empty, at most
-     * {@value MAX_REGISTERED_SERVICE_ENDPOINTS} entries are allowed.
-     *
-     * @param endpoints the list of registered service endpoints to validate
-     * @throws PreCheckException if the list exceeds the limit or contains invalid endpoints
-     */
-    public void validateRegisteredServiceEndpointsForUpdate(@NonNull final List<RegisteredServiceEndpoint> endpoints)
-            throws PreCheckException {
-        requireNonNull(endpoints);
-        if (endpoints.isEmpty()) {
-            return;
-        }
-        validateFalsePreCheck(endpoints.size() > MAX_REGISTERED_SERVICE_ENDPOINTS, INVALID_SERVICE_ENDPOINT);
-        for (final var endpoint : endpoints) {
-            validateRegisteredServiceEndpoint(endpoint);
-        }
-    }
-
-    private void validateRegisteredServiceEndpoint(@NonNull final RegisteredServiceEndpoint endpoint)
-            throws PreCheckException {
-        requireNonNull(endpoint);
-
-        final int port = endpoint.port();
-        validateTruePreCheck(port >= 0 && port <= 65535, INVALID_SERVICE_ENDPOINT);
-
-        // oneof address is REQUIRED
-        final var addressKind = endpoint.address().kind();
-        switch (addressKind) {
-            case IP_ADDRESS -> {
-                final Bytes ip = endpoint.ipAddressOrThrow();
-                final long len = ip.length();
-                validateTruePreCheck(len == 4L || len == 16L, INVALID_SERVICE_ENDPOINT);
-            }
-            case DOMAIN_NAME -> {
-                final String domain = endpoint.domainNameOrThrow();
-                validateTruePreCheck(isValidAsciiFqdn(domain), INVALID_SERVICE_ENDPOINT);
-            }
-            default -> throw new PreCheckException(INVALID_SERVICE_ENDPOINT);
-        }
-
-        // oneof endpoint_type is REQUIRED
-        validateTruePreCheck(
-                endpoint.endpointType().kind() != RegisteredServiceEndpoint.EndpointTypeOneOfType.UNSET,
-                INVALID_SERVICE_ENDPOINT);
-    }
-
-    private boolean isValidAsciiFqdn(@Nullable final String domain) {
-        if (domain == null) {
-            return false;
-        }
-        final var trimmed = domain.trim();
-        if (trimmed.isEmpty()) {
-            return false;
-        }
-        if (trimmed.length() > MAX_DOMAIN_ASCII_CHARS) {
-            return false;
-        }
-        // ASCII only
-        for (int i = 0; i < trimmed.length(); i++) {
-            if (trimmed.charAt(i) > 0x7F) {
-                return false;
-            }
-        }
-
-        // Basic DNS label rules: labels 1..63, overall <=253, only [A-Za-z0-9-], no leading/trailing '-'
-        if (trimmed.length() > 253) {
-            return false;
-        }
-        if (trimmed.endsWith(".")) {
-            // Allow a trailing dot by stripping it for label validation
-            return isValidAsciiFqdn(trimmed.substring(0, trimmed.length() - 1));
-        }
-        final var labels = trimmed.split("\\.");
-        if (labels.length == 0) {
-            return false;
-        }
-        for (final var label : labels) {
-            if (label.isEmpty() || label.length() > 63) {
-                return false;
-            }
-            if (label.charAt(0) == '-' || label.charAt(label.length() - 1) == '-') {
-                return false;
-            }
-            for (int i = 0; i < label.length(); i++) {
-                final char c = label.charAt(i);
-                final boolean ok =
-                        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
-                if (!ok) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 }

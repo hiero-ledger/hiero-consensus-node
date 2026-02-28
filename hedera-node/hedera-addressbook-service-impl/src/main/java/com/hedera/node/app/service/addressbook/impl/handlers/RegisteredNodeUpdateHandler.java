@@ -3,16 +3,20 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateDescription;
+import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateServiceEndpointsForUpdate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -20,7 +24,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -45,7 +48,10 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey()) {
             addressBookValidator.validateAdminKey(op.adminKey());
         }
-        addressBookValidator.validateRegisteredServiceEndpointsForUpdate(op.serviceEndpoint());
+        if (op.hasDescription()) {
+            validateDescription(op.description());
+        }
+        validateServiceEndpointsForUpdate(op.serviceEndpoint());
     }
 
     @Override
@@ -66,27 +72,25 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext handleContext) {
         requireNonNull(handleContext);
         final var op = handleContext.body().registeredNodeUpdateOrThrow();
-        final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
-
-        if (op.hasDescription()) {
-            addressBookValidator.validateDescription(op.description(), nodesConfig);
-        }
 
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
+        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
         final var existing = registeredNodeStore.get(op.registeredNodeId());
         validateFalse(existing == null, INVALID_NODE_ID);
 
-        final var builder = updateRegisteredNode(op, existing);
+        final var builder = updateRegisteredNode(op, existing, accountStore);
         registeredNodeStore.put(builder.build());
     }
 
     private RegisteredNode.Builder updateRegisteredNode(
             @NonNull final com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody op,
-            @NonNull final RegisteredNode existing) {
+            @NonNull final RegisteredNode existing,
+            @NonNull final ReadableAccountStore accountStore) {
         requireNonNull(op);
         requireNonNull(existing);
+        requireNonNull(accountStore);
 
         final var builder = existing.copyBuilder();
         if (op.hasAdminKey()) {
@@ -99,6 +103,13 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
             builder.serviceEndpoint(op.serviceEndpoint());
         }
         return builder;
+    }
+
+    private static boolean isRemovalSentinel(@NonNull final AccountID accountId) {
+        // Treat unset account oneof as 0.0.0 as well.
+        return accountId.shardNum() == 0
+                && accountId.realmNum() == 0
+                && (!accountId.hasAccountNum() || accountId.accountNum() == 0);
     }
 
     @NonNull
