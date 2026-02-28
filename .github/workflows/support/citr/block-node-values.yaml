@@ -29,6 +29,13 @@ tolerations:
     value: "%NETWORK_ID%"
     effect: "NoSchedule"
 
+plugins:
+  volumeName: "plugins"
+  size: 1Gi
+  names: "facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,verification,blocks-file-historic,blocks-file-recent,backfill"
+  # image for resolving and downloading the above plugins, should have java 21+ and maven
+  mavenImage: "maven:3-eclipse-temurin-25-alpine"
+
 blockNode:
   # if blank will use same as AppVersion of chart.
   version: ""

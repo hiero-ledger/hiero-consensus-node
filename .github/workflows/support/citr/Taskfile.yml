@@ -32,4 +32,4 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_NAME: solo-cluster-name
   MIRROR_RELEASE_NAME: release_name
-  BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag {{.CONSENSUS_NODE_VERSION}} --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml
+  BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag {{.CONSENSUS_NODE_VERSION}} --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml --chart-version v0.27.0
