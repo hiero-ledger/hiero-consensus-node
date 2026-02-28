@@ -13,6 +13,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -51,30 +52,57 @@ public class VirtualLeafBytes<V> {
     public static final FieldDefinition FIELD_LEAFRECORD_VALUE =
             new FieldDefinition("value", FieldType.BYTES, false, true, false, 3);
 
+    // Leaf path
     private final long path;
 
+    // Indicate if this leaf record has been potentially moved since it was loaded from disk.
+    // In some cases this field may be set to true even when the path is the same as in the
+    // data source, for example, when a leaf was moved to a different path and then moved
+    // again to the original path. If a record is created from scratch, not loaded, the
+    // field is true. This field may be checked during data flushes to skip key to path
+    // updates, when they are not needed
+    private final boolean moved;
+
+    // Leaf key
     private final Bytes keyBytes;
 
+    // Leaf value
     private V value;
     private Codec<V> valueCodec;
     private Bytes valueBytes;
 
     public VirtualLeafBytes(
             final long path, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
-        this(path, keyBytes, value, valueCodec, null);
+        this(path, true, keyBytes, value, valueCodec, null);
+    }
+
+    public VirtualLeafBytes(
+            final long path,
+            final boolean moved,
+            @NonNull final Bytes keyBytes,
+            @Nullable final V value,
+            @Nullable Codec<V> valueCodec) {
+        this(path, moved, keyBytes, value, valueCodec, null);
     }
 
     public VirtualLeafBytes(final long path, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
-        this(path, keyBytes, null, null, valueBytes);
+        this(path, true, keyBytes, null, null, valueBytes);
     }
 
-    VirtualLeafBytes(
+    public VirtualLeafBytes(
+            final long path, final boolean moved, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
+        this(path, moved, keyBytes, null, null, valueBytes);
+    }
+
+    private VirtualLeafBytes(
             final long path,
+            final boolean moved,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable final Codec<V> valueCodec,
             @Nullable final Bytes valueBytes) {
         this.path = path;
+        this.moved = moved;
         this.keyBytes = Objects.requireNonNull(keyBytes);
         this.value = value;
         this.valueCodec = valueCodec;
@@ -86,6 +114,20 @@ public class VirtualLeafBytes<V> {
 
     public long path() {
         return path;
+    }
+
+    /**
+     * Indicates if this leaf record's path is different from where it was when loaded from
+     * disk. If the record was not loaded at all but created as new, the old path is set to
+     * an invalid path, and this method still returns true.
+     *
+     * <p>This method should not be called for records with invalid paths. Such leaf records
+     * should never be used for any purposes than marker instances like {@link
+     * VirtualNodeCache#DELETED_LEAF_RECORD}.
+     */
+    public boolean isNewOrMoved() {
+        assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";
+        return moved;
     }
 
     public Bytes keyBytes() {
@@ -137,15 +179,17 @@ public class VirtualLeafBytes<V> {
     }
 
     public VirtualLeafBytes<V> withPath(final long newPath) {
-        return new VirtualLeafBytes<>(newPath, keyBytes, value, valueCodec, valueBytes);
+        // If the current record is already moved, or the new path is different, mark the
+        // newly created record as moved, too
+        return new VirtualLeafBytes<>(newPath, moved || (path != newPath), keyBytes, value, valueCodec, valueBytes);
     }
 
     public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
-        return new VirtualLeafBytes<>(path, keyBytes, newValue, newValueCodec);
+        return new VirtualLeafBytes<>(path, moved, keyBytes, newValue, newValueCodec);
     }
 
     public VirtualLeafBytes<V> withValueBytes(final Bytes newValueBytes) {
-        return new VirtualLeafBytes<>(path, keyBytes, newValueBytes);
+        return new VirtualLeafBytes<>(path, moved, keyBytes, newValueBytes);
     }
 
     /**
@@ -154,7 +198,7 @@ public class VirtualLeafBytes<V> {
      * @param in sequential data to read from
      * @return the virtual leaf bytes object
      */
-    public static VirtualLeafBytes<?> parseFrom(final ReadableSequentialData in) {
+    public static <V> VirtualLeafBytes<V> parseFrom(final ReadableSequentialData in) {
         if (in == null) {
             return null;
         }
@@ -191,7 +235,7 @@ public class VirtualLeafBytes<V> {
         Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
 
         // Key hash code is not deserialized
-        return new VirtualLeafBytes<>(path, keyBytes, valueBytes);
+        return new VirtualLeafBytes<>(path, false, keyBytes, valueBytes);
     }
 
     public int getSizeInBytes() {
