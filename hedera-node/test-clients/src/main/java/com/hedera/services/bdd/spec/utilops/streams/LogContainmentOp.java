@@ -14,6 +14,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Assertions;
 
@@ -39,6 +44,8 @@ public class LogContainmentOp extends UtilOp {
 
     private final Duration delay;
 
+    private final List<Map.Entry<Integer, AtomicReference<String>>> groupCaptures = new ArrayList<>();
+
     public LogContainmentOp(
             @NonNull final NodeSelector selector,
             @NonNull final ExternalPath path,
@@ -62,22 +69,61 @@ public class LogContainmentOp extends UtilOp {
         this.containment = requireNonNull(containment);
     }
 
+    /**
+     * When using a pattern match, captures the given group from the matched line on each node and
+     * asserts all nodes agree on the same value, then exposes it via {@code ref}. May be called
+     * multiple times to capture different groups.
+     *
+     * @param group the capture group index (1-based)
+     * @param ref the reference to populate with the captured value
+     * @return {@code this}
+     */
+    public LogContainmentOp exposingMatchGroupTo(final int group, @NonNull final AtomicReference<String> ref) {
+        if (pattern == null) {
+            throw new IllegalStateException("exposingMatchGroupTo requires a pattern, not a text match");
+        }
+        groupCaptures.add(new AbstractMap.SimpleEntry<>(group, requireNonNull(ref)));
+        return this;
+    }
+
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
-        spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
+        final var searchTerm = text != null ? text : requireNonNull(pattern).pattern();
+        // Per-group agreed captures, indexed to match groupCaptures list
+        final String[] agreedCaptures = new String[groupCaptures.size()];
+        for (final var node : spec.targetNetworkOrThrow().nodesFor(selector)) {
             final var logContents = rethrowIO(() -> Files.readString(node.getExternalPath(path)));
-            final var isThere = text != null
-                    ? logContents.contains(text)
-                    : requireNonNull(pattern).matcher(logContents).find();
-            final var searchTerm = text != null ? text : pattern.pattern();
+            final boolean isThere;
+            if (text != null) {
+                isThere = logContents.contains(text);
+            } else {
+                final var matcher = requireNonNull(pattern).matcher(logContents);
+                isThere = matcher.find();
+                if (isThere) {
+                    for (int i = 0; i < groupCaptures.size(); i++) {
+                        final var entry = groupCaptures.get(i);
+                        final var nodeCapture = matcher.group(entry.getKey());
+                        if (agreedCaptures[i] != null && !agreedCaptures[i].equals(nodeCapture)) {
+                            Assertions.fail("Nodes disagree on captured group " + entry.getKey() + ": '"
+                                    + agreedCaptures[i] + "' vs '" + nodeCapture + "'");
+                        }
+                        agreedCaptures[i] = nodeCapture;
+                    }
+                }
+            }
             if (isThere && containment == Containment.DOES_NOT_CONTAIN) {
                 Assertions.fail("Log for node '" + node.getName() + "' contains '" + searchTerm + "' and should not");
             } else if (!isThere && containment == Containment.CONTAINS) {
                 Assertions.fail(
                         "Log for node '" + node.getName() + "' does not contain '" + searchTerm + "' but should");
             }
-        });
+        }
+        for (int i = 0; i < groupCaptures.size(); i++) {
+            if (agreedCaptures[i] != null) {
+                groupCaptures.get(i).getValue().set(agreedCaptures[i]);
+            }
+        }
         return false;
     }
 }

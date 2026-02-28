@@ -109,4 +109,24 @@ message BlockInfo {
      * at which an interval of time-dependent events were processed.
      */
     proto.Timestamp last_interval_process_time = 8;
+
+    /**
+     * The root hash of the previous wrapped record block.
+     */
+    bytes previous_wrapped_record_block_root_hash = 10;
+
+    /**
+     * The intermediate hashes, calculated for all historical wrapped
+     * record blocks, needed for subroot 2 in the block merkle
+     * tree structure. These hashes SHALL include the minimum required
+     * wrapped record block root hashes needed to construct subroot 2's
+     * final state at the end of the previous block.
+     */
+    repeated bytes wrapped_intermediate_previous_block_root_hashes = 11;
+
+    /**
+     * The number of leaves in the intermediate wrapped record block
+     * roots subtree.
+     */
+    uint64 wrapped_intermediate_block_roots_leaf_count = 12;
 }
