@@ -37,6 +37,15 @@ import org.hiero.consensus.model.node.NodeId;
  * Utility class for generating an address book configuration file.
  */
 public class NetworkUtils {
+    /**
+     * A network configuration paired with the keys and certs generated for each node.
+     *
+     * @param network the network configuration
+     * @param keysAndCerts the keys and certs for each node
+     */
+    public record NetworkWithKeys(
+            @NonNull Network network, @NonNull Map<NodeId, KeysAndCerts> keysAndCerts) {}
+
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
@@ -54,9 +63,9 @@ public class NetworkUtils {
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
-     * @return the contents of the <i>config.txt</i> file
+     * @return the network configuration with keys and certs
      */
-    public static Network generateNetworkConfig(
+    public static NetworkWithKeys generateNetworkConfig(
             @NonNull final List<HederaNode> nodes, final int nextInternalGossipPort, final int nextExternalGossipPort) {
         return generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
@@ -68,9 +77,9 @@ public class NetworkUtils {
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @param overrideWeights the map of node IDs to their weights
-     * @return the contents of the <i>config.txt</i> file
+     * @return the network configuration with keys and certs
      */
-    public static Network generateNetworkConfig(
+    public static NetworkWithKeys generateNetworkConfig(
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
@@ -78,8 +87,9 @@ public class NetworkUtils {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
         final Map<Long, Bytes> certsMap = new HashMap<>();
+        final Map<NodeId, KeysAndCerts> kacMap;
         try {
-            final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
+            kacMap = CryptoStatic.generateKeysAndCerts(
                     nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
             for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
                 certsMap.put(
@@ -126,7 +136,11 @@ public class NetworkUtils {
                     .node(node)
                     .build());
         }
-        return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();
+        final var network = Network.newBuilder()
+                .ledgerId(Bytes.EMPTY)
+                .nodeMetadata(metadata)
+                .build();
+        return new NetworkWithKeys(network, kacMap);
     }
 
     /**
