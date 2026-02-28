@@ -10,6 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -33,12 +34,15 @@ public class StakeInfoHelper {
 
     private static final String POST_UPGRADE_MEMO = "Post upgrade stake adjustment record";
 
+    private final DenominationConverter denominationConverter;
+
     /**
-     * Default constructor for injection.
+     * Constructor for injection.
+     * @param denominationConverter the denomination converter for rounding stake values
      */
     @Inject
-    public StakeInfoHelper() {
-        // Needed for Dagger injection
+    public StakeInfoHelper(@NonNull final DenominationConverter denominationConverter) {
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /**
@@ -89,7 +93,7 @@ public class StakeInfoHelper {
         requireNonNull(account);
         requireNonNull(stakingInfoStore);
 
-        final var stakeToAward = roundedToHbar(totalStake(account));
+        final var stakeToAward = roundedToHbar(totalStake(account), denominationConverter);
         final var isDeclineReward = account.declineReward();
 
         final var stakingInfo = stakingInfoStore.get(nodeId);
@@ -125,7 +129,7 @@ public class StakeInfoHelper {
         requireNonNull(account);
         requireNonNull(stakingInfoStore);
 
-        final var stakeToWithdraw = roundedToHbar(totalStake(account));
+        final var stakeToWithdraw = roundedToHbar(totalStake(account), denominationConverter);
         final var isDeclineReward = account.declineReward();
 
         final var stakingInfo = stakingInfoStore.get(nodeId);

@@ -2,8 +2,9 @@
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
-import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.totalStake;
+
+import com.hedera.node.app.service.token.DenominationConverter;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,8 +88,9 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         stakePeriodManager = new StakePeriodManager(configProvider, instantSource);
         stakeRewardCalculator = new StakeRewardCalculatorImpl(stakePeriodManager);
         rewardsPayer = new StakingRewardsDistributor(stakingRewardHelper, stakeRewardCalculator);
-        stakeInfoHelper = new StakeInfoHelper();
-        subject = new StakingRewardsHandlerImpl(rewardsPayer, stakePeriodManager, stakeInfoHelper, entityIdFactory);
+        final var denominationConverter = new DenominationConverter(8);
+        stakeInfoHelper = new StakeInfoHelper(denominationConverter);
+        subject = new StakingRewardsHandlerImpl(rewardsPayer, stakePeriodManager, stakeInfoHelper, entityIdFactory, denominationConverter);
     }
 
     @Test
@@ -351,7 +353,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(account.stakePeriodStart()).willReturn(2L);
 
         final StakingRewardsHandlerImpl impl =
-                new StakingRewardsHandlerImpl(rewardsPayer, manager, stakeInfoHelper, entityIdFactory);
+                new StakingRewardsHandlerImpl(rewardsPayer, manager, stakeInfoHelper, entityIdFactory, new DenominationConverter(8));
 
         assertThat(impl.shouldUpdateStakeAtStartOfLastRewardPeriod(
                         account, true, 0L, readableRewardsStore, consensusInstant))
@@ -452,7 +454,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
         assertThat(node0InfoAfter.stakeToReward())
                 .isEqualTo(node0InfoBefore.stakeToReward()
-                        + roundedToHbar(totalStake(modifiedPayer) + roundedToHbar(totalStake(modifiedOwner))));
+                        + new DenominationConverter(8).roundToWholeUnit(totalStake(modifiedPayer)
+                                + new DenominationConverter(8).roundToWholeUnit(totalStake(modifiedOwner))));
 
         assertThat(node1InfoAfter.unclaimedStakeRewardStart())
                 .isEqualTo(node1InfoBefore.unclaimedStakeRewardStart() + accountBalance);

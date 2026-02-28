@@ -29,6 +29,7 @@ import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
@@ -57,7 +58,7 @@ class StakeInfoHelperTest {
     @Mock
     private WritableNetworkStakingRewardsStore rewardsStore;
 
-    private final StakeInfoHelper subject = new StakeInfoHelper();
+    private final StakeInfoHelper subject = new StakeInfoHelper(new DenominationConverter(8));
 
     private WritableEntityIdStoreImpl entityIdStore;
 

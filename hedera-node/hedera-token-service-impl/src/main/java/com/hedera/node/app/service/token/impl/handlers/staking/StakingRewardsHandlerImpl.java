@@ -13,6 +13,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -44,23 +45,28 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
     private final StakePeriodManager stakePeriodManager;
     private final StakeInfoHelper stakeInfoHelper;
     private final EntityIdFactory entityIdFactory;
+    private final DenominationConverter denominationConverter;
 
     /**
      * Default constructor for injection.
      * @param rewardsPayer the rewards payer
      * @param stakePeriodManager the stake period manager
      * @param stakeInfoHelper the stake info helper
+     * @param entityIdFactory the entity id factory
+     * @param denominationConverter the denomination converter for rounding stake values
      */
     @Inject
     public StakingRewardsHandlerImpl(
             @NonNull final StakingRewardsDistributor rewardsPayer,
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final StakeInfoHelper stakeInfoHelper,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final DenominationConverter denominationConverter) {
         this.rewardsPayer = requireNonNull(rewardsPayer);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
         this.entityIdFactory = requireNonNull(entityIdFactory);
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /** {@inheritDoc} */
@@ -155,8 +161,8 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                     && requireNonNull(originalAccount)
                             .stakedAccountIdOrThrow()
                             .equals(modifiedAccount.stakedAccountId())) {
-                final var roundedFinalBalance = roundedToHbar(modifiedAccount.tinybarBalance());
-                final var roundedInitialBalance = roundedToHbar(originalAccount.tinybarBalance());
+                final var roundedFinalBalance = roundedToHbar(modifiedAccount.tinybarBalance(), denominationConverter);
+                final var roundedInitialBalance = roundedToHbar(originalAccount.tinybarBalance(), denominationConverter);
                 final var delta = roundedFinalBalance - roundedInitialBalance;
                 // Even if the stakee's total stake hasn't changed, we still want to
                 // trigger a reward situation whenever the staker balance changes
@@ -167,13 +173,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                 if (scenario.withdrawsFromAccount()) {
                     final var curStakedAccountId =
                             requireNonNull(originalAccount).stakedAccountId();
-                    final var roundedInitialBalance = roundedToHbar(originalAccount.tinybarBalance());
+                    final var roundedInitialBalance = roundedToHbar(originalAccount.tinybarBalance(), denominationConverter);
                     updateStakedToMeFor(curStakedAccountId, -roundedInitialBalance, writableStore);
                 }
                 if (scenario.awardsToAccount()) {
                     final var newStakedAccountId = modifiedAccount.stakedAccountId();
                     final var balance = modifiedAccount.tinybarBalance();
-                    final var roundedFinalBalance = roundedToHbar(balance);
+                    final var roundedFinalBalance = roundedToHbar(balance, denominationConverter);
                     updateStakedToMeFor(newStakedAccountId, roundedFinalBalance, writableStore);
                 }
             }
@@ -317,7 +323,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             } else if (shouldUpdateStakeAtStartOfLastRewardPeriod(
                     originalAccount, rewardSituation, reward, stakingRewardStore, consensusNow)) {
                 final var copy = modifiedAccount.copyBuilder();
-                copy.stakeAtStartOfLastRewardedPeriod(roundedToHbar(totalStake(originalAccount)));
+                copy.stakeAtStartOfLastRewardedPeriod(roundedToHbar(totalStake(originalAccount), denominationConverter));
                 writableStore.put(copy.build());
             }
 
@@ -479,7 +485,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                 // has almost certainly changed from what it was at the start of the day
                 return account.stakeAtStartOfLastRewardedPeriod();
             } else {
-                return roundedToHbar(totalStake(account));
+                return roundedToHbar(totalStake(account), denominationConverter);
             }
         }
     }

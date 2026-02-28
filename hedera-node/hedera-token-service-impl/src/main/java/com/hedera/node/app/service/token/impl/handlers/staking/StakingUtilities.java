@@ -2,10 +2,11 @@
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.token.DenominationConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -27,12 +28,14 @@ public class StakingUtilities {
     public static final long NO_STAKE_PERIOD_START = -1;
 
     /**
-     * Rounds the value to the nearest hbar.
-     * @param value the value to round
-     * @return the value rounded to the nearest hbar
+     * Rounds the value down to the nearest whole-unit boundary using the given converter.
+     * @param value the value in subunits to round
+     * @param converter the denomination converter providing the subunits-per-whole-unit factor
+     * @return the value rounded down to the nearest whole unit
      */
-    public static long roundedToHbar(final long value) {
-        return (value / HBARS_TO_TINYBARS) * HBARS_TO_TINYBARS;
+    public static long roundedToHbar(final long value, @NonNull final DenominationConverter converter) {
+        requireNonNull(converter);
+        return converter.roundToWholeUnit(value);
     }
 
     /**
