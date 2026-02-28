@@ -48,6 +48,18 @@ class DenominationConverterTest {
     }
 
     @Test
+    void testRoundToWholeUnitAtZeroDecimals() {
+        final var converter = new DenominationConverter(0);
+        assertThat(converter.roundToWholeUnit(42L)).isEqualTo(42L);
+    }
+
+    @Test
+    void testRoundToWholeUnitRejectsNegative() {
+        final var converter = new DenominationConverter(6);
+        assertThatThrownBy(() -> converter.roundToWholeUnit(-1L)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void testConstructorRejectsTooHigh() {
         assertThatThrownBy(() -> new DenominationConverter(19)).isInstanceOf(IllegalArgumentException.class);
     }

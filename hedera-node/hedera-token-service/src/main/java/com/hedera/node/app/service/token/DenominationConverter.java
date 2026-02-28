@@ -49,10 +49,14 @@ public final class DenominationConverter {
     /**
      * Rounds the given subunit amount down to the nearest whole unit boundary.
      *
-     * @param subunits the amount in subunits
+     * @param subunits the amount in subunits (must be non-negative)
      * @return the largest multiple of {@link #subunitsPerWholeUnit()} that is less than or equal to the input
+     * @throws IllegalArgumentException if subunits is negative
      */
     public long roundToWholeUnit(final long subunits) {
+        if (subunits < 0) {
+            throw new IllegalArgumentException("subunits must be non-negative, but was " + subunits);
+        }
         return (subunits / subunitsPerWholeUnit) * subunitsPerWholeUnit;
     }
 }

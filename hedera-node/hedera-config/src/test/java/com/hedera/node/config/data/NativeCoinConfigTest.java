@@ -18,7 +18,7 @@ final class NativeCoinConfigTest {
         // when
         final var nativeCoinConfig = config.getConfigData(NativeCoinConfig.class);
 
-        // then
+        // then — AC-2: default 8 and subunitsPerWholeUnit 100_000_000
         assertThat(nativeCoinConfig.decimals()).isEqualTo(8);
     }
 
@@ -41,7 +41,9 @@ final class NativeCoinConfigTest {
         // given
         final var builder = HederaTestConfigBuilder.create().withValue("nativeCoin.decimals", "19");
 
-        // then
+        // then — AC-3: config framework rejects out-of-range value
+        // ConfigViolationException contains ConfigViolation objects with property details;
+        // the exception message itself is generic ("Configuration failed based on N violations!")
         assertThatThrownBy(builder::getOrCreateConfig).isInstanceOf(ConfigViolationException.class);
     }
 
@@ -50,7 +52,7 @@ final class NativeCoinConfigTest {
         // given
         final var builder = HederaTestConfigBuilder.create().withValue("nativeCoin.decimals", "-1");
 
-        // then
+        // then — AC-4: config framework rejects out-of-range value
         assertThatThrownBy(builder::getOrCreateConfig).isInstanceOf(ConfigViolationException.class);
     }
 }
