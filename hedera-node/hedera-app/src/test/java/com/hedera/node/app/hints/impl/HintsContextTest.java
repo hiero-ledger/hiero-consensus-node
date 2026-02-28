@@ -84,7 +84,9 @@ class HintsContextTest {
                 false,
                 2,
                 10,
-                Duration.ofSeconds(5));
+                Duration.ofSeconds(5),
+                "",
+                "");
     }
 
     @Test

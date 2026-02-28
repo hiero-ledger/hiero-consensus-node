@@ -137,6 +137,16 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
+    void expectedWrapsProvingKeyHashIsNullUntilSet() {
+        assertNull(subject.getExpectedWrapsProvingKeyHash());
+
+        final var hash = Bytes.wrap("proving-key-hash");
+        subject.setExpectedWrapsProvingKeyHash(hash);
+
+        assertEquals(hash, subject.getExpectedWrapsProvingKeyHash());
+    }
+
+    @Test
     void refusesToGetOrCreateForHandoff() {
         given(activeRosters.phase()).willReturn(HANDOFF);
 

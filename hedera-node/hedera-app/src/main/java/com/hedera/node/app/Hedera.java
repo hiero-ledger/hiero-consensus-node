@@ -58,6 +58,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.WrapsProvingKeyHashVerifier;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -767,6 +768,9 @@ public final class Hedera
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        // Verify the WRAPS proving key hash if configured
+        verifyWrapsProvingKeyHash(state);
+
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
@@ -784,6 +788,26 @@ public final class Hedera
                 System.exit(1);
             }
         }
+    }
+
+    /**
+     * Verifies the WRAPS proving key file hash against the configured bootstrap hash, if any.
+     */
+    private void verifyWrapsProvingKeyHash(@NonNull final State state) {
+        final var tssConfig =
+                bootstrapConfigProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var bootstrapHash = tssConfig.bootstrapWrapsProvingKeyHash();
+        if (bootstrapHash.isBlank()) {
+            return;
+        }
+        final var historyStates = state.getReadableStates(HistoryService.NAME);
+        final var store = new ReadableHistoryStoreImpl(historyStates);
+        final var existingHash = store.getExpectedWrapsProvingKeyHash();
+        final var provingKeyPath = java.nio.file.Paths.get(tssConfig.wrapsProvingKeyPath());
+        final var verifier = new WrapsProvingKeyHashVerifier(
+                provingKeyPath, bootstrapHash, historyService, existingHash, (path, hash) -> logger.warn(
+                        "WRAPS proving key download not yet implemented (path={}, hash={})", path, hash));
+        verifier.verifyAndSetPendingHash();
     }
 
     /**

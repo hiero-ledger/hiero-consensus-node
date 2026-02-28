@@ -80,6 +80,18 @@ public interface HistoryService extends Service, OnProofFinished {
     void setLatestHistoryProof(@NonNull HistoryProof historyProof);
 
     /**
+     * Returns the pending expected WRAPS proving key hash, or {@link Bytes#EMPTY} if none.
+     */
+    @NonNull
+    Bytes pendingExpectedWrapsProvingKeyHash();
+
+    /**
+     * Sets the pending expected WRAPS proving key hash.
+     * @param hash the hash
+     */
+    void setPendingExpectedWrapsProvingKeyHash(@NonNull Bytes hash);
+
+    /**
      * Whether this service is ready to provide metadata-enriched proofs.
      */
     boolean isReady();

@@ -5,6 +5,7 @@ import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V072HistorySchema.EXPECTED_WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -18,6 +19,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V072HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -46,6 +48,9 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Nullable
     private OnProofFinished cb;
+
+    @NonNull
+    private Bytes pendingExpectedWrapsProvingKeyHash = Bytes.EMPTY;
 
     public HistoryServiceImpl(
             @NonNull final Metrics metrics,
@@ -129,6 +134,16 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public @NonNull Bytes pendingExpectedWrapsProvingKeyHash() {
+        return pendingExpectedWrapsProvingKeyHash;
+    }
+
+    @Override
+    public void setPendingExpectedWrapsProvingKeyHash(@NonNull final Bytes hash) {
+        this.pendingExpectedWrapsProvingKeyHash = requireNonNull(hash);
+    }
+
+    @Override
     public boolean isReady() {
         // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
         return historyProof != null && historyProof.hasChainOfTrustProof();
@@ -150,6 +165,7 @@ public class HistoryServiceImpl implements HistoryService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V071HistorySchema(this));
+        registry.register(new V072HistorySchema());
     }
 
     @Override
@@ -164,6 +180,9 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
+        writableStates
+                .<ProtoBytes>getSingleton(EXPECTED_WRAPS_PROVING_KEY_HASH_STATE_ID)
+                .put(ProtoBytes.DEFAULT);
         return true;
     }
 }

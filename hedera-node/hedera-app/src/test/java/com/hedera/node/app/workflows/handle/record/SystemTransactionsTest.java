@@ -14,6 +14,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
@@ -99,6 +100,9 @@ class SystemTransactionsTest {
     @Mock
     private SelfNodeAccountIdManager selfNodeAccountIdManager;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private HistoryService historyService;
+
     @Mock
     private State state;
 
@@ -126,6 +130,7 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
+        given(historyService.pendingExpectedWrapsProvingKeyHash()).willReturn(Bytes.EMPTY);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -142,7 +147,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
     }
 
     @Test
@@ -198,7 +204,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -404,7 +411,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -445,7 +453,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -525,7 +534,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -577,7 +587,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                historyService);
 
         subject.doPostUpgradeSetup(NOW, state);
 

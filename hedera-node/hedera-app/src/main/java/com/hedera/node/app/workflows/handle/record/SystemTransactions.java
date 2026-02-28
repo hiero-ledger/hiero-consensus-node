@@ -75,6 +75,8 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordSource;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -104,6 +106,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -173,6 +176,7 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
+    private final HistoryService historyService;
 
     private int nextDispatchNonce = 1;
 
@@ -203,7 +207,8 @@ public class SystemTransactions {
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
+            @NonNull final HistoryService historyService) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -223,6 +228,7 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
+        this.historyService = requireNonNull(historyService);
     }
 
     /**
@@ -489,6 +495,16 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+
+        // Persist any pending expected WRAPS proving key hash to state
+        final var pendingHash = historyService.pendingExpectedWrapsProvingKeyHash();
+        if (!pendingHash.equals(Bytes.EMPTY)) {
+            final var historyStates = state.getWritableStates(HistoryService.NAME);
+            final var historyStore = new WritableHistoryStoreImpl(historyStates);
+            historyStore.setExpectedWrapsProvingKeyHash(pendingHash);
+            ((CommittableWritableStates) historyStates).commit();
+            log.info("Persisted expected WRAPS proving key hash to state");
+        }
     }
 
     /**

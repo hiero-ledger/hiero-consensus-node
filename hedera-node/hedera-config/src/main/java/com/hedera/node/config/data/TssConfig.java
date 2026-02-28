@@ -62,4 +62,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
         int maxWrapsRetries,
 
-        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank) {}
+        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
+
+        @ConfigProperty(defaultValue = "") @NodeProperty
+        String wrapsProvingKeyPath,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty
+        String bootstrapWrapsProvingKeyHash) {}
