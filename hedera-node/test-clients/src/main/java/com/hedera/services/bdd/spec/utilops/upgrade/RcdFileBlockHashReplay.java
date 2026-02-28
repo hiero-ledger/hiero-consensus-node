@@ -7,7 +7,6 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSin
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
@@ -30,7 +29,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,9 +61,7 @@ public final class RcdFileBlockHashReplay {
      * and chains them through the 5-level Merkle tree.
      *
      * @param spec               the HapiSpec providing the record streams directory
-     * @param versionsByBlock    maps the first block of each version era to the
-     *                           {@link SemanticVersion} used as {@code hapiProtoVersion}
-     * @param startBlockExclusive blocks &le; this are skipped (use 0 for genesis)
+     * @param startBlockExclusive blocks less than this are skipped (use 0 for genesis)
      * @param endBlockInclusive  stop after processing this block
      * @param initialPrevHash    the previous wrapped block hash to start from
      *                           (use {@code HASH_OF_ZERO} for genesis)
@@ -75,14 +71,12 @@ public final class RcdFileBlockHashReplay {
      */
     public static ReplayResult replay(
             @NonNull final HapiSpec spec,
-            @NonNull final NavigableMap<Long, SemanticVersion> versionsByBlock,
             final long startBlockExclusive,
             final long endBlockInclusive,
             @NonNull final Bytes initialPrevHash,
             @NonNull final IncrementalStreamingHasher initialHasher)
             throws IOException, ParseException {
         requireNonNull(spec);
-        requireNonNull(versionsByBlock);
         requireNonNull(initialPrevHash);
         requireNonNull(initialHasher);
 
@@ -141,17 +135,10 @@ public final class RcdFileBlockHashReplay {
                 continue;
             }
 
-            // Use the record file's consensus time (from the filename) as blockCreationTime,
-            // NOT the first item's consensus timestamp.
+            // Use the record file's consensus time (from the filename) as blockCreationTime
             final var blockCreationTime = new Timestamp(consensusTime.getEpochSecond(), consensusTime.getNano());
 
-            // Look up the hapiProtoVersion the node used for this block's era.
-            final var versionEntry = versionsByBlock.floorEntry(blockNumber);
-            if (versionEntry == null) {
-                throw new IllegalStateException("No version mapping for block " + blockNumber
-                        + "; earliest mapping starts at block " + versionsByBlock.firstKey());
-            }
-            final var hapiProtoVersion = versionEntry.getValue();
+            final var hapiProtoVersion = rsf.hapiProtoVersion();
 
             final var startHash = requireNonNull(rsf.startObjectRunningHash()).hash();
             final var endHash = requireNonNull(rsf.endObjectRunningHash()).hash();

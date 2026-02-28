@@ -227,7 +227,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -784,28 +783,17 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents      raw bytes of the jumpstart file
-     * @param wrappedHashes          per-block entries from the wrapped record hashes file
-     * @param nodeComputedHash       the hash the node logged during migration
-     * @param freezeBlockNum         the last block the migration processed
-     * @param genesisServicesVersion services version from {@code getVersionInfo()} at genesis
+     * @param jumpstartContents raw bytes of the jumpstart file
+     * @param wrappedHashes     per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash  the hash the node logged during migration
+     * @param freezeBlockNum    the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final byte[] jumpstartContents,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
-            @NonNull final String freezeBlockNum,
-            @NonNull final com.hederahashgraph.api.proto.java.SemanticVersion genesisServicesVersion) {
-        // Build version-by-block mapping: all blocks up to the freeze used the genesis version.
-        // At genesis (configVersion=0) the handler returns the raw version without a build suffix,
-        // but the hash computation always sets .build("0"), so we add it here.
-        final var versions = new TreeMap<Long, com.hedera.hapi.node.base.SemanticVersion>();
-        versions.put(
-                0L,
-                protoToPbj(
-                        genesisServicesVersion.toBuilder().setBuild("0").build(),
-                        com.hedera.hapi.node.base.SemanticVersion.class));
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum, versions);
+            @NonNull final String freezeBlockNum) {
+        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {

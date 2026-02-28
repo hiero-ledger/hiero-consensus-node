@@ -9,7 +9,6 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -20,7 +19,6 @@ import java.io.DataInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.NavigableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -46,19 +44,16 @@ public class VerifyJumpstartHashOp extends UtilOp {
     private final List<WrappedRecordFileBlockHashes> wrappedHashes;
     private final String nodeComputedHash;
     private final String freezeBlockNum;
-    private final NavigableMap<Long, SemanticVersion> versionsByBlock;
 
     public VerifyJumpstartHashOp(
             @NonNull final byte[] jumpstartContents,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
-            @NonNull final String freezeBlockNum,
-            @NonNull final NavigableMap<Long, SemanticVersion> versionsByBlock) {
+            @NonNull final String freezeBlockNum) {
         this.jumpstartContents = requireNonNull(jumpstartContents);
         this.wrappedHashes = requireNonNull(wrappedHashes);
         this.nodeComputedHash = requireNonNull(nodeComputedHash);
         this.freezeBlockNum = requireNonNull(freezeBlockNum);
-        this.versionsByBlock = requireNonNull(versionsByBlock);
     }
 
     /** Parsed jumpstart file state: the block number, previous hash, and streaming hasher. */
@@ -152,8 +147,8 @@ public class VerifyJumpstartHashOp extends UtilOp {
         log.info("[VerifyJumpstartHash] Chain 1 (file) final hash: {}", fileChainHash);
 
         // ===== Chain 2: .rcd replay =====
-        final var rcdResult = RcdFileBlockHashReplay.replay(
-                spec, versionsByBlock, jumpstartBlockNum, freezeBlock, state2.prevHash(), state2.hasher());
+        final var rcdResult =
+                RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, state2.prevHash(), state2.hasher());
 
         log.info(
                 "[VerifyJumpstartHash] Chain 2 (.rcd) processed {} blocks, final hash: {}",

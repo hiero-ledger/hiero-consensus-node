@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
@@ -24,7 +23,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
-import com.hederahashgraph.api.proto.java.SemanticVersion;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -52,12 +50,9 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
-        final AtomicReference<SemanticVersion> genesisServicesVersion = new AtomicReference<>();
 
         return hapiTest(
                 overriding("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
-                // Capture the services version at genesis (configVersion=0, no build suffix)
-                getVersionInfo().exposingServicesVersionTo(genesisServicesVersion::set),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(60)),
                 logIt("Phase 2: Restarting with jumpstart file"),
@@ -108,7 +103,6 @@ class JumpstartFileSuite implements LifecycleTest {
                         jumpstartFileContents.get(),
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
-                        freezeBlockNum.get(),
-                        genesisServicesVersion.get())));
+                        freezeBlockNum.get())));
     }
 }
