@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
@@ -53,7 +52,6 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -63,7 +61,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @DisplayName("updateNode")
 @HapiTestLifecycle
@@ -129,7 +126,9 @@ public class NodeUpdateTest {
                 nodeUpdate("testNode").gossipCaCertificate(new byte[0]).hasPrecheck(INVALID_GOSSIP_CA_CERTIFICATE));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateAccountIdNotAllowed() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -162,7 +161,6 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> validateServiceEndpoint() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -352,7 +350,9 @@ public class NodeUpdateTest {
                         .via("updateNode"));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.maxServiceEndpoint"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.maxServiceEndpoint"})
     final Stream<DynamicTest> validateServiceEndpointSize() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -371,7 +371,9 @@ public class NodeUpdateTest {
                         .hasKnownStatus(SERVICE_ENDPOINTS_EXCEEDED_LIMIT));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.maxGossipEndpoint"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.maxGossipEndpoint"})
     final Stream<DynamicTest> validateGossipEndpointSize() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -427,7 +429,9 @@ public class NodeUpdateTest {
                 viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.nodeMaxDescriptionUtf8Bytes"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.nodeMaxDescriptionUtf8Bytes"})
     final Stream<DynamicTest> updateTooLargeDescriptionFail() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -443,7 +447,9 @@ public class NodeUpdateTest {
                         .hasKnownStatus(INVALID_NODE_DESCRIPTION));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.enableDAB"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.enableDAB"})
     @DisplayName("DAB enable test")
     final Stream<DynamicTest> checkDABEnable() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
@@ -473,7 +479,6 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> signedByAdminKeySuccess() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(

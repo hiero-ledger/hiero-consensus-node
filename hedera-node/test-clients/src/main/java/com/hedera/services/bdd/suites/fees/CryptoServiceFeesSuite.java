@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -62,7 +61,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class CryptoServiceFeesSuite {
@@ -291,7 +289,6 @@ public class CryptoServiceFeesSuite {
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     @DisplayName("CryptoUpdate transaction has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoUpdateBaseUSDFee() {
 
         final var baseTxn = "baseTxn";
@@ -468,7 +465,6 @@ public class CryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoGetAccountRecords query has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoCryptoGetAccountRecordsBaseUSDFee() {
         final var nonTreasurySender = "nonTreasurySender";
 
