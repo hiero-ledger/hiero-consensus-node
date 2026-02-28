@@ -56,10 +56,14 @@ public class V0710TokenSchema extends Schema<SemanticVersion> {
         }
 
         // Read persisted value and compare to current config
-        final var persistedDecimals = ctx.previousStates()
+        final var nativeCoinDecimals = ctx.previousStates()
                 .<NativeCoinDecimals>getSingleton(NATIVE_COIN_DECIMALS_STATE_ID)
-                .get()
-                .decimals();
+                .get();
+        if (nativeCoinDecimals == null) {
+            throw new IllegalStateException("State singleton value is null: " + NATIVE_COIN_DECIMALS_KEY
+                    + " — cannot determine decimal configuration. State may be corrupted.");
+        }
+        final var persistedDecimals = nativeCoinDecimals.decimals();
         final int configDecimals =
                 ctx.appConfig().getConfigData(NativeCoinConfig.class).decimals();
 
