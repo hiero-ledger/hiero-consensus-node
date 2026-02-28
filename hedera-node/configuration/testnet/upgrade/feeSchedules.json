@@ -1680,8 +1680,6 @@
                 ]
             }
         },
-      {
-      },
         {
             "transactionFeeSchedule": {
                 "hederaFunctionality": "NodeUpdate",
@@ -1728,8 +1726,6 @@
                 ]
             }
         },
-      {
-      },
         {
             "transactionFeeSchedule": {
                 "hederaFunctionality": "NodeDelete",
@@ -1776,8 +1772,6 @@
                 ]
             }
         },
-      {
-      },
         {
             "transactionFeeSchedule": {
                 "hederaFunctionality": "TokenBurn",
@@ -5399,8 +5393,6 @@
                 ]
             }
         },
-      {
-      },
         {
             "transactionFeeSchedule": {
                 "hederaFunctionality": "NodeUpdate",
@@ -5447,8 +5439,6 @@
                 ]
             }
         },
-      {
-      },
         {
             "transactionFeeSchedule": {
                 "hederaFunctionality": "NodeDelete",
@@ -5495,8 +5485,6 @@
                 ]
             }
     },
-      {
-      },
     {
         "transactionFeeSchedule" : {
             "hederaFunctionality" : "TokenBurn",
