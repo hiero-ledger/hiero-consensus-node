@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.Units;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -57,13 +58,13 @@ class StakeRewardCalculatorImplTest {
     @BeforeEach
     void setUp() {
         rewardHistory = newRewardHistory();
-        subject = new StakeRewardCalculatorImpl(stakePeriodManager);
+        subject = new StakeRewardCalculatorImpl(stakePeriodManager, new DenominationConverter(8));
     }
 
     @Test
     void zeroRewardsForMissingNodeStakeInfo() {
         final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
-                Account.newBuilder().build(), null, 321, 123);
+                Account.newBuilder().build(), null, 321, 123, Units.HBARS_TO_TINYBARS);
         assertEquals(0, reward);
     }
 
@@ -71,7 +72,7 @@ class StakeRewardCalculatorImplTest {
     void zeroRewardsForDeletedNodeStakeInfo() {
         final var stakingInfo = StakingNodeInfo.newBuilder().deleted(true).build();
         final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
-                Account.newBuilder().build(), stakingInfo, 321, 123);
+                Account.newBuilder().build(), stakingInfo, 321, 123, Units.HBARS_TO_TINYBARS);
         assertEquals(0, reward);
     }
 

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -26,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLib
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.config.data.ContractsConfig;
@@ -80,6 +82,9 @@ public class ContractServiceImpl implements ContractService {
         final var contractMetrics = new ContractMetrics(metrics, contractsConfigSupplier, systemContractMethodRegistry);
         final var nativeLibVerifier = new NativeLibVerifier(contractsConfigSupplier);
 
+        final var nativeCoinConfig =
+                appContext.configSupplier().get().getConfigData(NativeCoinConfig.class);
+        final var denominationConverter = new DenominationConverter(nativeCoinConfig.decimals());
         this.component = DaggerContractServiceComponent.factory()
                 .create(
                         appContext.instantSource(),
@@ -92,7 +97,8 @@ public class ContractServiceImpl implements ContractService {
                         systemContractMethodRegistry,
                         customOps,
                         appContext.idFactory(),
-                        nativeLibVerifier);
+                        nativeLibVerifier,
+                        denominationConverter);
     }
 
     @Override
