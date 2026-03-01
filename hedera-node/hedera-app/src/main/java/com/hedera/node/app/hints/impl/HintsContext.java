@@ -43,6 +43,8 @@ public class HintsContext {
     // For a quiesced network, a hinTS signature could in principle take an entire day to aggregate
     private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofDays(1);
 
+    public static final String INVALID_AGGREGATE_SIGNATURE_MESSAGE = "Aggregate hinTS signature was invalid";
+
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
@@ -99,18 +101,6 @@ public class HintsContext {
      */
     public boolean isReady() {
         return construction != null && construction.hasHintsScheme();
-    }
-
-    /**
-     * Returns the current scheme ids, or throws if they are unset.
-     * @return the active scheme id
-     * @throws IllegalStateException if the scheme id is unset
-     */
-    public long activeSchemeIdOrThrow() {
-        if (schemeId == 0) {
-            throw new IllegalStateException("No scheme id set");
-        }
-        return schemeId;
     }
 
     /**
@@ -189,11 +179,13 @@ public class HintsContext {
         return new Signing(
                 blockHash,
                 threshold,
+                divisor,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 nodeWeights,
                 verificationKey,
-                onCompletion);
+                onCompletion,
+                tssConfig.validateBlockSignatures());
     }
 
     /**
@@ -220,8 +212,11 @@ public class HintsContext {
     public class Signing {
         private final long startNanos;
         private final long thresholdWeight;
+        private final long thresholdDenominator;
+        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+        private final boolean validateSignature;
         private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
@@ -232,14 +227,19 @@ public class HintsContext {
         public Signing(
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
+                final long thresholdDenominator,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
-                @NonNull final Runnable onCompletion) {
+                @NonNull final Runnable onCompletion,
+                final boolean validateSignature) {
             this.startNanos = System.nanoTime();
             this.thresholdWeight = thresholdWeight;
+            this.validateSignature = validateSignature;
+            this.thresholdDenominator = thresholdDenominator;
             requireNonNull(onCompletion);
+            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
@@ -304,9 +304,16 @@ public class HintsContext {
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
-                future.complete(aggregatedSignature);
-                final long elapsedNanos = System.nanoTime() - startNanos;
-                signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
+                final boolean valid = !validateSignature
+                        || library.verifyAggregate(
+                                aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
+                if (valid) {
+                    future.complete(aggregatedSignature);
+                    final long elapsedNanos = System.nanoTime() - startNanos;
+                    signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
+                } else {
+                    future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
+                }
             }
         }
     }

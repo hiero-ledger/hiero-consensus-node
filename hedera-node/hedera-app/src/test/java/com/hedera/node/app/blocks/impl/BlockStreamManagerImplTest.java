@@ -51,6 +51,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
@@ -81,11 +82,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.bouncycastle.util.Arrays;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -337,7 +340,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -423,6 +426,44 @@ class BlockStreamManagerImplTest {
 
         // Verify signer was checked but never asked to sign
         verify(blockHashSigner, never()).sign(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void coversExceptionallyCallbackOfSignatureFuture() {
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        // Initialize the last (N-1) block hash
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        assertTrue(subject.endRound(state, ROUND_NO));
+
+        final ArgumentCaptor<Function<Throwable, ? extends Void>> exceptionHandlerCaptor =
+                ArgumentCaptor.forClass((Class) Function.class);
+        verify(postAcceptFuture).exceptionally(exceptionHandlerCaptor.capture());
+        final var exceptionHandler = exceptionHandlerCaptor.getValue();
+        assertNull(exceptionHandler.apply(
+                new CompletionException(new IllegalStateException(HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE))));
+        assertNull(exceptionHandler.apply(new RuntimeException("boom")));
+        verify(aWriter, never()).closeCompleteBlock();
     }
 
     @Test
@@ -566,7 +607,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -644,6 +685,8 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(blockHashSigner.sign(any()))
                 .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
                 .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
@@ -717,7 +760,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -807,7 +850,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -848,7 +891,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -922,7 +965,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -999,7 +1042,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1064,7 +1107,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1127,6 +1170,8 @@ class BlockStreamManagerImplTest {
         // Set up the signature futures
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(blockHashSigner.sign(any()))
                 .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, firstSignature))
                 .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, secondSignature));
@@ -1206,7 +1251,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1244,7 +1289,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1289,7 +1334,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
