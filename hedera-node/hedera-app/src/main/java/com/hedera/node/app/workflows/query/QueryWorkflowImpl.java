@@ -54,6 +54,7 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -67,7 +68,9 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/** Implementation of {@link QueryWorkflow} */
+/**
+ * Implementation of {@link QueryWorkflow}
+ */
 public final class QueryWorkflowImpl implements QueryWorkflow {
 
     private static final Logger logger = LogManager.getLogger(QueryWorkflowImpl.class);
@@ -177,11 +180,14 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 queryHeader = QueryHeader.DEFAULT;
             }
             final ResponseType responseType = queryHeader.responseType();
+            final var configuration = configProvider.getConfiguration();
+            final var useSimpleFees =
+                    configuration.getConfigData(FeesConfig.class).simpleFeesEnabled();
             logger.debug("Started answering a {} query of type {}", function, responseType);
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
                 // 2. Do some general pre-checks
-                final var paymentRequired = handler.requiresNodePayment(responseType);
+                final var paymentRequired = requiresNodePayment(handler, responseType, function, configuration);
                 if (paymentRequired) {
                     ingestChecker.verifyPlatformActive();
                 } else {
@@ -198,7 +204,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 TransactionBody txBody;
                 AccountID payerID = null;
                 if (shouldCharge && paymentRequired) {
-                    final var configuration = configProvider.getConfiguration();
                     final Bytes paymentBytes;
                     try {
                         paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
@@ -249,7 +254,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                             // 3.iv Calculate costs
                             long queryFees;
-                            if (shouldUseSimpleFees(context)) {
+                            if (useSimpleFees) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
                                 queryFees = tinycentsToTinybars(
@@ -290,7 +295,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             state,
                             storeFactory,
                             query,
-                            configProvider.getConfiguration(),
+                            configuration,
                             recordCache,
                             exchangeRateManager,
                             feeCalculator,
@@ -309,7 +314,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
                     long queryFees;
-                    if (shouldUseSimpleFees(context)) {
+                    if (useSimpleFees) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                 .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
                         queryFees = tinycentsToTinybars(
@@ -355,29 +360,14 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
     }
 
-    private boolean shouldUseSimpleFees(QueryContext context) {
-        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return false;
-        }
-        return switch (context.query().query().kind()) {
-            case CONSENSUS_GET_TOPIC_INFO,
-                    SCHEDULE_GET_INFO,
-                    FILE_GET_CONTENTS,
-                    FILE_GET_INFO,
-                    TOKEN_GET_INFO,
-                    TOKEN_GET_NFT_INFO,
-                    CRYPTO_GET_INFO,
-                    CRYPTO_GET_ACCOUNT_RECORDS,
-                    CRYPTOGET_ACCOUNT_BALANCE,
-                    NETWORK_GET_VERSION_INFO,
-                    TRANSACTION_GET_RECORD,
-                    TRANSACTION_GET_RECEIPT,
-                    GET_BY_KEY,
-                    CONTRACT_CALL_LOCAL,
-                    CONTRACT_GET_BYTECODE,
-                    CONTRACT_GET_INFO -> true;
-            default -> false;
-        };
+    private boolean requiresNodePayment(
+            @NonNull final QueryHandler handler,
+            @NonNull final ResponseType responseType,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final Configuration configuration) {
+        return configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
+                ? !feeManager.isFreeQuery(functionality)
+                : handler.requiresNodePayment(responseType);
     }
 
     private Query parseQuery(Bytes requestBuffer) {

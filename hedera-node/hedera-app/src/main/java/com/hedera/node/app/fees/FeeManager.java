@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -342,5 +343,20 @@ public final class FeeManager {
     @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
+    }
+
+    /**
+     * Returns whether the given functionality is marked as free in the currently loaded simple fee schedule.
+     *
+     * @param functionality the query functionality
+     * @return true if the functionality exists in simple fees and is marked free
+     */
+    public boolean isFreeQuery(@NonNull final HederaFunctionality functionality) {
+        requireNonNull(functionality);
+        if (simpleFeesSchedule == null) {
+            return false;
+        }
+        final var serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
+        return serviceFeeDefinition != null && serviceFeeDefinition.free();
     }
 }

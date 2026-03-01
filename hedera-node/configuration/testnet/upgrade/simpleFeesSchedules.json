@@ -130,7 +130,8 @@
         {
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "CryptoGetInfo",
@@ -593,10 +594,21 @@
         {
           "name": "TransactionGetReceipt",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "GetByKey",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "SystemDelete",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "SystemUndelete",
           "baseFee": 0,
           "extras": []
         }
