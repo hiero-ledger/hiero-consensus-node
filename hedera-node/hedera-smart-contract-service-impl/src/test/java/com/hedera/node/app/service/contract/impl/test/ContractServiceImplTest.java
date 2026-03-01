@@ -22,6 +22,8 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.config.data.NativeCoinConfig;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import java.time.InstantSource;
@@ -54,6 +56,10 @@ class ContractServiceImplTest {
     @BeforeEach
     void setUp() {
         // given
+        final var configuration = mock(Configuration.class);
+        final var nativeCoinConfig = new NativeCoinConfig(8);
+        when(configuration.getConfigData(NativeCoinConfig.class)).thenReturn(nativeCoinConfig);
+        when(appContext.configSupplier()).thenReturn(() -> configuration);
         when(appContext.instantSource()).thenReturn(instantSource);
         when(appContext.signatureVerifier()).thenReturn(signatureVerifier);
         when(appContext.idFactory()).thenReturn(entityIdFactory);

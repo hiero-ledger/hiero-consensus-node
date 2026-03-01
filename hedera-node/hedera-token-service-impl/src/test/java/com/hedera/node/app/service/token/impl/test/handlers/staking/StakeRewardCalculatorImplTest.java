@@ -23,9 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -183,6 +187,107 @@ class StakeRewardCalculatorImplTest {
         var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
 
         assertEquals(0, reward);
+    }
+
+    @ParameterizedTest
+    @MethodSource("decimalsAndSubunits")
+    void computeRewardFromDetailsScalesWithSubunitsPerWholeUnit(
+            final int decimals, final long subunitsPerWholeUnit) {
+        // Use whole-unit counts that won't overflow long at 18 decimals
+        final long wholeUnits = decimals <= 8 ? 100L : 5L;
+        final long totalStake = wholeUnits * subunitsPerWholeUnit;
+
+        // rewardHistory: [5, 0, 0, ...]
+        final var history = newRewardHistory();
+        final var info = StakingNodeInfo.newBuilder()
+                .rewardSumHistory(history)
+                .build();
+
+        final var acct = Account.newBuilder()
+                .tinybarBalance(totalStake)
+                .stakedToMe(0L)
+                .stakeAtStartOfLastRewardedPeriod(-1L)
+                .build();
+
+        // currentStakePeriod=10, effectiveStart=8 → rewardFrom=1
+        // reward = totalStake / subunitsPerWholeUnit * (5 - 0) = wholeUnits * 5
+        final long reward =
+                StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 8, subunitsPerWholeUnit);
+
+        assertEquals(wholeUnits * 5, reward);
+    }
+
+    @ParameterizedTest
+    @MethodSource("decimalsAndSubunits")
+    void computeRewardFromDetailsTruncatesFractionalWholeUnits(
+            final int decimals, final long subunitsPerWholeUnit) {
+        // For decimals > 0, fractional whole units are truncated by integer division
+        // For decimals == 0, subunitsPerWholeUnit == 1, so there are no fractional units
+        if (decimals == 0) {
+            return;
+        }
+
+        final long wholeUnits = decimals <= 8 ? 100L : 5L;
+        // Add half a whole unit (fractional)
+        final long totalStake = wholeUnits * subunitsPerWholeUnit + subunitsPerWholeUnit / 2;
+
+        final var history = newRewardHistory();
+        final var info = StakingNodeInfo.newBuilder()
+                .rewardSumHistory(history)
+                .build();
+
+        final var acct = Account.newBuilder()
+                .tinybarBalance(totalStake)
+                .stakedToMe(0L)
+                .stakeAtStartOfLastRewardedPeriod(-1L)
+                .build();
+
+        // Integer division truncates the half unit → same as wholeUnits * 5
+        final long reward =
+                StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 8, subunitsPerWholeUnit);
+
+        assertEquals(wholeUnits * 5, reward);
+    }
+
+    @ParameterizedTest
+    @MethodSource("decimalsAndSubunits")
+    void computeRewardFromDetailsWithStakeAtStartOfLastRewardedPeriod(
+            final int decimals, final long subunitsPerWholeUnit) {
+        final long wholeUnits = decimals <= 8 ? 100L : 5L;
+        final long priorWholeUnits = decimals <= 8 ? 90L : 4L;
+
+        // rewardHistory: [6, 3, 1, 0, 0, ...]
+        final var history = newRewardHistory();
+        history.set(0, 6L);
+        history.set(1, 3L);
+        history.set(2, 1L);
+
+        final var info = StakingNodeInfo.newBuilder()
+                .rewardSumHistory(history)
+                .build();
+
+        final var acct = Account.newBuilder()
+                .tinybarBalance(2 * subunitsPerWholeUnit)
+                .stakedToMe((wholeUnits - 2) * subunitsPerWholeUnit)
+                .stakeAtStartOfLastRewardedPeriod(priorWholeUnits * subunitsPerWholeUnit)
+                .build();
+
+        // currentStakePeriod=10, effectiveStart=6 → rewardFrom=3
+        // Two-step: priorWholeUnits * (rewardHistory[2] - rewardHistory[3])
+        //         + wholeUnits * (rewardHistory[0] - rewardHistory[2])
+        // = priorWholeUnits * (1 - 0) + wholeUnits * (6 - 1)
+        final long expected = priorWholeUnits + wholeUnits * 5;
+        final long reward =
+                StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 6, subunitsPerWholeUnit);
+
+        assertEquals(expected, reward);
+    }
+
+    static Stream<Arguments> decimalsAndSubunits() {
+        return Stream.of(
+                Arguments.of(0, 1L),
+                Arguments.of(8, 100_000_000L),
+                Arguments.of(18, 1_000_000_000_000_000_000L));
     }
 
     private void setUpMocks() {
