@@ -83,6 +83,7 @@ jobs:
       enable-hapi-tests: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-otter-tests: "${{ inputs.enable-otter-tests || 'false' }}"
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"

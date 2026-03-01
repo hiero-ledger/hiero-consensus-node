@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -32,7 +31,6 @@ public class DisabledPrecompileTest {
 
     @HapiTest
     @DisplayName("Calling a disabled precompile reverts")
-    @Tag(MATS)
     public Stream<DynamicTest> callDisabledPrecompile() {
         return hapiTest(
                 overriding("contracts.precompile.disabled", "2"),
@@ -42,7 +40,6 @@ public class DisabledPrecompileTest {
 
     @HapiTest
     @DisplayName("Calling a enabled precompile is successful")
-    @Tag(MATS)
     public Stream<DynamicTest> callEnabledPrecompile() {
         return hapiTest(
                 overriding("contracts.precompile.disabled", ""),

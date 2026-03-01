@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -401,7 +400,6 @@ public class LazyCreateThroughPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> erc721TransferFromLazyCreate() {
         return hapiTest(
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
@@ -566,7 +564,6 @@ public class LazyCreateThroughPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> htsTransferFromForNFTLazyCreate() {
         return hapiTest(
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),

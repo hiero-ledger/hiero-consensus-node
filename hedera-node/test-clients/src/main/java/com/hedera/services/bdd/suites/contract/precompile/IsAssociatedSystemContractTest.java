@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.anyResult;
@@ -56,7 +55,6 @@ public class IsAssociatedSystemContractTest {
 
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated")
-    @Tag(MATS)
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociated() {
         return hapiTest(
                 assertEoaGetsResultForBothTokens(false),
@@ -68,7 +66,6 @@ public class IsAssociatedSystemContractTest {
 
     @HapiTest
     @DisplayName("returns true for contract msg.sender exactly when associated")
-    @Tag(MATS)
     public Stream<DynamicTest> returnsTrueIffContractMsgSenderIsAssociated() {
         return hapiTest(
                 assertContractGetsResultForBothTokens(false),

@@ -37,6 +37,7 @@ jobs:
       enable-hapi-tests: "true"
       enable-hapi-tests-crypto: "true"
       enable-hapi-tests-token: "true"
+      enable-hapi-tests-smart-contract: "true"
       enable-otter-tests: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"

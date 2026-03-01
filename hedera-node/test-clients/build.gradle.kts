@@ -75,6 +75,7 @@ val basePrCheckTags =
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
+        "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
@@ -86,7 +87,14 @@ val basePrCheckTags =
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial")
+    setOf(
+        "hapiTestCrypto",
+        "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
+        "hapiTestSmartContract",
+        "hapiTestSmartContractSerial",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
@@ -113,6 +121,8 @@ val remoteCheckTags =
                     "hapiTestRestartMATS",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
+                    "hapiTestSmartContract",
+                    "hapiTestSmartContractSerial",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
@@ -132,6 +142,7 @@ val prCheckStartPorts =
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
         put("hapiTestTokenSerial", "27800")
+        put("hapiTestSmartContractSerial", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -156,6 +167,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
+        put("hapiTestSmartContractSerial", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -191,7 +203,12 @@ val prCheckPrepareUpgradeOffsets =
         }
     }
 // Note: no MATS variants needed for history proofs
-val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
+val prCheckNumHistoryProofsToObserve =
+    mapOf(
+        "hapiTestAdhoc" to "0",
+        "hapiTestSmartContract" to "0",
+        "hapiTestSmartContractSerial" to "0",
+    )
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
@@ -201,6 +218,7 @@ val prCheckNetSizeOverrides =
         put("hapiTestToken", "3")
         put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
+        put("hapiTestSmartContractSerial", "4")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
@@ -215,8 +233,9 @@ tasks {
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
                 if (
-                    (taskName.contains("Crypto") || taskName.contains("Token")) &&
-                        !taskName.contains("Serial")
+                    (taskName.contains("Crypto") ||
+                        taskName.contains("Token") ||
+                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"

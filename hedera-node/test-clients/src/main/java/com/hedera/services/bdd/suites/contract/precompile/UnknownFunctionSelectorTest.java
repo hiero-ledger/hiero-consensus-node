@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -48,7 +47,6 @@ public class UnknownFunctionSelectorTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callScheduleServiceWithUnknownSelector(@Account final SpecAccount receiver) {
 
         final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
@@ -83,7 +81,6 @@ public class UnknownFunctionSelectorTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callTokenServiceWithUnknownSelector() {
         return hapiTest(
                 withOpContext((spec, opLog) -> allRunFor(
