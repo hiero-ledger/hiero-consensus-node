@@ -31,6 +31,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -119,7 +120,8 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         when(configProvider.getConfiguration()).thenReturn(versionedConfig);
-        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory, null);
+        subject = new FinalizeRecordHandler(
+                stakingRewardsHandler, configProvider, entityIdFactory, new DenominationConverter(8), null);
     }
 
     @Test
