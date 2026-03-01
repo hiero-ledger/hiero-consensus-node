@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.asStakingRewardBuilder;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeExtendedRewardSumHistory;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeNewStakes;
@@ -139,7 +138,7 @@ public class EndOfStakingPeriodUpdater {
 
             // The amount of pending rewards that stakers could collect from this period
             final var pendingRewards = (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart())
-                    / HBARS_TO_TINYBARS
+                    / denominationConverter.subunitsPerWholeUnit()
                     * nodeRewardRate;
             final var newStakes = computeNewStakes(nodeInfo, stakingConfig);
             log.info(
@@ -216,7 +215,7 @@ public class EndOfStakingPeriodUpdater {
         final var balanceRatio = ratioOf(unreservedBalance, stakingConfig.rewardBalanceThreshold());
         final var rewardRate = rescaledPerHbarRewardRate(
                 balanceRatio, stakedToReward, stakingConfig.perHbarRewardRate(), stakingConfig.maxStakeRewarded());
-        return stakedToReward < HBARS_TO_TINYBARS ? 0 : rewardRate;
+        return stakedToReward < denominationConverter.subunitsPerWholeUnit() ? 0 : rewardRate;
     }
 
     /**
