@@ -378,14 +378,18 @@ public class ParentTxnFactory {
                 preHandleWorkflow,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
-        if (streamMode != RECORDS) {
+        final boolean isHighVolumePriced = txnInfo.txBody().highVolume()
+                && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality());
+        // High-volume pricing and congestion multipliers are mutually exclusive; only record the
+        // one that was actually applied to the fee so the block stream is not misleading.
+        if (streamMode != RECORDS && !isHighVolumePriced) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
         }
-        if (txnInfo.txBody().highVolume() && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality())) {
+        if (isHighVolumePriced) {
             baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
         }
         return new RecordDispatch(

@@ -67,6 +67,8 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -511,8 +513,13 @@ public class ThrottleAccumulator {
             transferImplicitCreationsCount = getImplicitCreationsCount(txBody, accountStore);
         }
 
-        // Check if this is a high-volume transaction and use appropriate throttle bucket
-        final boolean isHighVolumeTxn = txBody.highVolume();
+        // Check if this is a high-volume transaction and use appropriate throttle bucket.
+        // Verify feature flags here (mirrors the ingest-time guard in IngestChecker) so a config
+        // toggle between ingest and consensus does not silently route to the wrong throttle bucket.
+        final boolean highVolumeEnabled =
+                configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
+                        && configuration.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+        final boolean isHighVolumeTxn = txBody.highVolume() && highVolumeEnabled;
         final boolean isHighVolumeFunction = HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function);
         final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(
                 isHighVolumeTxn, isHighVolumeFunction, function, transferImplicitCreationsCount);
@@ -528,7 +535,8 @@ public class ThrottleAccumulator {
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
+            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(
+                    effectiveManager, txnInfo, now, state, throttleUsages, useHighVolumeBucket);
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
@@ -577,7 +585,14 @@ public class ThrottleAccumulator {
         if (function != CRYPTO_TRANSFER) {
             return true;
         }
-        return transferImplicitCreationsCount > 0;
+        if (transferImplicitCreationsCount > 0) {
+            return true;
+        }
+        // A CRYPTO_TRANSFER with highVolume=true but no implicit creations receives no throttle or
+        // pricing benefit from the flag.  Log at DEBUG level to aid diagnosis without flooding logs.
+        log.debug(
+                "CRYPTO_TRANSFER has highVolume=true but no implicit creations; high-volume flag has no effect");
+        return false;
     }
 
     private boolean shouldThrottleScheduleCreate(
@@ -585,7 +600,8 @@ public class ThrottleAccumulator {
             final TransactionInfo txnInfo,
             final Instant now,
             final State state,
-            List<ThrottleUsage> throttleUsages) {
+            List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
@@ -620,7 +636,8 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, false);
+                        return shouldThrottleImplicitCreations(
+                                implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
                     }
                 }
             }

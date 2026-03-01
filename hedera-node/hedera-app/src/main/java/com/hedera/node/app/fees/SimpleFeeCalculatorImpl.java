@@ -14,6 +14,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -135,8 +137,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var functionality = simpleFeeContext.functionality();
         final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
 
-        // Apply high-volume pricing multiplier if applicable (HIP-1313)
-        if (txnBody.highVolume() && isHighVolumeFunction) {
+        // Apply high-volume pricing multiplier if applicable (HIP-1313).
+        // Also verify feature flags at consensus time to match the ingest-time guard in IngestChecker,
+        // so that a flag toggle between ingest and consensus does not silently misprice the transaction.
+        if (txnBody.highVolume() && isHighVolumeFunction && isHighVolumeFeatureEnabled(simpleFeeContext)) {
             applyHighVolumeMultiplier(simpleFeeContext, result);
         } else {
             // Apply congestion multiplier if available
@@ -200,10 +204,32 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 .fee();
     }
 
+    /**
+     * Returns {@code true} when the high-volume feature is fully enabled, by checking both the
+     * {@code fees.simpleFeesEnabled} and {@code networkAdmin.highVolumeThrottlesEnabled} flags
+     * against the current configuration.  This mirrors the ingest-time guard in {@code IngestChecker}
+     * so that a config change between ingest and consensus cannot silently bypass the feature gate.
+     * Returns {@code false} when no {@link FeeContext} is available (standalone calculator).
+     */
+    private boolean isHighVolumeFeatureEnabled(@NonNull final SimpleFeeContext simpleFeeContext) {
+        final var feeContext = simpleFeeContext.feeContext();
+        if (feeContext == null) {
+            return false;
+        }
+        final var config = feeContext.configuration();
+        return config.getConfigData(FeesConfig.class).simpleFeesEnabled()
+                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+    }
+
     @Override
     public long highVolumeRawMultiplier(@NonNull final TransactionBody txnBody, @NonNull final FeeContext feeContext) {
         final var functionality = feeContext.functionality();
         if (!txnBody.highVolume() || !HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality)) {
+            return DEFAULT_HIGH_VOLUME_MULTIPLIER;
+        }
+        final var config = feeContext.configuration();
+        if (!(config.getConfigData(FeesConfig.class).simpleFeesEnabled()
+                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled())) {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
