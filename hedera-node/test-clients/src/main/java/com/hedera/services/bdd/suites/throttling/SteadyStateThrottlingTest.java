@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
-import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.junit.TestTags.STATE_THROTTLING;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -66,7 +66,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(LONG_RUNNING)
+@Tag(STATE_THROTTLING)
 @OrderedInIsolation
 public class SteadyStateThrottlingTest {
     private static final int REGRESSION_NETWORK_SIZE = 4;

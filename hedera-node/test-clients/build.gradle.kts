@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
@@ -77,16 +77,26 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscRecords" to miscTags,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial")
+    setOf(
+        "hapiTestCrypto",
+        "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
+        "hapiTestTimeConsuming",
+        "hapiTestTimeConsumingSerial",
+        "hapiTestStateThrottling",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
@@ -132,6 +142,8 @@ val prCheckStartPorts =
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
         put("hapiTestTokenSerial", "27800")
+        put("hapiTestTimeConsumingSerial", "28000")
+        put("hapiTestStateThrottling", "28200")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -165,6 +177,8 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -215,8 +229,9 @@ tasks {
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
                 if (
-                    (taskName.contains("Crypto") || taskName.contains("Token")) &&
-                        !taskName.contains("Serial")
+                    (taskName.contains("Crypto") ||
+                        taskName.contains("Token") ||
+                        taskName.contains("TimeConsuming")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
