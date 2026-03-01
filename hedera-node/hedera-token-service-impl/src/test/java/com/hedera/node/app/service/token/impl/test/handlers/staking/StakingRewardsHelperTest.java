@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
-import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.MAX_PENDING_REWARDS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -9,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -28,6 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
+    private static final DenominationConverter DENOMINATION_CONVERTER = new DenominationConverter(8);
+    private static final long MAX_PENDING_REWARDS = 50_000_000_000L * DENOMINATION_CONVERTER.subunitsPerWholeUnit();
+
     @LoggingTarget
     private LogCaptor logCaptor;
 
@@ -42,7 +45,7 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
         super.setUp();
         refreshWritableStores();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
-        subject = new StakingRewardsHelper(configProvider);
+        subject = new StakingRewardsHelper(configProvider, DENOMINATION_CONVERTER);
     }
 
     @Test

@@ -23,6 +23,7 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -92,7 +93,9 @@ public class EndOfStakingPeriodUpdaterTest {
                 .tinybarBalance(100_000_000_000L)
                 .build());
         subject = new EndOfStakingPeriodUpdater(
-                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER, entityIdFactory);
+                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER, new DenominationConverter(8)),
+                DEFAULT_CONFIG_PROVIDER,
+                entityIdFactory);
     }
 
     @Test

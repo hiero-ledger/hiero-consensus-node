@@ -84,11 +84,11 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.consensusTime()).willReturn(consensusInstant);
         givenStoresAndConfig(context);
 
-        stakingRewardHelper = new StakingRewardsHelper(configProvider);
+        final var denominationConverter = new DenominationConverter(8);
+        stakingRewardHelper = new StakingRewardsHelper(configProvider, denominationConverter);
         stakePeriodManager = new StakePeriodManager(configProvider, instantSource);
         stakeRewardCalculator = new StakeRewardCalculatorImpl(stakePeriodManager);
         rewardsPayer = new StakingRewardsDistributor(stakingRewardHelper, stakeRewardCalculator);
-        final var denominationConverter = new DenominationConverter(8);
         stakeInfoHelper = new StakeInfoHelper(denominationConverter);
         subject = new StakingRewardsHandlerImpl(rewardsPayer, stakePeriodManager, stakeInfoHelper, entityIdFactory, denominationConverter);
     }
