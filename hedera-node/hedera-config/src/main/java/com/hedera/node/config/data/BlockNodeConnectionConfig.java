@@ -19,6 +19,7 @@ import java.time.Duration;
  * @param maxBehindPublishersAllowed the limit of BehindPublisher responses allowed within a time frame
  * @param behindPublisherTimeFrame the time frame in seconds to check for BehindPublisher responses
  * @param behindPublisherScheduleDelay the delay in seconds to schedule connections after the BehindPublisher limit is reached
+ * @param behindPublisherIgnorePeriod the duration to ignore BehindPublisher messages after receiving the first one
  * @param streamResetPeriod the period in hours to periodically reset the stream, once a day should be enough
  * @param protocolExpBackoffTimeframeReset if a connection has not been rescheduled during the timeframe, reset the exponential backoff
  * @param highLatencyThreshold threshold above which a block acknowledgement is considered high latency
@@ -50,6 +51,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "1") @NodeProperty int maxBehindPublishersAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherScheduleDelay,
+        @ConfigProperty(defaultValue = "5s") @NodeProperty Duration behindPublisherIgnorePeriod,
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration highLatencyThreshold,
