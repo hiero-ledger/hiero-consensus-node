@@ -59,7 +59,7 @@ public class StakingRewardsHelper {
                 .getConfiguration()
                 .getConfigData(StakingConfig.class)
                 .assumeContiguousPeriods();
-        this.maxPendingRewards = 50_000_000_000L * denominationConverter.subunitsPerWholeUnit();
+        this.maxPendingRewards = Math.multiplyExact(50_000_000_000L, denominationConverter.subunitsPerWholeUnit());
     }
 
     /**
@@ -239,17 +239,19 @@ public class StakingRewardsHelper {
         }
         if (newNetworkPendingRewards > maxPendingRewards) {
             log.error(
-                    "Pending rewards increased by {} to an un-payable {}, fixing to 50B hbar",
+                    "Pending rewards increased by {} to an un-payable {}, capping at {}",
                     amount,
-                    newNetworkPendingRewards);
+                    newNetworkPendingRewards,
+                    maxPendingRewards);
             newNetworkPendingRewards = maxPendingRewards;
         }
         if (newNodePendingRewards > maxPendingRewards) {
             log.error(
-                    "Pending rewards increased by {} to an un-payable {} for node {}, fixing to 50B hbar",
+                    "Pending rewards increased by {} to an un-payable {} for node {}, capping at {}",
                     amount,
                     newNodePendingRewards,
-                    currStakingInfo.nodeNumber());
+                    currStakingInfo.nodeNumber(),
+                    maxPendingRewards);
             newNodePendingRewards = maxPendingRewards;
         }
         final var stakingRewards = stakingRewardsStore.get();

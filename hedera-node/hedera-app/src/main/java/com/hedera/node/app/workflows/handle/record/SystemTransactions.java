@@ -65,6 +65,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -412,7 +413,7 @@ public class SystemTransactions {
         fileService.createSystemEntities(systemContext, nodeStore);
 
         // And dispatch a node stake update transaction for mirror node benefit
-        final var subunitsPerWholeUnit = new com.hedera.node.app.service.token.DenominationConverter(
+        final var subunitsPerWholeUnit = new DenominationConverter(
                         configProvider.getConfiguration().getConfigData(NativeCoinConfig.class).decimals())
                 .subunitsPerWholeUnit();
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(

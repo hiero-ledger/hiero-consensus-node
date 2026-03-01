@@ -17,6 +17,8 @@ import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
     private static final DenominationConverter DENOMINATION_CONVERTER = new DenominationConverter(8);
-    private static final long MAX_PENDING_REWARDS = 50_000_000_000L * DENOMINATION_CONVERTER.subunitsPerWholeUnit();
+    private static final long MAX_PENDING_REWARDS =
+            Math.multiplyExact(50_000_000_000L, DENOMINATION_CONVERTER.subunitsPerWholeUnit());
 
     @LoggingTarget
     private LogCaptor logCaptor;
@@ -206,7 +209,17 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
         assertThat(logCaptor.errorLogs())
                 .contains(
-                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807, fixing to 50B hbar",
-                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807 for node 0, fixing to 50B hbar");
+                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807, capping at "
+                                + MAX_PENDING_REWARDS,
+                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807 for node 0, capping at "
+                                + MAX_PENDING_REWARDS);
+    }
+
+    @Test
+    void maxPendingRewardsOverflowsAtHighDecimals() {
+        // 50_000_000_000 * 10^18 overflows long; Math.multiplyExact should throw
+        final var highDecimalConverter = new DenominationConverter(18);
+        assertThatThrownBy(() -> new StakingRewardsHelper(configProvider, highDecimalConverter))
+                .isInstanceOf(ArithmeticException.class);
     }
 }
