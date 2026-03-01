@@ -93,3 +93,72 @@ jobs:
                 echo "------------------------------------"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Download Test Report Artifacts
+        id: download-test-reports
+        if: ${{ !cancelled() && always() }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: "*Test*Report*"
+          path: test-reports/
+
+      - name: Collect Flaky Tests
+        id: collect-flaky-tests
+        if: ${{ !cancelled() && always() && steps.download-test-reports.outcome == 'success' }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
+            "test-reports" \
+            "flaky-tests.txt"
+          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+          if [[ "${FLAKY_COUNT}" -gt 0 ]]; then
+            {
+              echo "flaky-tests<<EOF"
+              cat flaky-tests.txt
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Comment Flaky Tests on PR
+        if: ${{ !cancelled() && always() && steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const flakyTests = `${{ steps.collect-flaky-tests.outputs.flaky-tests }}`.trim().split('\n').filter(Boolean);
+            const marker = '<!-- flaky-test-report -->';
+
+            let body = marker + '\n';
+            body += '## Flaky Tests Detected\n\n';
+            body += 'The following tests were flaky in this CI run (failed initially but passed on retry):\n\n';
+            body += '| Test |\n';
+            body += '|------|\n';
+            for (const test of flakyTests) {
+              body += `| \`${test}\` |\n`;
+            }
+            body += '\n> **Note:** Flaky tests are informational only and do not block this PR.\n';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: body,
+              });
+            }
