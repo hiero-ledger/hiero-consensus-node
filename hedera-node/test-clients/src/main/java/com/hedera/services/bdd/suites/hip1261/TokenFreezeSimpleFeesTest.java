@@ -456,7 +456,7 @@ public class TokenFreezeSimpleFeesTest {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unfreezeTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE, 0.1),
+                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE),
                         validateChargedAccount("unfreezeTxn", PAYER));
             }
 

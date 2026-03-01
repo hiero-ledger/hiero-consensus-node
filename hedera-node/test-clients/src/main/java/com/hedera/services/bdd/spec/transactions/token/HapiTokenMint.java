@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenFeeScheduleUpdate.lookupInfo;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -15,6 +16,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -53,18 +55,21 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         this.amount = amount;
         this.metadata = Collections.emptyList();
         this.subType = figureSubType();
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiTokenMint(final String token, final List<ByteString> metadata) {
         this.token = token;
         this.metadata = metadata;
         this.subType = figureSubType();
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiTokenMint(final String token, final List<ByteString> metadata, final String txNamePrefix) {
         this.token = token;
         this.metadata = metadata;
         this.amount = 0;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiTokenMint(final String token, final List<ByteString> metadata, final long amount) {
@@ -72,6 +77,7 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         this.metadata = metadata;
         this.amount = amount;
         this.subType = figureSubType();
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiTokenMint rememberingNothing() {

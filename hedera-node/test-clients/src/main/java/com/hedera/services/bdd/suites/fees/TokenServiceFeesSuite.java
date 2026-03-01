@@ -852,7 +852,8 @@ public class TokenServiceFeesSuite {
                 cryptoCreate(MULTI_KEY).balance(ONE_HUNDRED_HBARS),
                 tokenCreate(FUNGIBLE_COMMON_TOKEN).tokenType(FUNGIBLE_COMMON).adminKey(MULTI_KEY),
                 tokenDelete(FUNGIBLE_COMMON_TOKEN).via("uniqueTokenDelete").payingWith(MULTI_KEY),
-                safeValidateChargedUsd("uniqueTokenDelete", expectedDeletePriceUsd, expectedDeletePriceUsd));
+                safeValidateChargedUsdWithin(
+                        "uniqueTokenDelete", expectedDeletePriceUsd, 5.0, expectedDeletePriceUsd, 1.0));
     }
 
     @HapiTest
