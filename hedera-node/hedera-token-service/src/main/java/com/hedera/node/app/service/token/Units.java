@@ -9,6 +9,10 @@ public final class Units {
         throw new UnsupportedOperationException("Utility Class");
     }
 
-    /** Conversion factor from hbar to tinybar. */
+    /**
+     * Conversion factor from hbar to tinybar.
+     * @deprecated Use {@link DenominationConverter#subunitsPerWholeUnit()} instead.
+     */
+    @Deprecated(forRemoval = false)
     public static final long HBARS_TO_TINYBARS = 100_000_000L;
 }

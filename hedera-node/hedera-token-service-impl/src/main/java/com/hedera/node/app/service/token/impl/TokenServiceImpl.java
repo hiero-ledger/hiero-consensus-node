@@ -67,7 +67,12 @@ public class TokenServiceImpl implements TokenService {
 
     public static final long THREE_MONTHS_IN_SECONDS = 7776000L;
     public static final long MAX_SERIAL_NO_ALLOWED = 0xFFFFFFFFL;
+    /**
+     * @deprecated Use {@link com.hedera.node.app.service.token.DenominationConverter#subunitsPerWholeUnit()} instead.
+     */
+    @Deprecated(forRemoval = false)
     public static final long HBARS_TO_TINYBARS = 100_000_000L;
+
     public static final ZoneId ZONE_UTC = ZoneId.of("UTC");
 
     public TokenServiceImpl(@NonNull final AppContext appContext) {
