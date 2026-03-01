@@ -27,8 +27,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.jetbrains.annotations.NotNull;
 
 /**

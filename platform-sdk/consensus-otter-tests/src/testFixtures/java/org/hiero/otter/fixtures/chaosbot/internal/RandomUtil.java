@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.chaosbot.internal;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
 
 /**
  * Utility methods for generating random values.

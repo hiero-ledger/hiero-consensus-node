@@ -61,10 +61,24 @@ message BlockNodeConfig {
     int32 priority = 3;
 
     /**
-     * Optional maximum message size in bytes that the client will send to the block node.
-     * If present, this value SHALL override the default maximum message size.
+     * Optional setting that determines the desired maximum size of messages
+     * sent by the consensus node to a block node. Some block items may exceed
+     * this setting, in which case a request may "burst" up to the configured
+     * hard limit.<br/>
+     * If present, this value SHALL override the default.<br/>
+     * This value MUST be smaller than or equal to the configured hard limit.<br/>
+     * This value MUST be strictly positive.
      */
-    google.protobuf.UInt32Value maxMessageSizeBytes = 4;
+    google.protobuf.UInt64Value messageSizeSoftLimitBytes = 4;
+
+    /**
+     * Optional setting that determines the absolute maximum size of messages
+     * sent by the consensus node to a block node.<br/>
+     * If present, this value SHALL override the default.<br/>
+     * This value MUST be larger than or equal to the configured soft limit.<br/>
+     * This value MUST be strictly positive.
+     */
+    google.protobuf.UInt64Value messageSizeHardLimitBytes = 5;
 }
 
 /**

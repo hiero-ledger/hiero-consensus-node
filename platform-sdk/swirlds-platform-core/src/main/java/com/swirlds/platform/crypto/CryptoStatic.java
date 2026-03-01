@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -35,8 +34,6 @@ import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.Signature;
-import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -68,6 +65,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
@@ -194,6 +192,7 @@ public final class CryptoStatic {
      * @param caDistinguishedName the name of the CA (which in Swirlds is always the same as distinguishedName)
      * @param caPair              the KeyPair of the CA (which in Swirlds is always the signing key pair)
      * @param secureRandom        the random number generator used to generate the certificate
+     * @param signatureAlgorithm  the algorithm used to sign the certificates with the signing key
      * @return the self-signed certificate
      * @throws KeyGeneratingException in any issue occurs
      */
@@ -202,7 +201,8 @@ public final class CryptoStatic {
             KeyPair pair,
             String caDistinguishedName,
             KeyPair caPair,
-            SecureRandom secureRandom)
+            SecureRandom secureRandom,
+            String signatureAlgorithm)
             throws KeyGeneratingException {
         try {
             X509v3CertificateBuilder v3CertBldr = new JcaX509v3CertificateBuilder(
@@ -213,8 +213,8 @@ public final class CryptoStatic {
                     new X500Principal(distinguishedName), // subject
                     pair.getPublic()); // subject public key
 
-            JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder(CryptoConstants.SIG_TYPE2)
-                    .setProvider(BouncyCastleProvider.PROVIDER_NAME);
+            JcaContentSignerBuilder signerBuilder =
+                    new JcaContentSignerBuilder(signatureAlgorithm).setProvider(BouncyCastleProvider.PROVIDER_NAME);
             return new JcaX509CertificateConverter()
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                     .getCertificate(v3CertBldr.build(signerBuilder.build(caPair.getPrivate())));
@@ -251,14 +251,8 @@ public final class CryptoStatic {
         Objects.requireNonNull(signature);
         Objects.requireNonNull(publicKey);
         try {
-            final Signature sig = Signature.getInstance(CryptoConstants.SIG_TYPE2, CryptoConstants.SIG_PROVIDER);
-            sig.initVerify(publicKey);
-            data.updateSignature(sig);
-            return signature.verifySignature(sig);
-        } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
-            // should never happen
-            throw new CryptographyException("Exception occurred while validating a signature:", e, LogMarker.EXCEPTION);
-        } catch (final InvalidKeyException | SignatureException e) {
+            return SigningFactory.createVerifier(publicKey).verify(data, signature);
+        } catch (final CryptographyException e) {
             logger.error(LogMarker.EXCEPTION.getMarker(), "Exception occurred while validating a signature:", e);
             return false;
         }

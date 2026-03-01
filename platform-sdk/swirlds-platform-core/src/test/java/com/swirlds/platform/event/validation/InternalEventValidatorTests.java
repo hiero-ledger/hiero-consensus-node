@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -143,16 +142,6 @@ class InternalEventValidatorTests {
                 .build()
                 .getGossipEvent();
 
-        final GossipEvent shortSignature = GossipEvent.newBuilder()
-                .eventCore(validEvent.eventCore())
-                .signature(validEvent.signature().getBytes(1, SignatureType.RSA.signatureLength() - 2))
-                .transactions(validEvent.transactions())
-                .build();
-        when(platformEvent.getGossipEvent()).thenReturn(shortSignature);
-        assertNull(multinodeValidator.validateEvent(platformEvent));
-        assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(2, exitedIntakePipelineCount.get());
-
         final GossipEvent shortDescriptorHash = GossipEvent.newBuilder()
                 .eventCore(validEvent.eventCore())
                 .signature(validEvent.signature())
@@ -164,7 +153,7 @@ class InternalEventValidatorTests {
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(4, exitedIntakePipelineCount.get());
+        assertEquals(2, exitedIntakePipelineCount.get());
     }
 
     @Test

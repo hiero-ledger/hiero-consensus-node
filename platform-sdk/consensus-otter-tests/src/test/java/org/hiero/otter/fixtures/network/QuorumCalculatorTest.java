@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.network.utils;
+package org.hiero.otter.fixtures.network;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,6 +10,7 @@ import com.swirlds.common.utility.Threshold;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.util.QuorumCalculator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

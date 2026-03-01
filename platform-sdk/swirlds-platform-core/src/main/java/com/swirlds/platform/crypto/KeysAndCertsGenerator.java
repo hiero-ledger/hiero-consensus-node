@@ -16,6 +16,8 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.SigningFactory;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -91,7 +93,8 @@ public class KeysAndCertsGenerator {
                     agreementKeyPair,
                     signingCert.getSubjectX500Principal().getName(),
                     signingKeyPair,
-                    SecureRandom.getInstanceStrong());
+                    SecureRandom.getInstanceStrong(),
+                    CryptoConstants.SIG_TYPE2);
             // add agreement certificate to public stores for later retrieval.
             publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agreementCert, nodeId);
         }
@@ -146,7 +149,7 @@ public class KeysAndCertsGenerator {
         agrDetRandom.setSeed(memberId);
         agrDetRandom.setSeed(AGR_SEED);
 
-        final KeysAndCerts keysAndCerts = generate(nodeId, sigDetRandom, agrDetRandom);
+        final KeysAndCerts keysAndCerts = generate(nodeId, SigningSchema.RSA, sigDetRandom, agrDetRandom);
 
         // add to the trust store (which have references stored here and in the caller)
         publicStores.setCertificate(KeyCertPurpose.SIGNING, keysAndCerts.sigCert(), nodeId);
@@ -160,6 +163,7 @@ public class KeysAndCertsGenerator {
      * used to sign both certs.
      *
      * @param nodeId       the node ID used for the certificate distinguished names
+     * @param schema       the signing schema to use for the signing key pair
      * @param sigDetRandom the source of randomness for generating the signing key pair
      * @param agrDetRandom the source of randomness for generating the agreement key pair
      * @return the generated keys and certs
@@ -167,18 +171,15 @@ public class KeysAndCertsGenerator {
     @NonNull
     public static KeysAndCerts generate(
             @NonNull final NodeId nodeId,
+            @NonNull final SigningSchema schema,
             @NonNull final SecureRandom sigDetRandom,
             @NonNull final SecureRandom agrDetRandom)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
-        final KeyPairGenerator sigKeyGen =
-                KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
         final KeyPairGenerator agrKeyGen =
                 KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
-
-        sigKeyGen.initialize(CryptoConstants.SIG_KEY_SIZE_BITS, sigDetRandom);
         agrKeyGen.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, agrDetRandom);
 
-        final KeyPair sigKeyPair = sigKeyGen.generateKeyPair();
+        final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
         final String nodeName = RosterUtils.formatNodeName(nodeId);
@@ -187,10 +188,10 @@ public class KeysAndCertsGenerator {
 
         // create the 2 certs (java.security.cert.Certificate)
         // both are signed by sigKeyPair, so sigCert is self-signed
-        final X509Certificate sigCert =
-                CryptoStatic.generateCertificate(dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom);
-        final X509Certificate agrCert =
-                CryptoStatic.generateCertificate(dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom);
+        final X509Certificate sigCert = CryptoStatic.generateCertificate(
+                dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom, schema.getSigningAlgorithm());
+        final X509Certificate agrCert = CryptoStatic.generateCertificate(
+                dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
         return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
     }
 

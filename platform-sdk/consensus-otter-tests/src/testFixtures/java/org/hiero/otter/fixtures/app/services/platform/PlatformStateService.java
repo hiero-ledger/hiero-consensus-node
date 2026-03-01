@@ -17,10 +17,10 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
+import org.hiero.otter.fixtures.network.transactions.OtterFreezeTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * The main entry point for the PlatformState service in the Otter application.

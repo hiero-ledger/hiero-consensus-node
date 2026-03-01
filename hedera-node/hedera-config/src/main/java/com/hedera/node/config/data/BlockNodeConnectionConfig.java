@@ -5,6 +5,7 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -25,6 +26,8 @@ import java.time.Duration;
  * @param maxRequestDelay the maximum amount of time between sending a request to a block node
  * @param forcedSwitchRescheduleDelay the delay to reschedule a closed active connection after a forced switch
  * @param pipelineOperationTimeout timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes
+ * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
+ * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -40,7 +43,9 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
         @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
-        @ConfigProperty(defaultValue = "25ms") @NetworkProperty Duration connectionWorkerSleepDuration,
-        @ConfigProperty(defaultValue = "200ms") @NetworkProperty Duration maxRequestDelay,
+        @ConfigProperty(defaultValue = "10ms") @NetworkProperty Duration connectionWorkerSleepDuration,
+        @ConfigProperty(defaultValue = "100ms") @NetworkProperty Duration maxRequestDelay,
         @ConfigProperty(defaultValue = "180s") @NodeProperty Duration forcedSwitchRescheduleDelay,
-        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout) {}
+        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout,
+        @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
+        @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes) {}

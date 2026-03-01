@@ -18,7 +18,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
 
 /**
  * An experiment that introduces low bandwidth to all connections of a target node for a duration.

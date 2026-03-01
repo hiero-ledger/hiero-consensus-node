@@ -66,6 +66,7 @@ import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
@@ -329,7 +330,8 @@ public class EnhancedKeyStoreLoader {
                         agrKeyPair,
                         signingCert.getSubjectX500Principal().getName(),
                         signingKeyPair,
-                        SecureRandom.getInstanceStrong());
+                        SecureRandom.getInstanceStrong(),
+                        CryptoConstants.SIG_TYPE2);
                 agrCertificates.put(nodeId, agrCert);
             }
         }

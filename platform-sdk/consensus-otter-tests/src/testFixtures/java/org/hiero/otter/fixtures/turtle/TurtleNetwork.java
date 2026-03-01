@@ -30,7 +30,7 @@ import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
@@ -99,7 +99,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
         simulatedNetwork.setConnections(connections);
     }
 

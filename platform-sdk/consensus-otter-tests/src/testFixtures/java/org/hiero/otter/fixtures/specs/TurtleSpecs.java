@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle;
+package org.hiero.otter.fixtures.specs;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -18,10 +18,6 @@ public enum SigningImplementation {
      */
     RSA_JDK(RSA, "SunRsaSign"),
     /**
-     * ECDSA implementation using the default JDK security provider.
-     */
-    EC_JDK(SigningSchema.EC, "SunEC"),
-    /**
      * ED25519 implementation using LibSodium JNI library.
      */
     ED25519_SODIUM(SigningSchema.ED25519, "LibSodium"),
