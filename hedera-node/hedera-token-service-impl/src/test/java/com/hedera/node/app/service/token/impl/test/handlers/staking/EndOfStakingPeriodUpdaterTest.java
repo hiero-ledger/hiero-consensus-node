@@ -95,7 +95,8 @@ public class EndOfStakingPeriodUpdaterTest {
         subject = new EndOfStakingPeriodUpdater(
                 new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER, new DenominationConverter(8)),
                 DEFAULT_CONFIG_PROVIDER,
-                entityIdFactory);
+                entityIdFactory,
+                new DenominationConverter(8));
     }
 
     @Test

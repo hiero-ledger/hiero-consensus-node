@@ -94,6 +94,7 @@ import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -411,8 +412,11 @@ public class SystemTransactions {
         fileService.createSystemEntities(systemContext, nodeStore);
 
         // And dispatch a node stake update transaction for mirror node benefit
+        final var subunitsPerWholeUnit = new com.hedera.node.app.service.token.DenominationConverter(
+                        configProvider.getConfiguration().getConfigData(NativeCoinConfig.class).decimals())
+                .subunitsPerWholeUnit();
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
-                lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
+                lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L, subunitsPerWholeUnit);
         systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
     }
 

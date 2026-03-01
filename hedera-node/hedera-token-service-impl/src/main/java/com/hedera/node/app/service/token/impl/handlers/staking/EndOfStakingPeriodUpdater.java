@@ -17,6 +17,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -53,6 +54,7 @@ public class EndOfStakingPeriodUpdater {
     private final AccountsConfig accountsConfig;
     private final StakingRewardsHelper stakeRewardsHelper;
     private final EntityIdFactory entityIdFactory;
+    private final DenominationConverter denominationConverter;
 
     public static final String END_OF_PERIOD_MEMO = "End of staking period calculation record";
 
@@ -65,11 +67,13 @@ public class EndOfStakingPeriodUpdater {
     public EndOfStakingPeriodUpdater(
             @NonNull final StakingRewardsHelper stakeRewardsHelper,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final DenominationConverter denominationConverter) {
         this.stakeRewardsHelper = stakeRewardsHelper;
         final var config = configProvider.getConfiguration();
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
         this.entityIdFactory = entityIdFactory;
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /**
@@ -184,7 +188,8 @@ public class EndOfStakingPeriodUpdater {
                 maxRewardRate,
                 stakingRewardsStore.pendingRewards(),
                 unreservedStakingRewardBalance,
-                END_OF_PERIOD_MEMO);
+                END_OF_PERIOD_MEMO,
+                denominationConverter.subunitsPerWholeUnit());
         log.info("Exporting:\n{}", nodeStakes);
         return context.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE)
                 .signedTx(signedTxWith(syntheticNodeStakeUpdateTxn.build()))
