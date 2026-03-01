@@ -200,6 +200,7 @@ public abstract class GrpcTestBase extends TestBase {
                 ingestWorkflow,
                 userQueryWorkflow,
                 operatorQueryWorkflow,
+                (req, res) -> {},
                 metrics);
 
         grpcServer.start();

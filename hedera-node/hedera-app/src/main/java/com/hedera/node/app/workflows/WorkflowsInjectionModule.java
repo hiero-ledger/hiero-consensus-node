@@ -10,9 +10,12 @@ import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
 import com.hedera.node.app.workflows.ingest.IngestWorkflowInjectionModule;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflowInjectionModule;
 import com.hedera.node.app.workflows.query.QueryWorkflowInjectionModule;
+import com.hedera.node.app.workflows.synchronous.SynchronousWorkflow;
+import com.hedera.node.app.workflows.synchronous.SynchronousWorkflowImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,6 +34,11 @@ import javax.inject.Singleton;
             QueryWorkflowInjectionModule.class
         })
 public interface WorkflowsInjectionModule {
+    @SuppressWarnings("unused")
+    @Binds
+    @Singleton
+    SynchronousWorkflow provideSynchronousWorkflow(SynchronousWorkflowImpl impl);
+
     @Provides
     @Nullable
     @Singleton

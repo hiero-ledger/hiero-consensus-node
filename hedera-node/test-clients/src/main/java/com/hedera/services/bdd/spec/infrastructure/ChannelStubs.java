@@ -20,7 +20,8 @@ public record ChannelStubs(
         @NonNull ScheduleServiceGrpc.ScheduleServiceBlockingStub scheduleSvcStubs,
         @NonNull SmartContractServiceGrpc.SmartContractServiceBlockingStub scSvcStubs,
         @NonNull AddressBookServiceGrpc.AddressBookServiceBlockingStub addressBookSvcStubs,
-        @NonNull UtilServiceGrpc.UtilServiceBlockingStub utilSvcStubs) {
+        @NonNull UtilServiceGrpc.UtilServiceBlockingStub utilSvcStubs,
+        @NonNull SynchronousServiceGrpc.SynchronousServiceBlockingStub syncSvcStubs) {
 
     public ChannelStubs {
         Objects.requireNonNull(nodeConnectInfo);
@@ -35,6 +36,7 @@ public record ChannelStubs(
         Objects.requireNonNull(scSvcStubs);
         Objects.requireNonNull(utilSvcStubs);
         Objects.requireNonNull(addressBookSvcStubs);
+        Objects.requireNonNull(syncSvcStubs);
     }
 
     public void shutdown() {
@@ -58,6 +60,7 @@ public record ChannelStubs(
                 ScheduleServiceGrpc.newBlockingStub(channel),
                 SmartContractServiceGrpc.newBlockingStub(channel),
                 AddressBookServiceGrpc.newBlockingStub(channel),
-                UtilServiceGrpc.newBlockingStub(channel));
+                UtilServiceGrpc.newBlockingStub(channel),
+                SynchronousServiceGrpc.newBlockingStub(channel));
     }
 }

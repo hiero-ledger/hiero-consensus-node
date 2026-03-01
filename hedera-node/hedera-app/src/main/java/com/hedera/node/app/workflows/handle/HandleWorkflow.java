@@ -81,6 +81,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
+import com.hedera.node.app.workflows.synchronous.PendingFutureRegistry;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -160,6 +161,7 @@ public class HandleWorkflow {
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
     private final QuiescenceController quiescenceController;
+    private final PendingFutureRegistry pendingFutureRegistry;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -222,7 +224,8 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeManager nodeFeeManager) {
+            @NonNull final NodeFeeManager nodeFeeManager,
+            @NonNull final PendingFutureRegistry pendingFutureRegistry) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -257,6 +260,7 @@ public class HandleWorkflow {
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
         this.nodeFeeManager = requireNonNull(nodeFeeManager);
+        this.pendingFutureRegistry = requireNonNull(pendingFutureRegistry);
     }
 
     /**
@@ -560,6 +564,7 @@ public class HandleWorkflow {
             }
         }
         if (streamMode != RECORDS) {
+            //noinspection SwitchStatementWithTooFewBranches
             type = switch (blockStreamManager.pendingWork()) {
                 case POST_UPGRADE_WORK -> POST_UPGRADE_TRANSACTION;
                 default -> ORDINARY_TRANSACTION;
@@ -848,9 +853,14 @@ public class HandleWorkflow {
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
                     handleOutput.preferringBlockRecordSource());
+            pendingFutureRegistry.complete(
+                    parentTxn.txnInfo().transactionID(), handleOutput.preferringBlockRecordSource());
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
+            pendingFutureRegistry.fail(
+                    parentTxn.txnInfo().transactionID(),
+                    new RuntimeException("Catastrophic failure handling transaction", e));
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         } finally {
