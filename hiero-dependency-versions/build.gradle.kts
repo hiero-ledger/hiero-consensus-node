@@ -12,7 +12,7 @@ val besu = "25.2.2"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
-val grpc = "1.73.0"
+val grpc = "1.79.0"
 val hederaCryptography = "3.6.0"
 val helidon = "4.3.4"
 val jackson = "2.21.1"
@@ -47,8 +47,7 @@ dependencies.constraints {
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
-    api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
-    api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
+    api("com.google.guava:guava:33.5.0-jre") { because("com.google.common") }
     api("com.google.jimfs:jimfs:1.3.1") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
@@ -99,7 +98,7 @@ dependencies.constraints {
     api("org.hyperledger.besu:secp256k1:1.3.0") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
-    api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
+    api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
