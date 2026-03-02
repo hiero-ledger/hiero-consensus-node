@@ -639,7 +639,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (path == INVALID_PATH) {
             // Cache the result if not already cached
             if (leafRecordCache != null && cached == null) {
-                leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
             }
             return null;
         }
@@ -715,7 +715,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         if (leafRecordCache != null) {
             // Path may be INVALID_PATH here. Still needs to be cached (negative result)
-            leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+            leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
         }
 
         return path;
@@ -1202,10 +1202,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Iterate over leaf records
         for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
-            final long path = leafBytes.path();
-            // Update key to path index
-            keyToPath.put(leafBytes.keyBytes(), path);
-            statisticsUpdater.countFlushLeafKeysWritten();
+            // Check if the record is new or moved. If not, skip the path update
+            if (leafBytes.isNewOrMoved()) {
+                final long path = leafBytes.path();
+                // Update key to path index
+                keyToPath.put(leafBytes.keyBytes(), path);
+                statisticsUpdater.countFlushLeafKeysWritten();
+            }
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());

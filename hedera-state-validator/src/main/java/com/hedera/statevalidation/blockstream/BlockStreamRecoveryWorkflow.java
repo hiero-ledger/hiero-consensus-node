@@ -136,11 +136,6 @@ public class BlockStreamRecoveryWorkflow {
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
-        if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
-            throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
-                    .formatted(expectedRootHash, rootHash));
-        }
-
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
@@ -158,6 +153,11 @@ public class BlockStreamRecoveryWorkflow {
                     platformContext, selfId, outputPath, signedState, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+        if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
+            throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
+                    .formatted(expectedRootHash, rootHash));
         }
     }
 
