@@ -37,6 +37,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
@@ -911,8 +912,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAssociatedRegisteredNodeList(List.of(10L, 20L))
                 .build();
         setupMinimalHandle();
-        given(registeredNodeStore.get(10L)).willReturn(com.hedera.hapi.node.state.addressbook.RegisteredNode.DEFAULT);
-        given(registeredNodeStore.get(20L)).willReturn(com.hedera.hapi.node.state.addressbook.RegisteredNode.DEFAULT);
+        given(registeredNodeStore.get(10L)).willReturn(RegisteredNode.DEFAULT);
+        given(registeredNodeStore.get(20L)).willReturn(RegisteredNode.DEFAULT);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var updatedNode = writableStore.get(1L);

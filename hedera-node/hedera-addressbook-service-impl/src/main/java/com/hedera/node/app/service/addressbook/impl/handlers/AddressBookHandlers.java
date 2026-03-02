@@ -71,14 +71,29 @@ public class AddressBookHandlers {
         return nodeUpdateHandler;
     }
 
+    /**
+     * Get the registeredNodeCreateHandler.
+     *
+     * @return the registeredNodeCreateHandler
+     */
     public RegisteredNodeCreateHandler registeredNodeCreateHandler() {
         return registeredNodeCreateHandler;
     }
 
+    /**
+     * Get the registeredNodeUpdateHandler.
+     *
+     * @return the registeredNodeUpdateHandler
+     */
     public RegisteredNodeUpdateHandler registeredNodeUpdateHandler() {
         return registeredNodeUpdateHandler;
     }
 
+    /**
+     * Get the registeredNodeDeleteHandler.
+     *
+     * @return the registeredNodeDeleteHandler
+     */
     public RegisteredNodeDeleteHandler registeredNodeDeleteHandler() {
         return registeredNodeDeleteHandler;
     }
