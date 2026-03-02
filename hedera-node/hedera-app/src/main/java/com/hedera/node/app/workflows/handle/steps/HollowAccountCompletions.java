@@ -20,8 +20,8 @@ import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -171,9 +171,7 @@ public class HollowAccountCompletions {
                 replayableFinalizations.add(new Detail(hollowAccount.accountIdOrThrow(), syntheticUpdateTxn));
             }
         }
-        return replayableFinalizations.isEmpty()
-                ? null
-                : new Details(context.payer(), replayableFinalizations);
+        return replayableFinalizations.isEmpty() ? null : new Details(context.payer(), replayableFinalizations);
     }
 
     /**
@@ -181,7 +179,8 @@ public class HollowAccountCompletions {
      * @param payerId the payer id to use for replayed setup dispatches
      * @param finalizations the synthetic update transactions and target account ids
      */
-    public record Details(@NonNull AccountID payerId, @NonNull List<Detail> finalizations) {
+    public record Details(
+            @NonNull AccountID payerId, @NonNull List<Detail> finalizations) {
         public Details {
             requireNonNull(payerId);
             requireNonNull(finalizations);
@@ -210,7 +209,8 @@ public class HollowAccountCompletions {
      * @param accountId the account being finalized
      * @param syntheticUpdateTxn the synthetic update transaction
      */
-    public record Detail(@NonNull AccountID accountId, @NonNull TransactionBody syntheticUpdateTxn) {
+    public record Detail(
+            @NonNull AccountID accountId, @NonNull TransactionBody syntheticUpdateTxn) {
         public Detail {
             requireNonNull(accountId);
             requireNonNull(syntheticUpdateTxn);
