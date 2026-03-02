@@ -82,6 +82,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -162,7 +163,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     @Test
@@ -809,7 +811,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -830,7 +833,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -851,7 +855,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -872,6 +877,7 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 }
