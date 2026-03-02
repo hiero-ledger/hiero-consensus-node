@@ -214,6 +214,7 @@ public class SimpleFeesRecordStreamTest {
                             }
                             json.key("seconds", body.transactionID().transactionValidStart().seconds());
                             json.key("nanos", body.transactionID().transactionValidStart().nanos());
+                            json.key("nonce",body.transactionID().nonce());
                             long accountNumber = body.transactionID().accountID().accountNum();
                             json.key("account",accountNumber);
                             long txnFeeTC = 0;
