@@ -86,7 +86,7 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             throw new IllegalStateException(
                     "Total supply overflow: " + TOTAL_SUPPLY_WHOLE_UNITS + " * 10^"
                             + denominationConverter.decimals() + " exceeds Long.MAX_VALUE ("
-                            + Long.MAX_VALUE + "). Reduce nativeCoin.decimals or ledger.totalTinyBarFloat.",
+                            + Long.MAX_VALUE + "). Reduce nativeCoin.decimals.",
                     e);
         }
     }
