@@ -149,12 +149,6 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      # TODO: Remove this step after testing infrastructure failure detection
-#      - name: Simulated Infrastructure Failure
-#        run: |
-#          echo "Simulating infrastructure failure for testing"
-#          exit 1
-
       - name: HAPI Testing (Misc)
         id: gradle-hapi-misc
         env:

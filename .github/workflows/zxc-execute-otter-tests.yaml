@@ -169,11 +169,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # TODO: Restore original command after testing failure detection
         run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
-#        run: |
-#          echo "Simulating test failure for testing"
-#          exit 1
 
       - name: Publish Fast Otter Testing Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0

@@ -73,12 +73,6 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
 
-      # TODO: Remove this step after testing infrastructure failure detection
-#      - name: Simulated Infrastructure Failure
-#        run: |
-#          echo "Simulating infrastructure failure for testing"
-#          exit 1
-
       - name: Authenticate to Google Cloud
         id: google-auth
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
