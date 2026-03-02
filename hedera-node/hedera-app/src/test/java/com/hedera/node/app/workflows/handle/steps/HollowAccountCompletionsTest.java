@@ -146,7 +146,7 @@ public class HollowAccountCompletionsTest {
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
@@ -167,7 +167,7 @@ public class HollowAccountCompletionsTest {
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         final var finalizations = hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
@@ -192,7 +192,7 @@ public class HollowAccountCompletionsTest {
                 .build();
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
         SignatureVerification verification =
                 new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
@@ -216,7 +216,7 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
@@ -261,7 +261,7 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
         when(parentTxn.txnInfo()).thenReturn(txnInfo);
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 

@@ -132,7 +132,7 @@ public class HollowAccountCompletions {
             @NonNull final ParentTxn parentTxn) {
         final List<Detail> replayableFinalizations = new ArrayList<>();
         for (final var hollowAccount : accounts) {
-            if (!parentTxn.stack().hasMoreSystemRecords()) {
+            if (!parentTxn.stack().rootHasPrecedingCapacity()) {
                 break;
             }
 
