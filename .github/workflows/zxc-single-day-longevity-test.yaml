@@ -164,7 +164,7 @@ jobs:
       - name: Install Helm
         shell: bash
         run: |
-          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/helm-v4.1.1-linux-amd64.tar.gz
+          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/helm-v4.1.1-linux-amd64.tar.gz ./helm-v4.1.1-linux-amd64.tar.gz
           tar xfz helm-v4.1.1-linux-amd64.tar.gz
           sudo mv linux-amd64/helm /usr/bin/helm
 
