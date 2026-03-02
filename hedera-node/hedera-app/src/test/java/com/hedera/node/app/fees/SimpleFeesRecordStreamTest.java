@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.AfterAll;
@@ -171,6 +172,7 @@ public class SimpleFeesRecordStreamTest {
         final JSONFormatter json = new JSONFormatter(
                 new FileWriter(report_file_path));
         System.out.println("records dir is" + records_dir);
+        AtomicInteger totalInvalidCount = new AtomicInteger();
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
                 if (!file.toString().endsWith("rcd.gz")) {
@@ -182,24 +184,28 @@ public class SimpleFeesRecordStreamTest {
                     final var recordFileVersion =
                             ByteBuffer.wrap(fin.readNBytes(4)).getInt();
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
+                    AtomicInteger invalidCount = new AtomicInteger();
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
                             final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
                             final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
                             final var body = TransactionBody.PROTOBUF.parse(
                                     Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+                            if(body.transactionID() == null) {
+//                                System.out.println("skipping invalid transaction id for type " + body.data().kind().name());
+                                invalidCount.addAndGet(1);
+//                                System.out.println("the body is " + body);
+                                return;
+                            }
+                            json.startRecord();
                             final Transaction txn = Transaction.newBuilder().body(body).build();
                             final var record = item.getRecord();
                             final var txnFee = record.getTransactionFee();
                             final var rate = record.getReceipt().getExchangeRate();
-                            json.startRecord();
                             json.key("name", body.data().kind().name());
                             json.key("seconds", body.transactionID().transactionValidStart().seconds());
                             json.key("nanos", body.transactionID().transactionValidStart().nanos());
-                            long accountNumber = 0;
-                            if(body.transactionID() != null && body.transactionID().accountID() != null) {
-                                accountNumber = body.transactionID().accountID().accountNum();
-                            }
+                            long accountNumber = body.transactionID().accountID().accountNum();
                             json.key("account",accountNumber);
                             long legacyFee = 0;
                             if (rate.getCurrentRate().getHbarEquiv() != 0) {
@@ -225,14 +231,18 @@ public class SimpleFeesRecordStreamTest {
                             json.key("token_transfer_lists_count",record.getTokenTransferListsCount());
                             json.key("memo",body.memo());
                             json.key("body", body.toString());
+                            json.endRecord();
                             //{ "name":"CRYPTO_TRANSFER", "account" : 10231006 , "seconds" : 1770230700 , "nanos" : 779324416 ,
                             // "nonce" : 0 , "fee" : 112235 , "status":"SUCCESS", "signedTxnBytes" : 183 , "custom_fees_count" : 0 , "memo":""}
-                            json.endRecord();
 //                            System.out.println("item is " + txn.body().data().kind().name());
                         } catch (Exception e) {
                             System.out.println("exception " + e);
                         }
                     });
+                    if(invalidCount.get() > 0) {
+//                        System.out.println("invalid count for " + file + " is " + invalidCount.get());
+                        totalInvalidCount.addAndGet(invalidCount.get());
+                    }
                 } catch (FileNotFoundException e) {
                     throw new RuntimeException(e);
                 } catch (IOException e) {
@@ -241,6 +251,7 @@ public class SimpleFeesRecordStreamTest {
             });
         }
         System.out.println("wrote report to " + report_file_path);
+        System.out.println("total invalid count for " + report_file_path + " is " + totalInvalidCount.get());
         json.close();
     }
 
