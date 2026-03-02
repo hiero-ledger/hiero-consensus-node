@@ -67,9 +67,6 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 
-        // FUTURE: discuss whether we should do the same validation as NodeCreate
-        // if we are going to implement synthethic registered node create transaction
-        // and check the id
         final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)

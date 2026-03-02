@@ -7,6 +7,7 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
@@ -82,8 +83,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
     }
 
     private RegisteredNode.Builder updateRegisteredNode(
-            @NonNull final com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody op,
-            @NonNull final RegisteredNode existing) {
+            @NonNull final RegisteredNodeUpdateTransactionBody op, @NonNull final RegisteredNode existing) {
         requireNonNull(op);
         requireNonNull(existing);
 
