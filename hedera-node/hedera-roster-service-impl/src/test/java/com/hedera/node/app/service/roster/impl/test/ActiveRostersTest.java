@@ -43,10 +43,10 @@ class ActiveRostersTest {
     private static final Bytes A_ROSTER_HASH = Bytes.wrap("A_ROSTER_HASH");
     private static final Bytes B_ROSTER_HASH = Bytes.wrap("B_ROSTER_HASH");
     private static final Roster A_ROSTER = new Roster(A_ROSTER_WEIGHTS.entrySet().stream()
-            .map(entry -> new RosterEntry(entry.getKey(), entry.getValue(), Bytes.EMPTY, List.of()))
+            .map(entry -> new RosterEntry(entry.getKey(), entry.getValue(), Bytes.EMPTY, List.of(), Bytes.EMPTY))
             .toList());
     private static final Roster B_ROSTER = new Roster(B_ROSTER_WEIGHTS.entrySet().stream()
-            .map(entry -> new RosterEntry(entry.getKey(), entry.getValue(), Bytes.EMPTY, List.of()))
+            .map(entry -> new RosterEntry(entry.getKey(), entry.getValue(), Bytes.EMPTY, List.of(), Bytes.EMPTY))
             .toList());
     private static final long A_ROSTER_STRONG_MINORITY_WEIGHT = RosterTransitionWeights.atLeastOneThirdOfTotal(
             A_ROSTER_WEIGHTS.values().stream().mapToLong(Long::longValue).sum());

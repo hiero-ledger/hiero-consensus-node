@@ -171,4 +171,13 @@ message Node {
      * current registered node.
      */
     repeated uint64 associated_registered_node = 13;
+
+    /**
+     * A raw 32-byte Ed25519 public key used for event signing.
+     * <p>
+     * If present, this key SHALL be used for signing and verifying gossip
+     * events instead of the RSA key from the gossip CA certificate.<br/>
+     * This field is OPTIONAL for backward compatibility.
+     */
+    bytes event_signing_public_key = 14;
 }

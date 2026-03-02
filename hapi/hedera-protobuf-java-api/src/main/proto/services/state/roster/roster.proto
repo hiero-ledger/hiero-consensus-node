@@ -79,4 +79,13 @@ message RosterEntry {
      * This list SHALL NOT be empty.<br/>
      */
     repeated proto.ServiceEndpoint gossip_endpoint = 5;
+
+    /**
+     * A raw 32-byte Ed25519 public key used for event signing.
+     * <p>
+     * If present, this key SHALL be used for verifying event signatures
+     * instead of the RSA key from the gossip CA certificate.<br/>
+     * This field is OPTIONAL for backward compatibility.
+     */
+    bytes event_signing_public_key = 6;
 }

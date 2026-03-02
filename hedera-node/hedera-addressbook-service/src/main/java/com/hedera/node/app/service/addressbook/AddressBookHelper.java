@@ -63,6 +63,23 @@ public class AddressBookHelper {
     }
 
     /**
+     * Write a SPKI-encoded public key to a PEM file.
+     *
+     * @param pemFile the file to write
+     * @param spkiEncoding the SPKI (SubjectPublicKeyInfo) encoded public key bytes
+     * @throws IOException if an I/O error occurs while writing the file
+     */
+    public static void writePublicKeyPemFile(@NonNull final Path pemFile, @NonNull final byte[] spkiEncoding)
+            throws IOException {
+        requireNonNull(spkiEncoding);
+        try (final var file = new FileOutputStream(pemFile.toFile());
+                final var writer = new OutputStreamWriter(file);
+                final PemWriter pemWriter = new PemWriter(writer)) {
+            pemWriter.writeObject(new PemObject("PUBLIC KEY", spkiEncoding));
+        }
+    }
+
+    /**
      * Read from a Certificate pem file.
      * @param pemFile the file to read from
      * @return the X509Certificate

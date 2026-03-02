@@ -3,6 +3,7 @@ package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
+import static com.hedera.node.app.service.addressbook.AddressBookHelper.writePublicKeyPemFile;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static java.util.Objects.requireNonNull;
@@ -353,6 +354,22 @@ public class ReadableFreezeUpgradeActions {
                 writeCertificatePemFile(pemFile, node.gossipCaCertificate().toByteArray());
             } catch (IOException e) {
                 log.error("Failed to write to {} with exception : {}", pemFile, e);
+            }
+            // Export Ed25519 event signing public key if present
+            final var eventSigningKey = node.eventSigningPublicKey();
+            if (eventSigningKey != null && eventSigningKey.length() == 32) {
+                final var eventPubPemFile = keysLoc.resolve("e-public-" + alias + ".pem");
+                try {
+                    // Build SPKI encoding: 12-byte OID header + 32-byte raw key
+                    final byte[] spkiHeader = {0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00};
+                    final byte[] spki = new byte[spkiHeader.length + 32];
+                    System.arraycopy(spkiHeader, 0, spki, 0, spkiHeader.length);
+                    eventSigningKey.getBytes(0, spki, spkiHeader.length, 32);
+                    writePublicKeyPemFile(eventPubPemFile, spki);
+                } catch (IOException e) {
+                    log.error(
+                            "Failed to write Ed25519 event signing key to {} with exception : {}", eventPubPemFile, e);
+                }
             }
         } else {
             log.error("Node has {} gossip endpoints, expected greater than 1", gossipEndpoints.size());

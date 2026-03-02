@@ -167,6 +167,11 @@ public class EnhancedKeyStoreLoader {
     private final Map<NodeId, Certificate> agrCertificates;
 
     /**
+     * The Ed25519 event signing private keys loaded from the key stores.
+     */
+    private final Map<NodeId, PrivateKey> eventSigPrivateKeys;
+
+    /**
      * The list of {@link NodeId}s which must have a private key loaded.
      */
     private final Set<NodeId> nodeIds;
@@ -206,6 +211,7 @@ public class EnhancedKeyStoreLoader {
         this.sigCertificates = HashMap.newHashMap(nodeIds.size());
         this.agrPrivateKeys = HashMap.newHashMap(nodeIds.size());
         this.agrCertificates = HashMap.newHashMap(nodeIds.size());
+        this.eventSigPrivateKeys = HashMap.newHashMap(nodeIds.size());
         this.nodeIds = Collections.unmodifiableSet(Objects.requireNonNull(nodeIds, MSG_NODES_TO_START_NON_NULL));
         this.rosterEntries =
                 Collections.unmodifiableList(Objects.requireNonNull(rosterEntries, MSG_ROSTER_ENTRIES_NON_NULL));
@@ -261,6 +267,22 @@ public class EnhancedKeyStoreLoader {
 
             if (nodeIds.contains(nodeId)) {
                 sigPrivateKeys.compute(nodeId, (k, v) -> resolveNodePrivateKey(nodeId));
+
+                // Try to load Ed25519 event signing key (optional, warn if missing)
+                final Path eventKeyPath = eventSigningPrivateKeyStore(nodeId);
+                if (Files.exists(eventKeyPath)) {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Found Ed25519 event signing key for nodeId: {} [ fileName = {} ]",
+                            nodeId,
+                            eventKeyPath.getFileName());
+                    eventSigPrivateKeys.compute(nodeId, (k, v) -> readPrivateKey(nodeId, eventKeyPath));
+                } else {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "No Ed25519 event signing key found for nodeId: {}, will use RSA for event signing",
+                            nodeId);
+                }
             }
 
             sigCertificates.compute(nodeId, (k, v) -> resolveNodeCertificate(nodeId));
@@ -395,7 +417,28 @@ public class EnhancedKeyStoreLoader {
 
             final KeyPair sigKeyPair = new KeyPair(sigCert.getPublicKey(), sigPrivateKey);
             final KeyPair agrKeyPair = new KeyPair(agrCert.getPublicKey(), agrPrivateKey);
-            final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, x509AgrCert);
+
+            // Reconstruct Ed25519 key pair from private key if available
+            final PrivateKey eventSigPrivateKey = eventSigPrivateKeys.get(nodeId);
+            final KeyPair eventSigKeyPair;
+            if (eventSigPrivateKey != null) {
+                try {
+                    eventSigKeyPair = deriveEd25519KeyPair(eventSigPrivateKey);
+                } catch (final Exception e) {
+                    logger.warn(
+                            STARTUP.getMarker(),
+                            "Failed to reconstruct Ed25519 key pair for nodeId: {}, falling back to RSA event signing",
+                            nodeId,
+                            e);
+                    final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, x509AgrCert);
+                    keysAndCerts.put(nodeId, kc);
+                    continue;
+                }
+            } else {
+                eventSigKeyPair = null;
+            }
+
+            final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, x509AgrCert, eventSigKeyPair);
 
             keysAndCerts.put(nodeId, kc);
         }
@@ -594,6 +637,18 @@ public class EnhancedKeyStoreLoader {
     }
 
     /**
+     * Utility method for resolving the {@link Path} to the Ed25519 event signing private key store.
+     *
+     * @param nodeId the node ID
+     * @return the {@link Path} to the Ed25519 event signing private key file
+     */
+    @NonNull
+    private Path eventSigningPrivateKeyStore(@NonNull final NodeId nodeId) {
+        return keyStoreDirectory.resolve(String.format(
+                "%s-private-%s.pem", KeyCertPurpose.EVENT_SIGNING.prefix(), NodeUtilities.formatNodeName(nodeId)));
+    }
+
+    /**
      * Utility method for reading a private key from an enhanced key store at the specified
      * {@code location}.
      *
@@ -669,6 +724,37 @@ public class EnhancedKeyStoreLoader {
                             .formatted(entry.getClass().getName()),
                     e);
         }
+    }
+
+    /**
+     * Derives an Ed25519 KeyPair from a private key.
+     * BouncyCastle's Ed25519 private key info contains the public key, so we can extract it.
+     *
+     * @param privateKey the Ed25519 private key
+     * @return the complete key pair
+     */
+    @NonNull
+    private static KeyPair deriveEd25519KeyPair(@NonNull final PrivateKey privateKey) throws Exception {
+        // BouncyCastle Ed25519 private keys include the public key in the PKCS#8 encoding.
+        // Use BouncyCastle to extract the public key from the private key info.
+        final PrivateKeyInfo privKeyInfo = PrivateKeyInfo.getInstance(privateKey.getEncoded());
+        final org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters bcPrivKey =
+                (org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters)
+                        org.bouncycastle.crypto.util.PrivateKeyFactory.createKey(privKeyInfo);
+        final org.bouncycastle.crypto.params.Ed25519PublicKeyParameters bcPubKey = bcPrivKey.generatePublicKey();
+
+        // Convert BC public key parameters back to JCA PublicKey
+        final byte[] rawPubKeyBytes = bcPubKey.getEncoded();
+        // Build SPKI encoding: OID header + raw key
+        final byte[] spkiHeader = {0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00};
+        final byte[] spki = new byte[spkiHeader.length + rawPubKeyBytes.length];
+        System.arraycopy(spkiHeader, 0, spki, 0, spkiHeader.length);
+        System.arraycopy(rawPubKeyBytes, 0, spki, spkiHeader.length, rawPubKeyBytes.length);
+
+        final java.security.KeyFactory kf = java.security.KeyFactory.getInstance("Ed25519");
+        final PublicKey publicKey = kf.generatePublic(new java.security.spec.X509EncodedKeySpec(spki));
+
+        return new KeyPair(publicKey, privateKey);
     }
 
     // ----------------------------------------------------------------------------------------------

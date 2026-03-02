@@ -77,7 +77,8 @@ class EventSignatureValidatorTests {
                     nodeId.id(),
                     10,
                     Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id()).getEncoded()),
-                    List.of());
+                    List.of(),
+                    Bytes.EMPTY);
         } catch (CertificateEncodingException e) {
             throw new RuntimeException(e);
         }
@@ -164,7 +165,7 @@ class EventSignatureValidatorTests {
     void missingPublicKey() {
 
         final Function<NodeId, RosterEntry> generateMockRosterEntry =
-                id -> new RosterEntry(id.id(), 10, null, List.of());
+                id -> new RosterEntry(id.id(), 10, null, List.of(), Bytes.EMPTY);
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
