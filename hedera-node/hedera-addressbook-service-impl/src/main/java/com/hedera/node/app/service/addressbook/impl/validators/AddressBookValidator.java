@@ -38,6 +38,7 @@ import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -52,7 +53,6 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AddressBookValidator {
-    private static final int MAX_REGISTERED_SERVICE_ENDPOINTS = 50;
     private static final int MAX_DOMAIN_ASCII_CHARS = 250;
 
     /**
@@ -70,7 +70,7 @@ public class AddressBookValidator {
      * @param nodesConfig The nodes configuration
      */
     public void validateDescription(@Nullable final String description, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         if (description == null || description.isEmpty()) {
             return;
@@ -102,7 +102,7 @@ public class AddressBookValidator {
      */
     public void validateGossipEndpoint(
             @Nullable final List<ServiceEndpoint> endpointList, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxGossipEndpoint(), GOSSIP_ENDPOINTS_EXCEEDED_LIMIT);
@@ -123,7 +123,7 @@ public class AddressBookValidator {
      */
     public void validateServiceEndpoint(
             @Nullable final List<ServiceEndpoint> endpointList, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_SERVICE_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxServiceEndpoint(), SERVICE_ENDPOINTS_EXCEEDED_LIMIT);
@@ -179,7 +179,7 @@ public class AddressBookValidator {
 
     public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.port() == 0, INVALID_ENDPOINT);
         final var addressLen = endpoint.ipAddressV4().length();
@@ -198,7 +198,7 @@ public class AddressBookValidator {
      */
     public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
         validateFqdnSize(endpoint, nodesConfig);
@@ -232,16 +232,15 @@ public class AddressBookValidator {
 
     /**
      * Validates registered service endpoints for a create operation. The list must be non-empty
-     * and contain at most {@value MAX_REGISTERED_SERVICE_ENDPOINTS} entries.
+     * and contain at most nodesConfig.maxRegisteredServiceEndpoint entries.
      *
      * @param endpoints the list of registered service endpoints to validate
-     * @throws PreCheckException if the list is empty, exceeds the limit, or contains invalid endpoints
      */
-    public void validateRegisteredServiceEndpointsForCreate(@NonNull final List<RegisteredServiceEndpoint> endpoints)
-            throws PreCheckException {
+    public void validateRegisteredServiceEndpoint(
+            @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoints);
-        validateFalsePreCheck(endpoints.isEmpty(), INVALID_SERVICE_ENDPOINT);
-        validateFalsePreCheck(endpoints.size() > MAX_REGISTERED_SERVICE_ENDPOINTS, INVALID_SERVICE_ENDPOINT);
+        validateFalse(endpoints.isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateFalse(endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), INVALID_SERVICE_ENDPOINT);
         for (final var endpoint : endpoints) {
             validateRegisteredServiceEndpoint(endpoint);
         }
@@ -250,29 +249,27 @@ public class AddressBookValidator {
     /**
      * Validates registered service endpoints for an update operation. An empty list is allowed
      * (means "not set" in proto3 repeated semantics). If non-empty, at most
-     * {@value MAX_REGISTERED_SERVICE_ENDPOINTS} entries are allowed.
+     * nodesConfig.maxRegisteredServiceEndpoint entries are allowed.
      *
      * @param endpoints the list of registered service endpoints to validate
-     * @throws PreCheckException if the list exceeds the limit or contains invalid endpoints
      */
-    public void validateRegisteredServiceEndpointsForUpdate(@NonNull final List<RegisteredServiceEndpoint> endpoints)
-            throws PreCheckException {
+    public void validateRegisteredServiceEndpointsForUpdate(
+            @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoints);
         if (endpoints.isEmpty()) {
             return;
         }
-        validateFalsePreCheck(endpoints.size() > MAX_REGISTERED_SERVICE_ENDPOINTS, INVALID_SERVICE_ENDPOINT);
+        validateFalse(endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), INVALID_SERVICE_ENDPOINT);
         for (final var endpoint : endpoints) {
             validateRegisteredServiceEndpoint(endpoint);
         }
     }
 
-    private void validateRegisteredServiceEndpoint(@NonNull final RegisteredServiceEndpoint endpoint)
-            throws PreCheckException {
+    private void validateRegisteredServiceEndpoint(@NonNull final RegisteredServiceEndpoint endpoint) {
         requireNonNull(endpoint);
 
         final int port = endpoint.port();
-        validateTruePreCheck(port >= 0 && port <= 65535, INVALID_SERVICE_ENDPOINT);
+        validateTrue(port >= 0 && port <= 65535, INVALID_SERVICE_ENDPOINT);
 
         // oneof address is REQUIRED
         final var addressKind = endpoint.address().kind();
@@ -280,17 +277,17 @@ public class AddressBookValidator {
             case IP_ADDRESS -> {
                 final Bytes ip = endpoint.ipAddressOrThrow();
                 final long len = ip.length();
-                validateTruePreCheck(len == 4L || len == 16L, INVALID_SERVICE_ENDPOINT);
+                validateTrue(len == 4L || len == 16L, INVALID_SERVICE_ENDPOINT);
             }
             case DOMAIN_NAME -> {
                 final String domain = endpoint.domainNameOrThrow();
-                validateTruePreCheck(isValidAsciiFqdn(domain), INVALID_SERVICE_ENDPOINT);
+                validateTrue(isValidAsciiFqdn(domain), INVALID_SERVICE_ENDPOINT);
             }
-            default -> throw new PreCheckException(INVALID_SERVICE_ENDPOINT);
+            default -> throw new HandleException(INVALID_SERVICE_ENDPOINT);
         }
 
         // oneof endpoint_type is REQUIRED
-        validateTruePreCheck(
+        validateTrue(
                 endpoint.endpointType().kind() != RegisteredServiceEndpoint.EndpointTypeOneOfType.UNSET,
                 INVALID_SERVICE_ENDPOINT);
     }

@@ -55,7 +55,6 @@ public class NodeCreateHandler implements TransactionHandler {
      */
     @Inject
     public NodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
-        requireNonNull(addressBookValidator, "addressBookValidator must not be null");
         this.addressBookValidator =
                 requireNonNull(addressBookValidator, "The supplied argument 'addressBookValidator' must not be null");
     }

@@ -45,7 +45,6 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey()) {
             addressBookValidator.validateAdminKey(op.adminKey());
         }
-        addressBookValidator.validateRegisteredServiceEndpointsForUpdate(op.serviceEndpoint());
     }
 
     @Override
@@ -71,7 +70,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         if (op.hasDescription()) {
             addressBookValidator.validateDescription(op.description(), nodesConfig);
         }
-
+        addressBookValidator.validateRegisteredServiceEndpointsForUpdate(op.serviceEndpoint(), nodesConfig);
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 

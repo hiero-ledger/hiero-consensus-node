@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -31,8 +33,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
 
     @Inject
     public RegisteredNodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
-        requireNonNull(addressBookValidator, "addressBookValidator must not be null");
-        this.addressBookValidator = requireNonNull(addressBookValidator);
+        this.addressBookValidator = requireNonNull(addressBookValidator, "addressBookValidator must not be null");
     }
 
     @Override
@@ -42,8 +43,8 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         requireNonNull(txn, "txn must not be null");
 
         final var op = txn.registeredNodeCreateOrThrow();
+        validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_SERVICE_ENDPOINT);
         addressBookValidator.validateAdminKey(op.adminKey());
-        addressBookValidator.validateRegisteredServiceEndpointsForCreate(op.serviceEndpoint());
     }
 
     @Override
@@ -60,10 +61,15 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
 
         addressBookValidator.validateDescription(op.description(), nodesConfig);
+        addressBookValidator.validateRegisteredServiceEndpoint(op.serviceEndpoint(), nodesConfig);
+        handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 
+        // FUTURE: discuss whether we should do the same validation as NodeCreate
+        // if we are going to implement synthethic registered node create transaction
+        // and check the id
         final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)

@@ -22,6 +22,7 @@ import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreate
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -108,6 +109,8 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
 
     @Test
     void handlePersistsRegisteredNodeAndSetsReceipt() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
         final long newId = 1234L;
         final var txn = txnWithOp(opBuilder().adminKey(key).build());
 
@@ -117,8 +120,8 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
         given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
         given(nodeIdGenerator.newNodeId()).willReturn(newId);
-        final var stack = mock(HandleContext.SavepointStack.class);
         given(handleContext.savepointStack()).willReturn(stack);
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
