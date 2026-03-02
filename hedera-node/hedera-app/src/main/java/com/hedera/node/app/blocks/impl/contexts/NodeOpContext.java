@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * A {@link TranslationContext} implementation with the id of an involved node.
  *
  * @param memo The memo for the transaction
+ * @param transactionExchangeRates The exchange rate for the transaction
  * @param txnId The transaction ID
  * @param transactionExchangeRates The exchange rate for the transaction
  * @param signedTx The transaction
