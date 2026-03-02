@@ -169,6 +169,10 @@ public class SimpleFeesRecordStreamTest {
     }
 
     void processStateEvents(String records_dir, String report_file_path) throws IOException {
+//        final var target_seconds = 1771630721; final var target_nanos = 427079381;
+        final var target_seconds = 1771622388; final var target_nanos = 129000000;
+
+
         final JSONFormatter json = new JSONFormatter(
                 new FileWriter(report_file_path));
         System.out.println("records dir is" + records_dir);
@@ -203,23 +207,28 @@ public class SimpleFeesRecordStreamTest {
                             final var txnFee = record.getTransactionFee();
                             final var rate = record.getReceipt().getExchangeRate();
                             json.key("name", body.data().kind().name());
+                            if(body.transactionID().transactionValidStart().seconds() == target_seconds && body.transactionID().transactionValidStart().nanos() == target_nanos) {
+                                System.out.println("Matched body: " + body);
+                                System.out.println("full record: " + record);
+                                System.out.println("signed transaction: " + signedTxn.getSigMap().getSigPairCount());
+                            }
                             json.key("seconds", body.transactionID().transactionValidStart().seconds());
                             json.key("nanos", body.transactionID().transactionValidStart().nanos());
                             long accountNumber = body.transactionID().accountID().accountNum();
                             json.key("account",accountNumber);
-                            long legacyFee = 0;
+                            long txnFeeTC = 0;
                             if (rate.getCurrentRate().getHbarEquiv() != 0) {
-                                legacyFee = txnFee
+                                txnFeeTC = txnFee
                                         * rate.getCurrentRate().getCentEquiv()
                                         / rate.getCurrentRate().getHbarEquiv();
                             }
                             json.key("fee_hbar",txnFee);
-                            json.key("fee_tc", legacyFee);
+                            json.key("fee_tc", txnFeeTC);
                             json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
                             json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
                             json.key("status",record.getReceipt().getStatus().name());
                             json.key("signed_txn_size",signedTxnBytes.size());
-                            json.key("sigmap_pair_size", signedTxn.getSigMap().getSigPairList().size());
+                            json.key("sigmap_pair_size", signedTxn.getSigMap().getSigPairCount());
                             json.key("serialized_size", signedTxn.getSerializedSize());
                             json.key("serial_numbers_count",record.getReceipt().getSerialNumbersCount());
                             json.key("assessed_custom_fees_count", record.getAssessedCustomFeesCount());
@@ -257,8 +266,10 @@ public class SimpleFeesRecordStreamTest {
 
     @Test
     void convertStateEventsToJSON() throws IOException {
-        processStateEvents("../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3","../../reports/replay-mainnet-legacy.json");
-        processStateEvents("../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3","../../reports/replay-mainnet-simple.json");
+        processStateEvents("../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3",
+                "../../reports/replay-mainnet-legacy.json");
+        processStateEvents("../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3",
+                "../../reports/replay-mainnet-simple.json");
     }
 
 
