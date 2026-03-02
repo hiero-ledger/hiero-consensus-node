@@ -34,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.service.token.DenominationConverter;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,7 +73,7 @@ class CustomGasChargingTest {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomGasCharging(gasCalculator);
+        subject = new CustomGasCharging(gasCalculator, new DenominationConverter(8));
     }
 
     @Test
