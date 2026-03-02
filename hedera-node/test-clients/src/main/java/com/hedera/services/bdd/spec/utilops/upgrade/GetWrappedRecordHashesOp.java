@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link AtomicReference} for use by downstream operations.
  */
 public class GetWrappedRecordHashesOp extends UtilOp {
-    private static final Set<Long> CLASSIC_NODE_IDS = Set.of(0L, 1L, 2L, 3L);
+    public static final Set<Long> CLASSIC_NODE_IDS = Set.of(0L, 1L, 2L, 3L);
 
     private final AtomicReference<List<WrappedRecordFileBlockHashes>> entriesRef;
     private Map<Long, List<WrappedRecordFileBlockHashes>> wrappedRecordHashesByNode;

@@ -16,8 +16,8 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.Codec;
@@ -77,7 +77,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -146,14 +145,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@ConstructableIgnored
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
-
-    /**
-     * The number of seconds to wait for the full leaf rehash process to finish
-     * (see {@link #fullLeafRehashIfNecessary()}) before we fail with an exception.
-     */
-    private static final int MAX_FULL_REHASHING_TIMEOUT = 600; // 10 minutes
 
     /**
      * The number of elements to have in the buffer used during rehashing on start.
@@ -582,9 +574,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         try {
-            final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
-            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", secondsSpent);
-            setHashPrivate(fullRehashFuture.get(MAX_FULL_REHASHING_TIMEOUT - secondsSpent, SECONDS));
+            final long millisSpent = System.currentTimeMillis() - start;
+            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
+            setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new MerkleSynchronizationException(message, e);
@@ -707,7 +699,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         put(keyBytes, null, null, valueBytes);
     }
 
-    @SuppressWarnings("unchecked")
     private <V> void put(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
@@ -723,10 +714,24 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            final VirtualLeafBytes<V> existing = records.findLeafRecord(path);
-            assert existing != null;
-            final VirtualLeafBytes<V> updated =
-                    valueCodec != null ? existing.withValue(value, valueCodec) : existing.withValueBytes(valueBytes);
+            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
+            // the data source, and the path above can be used as the old path
+            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
+            final VirtualLeafBytes<V> updated;
+            if (existing != null) {
+                updated = valueCodec != null
+                        ? existing.withValue(value, valueCodec)
+                        : existing.withValueBytes(valueBytes);
+            } else {
+                // There is a leaf with the given key (because path != INVALID_PATH), but it
+                // isn't in the cache, so it must be on disk. Loading the record from disk
+                // with records.findLeafRecord() would be expensive and actually not needed.
+                // The path and the key are known, it's enough to create a new record and
+                // mark it as not moved
+                updated = valueCodec != null
+                        ? new VirtualLeafBytes<>(path, false, key, value, valueCodec)
+                        : new VirtualLeafBytes<>(path, false, key, valueBytes);
+            }
             cache.putLeaf(updated);
             statistics.countUpdatedEntities();
         } finally {
@@ -790,7 +795,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 final VirtualLeafBytes<?> lastLeaf = records.findLeafRecord(lastLeafPath);
                 assert lastLeaf != null;
                 cache.clearLeafPath(lastLeafPath);
-                // withPath() keeps track of the original path where the leaf was when loaded from disk
                 cache.putLeaf(lastLeaf.withPath(leafToDeletePath));
                 // NOTE: at this point, if leafToDelete was in the cache at some "path" index, it isn't anymore!
                 // The lastLeaf has taken its place in the path index.
@@ -821,7 +825,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
                 assert sibling != null;
                 cache.clearLeafPath(lastLeafSibling);
-                // withPath() keeps track of the original path where the leaf was when loaded from disk
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths
@@ -1538,7 +1541,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final VirtualLeafBytes<?> oldLeaf = records.findLeafRecord(firstLeafPath);
             requireNonNull(oldLeaf);
             cache.clearLeafPath(firstLeafPath);
-            // withPath() keeps track of the original path where the leaf was when loaded from disk
             cache.putLeaf(oldLeaf.withPath(getLeftChildPath(firstLeafPath)));
 
             // Create a new internal node that is in the position of the old leaf and attach it to the parent

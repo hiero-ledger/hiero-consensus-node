@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -58,6 +61,7 @@ public class WrappedRecordBlockHashMigration {
         return result;
     }
 
+    static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
     private static final String RESUME_MESSAGE =
             "Resuming calculation of wrapped record file hashes until next attempt, but this node "
                     + "will likely experience an ISS";
@@ -121,6 +125,11 @@ public class WrappedRecordBlockHashMigration {
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+
+        // Archive the jumpstart file so the migration doesn't run again
+        final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
+        Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
+        log.info("Archived jumpstart file to {}", archivedPath);
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {

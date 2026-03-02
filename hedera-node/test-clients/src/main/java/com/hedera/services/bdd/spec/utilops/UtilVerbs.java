@@ -779,6 +779,15 @@ public class UtilVerbs {
         return new GetWrappedRecordHashesOp(entriesRef);
     }
 
+    /**
+     * Verifies the node's jumpstart hash computation via three-way comparison:
+     * file entries, .rcd replay, and the node's logged hash.
+     *
+     * @param jumpstartContents raw bytes of the jumpstart file
+     * @param wrappedHashes     per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash  the hash the node logged during migration
+     * @param freezeBlockNum    the last block the migration processed
+     */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final byte[] jumpstartContents,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,

@@ -13,6 +13,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -21,6 +23,8 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +74,26 @@ class JumpstartFileSuite implements LifecycleTest {
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
+                // Verify the jumpstart file was archived after successful migration
+                withOpContext((spec, opLog) -> {
+                    for (final var node : spec.targetNetworkOrThrow().nodes()) {
+                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
+                            continue;
+                        }
+
+                        final var workingDir = node.metadata().workingDir();
+                        final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
+                        final var original = cutoverDir.resolve("jumpstart.bin");
+                        final var archived = cutoverDir.resolve("archived_jumpstart.bin");
+                        org.junit.jupiter.api.Assertions.assertFalse(
+                                Files.exists(original),
+                                "Jumpstart file should have been archived on node " + node.getNodeId()
+                                        + " but still exists at " + original);
+                        org.junit.jupiter.api.Assertions.assertTrue(
+                                Files.exists(archived),
+                                "Archived jumpstart file not found on node " + node.getNodeId() + " at " + archived);
+                    }
+                }),
                 // Independently verify the node's computed hash. The wrapped record hashes file
                 // may have grown since the migration ran (nodes continue writing after restart),
                 // so we pass the freeze block number to bound the replay to the same range the

@@ -130,6 +130,14 @@ tasks.register<Exec>("startGrafana") {
     notCompatibleWithConfigurationCache("Uses external shell script with dynamic file paths")
 }
 
+// Task to generate saved states for otter tests
+tasks.register<JavaExec>("generateSavedState") {
+    group = "otter"
+    description = "Generate a saved state for use in otter tests"
+    classpath = sourceSets.testFixtures.get().runtimeClasspath
+    mainClass = "org.hiero.otter.fixtures.tools.GenerateStateTool"
+}
+
 // Task to stop Grafana and VictoriaMetrics containers
 tasks.register<Exec>("stopGrafana") {
     group = "visualization"

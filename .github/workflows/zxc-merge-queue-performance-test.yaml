@@ -1,0 +1,1018 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: [CITR] Merge Queue Performance Test"
+
+on:
+  workflow_call:
+    inputs:
+      test-asset:
+        required: true
+        default: "Dallas_n10"
+        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        type: string
+      ref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        type: string
+      solo-version:
+        required: true
+        default: "v0.41.0"
+        description: "Solo Version:"
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000000"
+        description: "Number of Accounts and NFT tokens (100000, 1000000, 20000000, 100000000, 500000000, 1000000000)"
+        type: string
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "960"
+        description: "Test execution time, mins (3, 9, 21, 180, 330)"
+        type: string
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special MQPT settings. Newline is "\n"'
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
+    secrets:
+      slack-report-webhook:
+        required: true
+        description: "Slack webhook for SDLT outputs notifications"
+      rootly-api-token:
+        required: true
+        description: "Rootly API Token for creating alerts/incidents"
+    outputs:
+      result:
+        description: "Result of the SDLT Run"
+        value: ${{ jobs.merge-queue-test-result.outputs.result }}
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+
+env:
+  NAMESPACE_PREFIX: mqpt-n
+  TIMEOUT_6H_LIMIT: 340
+  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
+  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+  GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
+  GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
+
+  #Release version from jFrog
+  NLG_VERSION: 0.13.0
+
+  #Thresholds for performance
+  #benchmarks
+  #CryptoTransfer   HCS   NftTransfer SmartContract
+  #        20467  20832         12407          7817
+  #-15%
+  #        17397   1707         10545          6644
+  MinNFTscore: 10545
+  MinHCSLoadTest: 1707
+  MinCryptoTransferLoadTest: 17397
+  MinSmartContractLoadTest: 6644
+  ReconnectExitCode: 0
+  ValidatorExitCode: 0
+
+jobs:
+  merge-queue-performance-tests-start:
+    name: Start
+    runs-on: hl-cn-mqpt-lin-lg
+    outputs:
+      namespace: ${{ steps.set-namespace.outputs.namespace }}
+      commit-sha: ${{ steps.hederahash.outputs.sha }}
+      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+      NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
+      Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
+      HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
+      Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
+      ValidatorStatus: ${{ steps.validator-status.outputs.value }}
+      ReconnectStatus: ${{ steps.reconnect-status.outputs.value }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+            grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.33.0
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.1.4
+
+      - name: Authorize Teleport SSH Access
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+
+      - name: Authorize Teleport K8S Access
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          certificate-ttl: 20h
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: "v3.12.3" # helm version
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        with:
+          gradle-version: wrapper
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+
+      - name: OS check procedure
+        id: setup
+        shell: bash
+        run: |
+          set +x
+          set +e
+          export TERM=vt100
+          echo Setup procedure ...
+          cat /etc/*elease
+          sudo apt-get update
+          sudo apt-get install -y net-tools iputils-ping node-typescript
+
+      - name: Create report dir
+        shell: bash
+        run: |
+          mkdir "${{ github.workspace }}"/report
+
+      - name: Set namespace
+        id: set-namespace
+        run: |
+          set +x
+          set +e
+          #trim RUN_HCN_VERSION
+          echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
+          namespaceId="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(\w+[^\d])(\d+)$/')"
+          echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_ENV}"
+          echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_OUTPUT}"
+          echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Check for namespace collision
+        run: |
+          set +e
+          set +x
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
+          if [[ ${?} -eq 0 ]]
+          then
+            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
+            exit 13
+          fi
+
+      - name: Cancelling in case of namespace collision
+        if: failure()
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
+      - name: Print parameters
+        run: |
+          echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.add-app-props=${{ inputs.add-app-props }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.add-settings=${{ inputs.add-settings }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.run_NLGDparams=${{ inputs.run_NLGDparams }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+          echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Set hederahash sha value
+        id: hederahash
+        run: |
+          hederahash="$(git rev-parse HEAD)"
+          echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
+          echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Compile
+        run: ./gradlew --no-daemon clean assemble
+
+      - name: Build Validator
+        run: |
+          ./gradlew --no-daemon :hedera-state-validator:shadowJar
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+
+          # verify the installation
+          solo --version
+
+      - name: Deploy with Solo
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+        run: |
+          set +x
+          set +e
+          curdir="$(pwd)"
+
+          # Create the solo directory
+          mkdir -p "${{ github.workspace }}"/solo && cd "${{ github.workspace}}"/solo
+
+          # Generate the Taskfile.yml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
+
+          # Generate the Taskfile.citr.yml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.citr.yml Taskfile.citr.yml
+
+          # Generate the log4j2.xml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/log4j2.xml log4j2.xml
+
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
+          # Generate the init-containers-values7.yaml inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
+
+          # Update Taskfile values
+          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+
+          # Update Init Containers values
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
+
+          if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="mini-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-mini-test"
+          else
+            NETWORK_OWNER="merge-queue-performance-test"
+          fi
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
+
+          # Generate the application.properties file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
+
+          # Generate the settings.txt file inline
+          cat "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt | grep -v 'consensus.roundsExpired' > settings.txt
+
+          if [[ "${{ inputs.add-app-props }}" != "" ]]
+          then
+            echo -e "${{ inputs.add-app-props }}" >> application.properties
+            echo "New application.properties:"
+            cat application.properties
+          fi
+
+          if [[ "${{ inputs.add-settings }}" != "" ]]
+          then
+            echo -e "${{ inputs.add-settings }}" >> settings.txt
+            echo "New settings.txt:"
+            cat settings.txt
+          fi
+          export NODE_COPY_CONCURRENT=1
+
+          task
+          task_code=${?}
+          task solo:node:logs
+          if [[ ${task_code} -ne 0 ]]
+          then
+             echo "ERROR! log:"
+             tail -n 100 "${HOME}"/.solo/logs/solo.log
+          fi
+
+          sleep 30
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
+          cd "${{ github.workspace }}"
+
+          mkdir solo_deploy
+          cp -r "${HOME}"/.solo/logs solo_deploy/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
+          cp -r "podlog_${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+
+          exit "${task_code}"
+
+      - name: Move to Github Workspace
+        run: cd "${{ github.workspace }}"
+
+      - name: Build NLG test
+        if: false
+        env:
+          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
+        run: |
+          set +x
+          set +e
+          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
+          cd network-load-generator
+          git checkout main
+          ./gradlew --no-daemon clean assemble
+          cd build/libs
+          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+
+      - name: Prepare NLG parameters
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace }}"/solo
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+            grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+            grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
+
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
+          # Generate the merkledb-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
+
+          #Disable auto-start
+          sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
+          grep -v 'x.y.z' nlg-values.yaml > new.yml
+
+          cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
+          mv new.yml nlg-values.yaml
+
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
+          if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="mini-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-mini-test"
+          else
+            NETWORK_OWNER="merge-queue-performance-test"
+          fi
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
+
+      - name: Deploy NLG test
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace }}"/solo
+          helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          sleep 180
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+
+          # Copy run version
+          echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+
+      - name: Update NLG test
+        if: false
+        run: |
+          set +x
+          set +e
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
+
+      - name: Distribution of K8S nodes, SysAdmin Grafana
+        run: |
+          set +x
+          set +e
+
+          start_date=$(date +%Y-%m-%dT%T)
+          echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
+            perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Start ScriptedLoadTest test
+        run: |
+          run_NLGDparams="${{ inputs.run_NLGDparams }}" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          n=`expr ${{ inputs.nlg-accounts }} / 1000`
+          NLG_c=32
+
+          test=ScriptedLoadTest
+
+          NLGargs="-R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+
+          echo kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+            ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
+            ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+
+          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+            ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
+            ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+          sleep 30
+
+      - name: Wait for last finished sequential test (SmartContractLoadTest)
+        run: |
+          set +x
+          set +e
+
+          check_status() {
+           logfile=${1}
+           ec=2 # continue
+           grep -E 'Finished SmartContractLoadTest' ${logfile} >/dev/null
+           if [[ ${?} -eq 0 ]]
+           then
+              echo "Test SmartContractLoadTest finished, exiting..."
+              ec=0
+           fi
+
+           grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
+           if [[ ${?} -eq 0 ]]
+           then
+              echo "ERROR: Wrong config/environment"
+              tail "${logfile}"
+              ec=1
+           fi
+
+           return ${ec}
+          }
+
+          sleep 60
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+
+          counter=0
+          start_time=$(date +%s)
+          max_counter=${{ env.TIMEOUT_6H_LIMIT }}
+
+          ec=2
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          isRunning=${?}
+
+          while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
+          do
+
+           sleep 60
+           current_time=$(date +%s)
+           counter=$(expr "${current_time}" - "${start_time}")
+           counter=$(expr "${counter}" \/ 60)
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           tail -n 1 client.log
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           isRunning=${?}
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished SmartContractLoadTest' /app/client.log" > client_state.log
+           check_status client_state.log
+           ec=${?}
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
+           then
+             break
+           fi
+          done
+
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
+          then
+            rm -rf "${{ github.workspace }}"/report/*
+          fi
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+
+          check_status "${{ github.workspace }}"/report/client.log
+          ec=${?}
+
+          if [[ ${ec} -eq 2 ]]
+          then
+            echo "Continue to wait in next Runner ..."
+            ec=0
+          fi
+
+          tail "${{ github.workspace }}"/report/client.log
+          echo "Finished, exit code=${ec}"
+          exit ${ec}
+
+      - name: Start Reconnect
+        id: reconnect-status
+        run: |
+          set +x
+          set +e
+
+          downtime=600
+          warmtime=600
+          NofLoops=2
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+          bash "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ steps.set-namespace.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops} 2>&1 | tee "${{ github.workspace }}"/report/reconnect.log
+          grep -E "Reconnect N=${NofLoops} done" "${{ github.workspace }}"/report/reconnect.log
+          echo "value=$?" >> "${GITHUB_OUTPUT}"
+
+      - name: Wait for ScriptedLoadTest
+        run: |
+          set +x
+          set +e
+
+          check_status() {
+           logfile=${1}
+           ec=2 # continue
+
+           grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
+           if [[ ${?} -eq 0 ]]
+           then
+              echo "ERROR: Wrong config/environment"
+              tail "${logfile}"
+              ec=1
+           fi
+
+           return ${ec}
+          }
+
+          sleep 60
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+
+          counter=0
+          start_time=`date +%s`
+          max_counter=${{ env.TIMEOUT_6H_LIMIT }}
+
+          ec=2
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          isRunning=${?}
+
+          while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
+          do
+
+           sleep 60
+           current_time=$(date +%s)
+           counter=$(expr "${current_time}" - "${start_time}")
+           counter=$(expr "${counter}" \/ 60)
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           tail -n 1 client.log
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           isRunning=${?}
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           check_status client_state.log
+           ec=${?}
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
+           then
+             break
+           fi
+          done
+
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
+          then
+            rm -rf "${{ github.workspace }}"/report/*
+          fi
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+
+          check_status "${{ github.workspace }}"/report/client.log
+          ec=${?}
+
+          if [[ ${ec} -eq 2 ]]
+          then
+            echo "Continue to wait in next Runner ..."
+            ec=0
+          fi
+
+          tail "${{ github.workspace }}"/report/client.log
+          echo "Finished, exit code=${ec}"
+          exit ${ec}
+
+      - name: Deploy Validator
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp ${{ github.workspace }}/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
+
+      - name: Run Validator
+        id: validator-status
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
+          grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
+          echo "value=$?" >> "${GITHUB_OUTPUT}"
+
+      - name: Copy logs
+        run: |
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sleep 300 # known: to let all benchmark write down logs
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" "${{ github.workspace }}"/report/
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
+
+      - name: Extract benchmark score of NftTransferLoadTest test
+        id: NftTransferLoadTestLogs
+        run: |
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of CryptoTransferLoadTest test
+        id: CryptoTransferLoadTestLogs
+        run: |
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of HCSLoadTest test
+        id: HCSLoadTestLogs
+        run: |
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of SmartContractLoadTest test
+        id: SmartContractLoadTestLogs
+        run: |
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Publish logs
+        if: ${{ !cancelled() }}
+        run: |
+          cd "${{ github.workspace }}"/
+
+          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
+          if [[ ${?} -ne 0 ]]
+          then
+            sleep 10
+            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
+          fi
+
+          echo "Size of report dir:"
+          du -sk report
+
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
+
+          echo "Truncating logs for next test..."
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
+
+  # Send this output back to the caller workflow
+  merge-queue-test-result:
+    name: Calculate Result
+    runs-on: hl-cn-mqpt-lin-lg
+    if: ${{ !cancelled() }}
+    needs:
+      - merge-queue-performance-tests-start
+    outputs:
+      result: ${{ steps.mqpt-status.outputs.result }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set output
+        id: mqpt-status
+        env:
+          nft_transfer_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}
+          hcs_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}
+          crypto_transfer_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}
+          smart_contract_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}
+          reconnect_result: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}
+          validator_result: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}
+
+        run: |
+          # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
+          RESULT="failure"
+          if [[ "${nft_transfer_load_result}" != "" && \
+                "${hcs_load_result}" != "" && \
+                "${crypto_transfer_load_result}" != "" && \
+                "${smart_contract_load_result}" != ""  && \
+                "${reconnect_result}" == "0"  && \
+                "${validator_result}" == "0" ]]; then
+              RESULT="success"
+          fi
+
+          if [[ "10#${{ env.nft_transfer_load_result }}" -lt "${{ env.MinNFTscore }}" ]]
+          then
+            echo "Benchmark NFTscore ${{ env.nft_transfer_load_result }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [[ "10#${{ env.hcs_load_result }}" -lt "${{ env.MinHCSLoadTest }}" ]]
+          then
+            echo "Benchmark HCSLoadTest ${{ env.hcs_load_result }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [[ "10#${{ env.crypto_transfer_load_result }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]]
+          then
+            echo "Benchmark CryptoTransferLoadTest ${{ env.crypto_transfer_load_result }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [[ "10#${{ env.smart_contract_load_result }}" -lt "${{ env.MinSmartContractLoadTest }}" ]]
+          then
+            echo "Benchmark SmartContractLoadTest ${{ env.smart_contract_load_result }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [[ "10#${{ env.reconnect_result }}" -ne "${{ env.ReconnectExitCode }}" ]]
+          then
+            echo "Reconnect exit code ${{ env.reconnect_result }} is not ${{ env.ReconnectExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [[ "10#${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]]
+          then
+            echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
+
+          echo "### Merge Queue Performance Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+  merge-queue-report-to-rootly:
+    name: Report Failures to Rootly
+    runs-on: hl-cn-mqpt-lin-sm
+    needs:
+      - merge-queue-performance-tests-start
+      - merge-queue-test-result
+    if: ${{ ( needs.merge-queue-test-result.outputs.result != 'success' ) &&
+      !cancelled() && always() }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Build Rootly Summary
+        id: summary
+        run: |
+          title="The Merge Queue Performance Test Report failed (MQPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- NFT Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}"
+            echo "- HCS Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}"
+            echo "- Crypto Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}"
+            echo "- SmartContract Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}"
+            echo "- Reconnect: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}"
+            echo "- Validator: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}"
+
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.merge-queue-performance-tests-start.outputs.commit-sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Summary
+        run: |
+          echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+
+  performance-report-to-slack:
+    runs-on: hl-cn-mqpt-lin-sm
+    needs:
+      - merge-queue-performance-tests-start
+      - merge-queue-test-result
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Clean branch or tag name from input.ref
+        id: clean-branch-name
+        run: |
+          raw_ref="${{ inputs.ref }}"
+          echo "Raw input ref: ${raw_ref}"
+          clean_ref=""
+
+          if [[ "${raw_ref}" == refs/heads/* ]]; then
+            clean_ref="${raw_ref#refs/heads/}"
+          elif [[ "${raw_ref}" == refs/tags/* ]]; then
+            clean_ref="${raw_ref#refs/tags/}"
+          elif [[ "${raw_ref}" == refs/pull/*/merge ]]; then
+            clean_ref="PR-${raw_ref#refs/pull/}"
+            clean_ref="${clean_ref%/merge}"
+          fi
+
+          echo "clean_ref=${clean_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          report="\
+            NftTransferLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
+            HCSLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
+            CryptoTransferLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
+            SmartContractLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"
+
+          if [[ "${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}" == "0" ]]
+          then
+            Reconnect="PASSED"
+          else
+            Reconnect="FAILED"
+          fi
+
+          if [[ "${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}" == "0" ]]
+          then
+            Validator="PASSED"
+          else
+            Validator="FAILED"
+          fi
+
+          #last line is 6, it does not need comma block separator
+          # use back-ticks for proper substitution in the json report
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
+            perl -ne 'if ($. < 4) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int((($d-$l)/$l)*100); \
+            $excl=""; if ($d < $l) {$excl="\\\u2757";}
+            printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
+            {\"type\": \"text\",\"text\": \"ReconnectTest ${Reconnect}\n\"},\
+            {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
+
+          COLOR="#FF0000"
+          if [[ "${{ needs.merge-queue-test-result.outputs.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.merge-queue-test-result.outputs.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "Merge Queue Performance Test Report (MQPT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                      "type": "rich_text",
+                      "elements": [
+                        {
+                          "type": "rich_text_preformatted",
+                          "elements": [
+                            ${freport}
+                          ]
+                        }
+                      ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Version*: ${{ inputs.ref }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      ## Slack notifications
+      - name: Report status (slack detailed reports)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.slack-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
