@@ -16,7 +16,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
@@ -27,7 +26,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -669,9 +667,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         private static Stream<Arguments> createContextDispatchers() {
-            return Stream.of(Arguments.of(
-                    (Consumer<HandleContext>) context ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class)),
+            return Stream.of(
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(DispatchOptions.subDispatch(
                             ALICE.accountID(),
                             txBody,
@@ -683,7 +679,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
-                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING)))));
+                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING))));
         }
 
         @ParameterizedTest
@@ -701,45 +697,6 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             contextDispatcher.accept(context);
 
             verify(dispatcher, never()).dispatchHandle(any());
-        }
-
-        @Test
-        void testDispatchPrecedingWithNonEmptyStackDoesntFail() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            stack.createSavepoint();
-
-            assertThatNoException()
-                    .isThrownBy(() ->
-                            context.dispatch(independentDispatch(AccountID.DEFAULT, txBody, StreamBuilder.class)));
-            verify(dispatcher, never()).dispatchHandle(any());
-            verify(stack).commitTransaction(any());
-        }
-
-        @Test
-        void testDispatchPrecedingWithChangedDataDoesntFail() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            final Map<ProtoBytes, ProtoBytes> newData = new HashMap<>(BASE_DATA);
-            newData.put(B_KEY, BLUEBERRY);
-
-            assertThatNoException()
-                    .isThrownBy(() ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class)));
-            assertThatNoException()
-                    .isThrownBy((() ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class))));
-            verify(dispatchProcessor, times(2)).processDispatch(any());
-        }
-
-        @Test
-        void testDispatchPrecedingIsCommitted() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-
-            Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
-
-            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class));
-
-            verify(dispatchProcessor).processDispatch(childDispatch);
-            verify(stack).commitTransaction(any());
         }
 
         @Test
