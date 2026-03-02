@@ -32,6 +32,7 @@ import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -254,7 +255,7 @@ public class BlockStreamEventBuilder {
                 .parents(resolvedParents)
                 .transactions(transactionBytes) // may not match original if there are filtered transactions
                 .build();
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.STORAGE);
         platformEvent.setHash(eventHash);
         return platformEvent;
     }
@@ -356,7 +357,8 @@ public class BlockStreamEventBuilder {
      * @param transaction the full transaction bytes, or null if only the hash is available
      * @param transactionHash the transaction hash, or null if the full transaction is available
      */
-    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+    private record TransactionWrapper(
+            @Nullable Bytes transaction, @Nullable Bytes transactionHash) {
         public boolean isTransaction() {
             return transaction != null;
         }

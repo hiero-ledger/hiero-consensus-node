@@ -54,21 +54,19 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -98,23 +96,18 @@ public class ServicesMain {
      *     <li>Scan the classpath for {@link RuntimeConstructable} classes,
      *     registering their no-op constructors as the default factories for their
      *     class ids.</li>
-     *     <li>Create the application's {@link Hedera} singleton, which overrides
-     *     the default factory for the stable {@literal 0x8e300b0dfdafbb1a} class
-     *     id of the Services Merkle tree root with a reference to its
-     *     {@link SwirldMain#newStateRoot()} method.</li>
+     *     <li>Create the application's {@link Hedera} singleton, which initializes an instance of
+     *     {@link VirtualMapStateLifecycleManager} to manage state instances.</li>
      *     <li>Determine this node's <b>self id</b> by searching the <i>config.txt</i>
      *     in the working directory for any address book entries with IP addresses
      *     local to this machine; if there is more than one such entry, fail unless
      *     the command line args include a {@literal -local N} arg.</li>
-     *     <li>Build a {@link Platform} instance from Services application metadata
-     *     and the working directory <i>settings.txt</i>, providing the same
-     *     {@link SwirldMain#newStateRoot()} method reference as the genesis state
-     *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
+     *     <li>Load the initial state via the {@code StateLifecycleManager}, which creates
+     *     a genesis state eagerly in its constructor if no saved state is found.
+     *     (<b>IMPORTANT:</b> This step instantiates and invokes
      *     {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
      *     on a {@link VirtualMapState} instance that delegates the call back to our
      *     Hedera instance.)</li>
-     *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
-     *     validation and register notification listeners on the platform.</li>
      *     <li>Invoke {@link Platform#start()}.</li>
      * </ol>
      *
@@ -124,31 +117,13 @@ public class ServicesMain {
      * <p>
      * <b>IMPORTANT:</b> A surface-level reading of this method will undersell the centrality
      * of the Hedera instance. It is actually omnipresent throughout both the startup and
-     * runtime phases of the application. Let's see why. When we build the platform, the
-     * builder will either:
-     * <ol>
-     *      <li>Create a genesis state; or,</li>
-     *      <li>Deserialize a saved state.</li>
-     * </ol>
-     * In both cases the state object will be created by the {@link SwirldMain#newStateRoot()}
-     * method reference bound to our Hedera instance. Because,
-     * <ol>
-     *      <li>We provided this method as the genesis state factory right above; and,</li>
-     *      <li>Our Hedera instance's constructor registered its {@link SwirldMain#newStateRoot()}
-     *      method with the {@link ConstructableRegistry} as the factory for the Services state root
-     *      class id.</li>
-     * </ol>
-     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link VirtualMapState}
-     *  instances that delegate their lifecycle methods to an injected instance of
-     *  {@link ConsensusStateEventHandler}---and the implementation of that
-     *  injected by {@link SwirldMain#newStateRoot()} delegates these calls back to the Hedera
-     *  instance itself.
-     * <p>
-     *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
-     *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
-     *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query
-     *  workflows; as well as other infrastructure components that need to be initialized or
-     *  accessed at specific points in the Swirlds application lifecycle.
+     * runtime phases of the application. The {@link StateLifecycleManager} owned by the
+     * Hedera instance is responsible for creating and managing all state instances. The
+     * Hedera instance centralizes nearly all the setup and runtime logic for the application.
+     * It implements this logic by instantiating a {@link javax.inject.Singleton} component
+     * whose object graph roots include the Ingest, PreHandle, Handle, and Query workflows;
+     * as well as other infrastructure components that need to be initialized or accessed at
+     * specific points in the Swirlds application lifecycle.
      *
      * @param args optionally, what node id to run; required if the address book is ambiguous
      */
@@ -182,7 +157,6 @@ public class ServicesMain {
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         hedera = newHedera(platformConfig, metrics, time);
         final var version = hedera.getSemanticVersion();
-        final AtomicBoolean genesisNetwork = new AtomicBoolean(false);
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
@@ -192,15 +166,12 @@ public class ServicesMain {
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
+
+        // Try to load a saved state from disk. The StateLifecycleManager creates a genesis state eagerly in its
+        // constructor, so if no saved state is found we proceed with the genesis path.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> {
-                    genesisNetwork.set(true);
-                    final var genesisState = hedera.newStateRoot();
-                    hedera.initializeStatesApi(genesisState, GENESIS, platformConfig);
-                    return genesisState;
-                },
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
@@ -208,15 +179,25 @@ public class ServicesMain {
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();
-        if (!genesisNetwork.get()) {
+
+        // Determine whether we are starting from genesis or restarting from a saved state.
+        final boolean isGenesis = initialState.get().isGenesisState();
+
+        if (isGenesis) {
+            // Genesis path: initialize the States API on the genesis state created by the manager.
+            hedera.initializeStatesApi(state, GENESIS, platformConfig);
+        } else {
+            // Restart path: initialize the States API on the loaded state.
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
-        logger.info("Initial state hash: {}", reservedState.hash().toHex());
+        logger.info(
+                "Initial state hash: {}",
+                reservedState.hash() != null ? reservedState.hash().toHex() : "<null>");
 
         final RosterHistory rosterHistory;
         final List<RosterEntry> rosterEntries;
-        if (genesisNetwork.get()) {
+        if (isGenesis) {
             final var genesisRoster = hedera.genesisRosterOrThrow();
             rosterHistory = RosterHistory.fromGenesis(genesisRoster);
             rosterEntries = genesisRoster.rosterEntries();
@@ -227,10 +208,10 @@ public class ServicesMain {
         }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
-        final String consensusEventStreamName = genesisNetwork.get()
+        final String consensusEventStreamName = isGenesis
                 // If at genesis, base the event stream location on the genesis network metadata
                 ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
-                // Otherwise derive if from the node's id in state or
+                // Otherwise derive it from the node's id in state
                 : canonicalEventStreamLoc(selfId.id(), state);
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
@@ -249,8 +230,6 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-        hedera.init(platform, selfId);
-
         platform.start();
         hedera.run();
     }
@@ -333,8 +312,7 @@ public class ServicesMain {
                 TssBlockHashSigner::new,
                 configuration,
                 metrics,
-                time,
-                () -> new VirtualMapStateImpl(configuration, metrics));
+                time);
     }
 
     /**

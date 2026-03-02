@@ -300,7 +300,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 retryCount++;
                 try {
                     // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 1000 : 10);
+                    sleep(isTransientPlatformError ? 100 : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
