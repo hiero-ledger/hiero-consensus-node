@@ -76,6 +76,20 @@ public class CryptoSimpleFeesSuite {
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto create plain")
+    final Stream<DynamicTest> flakyTest() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate("newAccount").payingWith(PAYER).via("createAccountTxn")),
+                "createAccountTxn",
+                Math.random() < 0.5 ? 0.05 : 5,
+                1.0,
+                0.05,
+                1.0);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("crypto create plain")
     final Stream<DynamicTest> cryptoCreatePlain() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
