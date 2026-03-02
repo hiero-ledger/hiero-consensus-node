@@ -446,8 +446,7 @@ class DispatchProcessorTest {
         given(dispatch.handleContext()).willReturn(context);
         givenAuthorization();
         doThrow(new HandleException(
-                        TOKEN_NOT_ASSOCIATED_TO_ACCOUNT,
-                        (ctx, childDispatch) -> replayOrder.add("exception-replay")))
+                        TOKEN_NOT_ASSOCIATED_TO_ACCOUNT, (ctx, childDispatch) -> replayOrder.add("exception-replay")))
                 .when(dispatcher)
                 .dispatchHandle(context);
         doAnswer(invocation -> {

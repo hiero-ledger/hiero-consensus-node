@@ -721,7 +721,8 @@ public class ConversionUtils {
         requireNonNull(hederaOperations);
         if (outcome.status() != SUCCESS) {
             throw new HandleException(
-                    outcome.status(), (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
+                    outcome.status(),
+                    (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
         }
     }
 

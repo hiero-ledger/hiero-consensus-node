@@ -179,7 +179,8 @@ public class HollowAccountCompletionsTest {
         finalizations.replay(handleContext::dispatch);
 
         verify(handleContext, times(2)).dispatch(any());
-        verify(recordBuilder, times(2)).accountID(AccountID.newBuilder().accountNum(1).build());
+        verify(recordBuilder, times(2))
+                .accountID(AccountID.newBuilder().accountNum(1).build());
     }
 
     @Test

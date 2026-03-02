@@ -254,7 +254,10 @@ public class AtomicBatchHandler implements TransactionHandler {
         /**
          * Represents a charge that can be replayed on a {@link Context}.
          */
-        public record Charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable AccountID nodeAccountId) {
+        public record Charge(
+                @NonNull AccountID payerId,
+                @NonNull Fees fees,
+                @Nullable AccountID nodeAccountId) {
             /**
              * Replays the charge on the given {@link Context}.
              *
@@ -271,7 +274,8 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         private record ChargingEvent(
-                @NonNull ReplayableFeeStreamBuilder streamBuilder, @NonNull List<Charge> charges) {}
+                @NonNull ReplayableFeeStreamBuilder streamBuilder,
+                @NonNull List<Charge> charges) {}
 
         private final FeeCharging delegate;
         private final List<ChargingEvent> chargingEvents = new ArrayList<>();
