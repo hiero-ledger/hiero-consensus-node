@@ -110,28 +110,34 @@ jobs:
     needs:
       - fetch-xts-candidate
     outputs:
-      failure-mode: ${{ steps.mock-execution.outputs.failure-mode }}
-      failed-tests: ${{ steps.mock-execution.outputs.failed-tests }}
+      failure-mode: ${{ steps.mock-outputs.outputs.failure-mode }}
+      failed-tests: ${{ steps.mock-outputs.outputs.failed-tests }}
     steps:
-      - name: Mock XTS Execution
-        id: mock-execution
+      - name: Set Mock Outputs
+        id: mock-outputs
         env:
           MOCK_CATEGORY: ${{ inputs.test-mock-category || 'test' }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "${MOCK_CATEGORY}" == "test" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
             echo "failed-tests=HAPI Tests (Misc), Otter Tests (Fast)" >> "${GITHUB_OUTPUT}"
-            echo "Simulating test failure..."
-            exit 1
           elif [[ "${MOCK_CATEGORY}" == "infrastructure" ]]; then
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
             echo "failed-tests=" >> "${GITHUB_OUTPUT}"
-            echo "Simulating infrastructure failure..."
-            exit 1
           elif [[ "${MOCK_CATEGORY}" == "cancelled" ]]; then
             echo "failure-mode=cancelled" >> "${GITHUB_OUTPUT}"
             echo "failed-tests=" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Simulate Failure
+        env:
+          MOCK_CATEGORY: ${{ inputs.test-mock-category || 'test' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${MOCK_CATEGORY}" == "test" || "${MOCK_CATEGORY}" == "infrastructure" ]]; then
+            echo "Simulating ${MOCK_CATEGORY} failure..."
+            exit 1
+          elif [[ "${MOCK_CATEGORY}" == "cancelled" ]]; then
             echo "Simulating cancellation..."
             gh run cancel ${{ github.run_id }}
             sleep 60
