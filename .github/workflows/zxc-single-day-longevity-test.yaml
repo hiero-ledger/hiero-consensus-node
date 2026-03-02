@@ -161,6 +161,13 @@ jobs:
         with:
           version: 3.39.2
 
+      - name: Install Helm
+        shell: bash
+        run: |
+          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/helm-v4.1.1-linux-amd64.tar.gz
+          tar xfz helm-v4.1.1-linux-amd64.tar.gz
+          sudo mv linux-amd64/helm /usr/bin/helm
+
       - name: OS check procedure
         id: setup
         shell: bash
@@ -173,10 +180,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y net-tools iputils-ping node-typescript
 
-          echo "Setup Helm:"
-          curl -s https://get.helm.sh/helm-v4.1.1-linux-amd64.tar.gz > helm-v4.1.1-linux-amd64.tar.gz
-          tar xfz helm-v4.1.1-linux-amd64.tar.gz
-          sudo mv linux-amd64/helm /usr/bin/helm
 
       - name: Create report dir
         shell: bash
