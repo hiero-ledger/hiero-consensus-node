@@ -147,14 +147,12 @@ tasks.register<JavaExec>("run") {
         listOf(
             "-cp",
             "data/lib/*:data/apps/*",
-            "-XX:+UseSerialGC",
-//            "-XX:+UseZGC",
-//            "-XX:+ZGenerational",
-            "-Xms128M",
-            "-Xmx512M",
-            "-XX:MinHeapFreeRatio=10",
-            "-XX:MaxHeapFreeRatio=30",
-            "-XX:MaxMetaspaceSize=96M",
+            "-server",
+            "-XX:+UseParallelGC",
+            "-Xms196M",
+            "-Xmx196M",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxMetaspaceSize=84M",
             "-XX:CompressedClassSpaceSize=48M",
             "-Xss256K",
             "-XX:-TieredCompilation",
@@ -164,6 +162,7 @@ tasks.register<JavaExec>("run") {
             "-XX:NativeMemoryTracking=summary",
             "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
         )
+
     mainClass.set("com.hedera.node.app.ServicesMain")
 
     // Add arguments for the application to run a local node

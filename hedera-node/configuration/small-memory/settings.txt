@@ -4,7 +4,6 @@
 
 sync.syncProtocolPermitCount,                  2                            # differs from mainnet
 
-
                                           #############################
                                           #           State           #
                                           #############################
@@ -50,9 +49,8 @@ merkleDb.compactionThreads,                         1
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
 merkleDb.iteratorInputBufferBytes,             1048576                      # 1 MB, down from 16 MB default
-merkleDb.longListReservedBufferSize,           65536                      # 64 KB, down from 256 KB default
-merkleDb.useDiskIndices,                       true                        # uses on-disk indices, reduces off-heap memory usage
-virtualMap.copyFlushCandidateThreshold,        10240                       # flush to disk if VM size > 10 KB, it will result in frequent flushes
+merkleDb.longListReservedBufferSize,             65536                      # 64 KB, down from 256 KB default
+virtualMap.copyFlushCandidateThreshold,         10240
 virtualMap.numHashThreads,                          1                      # down from 50% of CPUs
 virtualMap.numCleanerThreads,                       1                      # down from 25% of CPUs
 platformStatus.observingStatusDelay,                0s
@@ -62,7 +60,6 @@ platformStatus.observingStatusDelay,                0s
                                           #############################
 state.roundsToKeepForSigning,                       5                      # down from 26, fewer state copies in RAM
 state.signedStateDisk,                              1                      # down from 5, fewer disk copies
-state.periodicSnapshotsEnabled                      false                  # disable periodic snapshots
 
                                           #############################
                                           #          PCES             #
