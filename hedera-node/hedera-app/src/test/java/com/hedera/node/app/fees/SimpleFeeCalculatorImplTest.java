@@ -3,8 +3,6 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
-import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -22,17 +20,31 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.transaction.NodeStakeUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
+import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -47,6 +59,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -233,33 +248,13 @@ class SimpleFeeCalculatorImplTest {
         assertThat(result.totalTinycents()).isGreaterThan(0);
     }
 
-    @Test
-    @DisplayName("State signature transaction is free without a service fee calculator")
-    void calculateTxFee_stateSignatureTransaction_isAlwaysFree() {
-        final var simpleFeeContext = createMockSimpleFeeContext(STATE_SIGNATURE_TRANSACTION);
+    @ParameterizedTest(name = "{0} is free")
+    @MethodSource("freeOrInternalTransactions")
+    void calculateTxFee_freeOrInternalTransactions_areAlwaysFree(
+            final HederaFunctionality functionality, final TransactionBody txnBody) {
+        final var simpleFeeContext = createMockSimpleFeeContext(functionality);
         final var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
-        final var txnBody = TransactionBody.newBuilder()
-                .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
-                .build();
-
-        final var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
-
-        assertThat(result.totalTinycents()).isZero();
-        verify(congestionMultipliers, never())
-                .maxCurrentMultiplier(
-                        any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class));
-    }
-
-    @Test
-    @DisplayName("System delete is free without a service fee calculator")
-    void calculateTxFee_systemDeleteTransaction_isAlwaysFree() {
-        final var simpleFeeContext = createMockSimpleFeeContext(SYSTEM_DELETE);
-        final var calculator =
-                new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
-        final var txnBody = TransactionBody.newBuilder()
-                .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
-                .build();
 
         final var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
@@ -412,5 +407,60 @@ class SimpleFeeCalculatorImplTest {
                 .when(simpleFeeContext.getHighVolumeThrottleUtilization(function))
                 .thenReturn(utilization);
         return simpleFeeContext;
+    }
+
+    private static Stream<Arguments> freeOrInternalTransactions() {
+        return SimpleFeeCalculatorImpl.FREE_OR_INTERNAL_TRANSACTIONS.stream()
+                .sorted()
+                .map(functionality -> Arguments.of(functionality, txnBodyFor(functionality)));
+    }
+
+    private static TransactionBody txnBodyFor(final HederaFunctionality functionality) {
+        return switch (functionality) {
+            case HISTORY_PROOF_KEY_PUBLICATION -> TransactionBody.newBuilder()
+                    .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.DEFAULT)
+                    .build();
+            case HINTS_KEY_PUBLICATION -> TransactionBody.newBuilder()
+                    .hintsKeyPublication(HintsKeyPublicationTransactionBody.DEFAULT)
+                    .build();
+            case CRS_PUBLICATION -> TransactionBody.newBuilder()
+                    .crsPublication(CrsPublicationTransactionBody.DEFAULT)
+                    .build();
+            case HINTS_PREPROCESSING_VOTE -> TransactionBody.newBuilder()
+                    .hintsPreprocessingVote(HintsPreprocessingVoteTransactionBody.DEFAULT)
+                    .build();
+            case HINTS_PARTIAL_SIGNATURE -> TransactionBody.newBuilder()
+                    .hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT)
+                    .build();
+            case HISTORY_ASSEMBLY_SIGNATURE -> TransactionBody.newBuilder()
+                    .historyProofSignature(HistoryProofSignatureTransactionBody.DEFAULT)
+                    .build();
+            case HISTORY_PROOF_VOTE -> TransactionBody.newBuilder()
+                    .historyProofVote(HistoryProofVoteTransactionBody.DEFAULT)
+                    .build();
+            case LEDGER_ID_PUBLICATION -> TransactionBody.newBuilder()
+                    .ledgerIdPublication(LedgerIdPublicationTransactionBody.DEFAULT)
+                    .build();
+            case STATE_SIGNATURE_TRANSACTION -> TransactionBody.newBuilder()
+                    .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
+                    .build();
+            case UNCHECKED_SUBMIT -> TransactionBody.newBuilder()
+                    .uncheckedSubmit(
+                            UncheckedSubmitBody.newBuilder().transactionBytes(Bytes.EMPTY).build())
+                    .build();
+            case HOOK_DISPATCH -> TransactionBody.newBuilder()
+                    .hookDispatch(HookDispatchTransactionBody.DEFAULT)
+                    .build();
+            case NODE_STAKE_UPDATE -> TransactionBody.newBuilder()
+                    .nodeStakeUpdate(NodeStakeUpdateTransactionBody.DEFAULT)
+                    .build();
+            case SYSTEM_DELETE -> TransactionBody.newBuilder()
+                    .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
+                    .build();
+            case SYSTEM_UNDELETE -> TransactionBody.newBuilder()
+                    .systemUndelete(SystemUndeleteTransactionBody.newBuilder().build())
+                    .build();
+            default -> throw new IllegalArgumentException("Unsupported free/internal functionality " + functionality);
+        };
     }
 }

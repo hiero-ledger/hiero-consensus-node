@@ -54,6 +54,7 @@ public class ContractServiceQueriesSimpleFeesTest {
         return hapiTest(
                 contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
                         .gas(21500)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(contractLocalCall),
@@ -66,6 +67,7 @@ public class ContractServiceQueriesSimpleFeesTest {
         final var record = "getBytecode";
         return hapiTest(
                 getContractBytecode(contract.name())
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),
@@ -78,6 +80,7 @@ public class ContractServiceQueriesSimpleFeesTest {
         final var record = "getInfo";
         return hapiTest(
                 getContractInfo(contract.name())
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),

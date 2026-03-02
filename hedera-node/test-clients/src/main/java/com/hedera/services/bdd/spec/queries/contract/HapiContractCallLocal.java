@@ -39,6 +39,7 @@ import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     private static final Logger LOG = LogManager.getLogger(HapiContractCallLocal.class);
+    private static final long MIN_COST_ANSWER_NODE_PAYMENT = 100_000_000L;
 
     private static final String FALLBACK_ABI = "<empty>";
     private String abi;
@@ -247,7 +248,9 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
 
     @Override
     protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractCallLocal, FeeBuilder.getCostForQueryByIdOnly());
+        final var costByIdOnly =
+                spec.fees().forOp(HederaFunctionality.ContractCallLocal, FeeBuilder.getCostForQueryByIdOnly());
+        return Math.max(costByIdOnly, MIN_COST_ANSWER_NODE_PAYMENT);
     }
 
     @Override

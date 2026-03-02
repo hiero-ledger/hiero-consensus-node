@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Assertions;
 
 public class HapiGetContractBytecode extends HapiQueryOp<HapiGetContractBytecode> {
+    private static final long MIN_COST_ANSWER_NODE_PAYMENT = 100_000_000L;
     private final String contract;
     private Optional<byte[]> expected = Optional.empty();
     private Optional<Consumer<byte[]>> bytecodeObs = Optional.empty();
@@ -111,7 +112,9 @@ public class HapiGetContractBytecode extends HapiQueryOp<HapiGetContractBytecode
 
     @Override
     protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractGetBytecode, FeeBuilder.getCostForQueryByIdOnly());
+        final var costByIdOnly =
+                spec.fees().forOp(HederaFunctionality.ContractGetBytecode, FeeBuilder.getCostForQueryByIdOnly());
+        return Math.max(costByIdOnly, MIN_COST_ANSWER_NODE_PAYMENT);
     }
 
     @Override
