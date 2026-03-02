@@ -12,7 +12,9 @@ These interfaces abstract away storage details, allowing implementations to hand
 The module offers two different levels of abstraction for accessing state data. The `State` interface operates at the
 **service level**, focused on convenience for the Consensus Node application. In contrast, `BinaryState` provides a
 lower-level abstraction, enabling work with the **state as a whole** rather than through specific service aspects.
-It comes in handy for the Block Node application. Alternatively, these two layers can be considered as **typed** and **binary**. 
+It comes in handy for the Block Node application. Alternatively, these two layers can be considered as **typed** and **binary**.
+Or even **logical** and **physical**. Logical access is to read/write entities from/to the state without knowing how
+exactly they are stored. Physical access implies the structure of the storage is very well-defined (virtual merkle tree in Hedera implementation).
 
 Beyond data access, the module defines `StateLifecycleManager` for managing the **state lifecycle** — creating and loading
 snapshots, maintaining mutable and immutable state references, and producing copies for concurrent use by hashing and
