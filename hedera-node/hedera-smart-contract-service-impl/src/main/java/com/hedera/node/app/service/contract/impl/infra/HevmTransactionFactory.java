@@ -271,7 +271,7 @@ public class HevmTransactionFactory {
                 ethTxData.gasLimit(),
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice(), weibarsPerSubunit),
                 maxGasAllowance,
-                synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData, weibarsPerSubunit),
                 null,
                 null);
     }

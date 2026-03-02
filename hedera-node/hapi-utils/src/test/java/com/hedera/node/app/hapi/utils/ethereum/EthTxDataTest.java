@@ -770,8 +770,8 @@ class EthTxDataTest {
     // --- Parameterized denomination-aware tests (Story 2-3, AC-6) ---
 
     @ParameterizedTest
-    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
-    void effectiveTinybarValueWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void effectiveTinybarValueWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
         final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
@@ -779,8 +779,8 @@ class EthTxDataTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
-    void getAmountWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void getAmountWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
         final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
@@ -788,8 +788,8 @@ class EthTxDataTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
-    void effectiveOfferedGasPriceWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void effectiveOfferedGasPriceWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
         final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         final var expected = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
@@ -799,8 +799,8 @@ class EthTxDataTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
-    void overflowProtectionWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void overflowProtectionWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
         final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0))
                 .replaceValue(

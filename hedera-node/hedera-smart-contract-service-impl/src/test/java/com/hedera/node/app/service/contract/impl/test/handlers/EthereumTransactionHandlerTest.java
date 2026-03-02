@@ -56,6 +56,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -200,7 +201,8 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()
@@ -238,7 +240,7 @@ class EthereumTransactionHandlerTest {
         given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
 
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
-                ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
+                ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()), null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
@@ -251,6 +253,7 @@ class EthereumTransactionHandlerTest {
                         ETH_DATA_WITH_TO_ADDRESS,
                         baseProxyWorldUpdater,
                         Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
+                        null,
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
@@ -295,7 +298,10 @@ class EthereumTransactionHandlerTest {
         given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
 
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
-                ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
+                ETH_DATA_WITHOUT_TO_ADDRESS,
+                baseProxyWorldUpdater,
+                Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
@@ -308,6 +314,7 @@ class EthereumTransactionHandlerTest {
                         ETH_DATA_WITHOUT_TO_ADDRESS,
                         baseProxyWorldUpdater,
                         Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null,
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
@@ -515,7 +522,10 @@ class EthereumTransactionHandlerTest {
         given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
-                ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
+                ETH_DATA_WITHOUT_TO_ADDRESS,
+                baseProxyWorldUpdater,
+                Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
@@ -528,6 +538,7 @@ class EthereumTransactionHandlerTest {
                         ETH_DATA_WITHOUT_TO_ADDRESS,
                         baseProxyWorldUpdater,
                         Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null,
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),

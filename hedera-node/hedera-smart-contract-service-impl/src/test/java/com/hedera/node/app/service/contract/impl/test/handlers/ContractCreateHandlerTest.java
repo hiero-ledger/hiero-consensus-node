@@ -155,7 +155,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(context.body()).willReturn(contractCreateTransactionWithInsufficientGas());
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT.finalStatus(),
@@ -164,7 +164,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -202,7 +202,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
-        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 HALT_RESULT.finalStatus(),
@@ -211,7 +211,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null, null),
                 null,
                 null,
                 null);

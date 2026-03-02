@@ -116,7 +116,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
-        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT.finalStatus(),
@@ -125,7 +125,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -148,7 +148,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
-        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 HALT_RESULT.finalStatus(),
@@ -157,7 +157,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null, null),
                 null,
                 null,
                 null);
