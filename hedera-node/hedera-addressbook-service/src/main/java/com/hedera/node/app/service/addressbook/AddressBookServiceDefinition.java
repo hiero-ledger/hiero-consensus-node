@@ -38,7 +38,7 @@ public final class AddressBookServiceDefinition implements RpcServiceDefinition 
             //
             new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class),
             // Prepare to add a new registered node to the network.
-            // When a valid council member initiates a HAPI transaction to add a new registered node,
+            // When a valid HAPI transaction is initiated to add a new registered node,
             // then the network should acknowledge the transaction and update the network's Address Book.
             // The new registered node is visible and discoverable immediately upon completion.
             // Request is [RegisteredNodeCreateTransactionBody](#proto.RegisteredNodeCreateTransactionBody)
