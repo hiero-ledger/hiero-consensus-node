@@ -123,8 +123,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * subprocess/embedded networks (i.e., next to {@code node0}, {@code node1}, ... working directories).
      */
     private static Path pluginCacheDir() {
-        final String scope = System.getProperty("hapi.blockNode.plugins.scope");
-        final Path scopeRoot = WorkingDirUtils.workingDirFor(0, scope).getParent();
+        final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
         if (scopeRoot == null) {
             // workingDirFor() always includes node0, so this should never happen; keep a safe fallback
             return Path.of("build", "block-node", BLOCK_NODE_VERSION, "plugins")

@@ -1135,9 +1135,6 @@ public class BlockNodeConnectionManager {
      */
     public boolean shouldIgnoreBehindPublisher(
             @NonNull final BlockNodeConfiguration blockNodeConfig, @NonNull final Instant now) {
-        if (!isStreamingEnabled()) {
-            return false;
-        }
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
 
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
