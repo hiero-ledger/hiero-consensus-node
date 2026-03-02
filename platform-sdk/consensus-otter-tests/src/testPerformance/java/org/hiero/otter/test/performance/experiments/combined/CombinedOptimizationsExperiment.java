@@ -48,7 +48,6 @@ public class CombinedOptimizationsExperiment {
                     "-XX:+ZGenerational",
                     "-XX:+AlwaysPreTouch",
                     "-XX:ConcGCThreads=4",
-                    "-XX:+DisableExplicitGC",
                     "-Xms16g",
                     "-Xmx16g"
             );

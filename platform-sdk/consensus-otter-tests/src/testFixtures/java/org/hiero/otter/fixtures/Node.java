@@ -241,10 +241,21 @@ public interface Node {
         throw new UnsupportedOperationException("GC logging is not supported in this environment");
     }
 
+    /**
+     * Adds a JVM argument to the consensus node process. Must be called before the node is started.
+     *
+     * @param jvmArg the JVM argument to add (e.g., "-Xmx16g")
+     * @throws UnsupportedOperationException if GC logging is not supported in this environment
+     */
     default void addJvmArg(@NonNull final String jvmArg) {
         throw new UnsupportedOperationException("Adding JVM arguments is not supported in this environment");
     }
 
+    /**
+     * Adds JVM arguments to the consensus node process. Must be called before the node is started.
+     *
+     * @param jvmArgs the JVM arguments to add (e.g., "-Xmx16g")
+     */
     default void addJvmArgs(@NonNull final List<String> jvmArgs) {
         for (final String jvmArg : jvmArgs) {
             addJvmArg(jvmArg);

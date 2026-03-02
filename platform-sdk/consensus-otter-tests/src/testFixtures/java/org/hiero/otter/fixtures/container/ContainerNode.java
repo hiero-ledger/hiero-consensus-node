@@ -512,8 +512,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.gcLoggingEnabled = true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void addJvmArg(@NonNull final String jvmArg) {
+        throwIsNotInLifecycle(LifeCycle.INIT, "JVM arguments can only be set during initialization");
         jvmArgs.add(jvmArg);
     }
 
