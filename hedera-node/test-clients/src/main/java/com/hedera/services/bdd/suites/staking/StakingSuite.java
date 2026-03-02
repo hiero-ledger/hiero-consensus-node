@@ -84,6 +84,38 @@ public class StakingSuite {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> flakyTest1() {
+        return defaultHapiSpec("flakyTest1")
+                .given()
+                .when(
+                        cryptoCreate(ALICE).stakedNodeId(0).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(BOB).stakedAccountId(ALICE).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(CAROL).stakedAccountId(ALICE).balance(ONE_HUNDRED_HBARS),
+                        waitUntilStartOfNextStakingPeriod(STAKING_PERIOD_MINS),
+                        cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                        waitUntilStartOfNextStakingPeriod(STAKING_PERIOD_MINS))
+                .then(
+                        cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, CAROL, 1)).via(FIRST_TRANSFER),
+                        getTxnRecord(FIRST_TRANSFER).hasPaidStakingRewardsCount(Math.random() < 0.5 ? 1 : 100));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> flakyTest2() {
+        return defaultHapiSpec("flakyTest2")
+                .given()
+                .when(
+                        cryptoCreate(ALICE).stakedNodeId(0).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(BOB).stakedAccountId(ALICE).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(CAROL).stakedAccountId(ALICE).balance(ONE_HUNDRED_HBARS),
+                        waitUntilStartOfNextStakingPeriod(STAKING_PERIOD_MINS),
+                        cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                        waitUntilStartOfNextStakingPeriod(STAKING_PERIOD_MINS))
+                .then(
+                        cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, CAROL, 1)).via(FIRST_TRANSFER),
+                        getTxnRecord(FIRST_TRANSFER).hasPaidStakingRewardsCount(Math.random() < 0.5 ? 1 : 100));
+    }
+
     /**
      * Tests a scenario in which many zero stake accounts are created, and then after a few staking
      * periods, a series of credits and debits are made to them, and they are confirmed to have
