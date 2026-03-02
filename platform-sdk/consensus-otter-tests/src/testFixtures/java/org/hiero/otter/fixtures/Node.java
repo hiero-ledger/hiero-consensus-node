@@ -241,6 +241,16 @@ public interface Node {
         throw new UnsupportedOperationException("GC logging is not supported in this environment");
     }
 
+    default void addJvmArg(@NonNull final String jvmArg) {
+        throw new UnsupportedOperationException("Adding JVM arguments is not supported in this environment");
+    }
+
+    default void addJvmArgs(@NonNull final List<String> jvmArgs) {
+        for (final String jvmArg : jvmArgs) {
+            addJvmArg(jvmArg);
+        }
+    }
+
     /**
      * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be
      * called while the node is not running.

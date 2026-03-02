@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -134,6 +135,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     /** Whether GC logging is enabled for the consensus node process */
     protected boolean gcLoggingEnabled = false;
+    protected List<String> jvmArgs = new ArrayList<>();
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -217,6 +219,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))
                 .setGcLoggingEnabled(gcLoggingEnabled)
+                .addAllJvmArgs(jvmArgs)
                 .build();
         //noinspection ResultOfMethodCallIgnored
         containerControlBlockingStub.init(initRequest);
@@ -507,6 +510,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     public void withGcLogging() {
         throwIsNotInLifecycle(LifeCycle.INIT, "GC logging can only be set during initialization");
         this.gcLoggingEnabled = true;
+    }
+
+    @Override
+    public void addJvmArg(@NonNull final String jvmArg) {
+        jvmArgs.add(jvmArg);
     }
 
     /**
