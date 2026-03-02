@@ -1,0 +1,62 @@
+## GraalVM tracing agent image for capturing Linux-specific native-image configs.
+##
+## Runs the Hedera node on the JVM with GraalVM's tracing agent to capture
+## reflection, JNI, and resource usage patterns that are Linux-specific
+## (e.g., Netty Epoll transport, secp256k1 native library loading).
+##
+## The agent merges its findings into existing configs mounted from the host,
+## so macOS-captured configs are preserved and Linux-specific entries are added.
+##
+## Usage:
+##   ./native-image.sh trace-docker [profile]
+
+########################################################################################################################
+#
+# Stage 1: Export native libraries from Debian (libsodium, libffi)
+#
+########################################################################################################################
+FROM debian:bookworm-slim AS libs
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libsodium23 libffi8 && \
+    mkdir -p /exported-libs && \
+    cp /usr/lib/*/libsodium.so* /exported-libs/ && \
+    cp /usr/lib/*/libffi.so* /exported-libs/ && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+########################################################################################################################
+#
+# Stage 2: GraalVM JVM with tracing agent
+#
+########################################################################################################################
+FROM ghcr.io/graalvm/native-image-community:25
+
+# Native libraries from Debian (Oracle Linux repos don't have libsodium)
+COPY --from=libs /exported-libs/ /usr/lib64/
+RUN ldconfig
+
+WORKDIR /app
+
+# Copy pre-assembled JARs from the Gradle build output
+COPY --from=node-data data/lib/ data/lib/
+COPY --from=node-data data/apps/ data/apps/
+
+# Copy configuration
+ARG CONFIGURATION_PROFILE=small-memory
+COPY hedera-node/configuration/${CONFIGURATION_PROFILE}/ data/config/
+COPY hedera-node/configuration/${CONFIGURATION_PROFILE}/settings.txt ./
+COPY hedera-node/config.txt ./
+COPY hedera-node/log4j2.xml ./
+
+# Copy node onboard and key data
+COPY hedera-node/data/onboard/ data/onboard/
+COPY hedera-node/data/keys/ data/keys/
+
+# Mount point for config output (merged with existing host configs)
+VOLUME /app/native-image-config
+
+ENTRYPOINT ["java", \
+    "-agentlib:native-image-agent=config-merge-dir=/app/native-image-config,config-write-period-secs=5,config-write-initial-delay-secs=0", \
+    "-cp", "data/lib/*:data/apps/*", \
+    "-XX:+UseSerialGC", "-Xms128M", "-Xmx512M", \
+    "com.hedera.node.app.ServicesMain", "-local", "0"]
