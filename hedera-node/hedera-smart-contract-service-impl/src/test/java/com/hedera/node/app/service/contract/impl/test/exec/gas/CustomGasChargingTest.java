@@ -40,6 +40,8 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -410,6 +412,24 @@ class CustomGasChargingTest {
                 worldUpdater,
                 wellKnownHapiCall());
         verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
+    }
+
+    // --- Parameterized denomination-aware tests (Story 2-3, AC-6) ---
+
+    @ParameterizedTest
+    @CsvSource({"0, 1", "6, 1000000", "8, 100000000"})
+    void abortedTransactionFeeCapScalesWithDecimals(final int decimals, final long expectedCap) {
+        final var denominationAwareSubject = new CustomGasCharging(gasCalculator, new DenominationConverter(decimals));
+        givenExcessiveIntrinsicGasCost(false);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
+        // Balance exceeds cap so the cap is the binding constraint
+        given(sender.getBalance()).willReturn(Wei.of(Long.MAX_VALUE));
+        denominationAwareSubject.chargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownHapiCall());
+        verify(worldUpdater).collectGasFee(SENDER_ID, expectedCap, false);
     }
 
     private void givenWellKnownIntrinsicGasCost() {

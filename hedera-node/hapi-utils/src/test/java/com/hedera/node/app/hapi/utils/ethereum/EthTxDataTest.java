@@ -29,6 +29,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class EthTxDataTest {
@@ -764,5 +765,46 @@ class EthTxDataTest {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
+    }
+
+    // --- Parameterized denomination-aware tests (Story 2-3, AC-6) ---
+
+    @ParameterizedTest
+    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
+    void effectiveTinybarValueWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
+        assertEquals(expected, subject.effectiveTinybarValue(weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
+    void getAmountWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
+        assertEquals(expected, subject.getAmount(weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
+    void effectiveOfferedGasPriceWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
+                .divide(weibarsPerSubunit)
+                .longValueExact();
+        assertEquals(expected, subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE, weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 1000000000000000000", "8, 10000000000", "18, 1"})
+    void overflowProtectionWithVariousDecimals(final int decimals, final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0))
+                .replaceValue(
+                        BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(weibarsPerSubunit));
+        assertEquals(Long.MAX_VALUE, subject.effectiveTinybarValue(weibarsPerSubunit));
     }
 }
