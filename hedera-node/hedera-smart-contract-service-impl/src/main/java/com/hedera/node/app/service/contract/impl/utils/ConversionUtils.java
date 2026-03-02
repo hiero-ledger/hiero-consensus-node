@@ -703,7 +703,7 @@ public class ConversionUtils {
         requireNonNull(hederaOperations);
         requireNonNull(streamBuilder);
         if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), feeChargingContext -> {
+            throw new HandleException(outcome.status(), (feeChargingContext, ignored) -> {
                 hederaOperations.replayGasChargingIn(feeChargingContext);
                 outcome.addCalledContractIfNotAborted(streamBuilder);
             });
@@ -720,7 +720,8 @@ public class ConversionUtils {
         requireNonNull(outcome);
         requireNonNull(hederaOperations);
         if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), hederaOperations::replayGasChargingIn);
+            throw new HandleException(
+                    outcome.status(), (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
         }
     }
 

@@ -158,7 +158,7 @@ public class DispatchProcessor {
         } catch (HandleException e) {
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
-            e.maybeReplayFees(dispatch);
+            e.maybeReplay(dispatch, dispatch.handleContext()::dispatch);
         } catch (final ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
