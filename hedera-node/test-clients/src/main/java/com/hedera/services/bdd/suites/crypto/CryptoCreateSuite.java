@@ -100,7 +100,14 @@ public class CryptoCreateSuite {
     private static final String ED_KEY = "EDKEY";
 
     @HapiTest
-    final Stream<DynamicTest> flakyTest() {
+    final Stream<DynamicTest> flakyTest1() {
+        return hapiTest(cryptoCreate("broken")
+                .autoRenewSecs(1L)
+                .hasPrecheck(Math.random() < 0.5 ? AUTORENEW_DURATION_NOT_IN_RANGE : OK));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> flakyTest2() {
         return hapiTest(cryptoCreate("broken")
                 .autoRenewSecs(1L)
                 .hasPrecheck(Math.random() < 0.5 ? AUTORENEW_DURATION_NOT_IN_RANGE : OK));
