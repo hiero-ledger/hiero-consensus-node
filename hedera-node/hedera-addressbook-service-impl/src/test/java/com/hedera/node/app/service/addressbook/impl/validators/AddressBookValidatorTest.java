@@ -3,7 +3,11 @@ package com.hedera.node.app.service.addressbook.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FQDN_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase.generateX509Certificates;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
@@ -118,7 +122,7 @@ class AddressBookValidatorTest {
     void registeredEndpointsForCreateRejectsEmptyList() {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
     @Test
@@ -153,7 +157,7 @@ class AddressBookValidatorTest {
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT, e.getStatus());
     }
 
     @Test
@@ -174,7 +178,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
     @Test
@@ -185,7 +189,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_TYPE, e.getStatus());
     }
 
     @Test
@@ -193,14 +197,14 @@ class AddressBookValidatorTest {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(
                         List.of(blockNodeEndpoint(new byte[] {127, 0, 0})), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
     void registeredEndpointsForCreateRejectsInvalidIpv6Length() {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(blockNodeEndpoint(new byte[15])), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -224,7 +228,7 @@ class AddressBookValidatorTest {
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpointsForUpdate(endpoints, newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT, e.getStatus());
     }
 
     @Test
@@ -236,7 +240,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -248,7 +252,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -263,7 +267,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -275,7 +279,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -309,7 +313,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
     @Test
@@ -344,7 +348,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -356,7 +360,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -368,7 +372,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -383,8 +387,8 @@ class AddressBookValidatorTest {
     }
 
     @Test
-    void registeredEndpointAcceptsDomainAtExactly250Chars() {
-        // MAX_DOMAIN_ASCII_CHARS = 250, build a domain at exactly 250 chars
+    void registeredEndpointAcceptsDomainAtExactlyMaxRegisteredFqdnSize() {
+        // maxRegisteredFqdnSize default = 250, build a domain at exactly 250 chars
         // 63.63.63.58 = 247 chars of labels + 3 dots = 250
         final var domain = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(58);
         assertEquals(250, domain.length());
@@ -395,6 +399,20 @@ class AddressBookValidatorTest {
                 .build();
         assertDoesNotThrow(() ->
                 new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainExceedingCustomFqdnSize() {
+        // Configure maxRegisteredFqdnSize to 10, verify a longer domain is rejected
+        final var config = newNodesConfig(253, 10);
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block.example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), config));
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -416,7 +434,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpointsForUpdate(List.of(badEndpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -428,13 +446,13 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
     void registeredEndpointRejectsDomainExceedingMaxAsciiChars() {
-        // Build a domain of 251 chars (exceeds MAX_DOMAIN_ASCII_CHARS = 250)
-        // but under 253 DNS limit. Tests the 250-char ASCII limit specifically.
+        // Build a domain of 251 chars (exceeds maxRegisteredFqdnSize default = 250)
+        // but under 253 DNS limit. Tests the configurable ASCII limit specifically.
         final var domain = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(59);
         assertEquals(251, domain.length());
         final var endpoint = RegisteredServiceEndpoint.newBuilder()
@@ -444,7 +462,7 @@ class AddressBookValidatorTest {
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
-        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
     @Test
@@ -484,13 +502,21 @@ class AddressBookValidatorTest {
     }
 
     private NodesConfig newNodesConfig() {
-        return newNodesConfig(253);
+        return new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
+                .getOrCreateConfig()
+                .getConfigData(NodesConfig.class);
     }
 
     private NodesConfig newNodesConfig(final int maxFqdnSize) {
+        return newNodesConfig(maxFqdnSize, 250);
+    }
+
+    private NodesConfig newNodesConfig(final int maxFqdnSize, final int maxRegisteredFqdnSize) {
         return new TestConfigBuilder()
                 .withConfigDataType(NodesConfig.class)
                 .withValue("nodes.maxFqdnSize", maxFqdnSize)
+                .withValue("nodes.maxRegisteredFqdnSize", maxRegisteredFqdnSize)
                 .getOrCreateConfig()
                 .getConfigData(NodesConfig.class);
     }

@@ -21,6 +21,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param numPeriodsToTargetUsd The number of periods to achieve the target USD node rewards
  * @param adjustNodeFees Whether node fees can be reduced by the average node fees already collected during that period
  * @param activeRoundsPercent A percentage value relating to active nodes
+ * @param maxRegisteredFqdnSize The maximum FQDN size for registered service endpoints
  */
 @ConfigData("nodes")
 public record NodesConfig(
@@ -77,4 +78,7 @@ public record NodesConfig(
         boolean feeCollectionAccountEnabled,
         /* Block Node Discoverability HIP-1137 */
         @ConfigProperty(defaultValue = "50") @NetworkProperty
-        int maxRegisteredServiceEndpoint) {}
+        int maxRegisteredServiceEndpoint,
+
+        @ConfigProperty(defaultValue = "250") @NetworkProperty
+        int maxRegisteredFqdnSize) {}

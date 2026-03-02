@@ -3,8 +3,11 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -105,7 +108,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
                 txnWithOp(opBuilder().serviceEndpoint(java.util.List.of()).build());
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+        assertThat(msg.responseCode()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
     }
 
     @Test
@@ -164,7 +167,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+        assertThat(msg.getStatus()).isEqualTo(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT);
     }
 
     @Test
@@ -183,7 +186,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
     }
 
     @Test
@@ -199,7 +202,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_TYPE);
     }
 
     @Test
@@ -361,7 +364,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
     }
 
     private void givenHandleContext(

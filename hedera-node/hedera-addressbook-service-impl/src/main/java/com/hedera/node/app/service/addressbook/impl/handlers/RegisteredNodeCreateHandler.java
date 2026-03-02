@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -43,7 +43,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         requireNonNull(txn, "txn must not be null");
 
         final var op = txn.registeredNodeCreateOrThrow();
-        validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_REGISTERED_ENDPOINT);
         addressBookValidator.validateAdminKey(op.adminKey());
     }
 
