@@ -121,19 +121,17 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          # TEMP: hardcoded for testing — restore original logic before merge
-          echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
-          # if [[ "${{ needs.mats-tests.result }}" == "cancelled" ]]; then
-          #   echo "category=cancelled" >> "${GITHUB_OUTPUT}"
-          # elif [[ "${{ needs.mats-tests.result }}" == "success" \
-          #   && "${{ needs.deploy-ci-trigger.result }}" == "success" ]]; then
-          #   echo "category=success" >> "${GITHUB_OUTPUT}"
-          # elif [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
-          #   || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
-          #   echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
-          # else
-          #   echo "category=test" >> "${GITHUB_OUTPUT}"
-          # fi
+          if [[ "${{ needs.mats-tests.result }}" == "cancelled" ]]; then
+            echo "category=cancelled" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.mats-tests.result }}" == "success" \
+            && "${{ needs.deploy-ci-trigger.result }}" == "success" ]]; then
+            echo "category=success" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
+            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
+          else
+            echo "category=test" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Get Commit Information
         id: fetch-commit-info
