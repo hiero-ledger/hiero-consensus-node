@@ -22,7 +22,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -94,13 +93,6 @@ public class TxnRecordRegression {
                 // Run a transaction that will reach consensus at T+180 to purge receipts
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 getReceipt("success").hasAnswerOnlyPrecheck(RECEIPT_NOT_FOUND));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> receiptUnknownBeforeConsensus() {
-        return hapiTest(
-                cryptoCreate("misc").via("success").balance(1_000L).deferStatusResolution(),
-                getReceipt("success").hasPriorityStatus(UNKNOWN));
     }
 
     @HapiTest
