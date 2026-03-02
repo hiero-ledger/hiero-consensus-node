@@ -504,10 +504,10 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
-    if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
-      needs.xts-execution.result != 'success' ||
-      needs.tag-for-promotion.result != 'success') &&
-      !cancelled() && always() }}
+    if: ${{ always() && !(
+      needs.fetch-xts-candidate.result == 'success' &&
+      needs.xts-execution.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') }}
 
     steps:
       - name: Initialize GitHub Job
@@ -518,7 +518,25 @@ jobs:
           checkout-fetch-depth: "0"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
+      - name: Determine Report Category
+        id: report-category
+        run: |
+          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]]; then
+            echo "category=cancelled" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.fetch-xts-candidate.result }}" == "success" \
+            && "${{ needs.xts-execution.result }}" == "success" \
+            && "${{ needs.tag-for-promotion.result }}" == "success" ]]; then
+            echo "category=success" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
+          else
+            echo "category=test" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Collect run logs in a log file
+        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         continue-on-error: true
@@ -537,6 +555,7 @@ jobs:
           done
 
       - name: Upload log as artifact
+        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
@@ -544,6 +563,7 @@ jobs:
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         continue-on-error: true
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
@@ -562,26 +582,19 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Determine failure mode
-        id: extended-test-suite-failure
-        if: ${{ needs.xts-execution.result != 'success' }}
-        run: |
-          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'test' }}"
-          echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-
       - name: Set Rootly Service Name
         id: set-rootly-service
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'test' }}" == "workflow" ]]; then
+          if [[ "${{ steps.report-category.outputs.category }}" == "infrastructure" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
@@ -612,6 +625,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -621,6 +635,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -635,8 +650,8 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
-      - name: Build Slack Payload Message
-        id: payload
+      - name: Build Test Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -648,7 +663,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
+                      "text": ":x: XTS - eXtended Test Suite Test Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
                       "emoji": true
                     }
                   },
@@ -659,7 +674,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*XTS Job Resulted in failure. See status below.*"
+                      "text": "*XTS test failure. See status below.*"
                     },
                     "fields": [
                       {
@@ -673,6 +688,10 @@ jobs:
                       {
                         "type": "plain_text",
                         "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Failing Test(s): ${{ needs.xts-execution.outputs.failed-tests }}"
                       }
                     ]
                   },
@@ -750,8 +769,115 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
-        if: ${{ steps.set-rootly-service.outputs.service != 'CI/CD Workflows' }}
+      - name: Build Infrastructure Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF8C00",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: XTS - eXtended Test Suite Infrastructure Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Infrastructure issue detected — not a test failure.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow run URL*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Build Infrastructure Failure Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        run: |
+          cat <<EOF > slack_payload_summary.json
+          {
+            "attachments": [
+              {
+                "color": "#FF8C00",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":warning: XTS infrastructure failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Build Cancelled Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        run: |
+          cat <<EOF > slack_payload_summary.json
+          {
+            "attachments": [
+              {
+                "color": "#808080",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Notify test failure (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
@@ -759,8 +885,17 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack citr-failures)
-        if: ${{ steps.set-rootly-service.outputs.service == 'CI/CD Workflows' }}
+      - name: Notify test failure (release-team)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Notify infrastructure failure (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
@@ -768,10 +903,47 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack release-team)
+      - name: Notify infrastructure failure summary (release-team)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload-file-path: slack_payload.json
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify infrastructure failure summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (release-team)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
