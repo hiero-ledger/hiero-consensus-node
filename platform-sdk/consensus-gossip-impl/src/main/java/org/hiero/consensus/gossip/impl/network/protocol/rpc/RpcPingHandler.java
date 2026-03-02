@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.hapi.platform.message.GossipPing;
 import com.swirlds.base.time.Time;
@@ -119,7 +120,7 @@ final class RpcPingHandler {
             return 0L;
         } else {
             final long lastPingNanos = (time.nanoTime() - original);
-            logger.debug(NETWORK.getMarker(), "Ping {}", lastPingNanos);
+            logger.info(RECONNECT.getMarker(), "Ping {}", lastPingNanos);
             networkMetrics.recordPingTime(remotePeerId, lastPingNanos);
             return lastPingNanos;
         }
