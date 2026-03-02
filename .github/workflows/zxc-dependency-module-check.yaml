@@ -86,9 +86,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.check-dependency-scopes.outcome }}" == "success" ]] \
-          && [[ "${{ steps.prepare-runner.outcome }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          if [[ "${{ steps.check-dependency-scopes.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
