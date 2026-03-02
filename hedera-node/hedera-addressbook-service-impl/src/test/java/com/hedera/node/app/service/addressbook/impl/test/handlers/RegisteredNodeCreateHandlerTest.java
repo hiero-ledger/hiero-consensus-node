@@ -4,17 +4,24 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
@@ -31,10 +38,13 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -108,12 +118,257 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void handlePersistsRegisteredNodeAndSetsReceipt() {
-        final var stack = mock(HandleContext.SavepointStack.class);
+    @DisplayName("pureChecks fails for empty admin key (KEY_REQUIRED)")
+    void pureChecksFailsForEmptyAdminKey() {
+        final var emptyKey = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+        final var txn = txnWithOp(opBuilder().adminKey(emptyKey).build());
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(KEY_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("pureChecks passes for valid transaction")
+    void pureChecksPassesForValidInput() {
+        final var txn = txnWithOp(opBuilder().build());
+        given(pureChecksContext.body()).willReturn(txn);
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    @DisplayName("handle fails when attributeValidator rejects admin key")
+    void handleFailsWhenAttributeValidatorRejectsKey() {
         final var attributeValidator = mock(AttributeValidator.class);
-        final long newId = 1234L;
         final var txn = txnWithOp(opBuilder().adminKey(key).build());
 
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
+        doThrow(new HandleException(INVALID_ADMIN_KEY))
+                .when(attributeValidator)
+                .validateKey(eq(key), eq(INVALID_ADMIN_KEY));
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_ADMIN_KEY);
+    }
+
+    @Test
+    @DisplayName("handle fails when endpoint count exceeds config max")
+    void handleFailsForTooManyEndpoints() {
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 51; i++) {
+            endpoints.add(validEndpoint());
+        }
+        final var txn = txnWithOp(opBuilder().serviceEndpoint(endpoints).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+    }
+
+    @Test
+    @DisplayName("handle fails for endpoint with invalid IP length")
+    void handleFailsForInvalidIpLength() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0}))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+    }
+
+    @Test
+    @DisplayName("handle fails for endpoint missing endpoint type")
+    void handleFailsForMissingEndpointType() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(443)
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+    }
+
+    @Test
+    @DisplayName("handle succeeds with empty description (optional field)")
+    void handleSucceedsWithEmptyDescription() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 42L;
+        final var txn = txnWithOp(opBuilder().description("").build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+        verify(recordBuilder).registeredNodeID(newId);
+    }
+
+    @Test
+    @DisplayName("handle succeeds with null description (optional field)")
+    void handleSucceedsWithNullDescription() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 42L;
+        final var txn = txnWithOp(RegisteredNodeCreateTransactionBody.newBuilder()
+                .adminKey(key)
+                .serviceEndpoint(List.of(validEndpoint()))
+                .build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    @Test
+    @DisplayName("handle fails for description containing zero byte")
+    void handleFailsForDescriptionWithZeroByte() {
+        final var descWithNull = "desc\0ription";
+        final var txn = txnWithOp(opBuilder().description(descWithNull).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_NODE_DESCRIPTION);
+    }
+
+    @Test
+    @DisplayName("handle succeeds with description at exactly 100 UTF-8 bytes")
+    void handleSucceedsWithDescriptionAtExactLimit() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 99L;
+        final var exactly100 = "a".repeat(100);
+        final var txn = txnWithOp(opBuilder().description(exactly100).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    @Test
+    @DisplayName("handle persists RegisteredNode with correct field values")
+    void handlePersistsCorrectNodeFields() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 5678L;
+        final var description = "my block node";
+        final var endpoint = validEndpoint();
+        final var txn = txnWithOp(opBuilder()
+                .adminKey(key)
+                .description(description)
+                .serviceEndpoint(List.of(endpoint))
+                .build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
+        verify(writableRegisteredNodeStore).put(captor.capture());
+        final var persisted = captor.getValue();
+
+        assertEquals(newId, persisted.registeredNodeId());
+        assertEquals(key, persisted.adminKey());
+        assertEquals(description, persisted.description());
+        assertEquals(List.of(endpoint), persisted.serviceEndpoint());
+
+        verify(recordBuilder).registeredNodeID(newId);
+    }
+
+    @Test
+    @DisplayName("handle succeeds with domain-name based endpoint")
+    void handleSucceedsWithDomainEndpoint() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 100L;
+        final var domainEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block.example.com")
+                .port(443)
+                .requiresTls(true)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.SUBSCRIBE_STREAM)
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(domainEndpoint)).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
+        verify(writableRegisteredNodeStore).put(captor.capture());
+        assertEquals(List.of(domainEndpoint), captor.getValue().serviceEndpoint());
+    }
+
+    @Test
+    @DisplayName("handle succeeds with multiple mixed-type endpoints")
+    void handleSucceedsWithMultipleMixedEndpoints() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 400L;
+        final var blockEndpoint = validEndpoint();
+        final var mirrorEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("mirror.example.com")
+                .port(443)
+                .mirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.DEFAULT)
+                .build();
+        final var rpcEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[16]))
+                .port(8545)
+                .rpcRelay(RegisteredServiceEndpoint.RpcRelayEndpoint.DEFAULT)
+                .build();
+        final var txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(blockEndpoint, mirrorEndpoint, rpcEndpoint))
+                .build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
+        verify(writableRegisteredNodeStore).put(captor.capture());
+        assertEquals(3, captor.getValue().serviceEndpoint().size());
+    }
+
+    @Test
+    @DisplayName("handle fails for endpoint with missing address (no IP or domain)")
+    void handleFailsForMissingAddress() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_SERVICE_ENDPOINT);
+    }
+
+    private void givenHandleContext(
+            final TransactionBody txn,
+            final long newId,
+            final HandleContext.SavepointStack stack,
+            final AttributeValidator attributeValidator) {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.configuration()).willReturn(newConfig());
         given(handleContext.storeFactory()).willReturn(storeFactory);
@@ -123,10 +378,6 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
-
-        assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
-        verify(recordBuilder).registeredNodeID(newId);
     }
 
     private TransactionBody txnWithOp(final RegisteredNodeCreateTransactionBody op) {

@@ -279,6 +279,175 @@ class AddressBookValidatorTest {
     }
 
     @Test
+    void registeredEndpointAcceptsPort0() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(0)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointAcceptsPort65535() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(65535)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointRejectsPortAbove65535() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(70000)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointAcceptsDomainWithTrailingDot() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block.example.com.")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointAcceptsSingleLabelDomain() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("localhost")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainLabelExceeding63Chars() {
+        final var longLabel = "a".repeat(64);
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName(longLabel + ".example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainWithTrailingHyphenInLabel() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("example-.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainWithSpecialChars() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block_node.example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointAcceptsDomainWithHyphenInMiddle() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block-node.example.com")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointAcceptsDomainAtExactly250Chars() {
+        // MAX_DOMAIN_ASCII_CHARS = 250, build a domain at exactly 250 chars
+        // 63.63.63.58 = 247 chars of labels + 3 dots = 250
+        final var domain = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(58);
+        assertEquals(250, domain.length());
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName(domain)
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointsForUpdateAcceptsExactlyMaxEntries() {
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 50; i++) {
+            endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
+        }
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpointsForUpdate(endpoints, newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointsForUpdateRejectsInvalidEndpoint() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0}))
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpointsForUpdate(List.of(badEndpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsEmptyDomainName() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("")
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainExceedingMaxAsciiChars() {
+        // Build a domain of 251 chars (exceeds MAX_DOMAIN_ASCII_CHARS = 250)
+        // but under 253 DNS limit. Tests the 250-char ASCII limit specifically.
+        final var domain = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(59);
+        assertEquals(251, domain.length());
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName(domain)
+                .port(443)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_SERVICE_ENDPOINT, e.getStatus());
+    }
+
+    @Test
     void registeredEndpointAcceptsMirrorNodeType() {
         final var endpoint = RegisteredServiceEndpoint.newBuilder()
                 .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
