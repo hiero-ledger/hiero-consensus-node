@@ -135,6 +135,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     /** Whether GC logging is enabled for the consensus node process */
     protected boolean gcLoggingEnabled = false;
+
     protected List<String> jvmArgs = new ArrayList<>();
 
     /**

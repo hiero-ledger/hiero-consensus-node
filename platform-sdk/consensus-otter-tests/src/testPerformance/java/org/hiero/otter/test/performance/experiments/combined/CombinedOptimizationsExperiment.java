@@ -49,8 +49,7 @@ public class CombinedOptimizationsExperiment {
                     "-XX:+AlwaysPreTouch",
                     "-XX:ConcGCThreads=4",
                     "-Xms16g",
-                    "-Xmx16g"
-            );
+                    "-Xmx16g");
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
