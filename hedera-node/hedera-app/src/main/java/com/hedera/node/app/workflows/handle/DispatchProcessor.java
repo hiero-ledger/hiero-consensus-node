@@ -34,6 +34,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions.Details;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
@@ -112,6 +113,20 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     public void processDispatch(@NonNull final Dispatch dispatch) {
+        processDispatch(dispatch, null);
+    }
+
+    /**
+     * This method is responsible for charging the fees and tries to execute the
+     * business logic for the given dispatch, guaranteeing that the changes committed
+     * to its stack are exactly reflected in its recordBuilder. At the end, it will
+     * finalize the record and commit the stack.
+     *
+     * @param dispatch the dispatch to be processed
+     * @param hollowAccountCompletionsDetails optional hollow-account setup dispatches to replay after rollback
+     */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
@@ -119,7 +134,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -141,7 +156,8 @@ public class DispatchProcessor {
     private void tryHandle(
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
-            @NonNull final Fees fees) {
+            @NonNull final Fees fees,
+            @Nullable final Details hollowAccountCompletionsDetails) {
         final var functionality = dispatch.txnInfo().functionality();
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
@@ -158,6 +174,9 @@ public class DispatchProcessor {
         } catch (HandleException e) {
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
+            if (hollowAccountCompletionsDetails != null) {
+                hollowAccountCompletionsDetails.replay(dispatch.handleContext()::dispatch);
+            }
             e.maybeReplay(dispatch, dispatch.handleContext()::dispatch);
         } catch (final ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
