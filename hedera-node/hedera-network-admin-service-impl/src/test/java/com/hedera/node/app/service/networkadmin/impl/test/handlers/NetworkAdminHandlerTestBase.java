@@ -150,7 +150,7 @@ public class NetworkAdminHandlerTestBase {
     protected RecordCacheImpl cache;
 
     @Mock
-    private DeduplicationCache dedupeCache;
+    protected DeduplicationCache dedupeCache;
 
     @Mock
     protected SavepointStackImpl stack;
