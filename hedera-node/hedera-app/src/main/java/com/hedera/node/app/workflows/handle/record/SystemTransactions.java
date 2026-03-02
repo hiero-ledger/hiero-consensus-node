@@ -38,6 +38,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -54,6 +55,9 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -104,6 +108,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -172,7 +177,7 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
-
+    private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
@@ -202,7 +207,8 @@ public class SystemTransactions {
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -222,6 +228,7 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
+        this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
     }
 
     /**
@@ -488,6 +495,25 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+
+        // Apply the deferred state-write from the wrapped record block hash migration, if any
+        final var migrationResult = wrappedRecordBlockHashMigration.result();
+        if (migrationResult != null) {
+            final var blockInfoState = state.getWritableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var blockInfo = requireNonNull(blockInfoState.get());
+            final var updatedBlockInfo = blockInfo
+                    .copyBuilder()
+                    .blockHashes(migrationResult.blockHashes())
+                    .previousWrappedRecordBlockRootHash(migrationResult.previousWrappedRecordBlockRootHash())
+                    .wrappedIntermediatePreviousBlockRootHashes(
+                            migrationResult.wrappedIntermediatePreviousBlockRootHashes())
+                    .wrappedIntermediateBlockRootsLeafCount(migrationResult.wrappedIntermediateBlockRootsLeafCount())
+                    .build();
+            blockInfoState.put(updatedBlockInfo);
+            ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+            log.info("Applied wrapped record block hash migration result to state");
+        }
     }
 
     /**
