@@ -55,13 +55,14 @@ public class NodeCreateHandler implements TransactionHandler {
      */
     @Inject
     public NodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
+        requireNonNull(addressBookValidator, "addressBookValidator must not be null");
         this.addressBookValidator =
                 requireNonNull(addressBookValidator, "The supplied argument 'addressBookValidator' must not be null");
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.nodeCreateOrThrow();
@@ -79,14 +80,14 @@ public class NodeCreateHandler implements TransactionHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().nodeCreateOrThrow();
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
     }
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().nodeCreateOrThrow();
         final var nodeConfig = handleContext.configuration().getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
@@ -161,6 +162,7 @@ public class NodeCreateHandler implements TransactionHandler {
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         checkDABEnabled(feeContext);
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();

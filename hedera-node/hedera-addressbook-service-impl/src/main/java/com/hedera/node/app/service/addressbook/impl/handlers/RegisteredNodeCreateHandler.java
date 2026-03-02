@@ -31,27 +31,31 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
 
     @Inject
     public RegisteredNodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
+        requireNonNull(addressBookValidator, "addressBookValidator must not be null");
         this.addressBookValidator = requireNonNull(addressBookValidator);
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeCreateOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+
+        final var op = txn.registeredNodeCreateOrThrow();
         addressBookValidator.validateAdminKey(op.adminKey());
         addressBookValidator.validateRegisteredServiceEndpointsForCreate(op.serviceEndpoint());
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().registeredNodeCreateOrThrow();
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
     }
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().registeredNodeCreateOrThrow();
         final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
 
@@ -77,6 +81,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
