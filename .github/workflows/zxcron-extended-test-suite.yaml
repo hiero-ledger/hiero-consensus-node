@@ -387,6 +387,205 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "1"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Download Test Report Artifacts
+        id: download-test-reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: "*Test*Report*"
+          path: test-reports/
+
+      - name: Collect Flaky Tests
+        id: collect-flaky-tests
+        if: ${{ steps.download-test-reports.outcome == 'success' }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
+            "test-reports" \
+            "flaky-tests.txt"
+          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+          if [[ "${FLAKY_COUNT}" -gt 0 ]]; then
+            {
+              echo "flaky-tests<<EOF"
+              cat flaky-tests.txt
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          title="XTS Flaky Test Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})"
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "XTS tests passed but flaky tests were detected."
+            echo "Flaky Test(s):"
+            cat flaky-tests.txt
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: "CITR General"
+          set_as_noise: "false"
+          alert_urgency: "Low"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Build Slack Payload Message
+        run: |
+          FLAKY_SECTION=""
+          if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+            COLOR="#FFA500"
+            HEADER=":warning: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed with Flaky Tests"
+            DESCRIPTION="*XTS Job Succeeded but flaky tests were detected. Test panel status below*"
+
+            FLAKY_LIST=""
+            while IFS= read -r test; do
+              FLAKY_LIST="${FLAKY_LIST}• \`${test}\`\n"
+            done < flaky-tests.txt
+
+            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
+          else
+            COLOR="#00FF00"
+            HEADER=":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed"
+            DESCRIPTION="*XTS Job Succeeded. Test panel status below*"
+          fi
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "${HEADER}",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "${DESCRIPTION}"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
+                      }
+                    ]
+                  }${FLAKY_SECTION},
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*\nFor a full list of executed tests see \`Workflow run URL\` below"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Commit List*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -394,108 +593,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*XTS Job Succeeded. Test panel status below*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow and Commit Information*\nFor a full list of executed tests see `Workflow run URL` below"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Commit List*:"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report XTS execution failure

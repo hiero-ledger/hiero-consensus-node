@@ -69,6 +69,232 @@ jobs:
             "dry-run-enabled": false
             }'
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - mats-tests
+    if: ${{ needs.mats-tests.result == 'success' && !cancelled() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "1"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Download Test Report Artifacts
+        id: download-test-reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: "*Test*Report*"
+          path: test-reports/
+
+      - name: Collect Flaky Tests
+        id: collect-flaky-tests
+        if: ${{ steps.download-test-reports.outcome == 'success' }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
+            "test-reports" \
+            "flaky-tests.txt"
+          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+          if [[ "${FLAKY_COUNT}" -gt 0 ]]; then
+            {
+              echo "flaky-tests<<EOF"
+              cat flaky-tests.txt
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          title="MATS Flaky Test Report"
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "MATS tests passed but flaky tests were detected."
+            echo "Flaky Test(s):"
+            cat flaky-tests.txt
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: "CITR General"
+          set_as_noise: "false"
+          alert_urgency: "Low"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Build Slack Payload Message
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          FLAKY_LIST=""
+          while IFS= read -r test; do
+            FLAKY_LIST="${FLAKY_LIST}• \`${test}\`\n"
+          done < flaky-tests.txt
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FFA500",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - MATS Flaky Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MATS Job Succeeded on \`main\` but flaky tests were detected.*\nThe following tests failed initially but passed on retry:"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "${FLAKY_LIST}"
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report flaky tests (slack citr-operations)
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
   report-failure:
     name: Report MATS execution failure
     runs-on: hl-cn-default-lin-sm
