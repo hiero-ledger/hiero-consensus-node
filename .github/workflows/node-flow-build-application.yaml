@@ -228,83 +228,6 @@ jobs:
       #     external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       #     environments: "CITR"
 
-      - name: Build Success Slack Payload
-        if: ${{ steps.report-category.outputs.category == 'success' }}
-        run: |
-          cat <<SLACKEOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#00FF00",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":white_check_mark: Hiero Consensus Node - MATS Success",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*All MATS jobs passed on \`${{ github.ref_name }}\`.*"
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          SLACKEOF
-
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         run: |
@@ -498,15 +421,6 @@ jobs:
             ]
           }
           SLACKEOF
-
-      - name: Notify success (citr-operations)
-        if: ${{ steps.report-category.outputs.category == 'success' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
 
       - name: Notify test failure (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
