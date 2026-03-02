@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -57,6 +58,19 @@ class DenominationConverterTest {
     void testRoundToWholeUnitRejectsNegative() {
         final var converter = new DenominationConverter(6);
         assertThatThrownBy(() -> converter.roundToWholeUnit(-1L)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 1000000000000000000", "6, 1000000000000", "8, 10000000000", "18, 1"})
+    void testWeibarsPerSubunitAtVariousDecimals(final int decimals, final String expectedStr) {
+        final var converter = new DenominationConverter(decimals);
+        assertThat(converter.weibarsPerSubunit()).isEqualTo(new BigInteger(expectedStr));
+    }
+
+    @Test
+    void testWeibarsPerSubunitAtDefaultDecimalsMatchesLegacyConstant() {
+        final var converter = new DenominationConverter(8);
+        assertThat(converter.weibarsPerSubunit()).isEqualTo(BigInteger.valueOf(10_000_000_000L));
     }
 
     @Test

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
+import java.math.BigInteger;
+
 /**
  * Converts between whole-unit and subunit denominations for a token
  * with a configurable number of decimal places.
@@ -44,6 +46,17 @@ public final class DenominationConverter {
      */
     public int decimals() {
         return decimals;
+    }
+
+    /**
+     * Returns the number of weibars (10⁻¹⁸ of a whole unit) per subunit (10⁻ᵈᵉᶜⁱᵐᵃˡˢ of a whole unit).
+     * This is the conversion factor for translating wei-denominated values (as used in Ethereum
+     * transactions) to subunit-denominated values.
+     *
+     * @return {@code BigInteger.valueOf(10^(18 - decimals))}
+     */
+    public BigInteger weibarsPerSubunit() {
+        return BigInteger.TEN.pow(18 - decimals);
     }
 
     /**
