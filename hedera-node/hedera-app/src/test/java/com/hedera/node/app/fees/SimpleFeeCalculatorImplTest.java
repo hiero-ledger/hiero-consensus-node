@@ -417,49 +417,65 @@ class SimpleFeeCalculatorImplTest {
 
     private static TransactionBody txnBodyFor(final HederaFunctionality functionality) {
         return switch (functionality) {
-            case HISTORY_PROOF_KEY_PUBLICATION -> TransactionBody.newBuilder()
-                    .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.DEFAULT)
-                    .build();
-            case HINTS_KEY_PUBLICATION -> TransactionBody.newBuilder()
-                    .hintsKeyPublication(HintsKeyPublicationTransactionBody.DEFAULT)
-                    .build();
-            case CRS_PUBLICATION -> TransactionBody.newBuilder()
-                    .crsPublication(CrsPublicationTransactionBody.DEFAULT)
-                    .build();
-            case HINTS_PREPROCESSING_VOTE -> TransactionBody.newBuilder()
-                    .hintsPreprocessingVote(HintsPreprocessingVoteTransactionBody.DEFAULT)
-                    .build();
-            case HINTS_PARTIAL_SIGNATURE -> TransactionBody.newBuilder()
-                    .hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT)
-                    .build();
-            case HISTORY_ASSEMBLY_SIGNATURE -> TransactionBody.newBuilder()
-                    .historyProofSignature(HistoryProofSignatureTransactionBody.DEFAULT)
-                    .build();
-            case HISTORY_PROOF_VOTE -> TransactionBody.newBuilder()
-                    .historyProofVote(HistoryProofVoteTransactionBody.DEFAULT)
-                    .build();
-            case LEDGER_ID_PUBLICATION -> TransactionBody.newBuilder()
-                    .ledgerIdPublication(LedgerIdPublicationTransactionBody.DEFAULT)
-                    .build();
-            case STATE_SIGNATURE_TRANSACTION -> TransactionBody.newBuilder()
-                    .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
-                    .build();
-            case UNCHECKED_SUBMIT -> TransactionBody.newBuilder()
-                    .uncheckedSubmit(
-                            UncheckedSubmitBody.newBuilder().transactionBytes(Bytes.EMPTY).build())
-                    .build();
-            case HOOK_DISPATCH -> TransactionBody.newBuilder()
-                    .hookDispatch(HookDispatchTransactionBody.DEFAULT)
-                    .build();
-            case NODE_STAKE_UPDATE -> TransactionBody.newBuilder()
-                    .nodeStakeUpdate(NodeStakeUpdateTransactionBody.DEFAULT)
-                    .build();
-            case SYSTEM_DELETE -> TransactionBody.newBuilder()
-                    .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
-                    .build();
-            case SYSTEM_UNDELETE -> TransactionBody.newBuilder()
-                    .systemUndelete(SystemUndeleteTransactionBody.newBuilder().build())
-                    .build();
+            case HISTORY_PROOF_KEY_PUBLICATION ->
+                TransactionBody.newBuilder()
+                        .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.DEFAULT)
+                        .build();
+            case HINTS_KEY_PUBLICATION ->
+                TransactionBody.newBuilder()
+                        .hintsKeyPublication(HintsKeyPublicationTransactionBody.DEFAULT)
+                        .build();
+            case CRS_PUBLICATION ->
+                TransactionBody.newBuilder()
+                        .crsPublication(CrsPublicationTransactionBody.DEFAULT)
+                        .build();
+            case HINTS_PREPROCESSING_VOTE ->
+                TransactionBody.newBuilder()
+                        .hintsPreprocessingVote(HintsPreprocessingVoteTransactionBody.DEFAULT)
+                        .build();
+            case HINTS_PARTIAL_SIGNATURE ->
+                TransactionBody.newBuilder()
+                        .hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT)
+                        .build();
+            case HISTORY_ASSEMBLY_SIGNATURE ->
+                TransactionBody.newBuilder()
+                        .historyProofSignature(HistoryProofSignatureTransactionBody.DEFAULT)
+                        .build();
+            case HISTORY_PROOF_VOTE ->
+                TransactionBody.newBuilder()
+                        .historyProofVote(HistoryProofVoteTransactionBody.DEFAULT)
+                        .build();
+            case LEDGER_ID_PUBLICATION ->
+                TransactionBody.newBuilder()
+                        .ledgerIdPublication(LedgerIdPublicationTransactionBody.DEFAULT)
+                        .build();
+            case STATE_SIGNATURE_TRANSACTION ->
+                TransactionBody.newBuilder()
+                        .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
+                        .build();
+            case UNCHECKED_SUBMIT ->
+                TransactionBody.newBuilder()
+                        .uncheckedSubmit(UncheckedSubmitBody.newBuilder()
+                                .transactionBytes(Bytes.EMPTY)
+                                .build())
+                        .build();
+            case HOOK_DISPATCH ->
+                TransactionBody.newBuilder()
+                        .hookDispatch(HookDispatchTransactionBody.DEFAULT)
+                        .build();
+            case NODE_STAKE_UPDATE ->
+                TransactionBody.newBuilder()
+                        .nodeStakeUpdate(NodeStakeUpdateTransactionBody.DEFAULT)
+                        .build();
+            case SYSTEM_DELETE ->
+                TransactionBody.newBuilder()
+                        .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
+                        .build();
+            case SYSTEM_UNDELETE ->
+                TransactionBody.newBuilder()
+                        .systemUndelete(
+                                SystemUndeleteTransactionBody.newBuilder().build())
+                        .build();
             default -> throw new IllegalArgumentException("Unsupported free/internal functionality " + functionality);
         };
     }
