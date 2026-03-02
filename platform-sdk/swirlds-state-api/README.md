@@ -4,7 +4,7 @@
 
 The `swirlds-state-api` module defines the core interfaces and abstractions for state access and management in the application.
 It serves as the API layer for interacting with the state. These interactions include **reading**, **writing**, **removing** elements from the state,
-**hashing**, creating **snapshots** and **state proofs**.
+**hashing**, creating **snapshots** and **state proofs** and **loading snapshots from disk**.
 
 At its core, the module provides interfaces for three kinds of state: **singleton**, **queue**, and **key-value** storage.
 These interfaces abstract away storage details, allowing implementations to handle persistence efficiently.
@@ -12,7 +12,7 @@ These interfaces abstract away storage details, allowing implementations to hand
 The module offers two different levels of abstraction for accessing state data. The `State` interface operates at the
 **service level**, focused on convenience for the Consensus Node application. In contrast, `BinaryState` provides a
 lower-level abstraction, enabling work with the **state as a whole** rather than through specific service aspects.
-It comes in handy for the Block Node application.
+It comes in handy for the Block Node application. Alternatively, these two layers can be considered as **typed** and **binary**. 
 
 Beyond data access, the module defines `StateLifecycleManager` for managing the **state lifecycle** — creating and loading
 snapshots, maintaining mutable and immutable state references, and producing copies for concurrent use by hashing and
@@ -20,14 +20,14 @@ consensus threads.
 
 ```mermaid
 graph TD
-    A[Consensus Node] --> B[State API: 
+    A[Consensus Node] --> B[State API:
     Read, Write, Remove, Hash]
     B -->|by service name + state id| F[State Types: singleton, queue, kv storage]
-    A --> C[StateLifecycleManager: 
-    snapshot read/write, 
+    A --> C[StateLifecycleManager:
+    snapshot read/write,
     mutable/immutable state ref,
     fast copy]
-    D[Block Node] --> E[Binary State API: 
+    D[Block Node] --> E[Binary State API:
     Read, Write, Remove, Merkle Proof]
     E -->|by state id| F
     D --> C
@@ -39,6 +39,7 @@ This section defines essential terms and concepts used in the `swirlds-state-api
 These concepts form the foundation for understanding how the state is managed, accessed, and manipulated within the application.
 
 ### The State
+
 The state represents the totality of all data the application works with. It encompasses all persistent information
 maintained by the system, such as account balances, token relations, or smart contract data in a distributed ledger context.
 The state can be viewed through the "lens" of named services, which group related data logically, or accessed directly
@@ -61,6 +62,7 @@ These three types are the fundamental building blocks for both the service-level
 `BinaryState` API. Each state instance is uniquely identified by a **state ID**.
 
 ### State ID
+
 The state ID is a unique **integer** identifier associated with a particular state (a single object if it's a singleton, or
 multiple objects if it's a queue or key-value storage). It is used to look up and access states. As defined in the protobuf (see `virtual_map_state.proto`),
 state IDs are organized in certain ranges for different state types, ensuring no overlaps and facilitating efficient serialization and deserialization.
@@ -68,6 +70,7 @@ This ID is crucial for bypassing service-level abstractions, allowing direct man
 by their numeric identifier combined with keys or indices.
 
 ### Service
+
 A service is a logical grouping of functionality within the application, represented in the state by one or more state
 objects of the supported types (singleton, queue, or key-value). On the application level, a service corresponds to a
 specific part of the system's capabilities, such as account management, token services, or smart contract execution.
@@ -75,17 +78,20 @@ Services are defined via a registry, where each service declares its required st
 to interact with the state in a modular way, without needing to know the underlying storage details.
 
 ### Merkle Proof
+
 A Merkle proof is the cryptographic information required to verify that a specific item belongs to the state or not, without needing the entire state.
 It consists of a path of hashes from the item (leaf node) to the root of the Merkle tree, allowing efficient and secure validation of data inclusion or exclusion.
 In this module, Merkle proofs are particularly useful for state proofs and audits, enabling trustless verification in distributed systems.
 The proof can be generated for individual keys in key-value states or elements in queues, leveraging the Merkle tree structure inherent in the state representation.
 
 ### Snapshot
+
 A snapshot is a standalone, immutable representation of the state at a specific point in time, stored on disk. It can be
 used to restore the state upon application startup or for recovery purposes. In the context of this module,
 snapshots are created through operations on the `StateLifecycleManager` interface.
 
 ### VirtualMap
+
 This is a key data structure (see `swirlds-virtualmap` module) used to store the application data.
 It's a virtualized, disk-backed Merkle tree that allows handling large datasets efficiently without loading everything into memory.
 
@@ -198,7 +204,7 @@ classDiagram
     }
 
     class ReadableState {
-       +int getStateId()     
+       +int getStateId()
     }
 
     class ReadableKVState~K,V~ {
@@ -242,7 +248,7 @@ classDiagram
         +~K~ void mapDeleteChange(int stateId, K key)
         +~K~ void queuePushChange(int stateId, V value)
         +void queuePopChange(int stateId)
-        +~V~ void singletonUpdateChange(int stateId, V value)        
+        +~V~ void singletonUpdateChange(int stateId, V value)
     }
 
     State --> ReadableStates : provides
@@ -377,8 +383,8 @@ classDiagram
         +void registerSchemas(SchemaRegistry registry)
         +default boolean doGenesisSetup(WritableStates writableStates, Configuration configuration)
     }
-    
-    class ServicesRegistry { 
+
+    class ServicesRegistry {
         +void register(Service service)
     }
 
@@ -420,7 +426,7 @@ classDiagram
         +default boolean isUpgrade(SemanticVersion currentVersion)
     }
 
-    class Hedera {       
+    class Hedera {
     }
 
     class TokenServiceImpl {
@@ -469,7 +475,7 @@ sequenceDiagram
     H->>SR: register(service)
     SR->>Svc: registerSchemas(schemaRegistry)
     Svc->>SchR: register(schema)
-    
+
     Note over H: On startup / migration
     H->>SchR: migrate(previousVersion, currentVersion, state)
     SchR->>Sch: statesToCreate(config)
@@ -634,10 +640,12 @@ The construction process (as implemented in `VirtualMapStateImpl.getMerkleProof`
 1. **Precondition check:** The state must already be hashed; otherwise an `IllegalStateException` is thrown.
 2. **Leaf lookup:** The leaf record is located by its path. If no leaf exists at the path, `null` is returned.
 3. **Tree walk:** Starting from the leaf's path, the algorithm walks upward to the root. At each level it:
-  - Computes the **sibling path** (the other child of the same parent).
-  - Records the sibling's hash as a `SiblingHash`, noting whether the sibling is a left or right child. If the sibling has no hash (e.g., a sparse region of the tree), `NULL_HASH` is used as a placeholder.
-  - Records the **current node's own hash** as an inner parent hash.
-  - Moves to the parent path.
+
+- Computes the **sibling path** (the other child of the same parent).
+- Records the sibling's hash as a `SiblingHash`, noting whether the sibling is a left or right child. If the sibling has no hash (e.g., a sparse region of the tree), `NULL_HASH` is used as a placeholder.
+- Records the **current node's own hash** as an inner parent hash.
+- Moves to the parent path.
+
 4. **Root hash:** The root hash of the VirtualMap is appended as the final inner parent hash.
 5. **Leaf data:** The leaf's key and value bytes are serialized into a `StateItem` and included in the proof.
 
