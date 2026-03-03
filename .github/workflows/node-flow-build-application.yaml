@@ -6,7 +6,6 @@ on:
       - main
       - "release/**"
 
-
 defaults:
   run:
     shell: bash
@@ -70,6 +69,8 @@ jobs:
             "dry-run-enabled": false
             }'
 
+  # Runs on every outcome (success, failure, cancelled) so it can classify the
+  # result into a category and send the appropriate Slack notification.
   report-status:
     name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
@@ -117,6 +118,10 @@ jobs:
           path: |
             run.log
 
+      # Classify the failure so each category gets a distinct Slack payload and
+      # routing (e.g. test failures ping the commit author, infrastructure issues
+      # go to citr-failures). The "workflow" failure-mode is set by zxc-mats-tests
+      # when a non-test step (spotless, module-info check, etc.) fails.
       - name: Determine Report Category
         id: report-category
         run: |
@@ -140,6 +145,8 @@ jobs:
           echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
           echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
 
+      # Only look up the Slack user for test failures (to tag the author) and
+      # success. Infrastructure failures aren't attributable to a specific commit.
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
         if: ${{ steps.report-category.outputs.category == 'success' || steps.report-category.outputs.category == 'test' }}
@@ -428,6 +435,10 @@ jobs:
           }
           SLACKEOF
 
+      # Notification routing:
+      #   test failures       -> citr-operations (detailed) + release-team (detailed)
+      #   infrastructure      -> citr-failures (detailed) + release-team (summary) + citr-operations (summary)
+      #   cancelled           -> release-team (summary) + citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
