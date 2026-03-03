@@ -575,12 +575,11 @@ set of domain codecs.
 
 ### Storage Representation
 
-Although the `BinaryState` API accepts and returns raw domain bytes, the underlying `VirtualMap` does not store
-those bytes directly. Each leaf in the `VirtualMap` is a **`StateItem`** — a protobuf message pairing a
-**`StateKey`** with a **`StateValue`**. Both `StateKey` and `StateValue` use protobuf `oneof` encoding, where
-the **field number encodes the state ID** and the field payload contains the domain-level data.
+Although the `BinaryState` API accepts and returns raw domain bytes, the underlying VirtualMap does not store
+those bytes directly. Each leaf in the VirtualMap has two byte fields — a key and a value — both of which use
+protobuf `oneof` wrapping that encodes the **state ID as the protobuf field number**.
 
-For **`StateKey`**, the encoding varies by state type:
+The **key** follows the `StateKey` format (see `virtual_map_state.proto`). The encoding varies by state type:
 
 - **Singletons** use a fixed field number of 1, with the singleton's state ID as a varint payload.
 - **Key-value entries** use the KV state ID as the field number, with the domain key bytes as a
@@ -588,28 +587,24 @@ For **`StateKey`**, the encoding varies by state type:
 - **Queue elements** use the queue state ID as the field number, with the queue index (a long) as a
   varint payload.
 
-For **`StateValue`**, all state types follow the same pattern: the field number is the state ID and the
+The **value** follows the `StateValue` format: for all state types, the field number is the state ID and the
 payload is the length-delimited domain value bytes.
-
-The `StateItem` itself is simply these two fields together (field 2 = key bytes, field 3 = value bytes),
-as defined by the `StateItem` message in `virtual_map_state.proto`.
 
 This wrapping is entirely **transparent to `BinaryState` callers**. When a caller invokes
 `getKv(stateId, keyBytes)`, the implementation internally wraps `keyBytes` into a `StateKey` for the
-`VirtualMap` lookup, retrieves the `StateValue`, and unwraps it to return only the raw domain value bytes.
+VirtualMap lookup, retrieves the `StateValue`, and unwraps it to return only the raw domain value bytes.
 Write operations perform the reverse: raw domain bytes are wrapped before being stored. The caller never
 needs to construct or parse `StateKey` or `StateValue` envelopes.
 
-> **Implementation note:** The `StateItem`, `StateKeyUtils`, and `StateValue` classes in `swirlds-state-impl`
+The `StateItem` message (also defined in `virtual_map_state.proto`) is **not** a storage format — it does not
+exist in VirtualMap leaves. It is only used to package a leaf's `StateKey` bytes and `StateValue` bytes together
+when constructing a `MerkleProof` (see [Merkle Proof Construction](#merkle-proof-construction) below).
+
+> **Implementation note:** The `StateKeyUtils`, `StateValue`, and `StateItem` classes in `swirlds-state-impl`
 > are **not** the HAPI-generated classes from `com.hedera.hapi.platform.state`. The `swirlds-state-*` modules
 > cannot depend on the HAPI module, so they maintain their own implementations that are **bit-for-bit
 > identical** at the wire level. The protobuf schema in `virtual_map_state.proto` is the single source of
 > truth for the encoding format, and both sets of classes must produce identical bytes.
-
-This storage model is also visible in the Merkle Proof section below: the `leafData` field of a
-`MerkleProof` contains a serialized `StateItem` — that is, the full wrapped `StateKey` + `StateValue`
-pair as it exists in the VirtualMap leaf, not the unwrapped domain bytes that the `BinaryState` read
-methods return.
 
 ### Operations Overview
 
