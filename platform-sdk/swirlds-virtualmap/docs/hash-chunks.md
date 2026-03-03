@@ -215,11 +215,72 @@ Here is an example:
 * On disk, the chunk is serialized with only these 4 hashes, that is 4*48 bytes, plus other
   protobuf fields
 * When the chunk is deserialized, a byte buffer of 64 hashes is allocated. Then the first hash on
-  disk is read into offset 0, the second hash is read into offset 16*48, and so on
-* If such chunk is at the first/last leaf path boundary, it could contain 3 hashes for relative
-  paths 3, 4, and 2. Path 2 is at the first chunk rank, paths 3 and 4 are at the second rank. In
-  this case, when the chunk is serialized, 4 hashes are written to disk: hash 3, hash 4, hash 2
-  (which is read as hash 5), and hash 6 (with undefined bytes)
+  disk is read into offset 0, the second hash is read into offset 16*48, and so on 
+
+```mermaid
+block-beta
+  columns 4
+
+  block:disk["Packed on disk (4 hashes)"]:4
+    d0["hash 3"]
+    d1["hash 4"]
+    d2["hash 5"]
+    d3["hash 6"]
+  end
+
+  space:4
+
+  block:mem["Expanded in memory (64 slots)"]:4
+    m0["[0] hash 3"]
+    m1["[1..15] empty"]
+    m2["[16] hash 4"]
+    m3["[17..31] empty"]
+    m4["[32] hash 5"]
+    m5["[33..47] empty"]
+    m6["[48] hash 6"]
+    m7["[49..63] empty"]
+  end
+
+  d0 --> m0
+  d1 --> m2
+  d2 --> m4
+  d3 --> m6
+```
+
+If such chunk is at the first/last leaf path boundary, it could contain 3 hashes for relative
+paths 3, 4, and 2. Path 2 is at the first chunk rank, paths 3 and 4 are at the second rank. In
+this case, when the chunk is serialized, 4 hashes are written to disk: hash 3, hash 4, hash 2
+(which is read as hash 5), and hash 6 (with undefined bytes).
+
+```mermaid
+block-beta
+  columns 4
+
+  block:disk2["Packed on disk (boundary chunk)"]:4
+    b0["hash 3"]
+    b1["hash 4"]
+    b2["hash 2 → slot 5"]
+    b3["[undefined]"]
+  end
+
+  space:4
+
+  block:mem2["Expanded in memory"]:4
+    e0["[0] hash 3"]
+    e1["[1..15] empty"]
+    e2["[16] hash 4"]
+    e3["[17..31] empty"]
+    e4["[32] hash 2"]
+    e5["[33..47] empty"]
+    e6["[48] undef"]
+    e7["[49..63] empty"]
+  end
+
+  b0 --> e0
+  b1 --> e2
+  b2 --> e4
+  b3 --> e6
+```
 
 ## Related components
 
