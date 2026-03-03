@@ -563,12 +563,52 @@ domain objects. For example, to read a key-value entry one would call
 the return value is a typed domain object.
 
 With `BinaryState`, the caller skips the service layer entirely. The equivalent operation is
-`getKv(stateId, keyBytes)`, where `keyBytes` is raw protobuf-encoded `Bytes` and the return value is also
-raw `Bytes`. There is no codec application, no service resolution — just a direct lookup by state ID and binary key.
+`getKv(stateId, keyBytes)`, where `keyBytes` is raw protobuf-encoded `Bytes` (the domain key, not the
+storage-level `StateKey` envelope) and the return value is also raw domain `Bytes`. There is no codec
+application, no service resolution — just a direct lookup by state ID and binary key. The storage-level
+wrapping into StateKey / StateValue is handled internally (see Storage Representation below).
 
 This design makes `BinaryState` particularly suitable for scenarios where the caller already has protobuf-encoded
 data (for instance, when replaying blocks) or needs to work with state generically without importing the full
 set of domain codecs.
+
+### Storage Representation
+
+Although the `BinaryState` API accepts and returns raw domain bytes, the underlying `VirtualMap` does not store
+those bytes directly. Each leaf in the `VirtualMap` is a **`StateItem`** — a protobuf message pairing a
+**`StateKey`** with a **`StateValue`**. Both `StateKey` and `StateValue` use protobuf `oneof` encoding, where
+the **field number encodes the state ID** and the field payload contains the domain-level data.
+
+For **`StateKey`**, the encoding varies by state type:
+
+- **Singletons** use a fixed field number of 1, with the singleton's state ID as a varint payload.
+- **Key-value entries** use the KV state ID as the field number, with the domain key bytes as a
+  length-delimited payload.
+- **Queue elements** use the queue state ID as the field number, with the queue index (a long) as a
+  varint payload.
+
+For **`StateValue`**, all state types follow the same pattern: the field number is the state ID and the
+payload is the length-delimited domain value bytes.
+
+The `StateItem` itself is simply these two fields together (field 2 = key bytes, field 3 = value bytes),
+as defined by the `StateItem` message in `virtual_map_state.proto`.
+
+This wrapping is entirely **transparent to `BinaryState` callers**. When a caller invokes
+`getKv(stateId, keyBytes)`, the implementation internally wraps `keyBytes` into a `StateKey` for the
+`VirtualMap` lookup, retrieves the `StateValue`, and unwraps it to return only the raw domain value bytes.
+Write operations perform the reverse: raw domain bytes are wrapped before being stored. The caller never
+needs to construct or parse `StateKey` or `StateValue` envelopes.
+
+> **Implementation note:** The `StateItem`, `StateKeyUtils`, and `StateValue` classes in `swirlds-state-impl`
+> are **not** the HAPI-generated classes from `com.hedera.hapi.platform.state`. The `swirlds-state-*` modules
+> cannot depend on the HAPI module, so they maintain their own implementations that are **bit-for-bit
+> identical** at the wire level. The protobuf schema in `virtual_map_state.proto` is the single source of
+> truth for the encoding format, and both sets of classes must produce identical bytes.
+
+This storage model is also visible in the Merkle Proof section below: the `leafData` field of a
+`MerkleProof` contains a serialized `StateItem` — that is, the full wrapped `StateKey` + `StateValue`
+pair as it exists in the VirtualMap leaf, not the unwrapped domain bytes that the `BinaryState` read
+methods return.
 
 ### Operations Overview
 
@@ -670,7 +710,8 @@ The construction process (as implemented in `VirtualMapStateImpl.getMerkleProof`
 
 The resulting `MerkleProof` record contains three components:
 
-- **`leafData`** (`Bytes`) — the protobuf-serialized `StateItem` containing the leaf's key and value bytes.
+- **`leafData`** (`Bytes`) — the protobuf-serialized StateItem containing the leaf's wrapped `StateKey` and `StateValue` bytes as they
+  exist in the `VirtualMap` (see Storage Representation).
 - **`siblingHashes`** (`List<SiblingHash>`) — an ordered list from leaf level to root, where each `SiblingHash` pairs a hash with a boolean indicating whether the sibling is a left child (`isLeft`).
 - **`innerParentHashes`** (`List<Hash>`) — the hashes of the nodes along the path from the leaf to the root (inclusive of the root hash itself).
 
