@@ -176,6 +176,13 @@ example above with current leaf range `[10, 20]` and chunk height 2:
 * For chunk 3 (at path 5), only two hashes are stored: hash 11 at path 23 and hash 12 at path 25
 * Chunk 4 (at path 6) is similar to chunk 3, its two hashes are stored at paths 27 and 29
 
+The general rule: when a hash needs to be stored for a path that is **not** at the chunk's lowest
+rank, it is placed at the slot that corresponds to that path's **left grand child** at the lowest
+rank. For example, path 10 in chunk 2 is at rank 3, but the chunk's lowest rank is 4. The left
+grand child of 10 at rank 4 is 21, so hash 10 occupies the slot for path 21. This means that from
+the chunk's perspective, there is no distinction between "hash for path 21" and "hash for path 10
+stored at slot 21" — the slot is the same in both cases.
+
 There is something to be very careful about here. Given a chunk, there is no way to understand if
 a hash at a path is for that very path, or for some of its parents. This really depends on the
 current leaf range. If a hash was set for path `P`, which is not at the lowest chunk rank, it must
@@ -210,7 +217,7 @@ Here is an example:
 * Total number of hashes in every chunk is therefore 2^6 == 64
 * Assume a chunk is used to store only 2 ranks of hashes. Ranks 3 to 6 are beyond the leaf range
 * 2 ranks of hashes are paths 3, 4, 5, and 6 relative to the chunk path
-* As described in `Hashes in partical chunks` section above, hash 3 is stored at offset 0, hash 4
+* As described in `Hashes in partial chunks` section above, hash 3 is stored at offset 0, hash 4
   is at offset 16, hash 5 is at offset 32, and hash 6 is at offset 48
 * On disk, the chunk is serialized with only these 4 hashes, that is 4*48 bytes, plus other
   protobuf fields
