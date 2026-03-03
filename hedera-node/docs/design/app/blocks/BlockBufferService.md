@@ -30,6 +30,8 @@ produced by a given consensus node in an ordered manner.
 - Maintains an internal buffer of blocks with timestamps for acknowledgment tracking.
 - Periodically prunes acknowledged blocks exceeding the TTL to maintain buffer size and resource efficiency.
 - Calculates buffer saturation as a percentage of ideal max buffer size derived from TTL and block period.
+- In `BLOCKS` stream mode with `GRPC` writer mode, treats saturation as `100%` when block-node configuration has
+  been evaluated but no usable block nodes are available.
 - Activates or deactivates backpressure based on saturation status, coordinating with blocking futures to manage flow control.
 
 ## Component Interaction
@@ -54,6 +56,20 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 - Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
 - A periodic pruning mechanism removes acknowledged and expired entries.
 - The buffer size is monitored to apply backpressure when needed.
+
+### Special Saturation Rule: `BLOCKS` + `GRPC`
+
+When running in `blockStream.streamMode=BLOCKS` and `blockStream.writerMode=GRPC`, the buffer service applies a
+special saturation rule tied to block-node configuration availability:
+
+- Before block-node configuration has been evaluated at least once, saturation is calculated normally.
+- After evaluation, if there are no usable block-node configurations (for example, `block-nodes.json` is empty or
+  unparsable), saturation is forced to `100%`.
+- If usable block-node configurations are present, saturation uses the normal calculation.
+
+This behavior ensures startup does not prematurely trigger full saturation before the connection manager has attempted
+to load block-node configurations, while still applying immediate backpressure semantics once configuration state is
+known.
 
 ### Buffer State
 

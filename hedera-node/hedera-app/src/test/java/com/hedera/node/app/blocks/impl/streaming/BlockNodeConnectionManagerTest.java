@@ -1523,6 +1523,54 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testRefreshAvailableBlockNodesUpdatesBufferAvailabilityWhenConfigInvalid() throws Exception {
+        blockNodeConfigDirectoryHandle.set(connectionManager, tempDir);
+        final Path file = tempDir.resolve("block-nodes.json");
+        Files.writeString(file, "not-json", StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        invoke_refreshAvailableBlockNodes();
+
+        verify(bufferService).updateBlockNodeConfigAvailability(true, false);
+    }
+
+    @Test
+    void testRefreshAvailableBlockNodesUpdatesBufferAvailabilityWhenConfigValid() throws Exception {
+        blockNodeConfigDirectoryHandle.set(connectionManager, tempDir);
+        final Path file = tempDir.resolve("block-nodes.json");
+        final List<BlockNodeConfig> configs = new ArrayList<>();
+        configs.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .streamingPort(8080)
+                .servicePort(8081)
+                .priority(0)
+                .build());
+        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        Files.writeString(
+                file,
+                BlockNodeConnectionInfo.JSON.toJSON(connectionInfo),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+
+        doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(200L).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+                    return futures;
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        invoke_refreshAvailableBlockNodes();
+
+        verify(bufferService).updateBlockNodeConfigAvailability(true, true);
+    }
+
+    @Test
     void testRefreshAvailableBlockNodes_shutsDownExecutorAndReloads_whenValid() throws Exception {
         // Point manager at real bootstrap config directory so reload finds valid JSON
         final var configPath = Objects.requireNonNull(
