@@ -64,10 +64,10 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -535,8 +535,9 @@ public class ThrottleAccumulator {
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(
-                    effectiveManager, txnInfo, now, state, throttleUsages, useHighVolumeBucket);
+            case SCHEDULE_CREATE ->
+                shouldThrottleScheduleCreate(
+                        effectiveManager, txnInfo, now, state, throttleUsages, useHighVolumeBucket);
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
@@ -590,8 +591,7 @@ public class ThrottleAccumulator {
         }
         // A CRYPTO_TRANSFER with highVolume=true but no implicit creations receives no throttle or
         // pricing benefit from the flag.  Log at DEBUG level to aid diagnosis without flooding logs.
-        log.debug(
-                "CRYPTO_TRANSFER has highVolume=true but no implicit creations; high-volume flag has no effect");
+        log.debug("CRYPTO_TRANSFER has highVolume=true but no implicit creations; high-volume flag has no effect");
         return false;
     }
 
