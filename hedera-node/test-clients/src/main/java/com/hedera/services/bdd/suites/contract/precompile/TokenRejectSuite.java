@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -73,7 +72,6 @@ public class TokenRejectSuite {
     private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenRejectWorksAndAvoidsCustomFees() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -179,7 +177,6 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenRejectCasesWhileFreezeOrPausedOrSigRequired() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -296,7 +293,6 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenRejectInvalidSignaturesAndInvalidAccountOrTokensFailingScenarios() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -396,7 +392,6 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenRejectFailsWithInvalidBodyInputsScenarios() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
