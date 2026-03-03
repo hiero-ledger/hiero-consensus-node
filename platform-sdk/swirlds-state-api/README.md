@@ -337,7 +337,7 @@ The `StateLifecycleManager` supports three initialization scenarios:
   no reconnect state is provided, this genesis state is used as the initial mutable state.
 - **Restart from snapshot**: Calling `loadSnapshot(path)` replaces the genesis state with the state loaded
   from disk.
-- **Reconnect**: Reconnecting involves two steps that bridge a gap between the raw Merkle tree received from
+- **Reconnect**: On the learner side, reconnecting involves two steps that bridge a gap between the raw Merkle tree received from
   a peer and the fully signed state needed by the platform. When the reconnect synchronization completes, the
   learner has a raw `VirtualMap` but does not yet have a `VirtualMapState` — the
   higher-level wrapper that provides the `State` and `BinaryState` APIs. The method `createStateFrom(D rootNode)`
@@ -478,37 +478,70 @@ The registration process follows these steps:
 2. **Create Registry**: Instantiate `ServicesRegistryImpl` to hold services.
 3. **Register Services**: Add service implementations (e.g., `ConsensusServiceImpl`, `ContractServiceImpl`) via `registry.register(service)`.
 4. **Register Schemas**: For each service, call `Service.registerSchemas(SchemaRegistry registry)` to add version-specific and service-specific schemas.
-5. **Define States**: Each `Schema` specifies states using `StateDefinition` factory methods (e.g., `singleton`, `queue`, `keyValue`). `StateDefinition` includes state ID, key codec (for keyValue states only), and value codec.
+5. **Define States**: Each Schema specifies states using StateDefinition factory methods (e.g., `singleton`, `queue`, `keyValue`). `StateDefinition` includes state ID,
+   state key, key codec (for keyValue states only), and value codec. See [State Metadata in VirtualMapState](#state-metadata-in-virtualmapstate) for more details.
 6. **Handle Migration**: Use `Schema.migrate(MigrationContext ctx)` to transform the data according to the new version definition or init the app context, if necessary.
+   The migration process is also responsible for adding new states and removing obsolete ones.
 7. **Handle Restart**: Use `Schema.restart(MigrationContext ctx)` to update the state if necessary or init the app context, if necessary, when the application restarts with the same version.
 8. **Genesis Setup**: If at genesis, invoke `Service.doGenesisSetup(WritableStates writableStates, Configuration configuration)` to set defaults to singleton states.
 9. **State Ready**: The state is now initialized and ready for use in the app.
 
+### State Metadata in VirtualMapState
+
+The `StateDefinition` objects returned by a `Schema` describe *what* states a service needs, but the
+`VirtualMapStateImpl` — which owns the single shared VirtualMap — needs to know about them before it can
+serve typed reads and writes for that service. The bridge between the two is `StateMetadata` and the
+`initializeState` method.
+
+During migration, the `SchemaRegistry` iterates over the `StateDefinition` set returned by
+`statesToCreate(Configuration)`. For each definition it wraps the `StateDefinition` together with the
+service name into a `StateMetadata` object and calls `VirtualMapStateImpl.initializeState(StateMetadata)`.
+
+This method does **not** create or modify any data in the VirtualMap. It only registers metadata:
+it stores the `StateMetadata` in an internal `services` map (keyed by service name → state ID → metadata)
+and creates (or refreshes) the `MerkleReadableStates` and `MerkleWritableStates` instances for that service.
+
+This metadata registration is what makes the `State` API aware of the service's states. When a caller later
+invokes `getReadableStates("TokenService").get(stateId)`, the `MerkleReadableStates` looks up the
+`StateMetadata` for that state ID, extracts the codecs from its `StateDefinition`, and uses them to construct
+the appropriate typed wrapper (e.g., `VirtualMapReadableKVState`) over the shared VirtualMap. Without this
+metadata, the state would have no way to know which codecs to use or even which state IDs belong to which
+service.
+
+On a fresh genesis, the VirtualMap is empty and these wrappers simply return no data until the subsequent
+migration and genesis setup steps populate values. On a restart from snapshot, the data already exists in
+the VirtualMap — registering metadata just re-establishes the typed access layer on top of it.
+
 ```mermaid
 sequenceDiagram
-    participant H as Hedera
-    participant SR as ServicesRegistry
-    participant Svc as Service (e.g., TokenServiceImpl)
-    participant SchR as SchemaRegistry
-    participant Sch as Schema
+  participant H as Hedera
+  participant SR as ServicesRegistry
+  participant Svc as Service (e.g., TokenServiceImpl)
+  participant SchR as SchemaRegistry
+  participant Sch as Schema
+  participant VMS as VirtualMapStateImpl
 
-    H->>SR: register(service)
-    SR->>Svc: registerSchemas(schemaRegistry)
-    Svc->>SchR: register(schema)
+  H->>SR: register(service)
+  SR->>Svc: registerSchemas(schemaRegistry)
+  Svc->>SchR: register(schema)
 
-    Note over H: On startup / migration
-    H->>SchR: migrate(previousVersion, currentVersion, state)
-    SchR->>Sch: statesToCreate(config)
-    SchR->>SchR: create new states in Merkle tree
-    SchR->>Sch: migrate(migrationContext)
-    Sch->>Sch: read previousStates, write newStates
-    SchR->>SchR: commit writable states
-    SchR->>Sch: statesToRemove()
-    SchR->>SchR: remove obsolete state metadata
+  Note over H: On startup / migration
+  H->>SchR: migrate(previousVersion, currentVersion, state)
+  SchR->>Sch: statesToCreate(config)
+  loop For each StateDefinition
+    SchR->>SchR: wrap into StateMetadata(serviceName, stateDefinition)
+    SchR->>VMS: initializeState(stateMetadata)
+    VMS->>VMS: store metadata, refresh ReadableStates/WritableStates
+  end
+  SchR->>Sch: migrate(migrationContext)
+  Sch->>Sch: read previousStates, write newStates
+  SchR->>SchR: commit writable states
+  SchR->>Sch: statesToRemove()
+  SchR->>SchR: remove obsolete state metadata
 
-    Note over H: If genesis
-    H->>Svc: doGenesisSetup(writableStates, config)
-    Svc->>Svc: set singleton defaults
+  Note over H: If genesis
+  H->>Svc: doGenesisSetup(writableStates, config)
+  Svc->>Svc: set singleton defaults
 ```
 
 ### Version Migration
