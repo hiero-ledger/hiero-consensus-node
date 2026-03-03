@@ -26,20 +26,36 @@ import com.swirlds.config.api.ConfigProperty;
 public record NettyConfig(
         // @ConfigProperty(defaultValue = "PROD") @NodeProperty Profile mode,
         @ConfigProperty(value = "prod.flowControlWindow", defaultValue = "10240") @NodeProperty
-                int prodFlowControlWindow,
+        int prodFlowControlWindow,
+
         @ConfigProperty(value = "prod.maxConcurrentCalls", defaultValue = "10") @NodeProperty
-                int prodMaxConcurrentCalls,
-        @ConfigProperty(value = "prod.maxConnectionAge", defaultValue = "15") @NodeProperty long prodMaxConnectionAge,
+        int prodMaxConcurrentCalls,
+
+        @ConfigProperty(value = "prod.maxConnectionAge", defaultValue = "15") @NodeProperty
+        long prodMaxConnectionAge,
+
         @ConfigProperty(value = "prod.maxConnectionAgeGrace", defaultValue = "5") @NodeProperty
-                long prodMaxConnectionAgeGrace,
-        @ConfigProperty(value = "prod.maxConnectionIdle", defaultValue = "10") @NodeProperty long prodMaxConnectionIdle,
-        @ConfigProperty(value = "prod.keepAliveTime", defaultValue = "60") @NodeProperty long prodKeepAliveTime,
-        @ConfigProperty(value = "prod.keepAliveTimeout", defaultValue = "15") @NodeProperty long prodKeepAliveTimeout,
+        long prodMaxConnectionAgeGrace,
+
+        @ConfigProperty(value = "prod.maxConnectionIdle", defaultValue = "10") @NodeProperty
+        long prodMaxConnectionIdle,
+
+        @ConfigProperty(value = "prod.keepAliveTime", defaultValue = "60") @NodeProperty
+        long prodKeepAliveTime,
+
+        @ConfigProperty(value = "prod.keepAliveTimeout", defaultValue = "15") @NodeProperty
+        long prodKeepAliveTimeout,
+
         @ConfigProperty(defaultValue = "90") @NodeProperty int startRetries,
         @ConfigProperty(defaultValue = "1000") @NodeProperty long startRetryIntervalMs,
         @ConfigProperty(defaultValue = "5") @NodeProperty long terminationTimeout,
-        @ConfigProperty(value = "tlsCrt.path", defaultValue = "hedera.crt") @NodeProperty String tlsCrtPath,
-        @ConfigProperty(value = "tlsKey.path", defaultValue = "hedera.key") @NodeProperty String tlsKeyPath,
+
+        @ConfigProperty(value = "tlsCrt.path", defaultValue = "hedera.crt") @NodeProperty
+        String tlsCrtPath,
+
+        @ConfigProperty(value = "tlsKey.path", defaultValue = "hedera.key") @NodeProperty
+        String tlsKeyPath,
+
         @ConfigProperty(defaultValue = "0") @NodeProperty int bossThreads,
         @ConfigProperty(defaultValue = "0") @NodeProperty int workerThreads) {
     public NettyConfig {
