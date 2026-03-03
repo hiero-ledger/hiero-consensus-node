@@ -49,9 +49,12 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint", "127.0.0.1:8080",
-                                        "-d", "Block node with default STATUS API")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080",
+                                        "-d",
+                                        "Block node with default STATUS API")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -71,9 +74,12 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint", "blocknode.example.com:8080:PUBLISH",
-                                        "-d", "Block node with PUBLISH API")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "blocknode.example.com:8080:PUBLISH",
+                                        "-d",
+                                        "Block node with PUBLISH API")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -92,9 +98,12 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--mirrorNodeEndpoint", "127.0.0.1:5551",
-                                        "-d", "Mirror node")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--mirrorNodeEndpoint",
+                                        "127.0.0.1:5551",
+                                        "-d",
+                                        "Mirror node")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -113,9 +122,12 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--rpcRelayEndpoint", "relay.example.com:7546",
-                                        "-d", "RPC relay")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--rpcRelayEndpoint",
+                                        "relay.example.com:7546",
+                                        "-d",
+                                        "RPC relay")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -136,10 +148,12 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
                                         "blocknode.example.com:8443:SUBSCRIBE_STREAM:tls",
-                                        "-d", "Block node with TLS and SUBSCRIBE_STREAM API")
+                                        "-d",
+                                        "Block node with TLS and SUBSCRIBE_STREAM API")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -164,11 +178,16 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint", "127.0.0.1:8080:STATUS",
-                                        "--blockNodeEndpoint", "127.0.0.1:8081:PUBLISH",
-                                        "--blockNodeEndpoint", "127.0.0.1:8082:SUBSCRIBE_STREAM",
-                                        "-d", "Block node exposing STATUS, PUBLISH, and SUBSCRIBE_STREAM")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS",
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8081:PUBLISH",
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8082:SUBSCRIBE_STREAM",
+                                        "-d",
+                                        "Block node exposing STATUS, PUBLISH, and SUBSCRIBE_STREAM")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -188,10 +207,14 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint", "node.example.com:8443:PUBLISH:tls",
-                                        "--mirrorNodeEndpoint", "node.example.com:5443:tls",
-                                        "-d", "Co-located block node and mirror node")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "node.example.com:8443:PUBLISH:tls",
+                                        "--mirrorNodeEndpoint",
+                                        "node.example.com:5443:tls",
+                                        "-d",
+                                        "Co-located block node and mirror node")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 
@@ -211,11 +234,16 @@ public class RegisteredNodesCommandsTest {
                         spec,
                         yahcliRegisteredNodes(
                                         "create",
-                                        "-k", asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint", "infra.example.com:8443:PUBLISH:tls",
-                                        "--mirrorNodeEndpoint", "infra.example.com:5443:tls",
-                                        "--rpcRelayEndpoint", "infra.example.com:7443:tls",
-                                        "-d", "Full-service registered node: block, mirror, and RPC relay")
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "infra.example.com:8443:PUBLISH:tls",
+                                        "--mirrorNodeEndpoint",
+                                        "infra.example.com:5443:tls",
+                                        "--rpcRelayEndpoint",
+                                        "infra.example.com:7443:tls",
+                                        "-d",
+                                        "Full-service registered node: block, mirror, and RPC relay")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
     }
 }
