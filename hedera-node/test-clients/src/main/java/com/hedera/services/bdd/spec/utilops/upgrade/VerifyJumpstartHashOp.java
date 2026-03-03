@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSingleChild;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -17,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,8 +23,8 @@ import org.junit.jupiter.api.Assertions;
 /**
  * Three-way verification of the jumpstart hash computation:
  * <ol>
- *   <li><b>Chain 1 (file entries)</b>: chains wrapped hashes file entries via the 5-level
- *       Merkle tree (same computation as {@code WrappedRecordBlockHashMigration})</li>
+ *   <li><b>Chain 1 (file entries)</b>: chains wrapped hashes file entries via
+ *       {@link BlockRecordManagerImpl#computeWrappedRecordBlockRootHash}</li>
  *   <li><b>Chain 2 (.rcd replay)</b>: replays {@code .rcd} files via
  *       {@link RcdFileBlockHashReplay}</li>
  *   <li><b>Three-way assertions</b>: per-block entry comparison, plus both chain hashes
@@ -37,8 +34,6 @@ import org.junit.jupiter.api.Assertions;
 public class VerifyJumpstartHashOp extends UtilOp {
 
     private static final Logger log = LogManager.getLogger(VerifyJumpstartHashOp.class);
-
-    private static final Bytes EMPTY_INT_NODE = hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     private final byte[] jumpstartContents;
     private final List<WrappedRecordFileBlockHashes> wrappedHashes;
@@ -96,7 +91,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
                 state1.prevHash(),
                 freezeBlock);
 
-        // ===== Chain 1: File entries chained via 5-level Merkle tree =====
+        // ===== Chain 1: File entries chained via computeWrappedRecordBlockRootHash =====
         final var neededEntries = wrappedHashes.stream()
                 .filter(e -> e.blockNumber() > jumpstartBlockNum && e.blockNumber() <= freezeBlock)
                 .sorted((a, b) -> Long.compare(a.blockNumber(), b.blockNumber()))
@@ -111,20 +106,9 @@ public class VerifyJumpstartHashOp extends UtilOp {
         Bytes fileChainHash = state1.prevHash();
         int index = 0;
         for (final var entry : neededEntries) {
-            final Bytes allPrevBlocksHash = Bytes.wrap(state1.hasher().computeRootHash());
-            final Bytes depth5Node1 = hashInternalNode(fileChainHash, allPrevBlocksHash);
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-            final Bytes depth5Node3 = hashInternalNode(HASH_OF_ZERO, entry.outputItemsTreeRootHash());
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-            final Bytes depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-            final Bytes depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-            final Bytes depth2Node1 = entry.consensusTimestampHash();
-            final Bytes depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-            final Bytes finalBlockHash = hashInternalNode(depth2Node1, depth2Node2);
+            final var allPrevBlocksRootHash = Bytes.wrap(state1.hasher().computeRootHash());
+            final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    fileChainHash, allPrevBlocksRootHash, entry);
 
             // Log first 3 and last 3 blocks for debugging
             final boolean isEdgeBlock = index < 3 || index >= neededEntries.size() - 3;
@@ -136,11 +120,11 @@ public class VerifyJumpstartHashOp extends UtilOp {
                         fileChainHash,
                         entry.consensusTimestampHash(),
                         entry.outputItemsTreeRootHash(),
-                        finalBlockHash);
+                        blockRootHash);
             }
 
-            state1.hasher().addNodeByHash(finalBlockHash.toByteArray());
-            fileChainHash = finalBlockHash;
+            state1.hasher().addNodeByHash(blockRootHash.toByteArray());
+            fileChainHash = blockRootHash;
             index++;
         }
 
@@ -158,7 +142,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
         // ===== Three-way assertions =====
 
         // 1. Per-block: .rcd entry vs file entry (ctHash + outputRoot)
-        final var fileEntriesByBlock = new HashMap<Long, WrappedRecordFileBlockHashes>();
+        final var fileEntriesByBlock = new java.util.HashMap<Long, WrappedRecordFileBlockHashes>();
         for (final var entry : neededEntries) {
             fileEntriesByBlock.put(entry.blockNumber(), entry);
         }

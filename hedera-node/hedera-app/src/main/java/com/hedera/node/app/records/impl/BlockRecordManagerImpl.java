@@ -135,6 +135,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
      * @param initTrigger The init trigger
+     * @param migrationResult The pre-computed migration result from before platform.build(), or null
+     *     if the migration was not run or was skipped
      */
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
@@ -144,7 +146,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
-            @NonNull final InitTrigger initTrigger) {
+            @NonNull final InitTrigger initTrigger,
+            @Nullable final WrappedRecordBlockHashMigration.Result migrationResult) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -178,14 +181,37 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastRunningHashes = runningHashState.get();
             assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         }
-        // Initialize wrapped record block hash tracking; restore from state on restart if available
-        if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
+        // Initialize wrapped record block hash tracking.
+        //  - If computeHashesFromWrappedRecordBlocks is enabled AND a migration result exists,
+        //    seed from the migration (first startup after upgrade, before state is populated).
+        //  - Otherwise if liveWritePrevWrappedRecordHashes is enabled (non-genesis), seed from
+        //    BlockInfo state (subsequent restarts, where the hash was persisted at freeze).
+        //  - Otherwise use empty defaults.
+        if (migrationResult != null && recordStreamConfig.computeHashesFromWrappedRecordBlocks()) {
+            final var migrationIntermediateHashes =
+                    migrationResult.wrappedIntermediatePreviousBlockRootHashes().stream()
+                            .map(Bytes::toByteArray)
+                            .toList();
+            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
+                    SHA_384_DIGEST,
+                    migrationIntermediateHashes,
+                    migrationResult.wrappedIntermediateBlockRootsLeafCount());
+            this.previousWrappedRecordBlockRootHash = migrationResult.previousWrappedRecordBlockRootHash();
+            logger.info(
+                    "Seeded wrapped record block hash state from migration result: prevHash={}, leafCount={}",
+                    this.previousWrappedRecordBlockRootHash,
+                    migrationResult.wrappedIntermediateBlockRootsLeafCount());
+        } else if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
             final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                     .map(Bytes::toByteArray)
                     .toList();
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
                     SHA_384_DIGEST, intermediateHashes, this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
             this.previousWrappedRecordBlockRootHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            logger.info(
+                    "Seeded wrapped record block hash state from BlockInfo: prevHash={}, leafCount={}",
+                    this.previousWrappedRecordBlockRootHash,
+                    this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         } else {
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(SHA_384_DIGEST, List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
@@ -259,7 +285,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             if (liveWritePrevWrappedRecordHashes()) {
                 computeAndRecordWrappedBlockHashes(
                         currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-            } else if (writeWrappedRecordFileBlockHashesToDisk()) {
+            }
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
                 appendWrappedRecordFileBlockHashesToDisk(
                         currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
             }
@@ -273,6 +300,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
                         .build();
                 putLastBlockInfo(state);
+                logger.info(
+                        "Persisted live wrapped record block root hash (as of block {}): {}",
+                        currentBlockNumber,
+                        previousWrappedRecordBlockRootHash);
             }
         } catch (final Exception e) {
             logger.warn("Failed to flush wrapped record-file block hashes on orderly shutdown", e);
@@ -577,6 +608,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Compute the wrapped record block root hash for this block
         final Bytes blockRootHash =
                 computeWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
+
+        logger.fatal(
+                "matt: NODE live block={}, prevHash={}, allPrevRootHash={}, ctHash={}, outputRoot={}, blockRootHash={}, leafCount={}",
+                justFinishedBlockNumber,
+                previousWrappedRecordBlockRootHash,
+                allPrevBlocksRootHash,
+                entry.consensusTimestampHash(),
+                entry.outputItemsTreeRootHash(),
+                blockRootHash,
+                prevWrappedRecordBlockHashes.leafCount());
 
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(blockRootHash.toByteArray());

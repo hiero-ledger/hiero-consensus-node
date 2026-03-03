@@ -161,6 +161,16 @@ public final class RcdFileBlockHashReplay {
             final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
             final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
 
+            log.fatal(
+                    "matt: RcdReplay block={}, prevHash={}, allPrevRootHash={}, ctHash={}, outputRoot={}, blockRootHash={}, leafCount={}",
+                    blockNumber,
+                    prevWrappedBlockHash,
+                    allPrevBlocksRootHash,
+                    entry.consensusTimestampHash(),
+                    entry.outputItemsTreeRootHash(),
+                    blockRootHash,
+                    initialHasher.leafCount());
+
             // Update chain
             initialHasher.addNodeByHash(blockRootHash.toByteArray());
             prevWrappedBlockHash = blockRootHash;

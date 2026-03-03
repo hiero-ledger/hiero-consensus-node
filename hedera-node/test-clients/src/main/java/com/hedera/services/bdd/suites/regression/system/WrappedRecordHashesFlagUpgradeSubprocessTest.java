@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
+// @Order(0)
 public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTest {
     private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
     private static final long DISK_IO_WAIT_MS = 1_000;
@@ -45,6 +46,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false"));
+        testLifecycle.doAdhoc(sleepFor(10000));
         // Delete the wrapped record hashes file if it exists
         testLifecycle.doAdhoc(doingContextual(spec -> {
             final var workingDirs = spec.getNetworkNodes().stream()
@@ -61,7 +63,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     public @NonNull Stream<DynamicTest> canEnableWrappedRecordHashesAcrossUpgradeFromDefaultOff() {
         final var enableAtRestart = Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true");
 
@@ -69,7 +71,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
-                sleepFor(DISK_IO_WAIT_MS),
+                sleepFor(10000),
                 doingContextual(spec -> assertNoWrappedHashesWritten(spec.getNetworkNodes().stream()
                         .map(n -> n.getExternalPath(ExternalPath.WORKING_DIR))
                         .toList())),
