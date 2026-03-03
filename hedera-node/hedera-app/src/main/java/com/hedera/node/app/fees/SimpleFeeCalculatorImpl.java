@@ -2,6 +2,7 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
@@ -70,8 +71,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             UNCHECKED_SUBMIT,
             HOOK_DISPATCH,
             NODE_STAKE_UPDATE,
+            // These are privileged transactions
             SYSTEM_DELETE,
-            SYSTEM_UNDELETE);
+            SYSTEM_UNDELETE,
+            FREEZE);
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
