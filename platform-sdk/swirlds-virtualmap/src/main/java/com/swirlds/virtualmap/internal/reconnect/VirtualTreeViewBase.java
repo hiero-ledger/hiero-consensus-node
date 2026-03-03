@@ -54,6 +54,10 @@ public abstract class VirtualTreeViewBase implements TreeView {
         this.reconnectState = Objects.requireNonNull(reconnectState);
     }
 
+    public VirtualMapMetadata getReconnectState() {
+        return reconnectState;
+    }
+
     /**
      * {@inheritDoc}
      */

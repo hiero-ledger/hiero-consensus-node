@@ -23,6 +23,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -31,6 +33,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOPIC_CREATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -1027,20 +1030,10 @@ public class TopicCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("Create Topic with duplicate transaction fails on handle")
             Stream<DynamicTest> topicCreateWithDuplicateTransactionFailsOnHandlePayerChargedFullFee() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
-
-                        // Register a TxnId for the inner txn
                         usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
 
                         // Submit duplicate transactions
@@ -1051,8 +1044,7 @@ public class TopicCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
-                                .via("topicCreateTxn")
-                                .logged(),
+                                .via("topicCreateTxn"),
                         createTopic("testAccount")
                                 .blankMemo()
                                 .payingWith(PAYER)
@@ -1062,28 +1054,8 @@ public class TopicCreateSimpleFeesTest {
                                 .txnId(DUPLICATE_TXN_ID)
                                 .via("topicCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances after and assert node was not charged
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 1L,
-                                            KEYS, 0L)));
-                            assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "topicCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                        validateChargedAccount("topicCreateTxn", PAYER),
+                        validateChargedUsd("topicCreateTxn", TOPIC_CREATE_FEE));
             }
 
             @HapiTest
