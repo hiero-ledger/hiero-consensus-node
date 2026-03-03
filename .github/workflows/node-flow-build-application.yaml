@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - "release/**"
-      - infrastructure-failure-detection # TEMP: remove before merge
+
 
 defaults:
   run:
@@ -25,14 +25,13 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
-      # TEMP: most tests disabled for Slack reporting testing — re-enable before merge
-      enable-spotless-check: "false"
-      enable-dependency-check: "false"
+      enable-spotless-check: "true"
+      enable-dependency-check: "true"
       enable-unit-tests: "true"
-      enable-integration-tests: "false"
+      enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-snyk-scan: "false"
+      enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
       java-version: "21.0.6"
@@ -210,23 +209,22 @@ jobs:
           echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.set-rootly-parameters.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
 
-      # TEMP: Rootly alert disabled for testing — re-enable before merge
-      # - name: Create Rootly Alert
-      #   id: create-rootly-alert
-      #   if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
-      #   uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-      #   continue-on-error: true
-      #   with:
-      #     api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-      #     summary: "${{ steps.rootly-summary.outputs.title }}"
-      #     details: "${{ steps.rootly-summary.outputs.summary }}"
-      #     notification_target_type: "Service"
-      #     notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
-      #     set_as_noise: "false"
-      #     alert_urgency: "High"
-      #     external_id: ${{ github.run_id }}
-      #     external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      #     environments: "CITR"
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
+          set_as_noise: "false"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
 
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
@@ -426,7 +424,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -435,7 +433,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -444,7 +442,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_FAILURES_WEBHOOK
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -453,7 +451,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
@@ -462,7 +460,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
@@ -471,7 +469,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_RELEASE_TEAM_WEBHOOK
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
@@ -480,7 +478,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_OPERATIONS_WEBHOOK
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
@@ -489,7 +487,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }} # TEMP: was SLACK_CITR_FAILURES_WEBHOOK
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
