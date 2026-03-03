@@ -148,7 +148,8 @@ tasks.register<JavaExec>("run") {
             "-cp",
             "data/lib/*:data/apps/*",
             "-server",
-            "-XX:+UseParallelGC",
+            "-XX:+UseSerialGC",
+            //"-XX:+UseParallelGC",
             "-Xms196M",
             "-Xmx196M",
             "-XX:+AlwaysPreTouch",
@@ -160,6 +161,7 @@ tasks.register<JavaExec>("run") {
             "-XX:ReservedCodeCacheSize=24M",
             "-XX:MaxDirectMemorySize=16M",
             "-XX:NativeMemoryTracking=summary",
+            "-Dio.netty.allocator.type=unpooled",
             "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
         )
 
