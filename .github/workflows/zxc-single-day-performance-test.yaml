@@ -195,6 +195,15 @@ jobs:
         with:
           version: 3.39.2
 
+      - name: Check Helm
+        shell: bash
+        run: |
+          set +x
+          et +e
+          which helm
+          echo $PATH
+          find /usr -type f -name '*helm*' \;
+          exit 0
 
       - name: Install Helm
         shell: bash
