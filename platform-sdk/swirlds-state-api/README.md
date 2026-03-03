@@ -2,11 +2,11 @@
 
 ## Summary
 
-The `swirlds-state-api` module defines the core interfaces and abstractions for state access and management in the application.
+The `swirlds-state-api` module defines the core interfaces and abstractions for state (see [The State](#the-state)) access and management in the application.
 It serves as the API layer for interacting with the state. These interactions include **reading**, **writing**, **removing** elements from the state,
 **hashing**, creating **snapshots** and **state proofs** and **loading snapshots from disk**.
 
-At its core, the module provides interfaces for three kinds of state: **singleton**, **queue**, and **key-value** storage.
+At its core, the module provides interfaces for three kinds of state components: **singleton**, **queue**, and **key-value** storage.
 These interfaces abstract away storage details, allowing implementations to handle persistence efficiently.
 
 The module offers two different levels of abstraction for accessing state data. The `State` interface operates at the
@@ -44,6 +44,7 @@ These concepts form the foundation for understanding how the state is managed, a
 
 The state represents the totality of all data the application works with. It encompasses all persistent information
 maintained by the system, such as account balances, token relations, or smart contract data in a distributed ledger context.
+All consensus nodes have an identical state for a given point in consensus time.
 The state can be viewed through the "lens" of named services, which group related data logically, or accessed directly
 by state ID in combination with a key object (particularly for key-value states). This dual access model allows for both high-level,
 service-oriented interactions and low-level, granular operations. In the underlying implementation, the state is a Merkle tree,
@@ -566,7 +567,7 @@ With `BinaryState`, the caller skips the service layer entirely. The equivalent 
 `getKv(stateId, keyBytes)`, where `keyBytes` is raw protobuf-encoded `Bytes` (the domain key, not the
 storage-level `StateKey` envelope) and the return value is also raw domain `Bytes`. There is no codec
 application, no service resolution — just a direct lookup by state ID and binary key. The storage-level
-wrapping into StateKey / StateValue is handled internally (see Storage Representation below).
+wrapping into `StateKey` / `StateValue` is handled internally (see [Storage Representation](#storage-representation)).
 
 This design makes `BinaryState` particularly suitable for scenarios where the caller already has protobuf-encoded
 data (for instance, when replaying blocks) or needs to work with state generically without importing the full
@@ -711,7 +712,7 @@ The construction process (as implemented in `VirtualMapStateImpl.getMerkleProof`
 The resulting `MerkleProof` record contains three components:
 
 - **`leafData`** (`Bytes`) — the protobuf-serialized StateItem containing the leaf's wrapped `StateKey` and `StateValue` bytes as they
-  exist in the `VirtualMap` (see Storage Representation).
+  exist in the `VirtualMap` (see [Storage Representation](#storage-representation)).
 - **`siblingHashes`** (`List<SiblingHash>`) — an ordered list from leaf level to root, where each `SiblingHash` pairs a hash with a boolean indicating whether the sibling is a left child (`isLeft`).
 - **`innerParentHashes`** (`List<Hash>`) — the hashes of the nodes along the path from the leaf to the root (inclusive of the root hash itself).
 
