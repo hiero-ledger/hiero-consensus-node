@@ -85,6 +85,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -658,11 +659,24 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     return null;
                                 }
                             }
-                            log.warn(
-                                    "Unhandled exception while signing block #{} with hash {}",
-                                    blockNumber,
-                                    finalBlockRootHash,
-                                    t);
+                            final boolean alreadyClosed = t instanceof CompletionException completionException
+                                    && completionException.getCause() instanceof IllegalStateException e
+                                    && Optional.ofNullable(e.getMessage())
+                                            .filter(m -> m.startsWith(
+                                                    "Cannot write to a FileBlockItemWriter that is not open"))
+                                            .isPresent();
+                            if (alreadyClosed) {
+                                log.info(
+                                        "Block #{} with hash {} already closed, skipping direct proof",
+                                        blockNumber,
+                                        finalBlockRootHash);
+                            } else {
+                                log.warn(
+                                        "Unhandled exception while signing block #{} with hash {}",
+                                        blockNumber,
+                                        finalBlockRootHash,
+                                        t);
+                            }
                             return null;
                         });
             }
