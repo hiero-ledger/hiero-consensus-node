@@ -19,6 +19,8 @@ import com.swirlds.config.api.ConfigProperty;
  * @param terminationTimeout The timeout, *in seconds*, to wait for the servers to terminate.
  * @param tlsCrtPath
  * @param tlsKeyPath
+ * @param bossThreads Number of threads in the Netty boss EventLoopGroup. 0 means Netty default (2 * numCores).
+ * @param workerThreads Number of threads in the Netty worker EventLoopGroup. 0 means Netty default (2 * numCores).
  */
 @ConfigData("netty")
 public record NettyConfig(
@@ -37,7 +39,9 @@ public record NettyConfig(
         @ConfigProperty(defaultValue = "1000") @NodeProperty long startRetryIntervalMs,
         @ConfigProperty(defaultValue = "5") @NodeProperty long terminationTimeout,
         @ConfigProperty(value = "tlsCrt.path", defaultValue = "hedera.crt") @NodeProperty String tlsCrtPath,
-        @ConfigProperty(value = "tlsKey.path", defaultValue = "hedera.key") @NodeProperty String tlsKeyPath) {
+        @ConfigProperty(value = "tlsKey.path", defaultValue = "hedera.key") @NodeProperty String tlsKeyPath,
+        @ConfigProperty(defaultValue = "0") @NodeProperty int bossThreads,
+        @ConfigProperty(defaultValue = "0") @NodeProperty int workerThreads) {
     public NettyConfig {
         if (startRetries < 0) {
             throw new IllegalArgumentException("startRetries must be non-negative.");
