@@ -195,16 +195,6 @@ jobs:
         with:
           version: 3.39.2
 
-      - name: Check Helm
-        shell: bash
-        run: |
-          set +x
-          set +e
-          which helm
-          echo $PATH
-          find /usr $HOME -type f -name '*helm*'
-          exit 0
-
       - name: Install Helm
         shell: bash
         run: |
