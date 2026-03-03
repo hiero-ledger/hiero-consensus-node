@@ -222,7 +222,7 @@ Here is an example:
 * On disk, the chunk is serialized with only these 4 hashes, that is 4*48 bytes, plus other
   protobuf fields
 * When the chunk is deserialized, a byte buffer of 64 hashes is allocated. Then the first hash on
-  disk is read into offset 0, the second hash is read into offset 16*48, and so on 
+  disk is read into offset 0, the second hash is read into offset 16*48, and so on
 
 ```mermaid
 block-beta

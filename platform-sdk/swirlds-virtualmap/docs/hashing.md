@@ -1,11 +1,10 @@
-
 # Virtual Map Hashing
 
 ## Overview
 
 Every virtual map copy must be hashed to produce a single root hash. Virtual maps may be huge,
 but only a small subset changes each round. `VirtualHasher`
-computes the root hash incrementally: it rehashes only the **dirty leaves** and the minimal set
+computes the root hash incrementally: it rehashes only the **dirty leaves** (leaves that were changed) and the minimal set
 of internal nodes on the path from those leaves to the root. Clean (unchanged) hashes are loaded
 from the previous round.
 
@@ -35,8 +34,9 @@ and 2, rank 2 contains paths 3 through 6, and so on. See `Path.getRank()`.
 
 **Leaf hashes** are computed by serializing leaf data and hashing the bytes with SHA-384.
 
-**Internal node hashes** are computed by combining two child hashes using a domain-separated
-digest. The method `VirtualHasher.hashInternal()` works as follows:
+**Internal node hashes** are computed by combining two child hashes with a distinguishing
+prefix, so that internal node hashes can never collide with leaf hashes. The method
+`VirtualHasher.hashInternal()` works as follows:
 
 1. Write a single byte prefix: `0x02` for normal internal nodes (two children), or `0x01`
    for a root node with only one child (single-leaf tree).
@@ -44,7 +44,8 @@ digest. The method `VirtualHasher.hashInternal()` works as follows:
 3. Write the right child hash bytes (omitted in the single-child case).
 4. Produce the SHA-384 digest.
 
-The prefix byte ensures that internal node hashes are domain-separated from leaf hashes.
+The prefix byte ensures that internal node hashes never collide with leaf hashes,
+and that single-child root hashes are distinct from two-child root hashes.
 
 **Single-leaf tree:** When the tree has exactly one leaf (path 1), path 2 does not exist.
 A sentinel marker (`NO_PATH2_HASH`) is used as the right input, causing `hashInternal` to
@@ -60,38 +61,36 @@ The following virtual tree is used in examples throughout this document. It has 
 (paths 8–14) and the last leaf rank is 4 (paths 15–16).
 
 ```mermaid
-graph TB 
-    0 --> 1 
-    0 --> 2 
-    1 --> 3 
-    1 --> 4 
-    2 --> 5 
-    2 --> 6 
-    3 --> 7 
-    3 --> 8 
-    4 --> 9 
-    4 --> 10 
-    5 --> 11 
+graph TB
+    0 --> 1
+    0 --> 2
+    1 --> 3
+    1 --> 4
+    2 --> 5
+    2 --> 6
+    3 --> 7
+    3 --> 8
+    4 --> 9
+    4 --> 10
+    5 --> 11
     5 --> 12
-    6 --> 13 
+    6 --> 13
     6 --> 14
     7 --> 15
     7 --> 16
 ```
 
-
-
 With chunk height 2, the chunks are:
 
-| Chunk ID | Chunk Path | Covered Paths | Notes |
-|----------|-----------|---------------|-------|
-| 0 | 0 | 1, 2, 3, 4, 5, 6 | Complete |
-| 1 | 3 | 7, 8, 15, 16 (and 17, 18 beyond range) | Partial |
-| 2 | 4 | 9, 10 (and 19–22 beyond range) | Partial |
-| 3 | 5 | 11, 12 (and 23–26 beyond range) | Partial |
-| 4 | 6 | 13, 14 (and 27–30 beyond range) | Partial |
+| Chunk ID | Chunk Path |             Covered Paths              |  Notes   |
+|----------|------------|----------------------------------------|----------|
+| 0        | 0          | 1, 2, 3, 4, 5, 6                       | Complete |
+| 1        | 3          | 7, 8, 15, 16 (and 17, 18 beyond range) | Partial  |
+| 2        | 4          | 9, 10 (and 19–22 beyond range)         | Partial  |
+| 3        | 5          | 11, 12 (and 23–26 beyond range)        | Partial  |
+| 4        | 6          | 13, 14 (and 27–30 beyond range)        | Partial  |
 
-Note: chunks cover paths beyond the current leaf range `[8, 16]`. These out-of-range paths
+Note: some chunks cover paths beyond the current leaf range `[8, 16]`. These out-of-range paths
 don't correspond to real tree nodes. See [hash-chunks.md](hash-chunks.md) for details.
 
 ### Hashing algorithm in a nutshell
@@ -113,7 +112,7 @@ are computed:
 * Path 4: hash at path 9 combined with clean hash at path 10
 * Path 6: hash at path 13 combined with clean hash at path 14
 * Path 1: hash at path 3 (clean, loaded from disk) combined with hash at path 4
-* Path 2: hash at path 5 (clean) combined with hash at path 6
+* Path 2: hash at path 5 (clean, loaded from disk) combined with hash at path 6
 * Path 0 (root hash): hash at path 1 combined with hash at path 2
 
 In practice, the hasher doesn't process individual nodes like this — it works on **chunks**
@@ -174,9 +173,8 @@ the setup thread, some from worker threads running child tasks.
 
 ### Concurrency
 
-**ForkJoinPool** — A single static pool is shared across all `VirtualHasher` instances and
-all virtual map families. It is lazily initialized on the first
-`hash()` call. Thread count is configurable via `VirtualMapConfig.getNumHashThreads()`.
+`ForkJoinPool` — A single static pool is shared across all `VirtualHasher` instances.
+It is lazily initialized on the first `hash()` call. Thread count is configurable via `VirtualMapConfig.getNumHashThreads()`.
 
 If `hash()` is called from within a `ForkJoinPool` already (for example, during reconnect),
 the existing pool is reused.
@@ -193,7 +191,7 @@ The `hash()` method is the public entry point. It:
 
 1. Sets up the listener (defaulting to a no-op if null was provided) and notifies it that
    hashing has started.
-2. Selects the ForkJoinPool — reusing the current one if already inside a pool, or obtaining
+2. Selects the `ForkJoinPool` — reusing the current one if already inside a pool, or obtaining
    the shared static pool.
 3. Submits the internal `hashImpl()` method to run inside the pool. This is important: it
    means all task creation and scheduling happens from a pool worker thread, enabling cheaper
@@ -214,7 +212,7 @@ Inside `hashImpl()`, three data structures are initialized:
 The algorithm iterates over dirty leaves in ascending path order. For each dirty leaf:
 
 1. A leaf task is created for it.
-2. An **upward walk** begins: from the leaf, moving up rank by rank toward the root, creating
+2. An **upward walk** begins: from the leaf, moving up chunk by chunk toward the root, creating
    chunk tasks as needed.
 3. At each rank during the walk, the algorithm wires the current task to its parent chunk task.
    If the parent already exists in the pending tasks map, the walk **stops** (the remaining
@@ -273,24 +271,24 @@ Using the sample tree with dirty leaves at paths **9** and **13** (chunk height 
 
 * A leaf task is created for path 13.
 * Walk up from rank 3: the stack at rank 3 is **9** (from the previous leaf).
-    * The parent chunk for the stack path 9 is chunk at path 4 (height 1). Its last input
-      is at path 10.
-    * The current path 13 is beyond the old chunk's last input (path 10), so we've **crossed
-      a chunk boundary**. All paths between 9 and the end of chunk 4 are marked as clean —
-      that's just path 10. Chunk task at path 4 now has all inputs accounted for, so it's
-      removed from the pending map.
-    * Meanwhile, paths 11 and 12 are not in the same chunk as path 9 (they belong to chunk
-      at path 5), nor in the same chunk as path 13 (chunk at path 6). They're handled
-      separately — at the root level, path 5 will be marked clean.
+  * The parent chunk for the stack path 9 is chunk at path 4 (height 1). Its last input
+    is at path 10.
+  * The current path 13 is beyond the old chunk's last input (path 10), so we've **crossed
+    a chunk boundary**. All paths between 9 and the end of chunk 4 are marked as clean —
+    that's just path 10. Chunk task at path 4 now has all inputs accounted for, so it's
+    removed from the pending map.
+  * Meanwhile, paths 11 and 12 are not in the same chunk as path 9 (they belong to chunk
+    at path 5), nor in the same chunk as path 13 (chunk at path 6). They're handled
+    separately — at the root level, path 5 will be marked clean.
 * The parent chunk for path 13 is at path 6, height 1. Created and added to pending map.
 * The leaf task is wired to chunk task at path 6.
 * Walk up from rank 2: the stack at rank 2 is **4**.
-    * The parent chunk for stack path 4 is the root (path 0). Its last input is at path 6.
-    * The current path 6 is at the boundary of the root chunk (not beyond it), so we're
-      still in the **same parent chunk**. No chunk boundary was crossed.
-    * Chunk task at path 6 is wired to the root task. The walk **stops**.
-    * All paths between path 4 and path 6 that haven't been seen are marked clean on the
-      root task — that's **path 5**.
+  * The parent chunk for stack path 4 is the root (path 0). Its last input is at path 6.
+  * The current path 6 is at the boundary of the root chunk (not beyond it), so we're
+    still in the **same parent chunk**. No chunk boundary was crossed.
+  * Chunk task at path 6 is wired to the root task. The walk **stops**.
+  * All paths between path 4 and path 6 that haven't been seen are marked clean on the
+    root task — that's **path 5**.
 * Stack is now: `[0, _, 6, 13]`.
 
 **Cleanup phase:**
@@ -348,11 +346,11 @@ until a single hash remains.
 
 For each left/right pair, the task handles three cases per side:
 
-| Input state | Meaning | Action |
-|---|---|---|
-| Null | Clean node — hash unchanged | Load from the chunk (either directly from stored hashes, or by computing from stored sub-hashes) |
-| Non-null | Dirty — hash delivered by a child task | Use it directly, and write it into the chunk at the appropriate storage rank |
-| Right path beyond last leaf | Only possible for the root in a single-leaf tree | Use the `NO_PATH2_HASH` sentinel |
+|         Input state         |                     Meaning                      |                                                                                                                  Action                                                                                                                   |
+|-----------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Null                        | Clean node — hash unchanged                      | Load from the chunk. If the path is at the chunk's lowest stored rank, the hash is read directly. If the path is above the lowest rank (possible with sub-chunk tasks), the hash is computed by combining stored hashes from lower ranks. |
+| Non-null                    | Dirty — hash delivered by a child task           | Use it directly, and write it into the chunk at the appropriate storage rank                                                                                                                                                              |
+| Right path beyond last leaf | Only possible for the root in a single-leaf tree | Use the `NO_PATH2_HASH` sentinel                                                                                                                                                                                                          |
 
 The input array is reused in-place: each iteration overwrites the first half with the
 merged results. After the loop, position 0 holds the chunk's output hash.
@@ -380,11 +378,11 @@ caller of `hash()` and typically reads from the virtual node cache or MerkleDb.
 
 Using the sample tree with dirty leaves **9** and **13**:
 
-| Task | Inputs | Loaded from disk? |
-|---|---|---|
-| Chunk task at path 4 (height 1) | path 9 (dirty), path 10 (clean) | **Yes** — needs hash for path 10 |
-| Chunk task at path 6 (height 1) | path 13 (dirty), path 14 (clean) | **Yes** — needs hash for path 14 |
-| Root task at path 0 (height 2) | path 3 (clean), path 4 (dirty), path 5 (clean), path 6 (dirty) | **Yes** — needs hashes for paths 3 and 5 |
+|              Task               |                             Inputs                             |            Loaded from disk?             |
+|---------------------------------|----------------------------------------------------------------|------------------------------------------|
+| Chunk task at path 4 (height 1) | path 9 (dirty), path 10 (clean)                                | **Yes** — needs hash for path 10         |
+| Chunk task at path 6 (height 1) | path 13 (dirty), path 14 (clean)                               | **Yes** — needs hash for path 14         |
+| Root task at path 0 (height 2)  | path 3 (clean), path 4 (dirty), path 5 (clean), path 6 (dirty) | **Yes** — needs hashes for paths 3 and 5 |
 
 If paths 9 **and** 10 were both dirty, chunk task at path 4 would create a fresh chunk — no
 disk read needed. If all four inputs of the root task (paths 3, 4, 5, and 6) were dirty, the
