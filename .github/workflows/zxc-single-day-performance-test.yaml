@@ -199,7 +199,7 @@ jobs:
         shell: bash
         run: |
           set +x
-          et +e
+          set +e
           which helm
           echo $PATH
           find /usr -type f -name '*helm*' \;
