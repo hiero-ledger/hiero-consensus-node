@@ -21,6 +21,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
+import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.NodeStakeUpdateTransactionBody;
@@ -475,6 +476,10 @@ class SimpleFeeCalculatorImplTest {
                 TransactionBody.newBuilder()
                         .systemUndelete(
                                 SystemUndeleteTransactionBody.newBuilder().build())
+                        .build();
+            case FREEZE ->
+                TransactionBody.newBuilder()
+                        .freeze(FreezeTransactionBody.DEFAULT)
                         .build();
             default -> throw new IllegalArgumentException("Unsupported free/internal functionality " + functionality);
         };
