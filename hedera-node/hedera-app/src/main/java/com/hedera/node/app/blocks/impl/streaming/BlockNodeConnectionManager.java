@@ -862,7 +862,6 @@ public class BlockNodeConnectionManager {
     private void refreshAvailableBlockNodes() {
         final String configDir = blockNodeConfigDirectory.toString();
         final List<BlockNodeConfiguration> newConfigs = extractBlockNodesConfigurations(configDir);
-        blockBufferService.updateBlockNodeConfigAvailability(true, !newConfigs.isEmpty());
 
         // Compare new configs with existing ones to determine if a restart is needed
         synchronized (availableBlockNodes) {

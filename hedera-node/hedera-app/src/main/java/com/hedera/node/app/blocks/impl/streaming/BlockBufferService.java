@@ -10,7 +10,6 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -123,15 +122,6 @@ public class BlockBufferService {
      * Flag indicating if the buffer service has been started.
      */
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
-    /**
-     * Indicates whether block-node configuration has been evaluated at least once by the
-     * {@link BlockNodeConnectionManager}. Until this is true, saturation is calculated normally.
-     */
-    private final AtomicBoolean hasEvaluatedBlockNodeConfigs = new AtomicBoolean(false);
-    /**
-     * Indicates whether the last observed block-node configuration contained at least one usable block node.
-     */
-    private final AtomicBoolean hasUsableBlockNodeConfigs = new AtomicBoolean(true);
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -311,17 +301,6 @@ public class BlockBufferService {
     public void setBlockNodeConnectionManager(@NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
-    }
-
-    /**
-     * Updates whether block-node configurations have been evaluated and whether there are any usable block nodes.
-     *
-     * @param hasEvaluated true if block-node config loading/parsing has been attempted at least once
-     * @param hasUsable true if at least one usable block node is available from the last evaluation
-     */
-    public void updateBlockNodeConfigAvailability(final boolean hasEvaluated, final boolean hasUsable) {
-        hasEvaluatedBlockNodeConfigs.set(hasEvaluated);
-        hasUsableBlockNodeConfigs.set(hasUsable);
     }
 
     /**
@@ -648,30 +627,14 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(
-                maxBufferSize,
-                numChecked,
-                numPendingAck,
-                numPruned,
-                newEarliestBlock,
-                newLatestBlock,
-                shouldForceSaturationDueToMissingBlockNodes());
-    }
-
-    private boolean shouldForceSaturationDueToMissingBlockNodes() {
-        final BlockStreamConfig blockStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        return blockStreamConfig.streamMode() == StreamMode.BLOCKS
-                && blockStreamConfig.writerMode() == BlockStreamWriterMode.GRPC
-                && hasEvaluatedBlockNodeConfigs.get()
-                && !hasUsableBlockNodeConfigs.get();
+        return new PruneResult(maxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
     }
 
     /**
      * Simple class that contains information related to the outcome of the buffer pruning.
      */
     static class PruneResult {
-        static final PruneResult NIL = new PruneResult(0, 0, 0, 0, 0, 0, false);
+        static final PruneResult NIL = new PruneResult(0, 0, 0, 0, 0, 0);
 
         final long idealMaxBufferSize;
         final int numBlocksChecked;
@@ -688,8 +651,7 @@ public class BlockBufferService {
                 final int numBlocksPendingAck,
                 final int numBlocksPruned,
                 final long oldestBlockNumber,
-                final long newestBlockNumber,
-                final boolean forceSaturation) {
+                final long newestBlockNumber) {
             this.idealMaxBufferSize = idealMaxBufferSize;
             this.numBlocksChecked = numBlocksChecked;
             this.numBlocksPendingAck = numBlocksPendingAck;
@@ -697,21 +659,16 @@ public class BlockBufferService {
             this.oldestBlockNumber = oldestBlockNumber;
             this.newestBlockNumber = newestBlockNumber;
 
-            if (forceSaturation) {
-                isSaturated = true;
-                saturationPercent = 100.0D;
-            } else {
-                isSaturated = idealMaxBufferSize != 0 && numBlocksPendingAck >= idealMaxBufferSize;
+            isSaturated = idealMaxBufferSize != 0 && numBlocksPendingAck >= idealMaxBufferSize;
 
-                if (idealMaxBufferSize == 0) {
-                    saturationPercent = 0D;
-                } else {
-                    final BigDecimal size = BigDecimal.valueOf(idealMaxBufferSize);
-                    final BigDecimal pending = BigDecimal.valueOf(numBlocksPendingAck);
-                    saturationPercent = pending.divide(size, 6, RoundingMode.HALF_EVEN)
-                            .multiply(BigDecimal.valueOf(100))
-                            .doubleValue();
-                }
+            if (idealMaxBufferSize == 0) {
+                saturationPercent = 0D;
+            } else {
+                final BigDecimal size = BigDecimal.valueOf(idealMaxBufferSize);
+                final BigDecimal pending = BigDecimal.valueOf(numBlocksPendingAck);
+                saturationPercent = pending.divide(size, 6, RoundingMode.HALF_EVEN)
+                        .multiply(BigDecimal.valueOf(100))
+                        .doubleValue();
             }
         }
 
