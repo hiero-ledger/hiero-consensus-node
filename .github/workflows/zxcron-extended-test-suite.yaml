@@ -521,13 +521,10 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]]; then
+          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ needs.fetch-xts-candidate.result }}" == "success" \
-            && "${{ needs.xts-execution.result }}" == "success" \
-            && "${{ needs.tag-for-promotion.result }}" == "success" ]]; then
-            echo "category=success" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
+          elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
             echo "category=workflow" >> "${GITHUB_OUTPUT}"
@@ -609,7 +606,11 @@ jobs:
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
-              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
+              FAILURE_MODE="${{ needs.xts-execution.outputs.failure-mode }}"
+              if [[ "${FAILURE_MODE}" == "workflow" ]]; then
+                FAILURE_MODE="infrastructure"
+              fi
+              echo "XTS tests failed due to a ${FAILURE_MODE} error."
               echo "Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
               echo "------------------------------------"

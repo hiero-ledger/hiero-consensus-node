@@ -32,7 +32,7 @@ on:
         description: "HAPI Testing (misc) Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-hapi-tests-misc-records:
         description: "HAPI Testng (misc records) Enabled"
         type: string

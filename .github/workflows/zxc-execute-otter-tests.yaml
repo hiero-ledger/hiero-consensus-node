@@ -7,7 +7,7 @@ on:
         description: "Fast Otter Testing Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-full-otter-tests:
         description: "Full Otter Testing Enabled"
         type: boolean
