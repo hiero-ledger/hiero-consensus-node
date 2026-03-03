@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.GC_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_OTHER;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
@@ -131,6 +132,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The profiler for this node */
     private final ContainerProfiler profiler;
 
+    /** Whether GC logging is enabled for the consensus node process */
+    protected boolean gcLoggingEnabled = false;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -212,6 +216,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))
+                .setGcLoggingEnabled(gcLoggingEnabled)
                 .build();
         //noinspection ResultOfMethodCallIgnored
         containerControlBlockingStub.init(initRequest);
@@ -496,6 +501,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void withGcLogging() {
+        throwIsNotInLifecycle(LifeCycle.INIT, "GC logging can only be set during initialization");
+        this.gcLoggingEnabled = true;
+    }
+
+    /**
      * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
@@ -533,6 +547,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         copyFileFromContainer(OTTER_LOG_PATH);
         copyFileFromContainer(METRICS_PATH.formatted(selfId.id()));
         copyFileFromContainer(METRICS_OTHER);
+        if (gcLoggingEnabled) {
+            copyFileFromContainer(GC_LOG_PATH);
+        }
     }
 
     private void downloadStateFiles() {
