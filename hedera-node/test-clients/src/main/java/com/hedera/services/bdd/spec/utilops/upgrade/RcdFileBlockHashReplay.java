@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Shared utility for replaying {@code .rcd} / {@code .rcd.gz} files from node0's record streams
  * directory, computing per-block {@link WrappedRecordFileBlockHashes} entries and chaining them
- * through the 5-level Merkle tree.
+ * through the block's constructed Merkle tree.
  */
 public final class RcdFileBlockHashReplay {
 
@@ -58,7 +58,7 @@ public final class RcdFileBlockHashReplay {
 
     /**
      * Reads {@code .rcd} files from node0's record streams, computes per-block wrapped hashes,
-     * and chains them through the 5-level Merkle tree.
+     * and chains them through the block's constructed Merkle tree.
      *
      * @param spec               the HapiSpec providing the record streams directory
      * @param startBlockExclusive blocks less than this are skipped (use 0 for genesis)
@@ -157,19 +157,9 @@ public final class RcdFileBlockHashReplay {
             final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
             entriesByBlock.put(blockNumber, entry);
 
-            // Compute block root hash via 5-level Merkle tree
+            // Compute block root hash via Merkle tree (independent of production code)
             final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
             final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
-
-            log.fatal(
-                    "matt: RcdReplay block={}, prevHash={}, allPrevRootHash={}, ctHash={}, outputRoot={}, blockRootHash={}, leafCount={}",
-                    blockNumber,
-                    prevWrappedBlockHash,
-                    allPrevBlocksRootHash,
-                    entry.consensusTimestampHash(),
-                    entry.outputItemsTreeRootHash(),
-                    blockRootHash,
-                    initialHasher.leafCount());
 
             // Update chain
             initialHasher.addNodeByHash(blockRootHash.toByteArray());
@@ -188,10 +178,10 @@ public final class RcdFileBlockHashReplay {
     }
 
     /**
-     * Computes the wrapped record block root hash for a single block using the 5-level Merkle tree.
+     * Computes the wrapped record block root hash for a single block using the Merkle tree,
+     * independent of the production implementation in {@code BlockRecordManagerImpl}.
      */
-    @SuppressWarnings("DuplicatedCode")
-    private static Bytes computeBlockRootHash(
+    static Bytes computeBlockRootHash(
             @NonNull final Bytes prevWrappedBlockHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {

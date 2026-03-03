@@ -609,16 +609,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final Bytes blockRootHash =
                 computeWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
 
-        logger.fatal(
-                "matt: NODE live block={}, prevHash={}, allPrevRootHash={}, ctHash={}, outputRoot={}, blockRootHash={}, leafCount={}",
-                justFinishedBlockNumber,
-                previousWrappedRecordBlockRootHash,
-                allPrevBlocksRootHash,
-                entry.consensusTimestampHash(),
-                entry.outputItemsTreeRootHash(),
-                blockRootHash,
-                prevWrappedRecordBlockHashes.leafCount());
-
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(blockRootHash.toByteArray());
         previousWrappedRecordBlockRootHash = blockRootHash;

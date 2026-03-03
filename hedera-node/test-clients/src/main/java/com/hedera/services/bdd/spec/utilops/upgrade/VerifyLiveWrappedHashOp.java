@@ -10,8 +10,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -24,8 +22,6 @@ import org.junit.jupiter.api.Assertions;
  * solely on the end-to-end chained hash correctness.
  */
 public class VerifyLiveWrappedHashOp extends UtilOp {
-
-    private static final Logger log = LogManager.getLogger(VerifyLiveWrappedHashOp.class);
 
     private final String nodeComputedHash;
     private final String liveBlockNum;
@@ -43,29 +39,9 @@ public class VerifyLiveWrappedHashOp extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         final long endBlock = Long.parseLong(liveBlockNum);
 
-        log.fatal(
-                "matt: VerifyLiveWrappedHash INPUTS: nodeComputedHash={}, liveBlockNum={} (parsed={})",
-                nodeComputedHash,
-                liveBlockNum,
-                endBlock);
-
         // Replay .rcd files from genesis through the live-hash block
         final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
         final var result = RcdFileBlockHashReplay.replay(spec, -1, endBlock, HASH_OF_ZERO, hasher);
-
-        log.fatal(
-                "matt: VerifyLiveWrappedHash REPLAY RESULT: blocksProcessed={}, finalChainedHash={}",
-                result.blocksProcessed(),
-                result.finalChainedHash());
-
-        log.fatal(
-                "matt: VerifyLiveWrappedHash FINAL COMPARISON: replayHash={}, nodeHash={}, match={},"
-                        + " replayBlocks={}, replayEndBlock={}",
-                result.finalChainedHash(),
-                nodeComputedHash,
-                nodeComputedHash.equals(result.finalChainedHash().toString()),
-                result.blocksProcessed(),
-                endBlock);
 
         // Final hash assertion: .rcd chain vs node logged hash
         Assertions.assertEquals(

@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSingleChild;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.DATA_DIR;
@@ -44,7 +42,6 @@ public class BuildDynamicJumpstartFileOp extends UtilOp {
 
     private static final String CUTOVER_DIR = "cutover";
     private static final String JUMPSTART_FILENAME = "jumpstart.bin";
-    private static final Bytes EMPTY_INT_NODE = hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     private final AtomicReference<byte[]> contentsRef;
 
@@ -93,19 +90,8 @@ public class BuildDynamicJumpstartFileOp extends UtilOp {
         Bytes prevWrappedBlockHash = HASH_OF_ZERO;
         for (final var entry : firstHalf) {
             final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
-            final Bytes depth5Node1 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksHash);
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-            final Bytes depth5Node3 = hashInternalNode(HASH_OF_ZERO, entry.outputItemsTreeRootHash());
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-            final Bytes depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-            final Bytes depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-            final Bytes depth2Node1 = entry.consensusTimestampHash();
-            final Bytes depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-            final Bytes finalBlockHash = hashInternalNode(depth2Node1, depth2Node2);
+            final Bytes finalBlockHash =
+                    RcdFileBlockHashReplay.computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksHash, entry);
 
             allPrevBlocksHasher.addNodeByHash(finalBlockHash.toByteArray());
             prevWrappedBlockHash = finalBlockHash;
