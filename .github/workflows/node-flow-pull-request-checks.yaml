@@ -129,36 +129,41 @@ jobs:
             const flakyTests = `${{ steps.collect-flaky-tests.outputs.flaky-tests }}`.trim().split('\n').filter(Boolean);
             const marker = '<!-- flaky-test-report -->';
 
-            let body = marker + '\n';
-            body += '## Flaky Tests Detected\n\n';
-            body += 'The following tests were flaky in this CI run (failed initially but passed on retry):\n\n';
-            body += '| Test |\n';
-            body += '|------|\n';
-            for (const test of flakyTests) {
-              body += `| \`${test}\` |\n`;
-            }
-            body += '\n> **Note:** Flaky tests are informational only and do not block this PR.\n';
-
+            // Collect all flaky tests already reported in previous comments
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
             });
 
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: body,
-              });
+            const alreadyReported = new Set();
+            for (const c of comments) {
+              if (c.body && c.body.includes(marker)) {
+                const matches = c.body.matchAll(/\| `([^`]+)` \|/g);
+                for (const m of matches) alreadyReported.add(m[1]);
+              }
             }
+
+            // Only report tests not yet mentioned in any previous comment
+            const newFlakyTests = flakyTests.filter(t => !alreadyReported.has(t));
+            if (newFlakyTests.length === 0) {
+              core.info('All flaky tests were already reported in previous comments — skipping.');
+              return;
+            }
+
+            let body = marker + '\n';
+            body += '## Flaky Tests Detected\n\n';
+            body += 'The following tests were flaky in this CI run (failed initially but passed on retry):\n\n';
+            body += '| Test |\n';
+            body += '|------|\n';
+            for (const test of newFlakyTests) {
+              body += `| \`${test}\` |\n`;
+            }
+            body += '\n> **Note:** Flaky tests are informational only and do not block this PR.\n';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body,
+            });
