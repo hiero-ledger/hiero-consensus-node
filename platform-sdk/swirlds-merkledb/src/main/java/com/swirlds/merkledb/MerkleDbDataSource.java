@@ -244,7 +244,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.preferDiskBasedIndices = diskBasedIndices;
+        this.preferDiskBasedIndices =
+                diskBasedIndices || config.getConfigData(MerkleDbConfig.class).useDiskIndices();
 
         final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
         this.hashChunkHeight = virtualMapConfig.hashChunkHeight();
@@ -1292,10 +1293,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Iterate over leaf records
         for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
-            final long path = leafBytes.path();
-            // Update key to path index
-            keyToPath.put(leafBytes.keyBytes(), path);
-            statisticsUpdater.countFlushLeafKeysWritten();
+            // Check if the record is new or moved. If not, skip the path update
+            if (leafBytes.isNewOrMoved()) {
+                final long path = leafBytes.path();
+                // Update key to path index
+                keyToPath.put(leafBytes.keyBytes(), path);
+                statisticsUpdater.countFlushLeafKeysWritten();
+            }
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());
