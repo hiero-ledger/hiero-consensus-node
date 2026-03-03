@@ -42,7 +42,7 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.creationAttemptRate", 1000)
                     .withConfigValue("broadcast.enableBroadcast", true)
-                    .withConfigValue("sync.pingPeriod","100ms");
+                    .withConfigValue("sync.pingPeriod", "100ms");
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
