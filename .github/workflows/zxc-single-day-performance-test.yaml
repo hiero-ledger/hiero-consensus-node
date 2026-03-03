@@ -202,7 +202,7 @@ jobs:
           set +e
           which helm
           echo $PATH
-          find /usr -type f -name '*helm*' \;
+          find /usr $HOME -type f -name '*helm*'
           exit 0
 
       - name: Install Helm
