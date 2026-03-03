@@ -209,7 +209,6 @@ public class CustomFeeAssessmentStep {
         } while (!tokenTransfers.isEmpty() && levelNum <= MAX_PLAUSIBLE_LEVEL_NUM);
 
         if (levelNum > MAX_PLAUSIBLE_LEVEL_NUM) {
-            log.error("Recursive charging exceeded maximum plausible depth for transaction {}", op);
             throw new HandleException(CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH);
         }
 
