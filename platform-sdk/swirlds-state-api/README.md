@@ -88,7 +88,7 @@ The proof can be generated for individual keys in key-value states or elements i
 
 ### Snapshot
 
-A snapshot is a standalone, immutable representation of the state at a specific point in time, stored on disk. It can be
+A snapshot is a standalone, immutable representation of the state at a specific point in time. Usually, it's stored on disk. It can be
 used to restore the state upon application startup or for recovery purposes. In the context of this module,
 snapshots are created through operations on the `StateLifecycleManager` interface.
 
@@ -118,12 +118,26 @@ The typical interaction flow has two steps. First, the caller obtains a state co
 Then, the caller retrieves individual state objects from that container by state ID and works with typed
 domain objects.
 
-For reading, the flow is: `state.getReadableStates("TokenService")` → `readableStates.get(stateId)` →
-`readableKVState.get(accountId)`. Each call narrows the scope — from the full state, to a service's states,
-to a specific key-value pair — and the final return value is a typed domain object (not raw bytes).
+For reading, the flow is the following:
 
-For writing, the pattern mirrors reading: `state.getWritableStates("TokenService")` → `writableStates.get(stateId)` →
-`writableKVState.put(accountId, account)`. The writable variants buffer modifications until `commit()` is called,
+```java
+final ReadableStates readableStates = state.getReadableStates("TokenService");
+final ReadableKVState<AccountId, Token> readableKVState = readableStates.get(stateId);
+final Token token = readableKVState.get(accountId);
+```
+
+Each call narrows the scope – from the full state, to a service's states,
+to a specific key-value pair – and the final return value is a typed domain object (not raw bytes).
+
+For writing, the pattern mirrors reading:
+
+```java
+final WritableStates writableStates = state.getWritableStates("TokenService");
+final WritableKVState<AccountId, Token> writableKVState = writableStates.get(stateId);
+writableKVState.put(accountId, account);
+```
+
+The writable variants buffer modifications until `commit()` is called,
 at which point changes are flushed to the underlying data source.
 
 This two-level access pattern (service name → state ID) keeps individual services isolated from each other and
@@ -139,6 +153,9 @@ to optimize memory usage by tracking exactly which entries have been read or mod
 Each writable interface extends its readable counterpart, so a `WritableKVState<K, V>` is also a `ReadableKVState<K, V>`.
 The writable variants buffer all modifications in memory until `commit()` is called, behaving like a changeset or transaction.
 This design enables rollback (via `reset()`) and change inspection (via `modifiedKeys()`, `isModified()`).
+
+> **Important:** To be able to read uncommitted changes, the caller must use an instance of the writable state. Readable
+> states only reflect the latest committed state.
 
 ### State Types in the Service API
 
@@ -459,11 +476,11 @@ The registration process follows these steps:
 1. **Application Start**: The `Hedera` class initializes the application.
 2. **Create Registry**: Instantiate `ServicesRegistryImpl` to hold services.
 3. **Register Services**: Add service implementations (e.g., `ConsensusServiceImpl`, `ContractServiceImpl`) via `registry.register(service)`.
-4. **Register Schemas**: For each service, call `registerSchemas(SchemaRegistry registry)` to add version-specific and service-specific schemas.
+4. **Register Schemas**: For each service, call `Service.registerSchemas(SchemaRegistry registry)` to add version-specific and service-specific schemas.
 5. **Define States**: Each `Schema` specifies states using `StateDefinition` factory methods (e.g., `singleton`, `queue`, `keyValue`). `StateDefinition` includes state ID, key codec (for keyValue states only), and value codec.
 6. **Handle Migration**: Use `Schema.migrate(MigrationContext ctx)` to transform the data according to the new version definition or init the app context, if necessary.
 7. **Handle Restart**: Use `Schema.restart(MigrationContext ctx)` to update the state if necessary or init the app context, if necessary, when the application restarts with the same version.
-8. **Genesis Setup**: If at genesis, invoke `doGenesisSetup(WritableStates writableStates, Configuration configuration)` to set defaults to singleton states.
+8. **Genesis Setup**: If at genesis, invoke `Service.doGenesisSetup(WritableStates writableStates, Configuration configuration)` to set defaults to singleton states.
 9. **State Ready**: The state is now initialized and ready for use in the app.
 
 ```mermaid
