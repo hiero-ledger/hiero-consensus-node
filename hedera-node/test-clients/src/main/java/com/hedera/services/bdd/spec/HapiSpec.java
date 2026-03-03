@@ -1341,7 +1341,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             @NonNull final SpecOperation... ops) {
         requireNonNull(propertiesToPreserve);
         final var specName = SPEC_NAME.get();
-        final var displayName = specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : AS_WRITTEN_DISPLAY_NAME;
+        final var displayName =
+                specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : AS_WRITTEN_DISPLAY_NAME;
         return Stream.of(DynamicTest.dynamicTest(
                 displayName,
                 targeted(new HapiSpec(
