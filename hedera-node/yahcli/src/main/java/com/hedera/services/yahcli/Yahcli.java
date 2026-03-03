@@ -8,6 +8,7 @@ import com.hedera.services.yahcli.commands.files.SysFilesCommand;
 import com.hedera.services.yahcli.commands.ivy.IvyCommand;
 import com.hedera.services.yahcli.commands.keys.KeysCommand;
 import com.hedera.services.yahcli.commands.nodes.NodesCommand;
+import com.hedera.services.yahcli.commands.registeredNodes.RegisteredNodesCommand;
 import com.hedera.services.yahcli.commands.schedules.ScheduleCommand;
 import com.hedera.services.yahcli.commands.system.FreezeAbortCommand;
 import com.hedera.services.yahcli.commands.system.FreezeOnlyCommand;
@@ -43,6 +44,7 @@ import picocli.CommandLine.Spec;
             VersionInfoCommand.class,
             SetupStakeCommand.class,
             NodesCommand.class,
+            RegisteredNodesCommand.class,
             IvyCommand.class,
         },
         description = "Performs DevOps-type actions against a Hedera Services network")

@@ -18,6 +18,7 @@ import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.suites.BalanceSuite;
 import com.hedera.services.yahcli.suites.CostOfEveryThingSuite;
 import com.hedera.services.yahcli.suites.CreateNodeSuite;
+import com.hedera.services.yahcli.suites.CreateRegisteredNodeSuite;
 import com.hedera.services.yahcli.suites.CreateSuite;
 import com.hedera.services.yahcli.suites.DeleteNodeSuite;
 import com.hedera.services.yahcli.suites.FreezeHelperSuite;
@@ -99,5 +100,6 @@ public class ConfigUtils {
             ConfigProviderBase.class,
             CreateNodeSuite.class,
             UpdateNodeSuite.class,
-            DeleteNodeSuite.class);
+            DeleteNodeSuite.class,
+            CreateRegisteredNodeSuite.class);
 }
