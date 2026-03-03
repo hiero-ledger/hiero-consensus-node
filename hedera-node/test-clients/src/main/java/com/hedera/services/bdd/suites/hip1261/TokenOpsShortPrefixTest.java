@@ -346,8 +346,6 @@ public class TokenOpsShortPrefixTest {
                         .fee(ONE_HUNDRED_HBARS)
                         .via("feeScheduleUpdateTxn"),
                 validateChargedUsdWithin(
-                        "feeScheduleUpdateTxn",
-                        expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)),
-                        5.0));
+                        "feeScheduleUpdateTxn", expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)), 5.0));
     }
 }

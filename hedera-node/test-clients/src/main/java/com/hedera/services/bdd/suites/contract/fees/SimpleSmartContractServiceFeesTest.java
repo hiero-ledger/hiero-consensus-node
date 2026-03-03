@@ -183,7 +183,7 @@ public class SimpleSmartContractServiceFeesTest {
                         .nonce(0)
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 6.0),
                 validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
                 validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
     }

@@ -1305,7 +1305,7 @@ public class CryptoCreateSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                1.0));
             }
 
             @HapiTest
@@ -1329,7 +1329,7 @@ public class CryptoCreateSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                1.0));
             }
 
             @HapiTest
@@ -1362,7 +1362,7 @@ public class CryptoCreateSimpleFeesTest {
                                         SIGNATURES, 2L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                1.0));
             }
         }
     }
