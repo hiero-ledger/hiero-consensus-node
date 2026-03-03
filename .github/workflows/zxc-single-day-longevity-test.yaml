@@ -142,7 +142,7 @@ jobs:
       - name: Setup Helm
         shell: bash
         run: |
-          ln -s /home/runner/_work/_tool/helm/4.1.1/x64/linux-amd64/helm /usr/bin/helm
+          sudo ln -s /home/runner/_work/_tool/helm/4.1.1/x64/linux-amd64/helm /usr/bin/helm
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
