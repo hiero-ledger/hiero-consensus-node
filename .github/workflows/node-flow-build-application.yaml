@@ -250,7 +250,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*MATS test failure on \`${{ github.ref_name }}\`. See status below.*"
+                      "text": "*MATS test failure on \`main\`. See status below.*"
                     },
                     "fields": [
                       {
@@ -303,6 +303,14 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
                         "text": "*Workflow run URL*:"
                       },
                       {
@@ -341,7 +349,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*Infrastructure issue detected on \`${{ github.ref_name }}\` — not a test failure.*"
+                      "text": "*Infrastructure issue detected on \`main\` — not a test failure.*"
                     },
                     "fields": [
                       {
@@ -389,7 +397,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": ":warning: MATS infrastructure failure on \`${{ github.ref_name }}\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                      "text": ":warning: MATS infrastructure failure on \`main\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
                     }
                   }
                 ]
@@ -411,7 +419,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": ":no_entry_sign: MATS run cancelled on \`${{ github.ref_name }}\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                      "text": ":no_entry_sign: MATS run cancelled on \`main\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
                     }
                   }
                 ]
