@@ -709,7 +709,7 @@ public class BlockNodeConnectionManager {
             if (latestAvailableBlock != -1) {
                 final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
 
-                if (wantedBlock != -1 && (wantedBlock < earliestAvailableBlock || wantedBlock > latestAvailableBlock)) {
+                if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
                     logger.info(
                             "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
                             nodeConfig.address(),
