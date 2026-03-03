@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.spec.keys;
 
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
 import static java.util.Map.Entry;
 import static java.util.Objects.requireNonNull;
@@ -80,9 +80,9 @@ public class KeyFactory {
      */
     private final Map<Key, SigControl> controlMap = new ConcurrentHashMap<>();
     /**
-     * The default {@link SigMapGenerator}, uses unique prefixes for all signatures in the {@link SignatureMap}.
+     * The default {@link SigMapGenerator}, uses full prefixes for all signatures in the {@link SignatureMap}.
      */
-    private final SigMapGenerator defaultSigMapGen = TrieSigMapGenerator.withNature(UNIQUE_PREFIXES);
+    private final SigMapGenerator defaultSigMapGen = TrieSigMapGenerator.withNature(FULL_PREFIXES);
     /**
      * The {@link HapiSpecSetup} to use to customize key generation.
      */
