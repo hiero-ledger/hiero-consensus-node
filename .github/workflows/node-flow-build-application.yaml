@@ -320,6 +320,24 @@ jobs:
           ref: main
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
+      - name: Download Test Report Artifacts
+        id: download-test-reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: "*Test*Report*"
+          path: test-reports/
+
+      - name: Collect Flaky Tests
+        id: collect-flaky-tests
+        if: ${{ steps.download-test-reports.outcome == 'success' }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
+            "test-reports" \
+            "flaky-tests.txt"
+          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+
       - name: Collect run logs in a log file
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -406,6 +424,11 @@ jobs:
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
               echo "------------------------------------"
             fi
+            if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+              echo "Flaky Test(s) (failed initially but passed on retry):"
+              cat flaky-tests.txt
+              echo "------------------------------------"
+            fi
             echo "Commit information:"
             echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
@@ -440,6 +463,16 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
+          FLAKY_SECTION=""
+          if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+            FLAKY_LIST=""
+            while IFS= read -r test; do
+              FLAKY_LIST="${FLAKY_LIST}• \`${test}\`\n"
+            done < flaky-tests.txt
+
+            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
+          fi
+
           cat <<EOF > slack_payload.json
           {
             "attachments": [
@@ -473,7 +506,7 @@ jobs:
                         "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
                       }
                     ]
-                  },
+                  }${FLAKY_SECTION},
                   {
                     "type": "divider"
                   },
