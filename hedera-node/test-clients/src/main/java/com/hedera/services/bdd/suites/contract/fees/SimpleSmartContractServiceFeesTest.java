@@ -38,6 +38,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ETHEREUM_CALL_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -185,7 +186,7 @@ public class SimpleSmartContractServiceFeesTest {
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
                 validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 6.0),
                 validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + NODE_AND_NETWORK_BASE_FEE, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
