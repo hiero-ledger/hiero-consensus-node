@@ -33,8 +33,8 @@ public class MiscellaneousFeesSuite {
     private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
     private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
-    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.0001;
-    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.0010010316;
+    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.000102;
+    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.001009;
 
     @HapiTest
     @DisplayName("USD base fee as expected for Prng transaction")

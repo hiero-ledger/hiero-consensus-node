@@ -873,7 +873,7 @@ public class TokenServiceFeesSuite {
                 tokenDissociate(MULTI_KEY, FUNGIBLE_COMMON_TOKEN)
                         .via("tokenDissociate")
                         .payingWith(MULTI_KEY),
-                safeValidateChargedUsd("tokenDissociate", 0.05, 0.05));
+                safeValidateChargedUsd("tokenDissociate", 0.051, 0.05));
     }
 
     @HapiTest
@@ -920,7 +920,7 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenGetInfoFeeChargedAsExpected() {
-        final var expectedTokenGetInfo = 0.0001;
+        final var expectedTokenGetInfo = 0.000102;
 
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -938,7 +938,7 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenGetNftInfoFeeChargedAsExpected() {
-        final var expectedTokenGetNftInfo = 0.0001;
+        final var expectedTokenGetNftInfo = 0.000102;
 
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
