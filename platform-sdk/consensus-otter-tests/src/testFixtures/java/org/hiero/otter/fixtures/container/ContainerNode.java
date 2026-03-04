@@ -506,24 +506,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void withGcLogging() {
-        throwIsNotInLifecycle(LifeCycle.INIT, "GC logging can only be set during initialization");
-        this.gcLoggingEnabled = true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void addJvmArg(@NonNull final String jvmArg) {
-        throwIsNotInLifecycle(LifeCycle.INIT, "JVM arguments can only be set during initialization");
-        jvmArgs.add(jvmArg);
-    }
-
-    /**
      * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.

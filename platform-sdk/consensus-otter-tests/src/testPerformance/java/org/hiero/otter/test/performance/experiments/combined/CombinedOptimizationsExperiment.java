@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.crypto.KeyGeneratingException;
@@ -24,7 +23,17 @@ import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
  */
 @SuppressWarnings("NewClassNamingConvention")
 @OtterSpecs(randomNodeIds = false)
-@ContainerSpecs(proxyEnabled = false)
+@ContainerSpecs(
+        proxyEnabled = false,
+        gcLogging = true,
+        jvmArgs = {
+            "-XX:+UseZGC",
+            "-XX:+ZGenerational",
+            "-XX:+AlwaysPreTouch",
+            "-XX:ConcGCThreads=4",
+            "-Xms16g",
+            "-Xmx16g"
+        })
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
@@ -43,13 +52,6 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.creationAttemptRate", 1000)
                     .withConfigValue("broadcast.enableBroadcast", true);
-            final List<String> jvmArgs = List.of(
-                    "-XX:+UseZGC",
-                    "-XX:+ZGenerational",
-                    "-XX:+AlwaysPreTouch",
-                    "-XX:ConcGCThreads=4",
-                    "-Xms16g",
-                    "-Xmx16g");
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
@@ -59,8 +61,6 @@ public class CombinedOptimizationsExperiment {
                     try {
                         node.keysAndCerts(KeysAndCertsGenerator.generate(
                                 node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
-                        node.withGcLogging();
-                        node.addJvmArgs(jvmArgs);
                     } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
                         throw new RuntimeException(e);
                     }
