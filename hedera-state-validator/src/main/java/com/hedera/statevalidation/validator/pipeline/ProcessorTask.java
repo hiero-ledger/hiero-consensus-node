@@ -13,7 +13,6 @@ import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -169,7 +168,6 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getP2kv().addSpaceSize(data.bytes().length());
             dataStats.getP2kv().incrementItemCount();
 
-            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
             final VirtualLeafBytes<?> virtualLeafBytes =
                     VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
 
@@ -186,7 +184,7 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() < fileIndex) {
+            } else if (data.location() <= 0) {
                 dataStats.getP2kv().incrementInvalidLocationCount();
                 LogUtils.printFileDataLocationError(log, "data.location() was invalid for P2KV entry", data.location());
             } else {
@@ -216,7 +214,6 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getId2c().addSpaceSize(data.bytes().length());
             dataStats.getId2c().incrementItemCount();
 
-            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
             final VirtualHashChunk virtualHashChunk =
                     VirtualHashChunk.parseFrom(data.bytes().toReadableSequentialData(), vds.getHashChunkHeight());
 
@@ -233,7 +230,7 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() < fileIndex) {
+            } else if (data.location() <= 0) {
                 dataStats.getId2c().incrementInvalidLocationCount();
                 LogUtils.printFileDataLocationError(log, "data.location() was invalid for ID2C entry", data.location());
             } else {
@@ -263,8 +260,6 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getK2p().addSpaceSize(data.bytes().length());
             dataStats.getK2p().incrementItemCount();
 
-            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
-
             try (final ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(data.bytes().toReadableSequentialData());
 
@@ -281,7 +276,7 @@ public class ProcessorTask implements Callable<Void> {
                                     validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                         }
                     });
-                } else if (data.location() < fileIndex) {
+                } else if (data.location() <= 0) {
                     dataStats.getK2p().incrementInvalidLocationCount();
                     LogUtils.printFileDataLocationError(
                             log, "data.location() was invalid for K2P entry", data.location());
