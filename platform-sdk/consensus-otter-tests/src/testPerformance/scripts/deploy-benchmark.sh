@@ -83,9 +83,9 @@ echo -e "${BLUE}=== Step 2: Checking remote server is idle ===${NC}"
 REMOTE_CHECK=$(ssh -o BatchMode=yes "$SSH_DEST" bash <<'REMOTE_EOF'
 ISSUES=""
 
-# Check for running Gradle daemons or tasks
-if pgrep -f "GradleDaemon|gradle" >/dev/null 2>&1; then
-    GRADLE_PROCS=$(pgrep -af "GradleDaemon|gradle" 2>/dev/null | head -5)
+# Check for active Gradle builds (ignore idle daemons and worker processes)
+GRADLE_PROCS=$(pgrep -af "gradlew|org.gradle.launcher.GradleMain|org.gradle.wrapper.GradleWrapperMain" 2>/dev/null | head -5 || true)
+if [[ -n "$GRADLE_PROCS" ]]; then
     ISSUES="${ISSUES}GRADLE_RUNNING\n${GRADLE_PROCS}\n"
 fi
 
@@ -220,9 +220,16 @@ REMOTE_EOF
 echo "Downloading results to $LOCAL_TAR ..."
 scp -o BatchMode=yes "$SSH_DEST:$REMOTE_TAR" "$LOCAL_TAR"
 
-# Clean up remote temp files
+# Clean up remote temp files and stop Gradle daemons
 echo "Cleaning up remote temporary files..."
 ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'"
+echo "Stopping Gradle daemons on remote..."
+ssh -o BatchMode=yes "$SSH_DEST" bash <<'STOP_EOF'
+for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
+    [[ -f "$f" ]] && source "$f" 2>/dev/null || true
+done
+cd hedera-services && ./gradlew --stop 2>/dev/null || true
+STOP_EOF
 
 echo ""
 echo -e "${GREEN}######################################################################${NC}"

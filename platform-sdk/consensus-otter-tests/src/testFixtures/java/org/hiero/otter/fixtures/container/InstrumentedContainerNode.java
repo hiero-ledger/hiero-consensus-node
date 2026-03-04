@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -22,7 +23,7 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
     private final Logger log = LogManager.getLogger();
 
     /**
-     * Constructor for the {@link ContainerNode} class.
+     * Constructor for the {@link InstrumentedContainerNode} class.
      *
      * @param selfId the unique identifier for this node
      * @param timeManager the time manager to use for this node
@@ -32,6 +33,8 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
      * @param outputDirectory the directory where the node's output will be stored
      * @param networkConfiguration the network configuration for this node
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
+     * @param gcLoggingEnabled {@code true} if GC logging should be enabled for the node process
+     * @param jvmArgs additional JVM arguments to pass to the node process
      */
     public InstrumentedContainerNode(
             @NonNull final NodeId selfId,
@@ -41,7 +44,9 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
-            @NonNull final ConsensusRoundPool consensusRoundPool) {
+            @NonNull final ConsensusRoundPool consensusRoundPool,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         super(
                 selfId,
                 timeManager,
@@ -50,7 +55,9 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
                 dockerImage,
                 outputDirectory,
                 networkConfiguration,
-                consensusRoundPool);
+                consensusRoundPool,
+                gcLoggingEnabled,
+                jvmArgs);
     }
 
     /**
