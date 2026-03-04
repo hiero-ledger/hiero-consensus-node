@@ -27,6 +27,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
@@ -43,12 +44,18 @@ public final class SignedStateFileReader {
 
     /**
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
+     * <p>
+     * This method delegates state loading to the {@link StateLifecycleManager}: it calls
+     * {@link StateLifecycleManager#loadSnapshot(Path)} which loads the {@link VirtualMap} from disk,
+     * wraps it in a state object, initializes the manager with it, and returns the hash of the original
+     * immutable snapshot. The loaded state is then available via {@link StateLifecycleManager#getMutableState()}.
      *
-     * @param stateDir                     the directory to read from
-     * @param platformContext               the platform context
-     * @param stateLifecycleManager         the state lifecycle manager
-     * @return a signed state with it's associated hash (as computed when the state was serialized)
-     * @throws IOException if there is any problems with reading from a file
+     * @param stateDir              the directory to read from
+     * @param platformContext       the platform context
+     * @param stateLifecycleManager the state lifecycle manager
+     * @return a signed state with its associated hash (as computed when the state was serialized)
+     * @throws IOException    if there are any problems reading from a file
+     * @throws ParseException if there are any problems parsing the signature set
      */
     public static @NonNull DeserializedSignedState readState(
             @NonNull final Path stateDir,
@@ -62,9 +69,10 @@ public final class SignedStateFileReader {
 
         checkSignedStateFilePath(stateDir);
 
-        final DeserializedSignedState returnState;
-        final VirtualMapState virtualMapState;
-        virtualMapState = stateLifecycleManager.loadSnapshot(stateDir);
+        // Load the snapshot: the manager wraps the VirtualMap in a VirtualMapStateImpl, initializes itself,
+        // and returns the hash of the original immutable snapshot as stored on disk.
+        final Hash originalHash = stateLifecycleManager.loadSnapshot(stateDir);
+        final VirtualMapState virtualMapState = stateLifecycleManager.getMutableState();
 
         final SigSet sigSet;
         final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
@@ -97,10 +105,7 @@ public final class SignedStateFileReader {
 
         newSignedState.setSigSet(sigSet);
 
-        returnState = new DeserializedSignedState(
-                newSignedState.reserve("SignedStateFileReader.readState()"), virtualMapState.getHash());
-
-        return returnState;
+        return new DeserializedSignedState(newSignedState.reserve("SignedStateFileReader.readState()"), originalHash);
     }
 
     /**

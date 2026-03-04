@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
+@Tag(SERIAL)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @HapiTestLifecycle
 public class DisabledLongTermExecutionScheduleTest {
@@ -195,7 +196,6 @@ public class DisabledLongTermExecutionScheduleTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduleNodeCreateNotSupportedWhenNotInWhitelist() {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
