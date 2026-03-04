@@ -50,8 +50,7 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
 
     @Inject
     public ClprProcessMessageBundleHandler(
-            @NonNull final ClprStateProofManager stateProofManager,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull final ClprStateProofManager stateProofManager, @NonNull final ConfigProvider configProvider) {
         this.stateProofManager = requireNonNull(stateProofManager);
         this.configProvider = requireNonNull(configProvider);
     }

@@ -24,8 +24,6 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprBundleShape;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
@@ -95,7 +93,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
 
         if (queueMetadata == null) {
             // create new queue
-            final var initialQueue = initQueue(context, remoteLedgerId, clprConfig);
+            final var initialQueue = initQueue(remoteLedgerId, clprConfig);
             writableMessageQueueMetadataStore.put(remoteLedgerId, initialQueue);
             return;
         }
@@ -141,7 +139,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         }
     }
 
-    private ClprMessageQueueMetadata initQueue(ClprLedgerId remoteLedgerId) {
+    private ClprMessageQueueMetadata initQueue(ClprLedgerId remoteLedgerId, ClprConfig config) {
         final var bundleShape = ClprBundleShape.newBuilder()
                 .maxBundleBytes(config.maxBundleBytes())
                 .maxNumberOfMessages(config.maxBundleMessages())

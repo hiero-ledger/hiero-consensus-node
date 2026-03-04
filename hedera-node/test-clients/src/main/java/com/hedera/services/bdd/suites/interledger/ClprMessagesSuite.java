@@ -67,12 +67,45 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class ClprMessagesSuite {
 
-    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(10);
-    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(20);
+    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long CONNECTOR_INITIAL_BALANCE_TINYBARS = 100_000_000L;
 
     private static final String PRIVATE_LEDGER = "private";
     private static final String PUBLIC_LEDGER = "public";
+
+    private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
+    private static final String CLPR_CONNECTOR = "MockClprConnector";
+    private static final String SOURCE_APP = "SourceApplication";
+    private static final String ECHO_APP = "EchoApplication";
+
+    private static final String UNIT = "HBAR";
+    private static final String ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+    private static final String CLPR_QUEUE_SYSTEM_CONTRACT = "0x000000000000000000000000000000000000016e";
+
+    private static final byte[] SOURCE_CONNECTOR_ID = bytes32("01");
+    private static final byte[] DESTINATION_CONNECTOR_ID = bytes32("02");
+
+    private static final byte[] PAYLOAD_ONE = "hello-clpr-1".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PAYLOAD_TWO = "hello-clpr-2".getBytes(StandardCharsets.UTF_8);
+
+    private static final String ABI_REGISTER_LOCAL_APPLICATION =
+            getABIFor(FUNCTION, "registerLocalApplication", CLPR_MIDDLEWARE);
+    private static final String ABI_SET_TRUSTED_CALLBACK_CALLER =
+            getABIFor(FUNCTION, "setTrustedCallbackCaller", CLPR_MIDDLEWARE);
+    private static final String ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE =
+            getABIFor(FUNCTION, "setConnectorRemoteMiddleware", CLPR_MIDDLEWARE);
+    private static final String ABI_REGISTER_WITH_MIDDLEWARE =
+            getABIFor(FUNCTION, "registerWithMiddleware", CLPR_CONNECTOR);
+    private static final String ABI_CONNECTOR_ID = getABIFor(FUNCTION, "connectorId", CLPR_CONNECTOR);
+    private static final String ABI_CONNECTOR_ADMIN = getABIFor(FUNCTION, "admin", CLPR_CONNECTOR);
+    private static final String ABI_SEND_WITH_FAILOVER_FROM_FIRST =
+            getABIFor(FUNCTION, "sendWithFailoverFromFirst", SOURCE_APP);
+    private static final String ABI_LAST_RECEIVED_APP_MSG_ID = getABIFor(FUNCTION, "lastReceivedAppMsgId", SOURCE_APP);
+    private static final String ABI_GET_RESPONSE = getABIFor(FUNCTION, "getResponse", SOURCE_APP);
+    private static final String ABI_GET_CONNECTOR_IDS = getABIFor(FUNCTION, "getConnectorIds", SOURCE_APP);
+    private static final String ABI_CONNECTORS = getABIFor(FUNCTION, "connectors", CLPR_MIDDLEWARE);
+    private static final String ABI_REQUEST_COUNT = getABIFor(FUNCTION, "requestCount", ECHO_APP);
 
     @Order(1)
     @MultiNetworkHapiTest(
@@ -342,7 +375,6 @@ public class ClprMessagesSuite {
                             log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()), 2L, 2L);
                     awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()));
                 }));
-
         return builder.asDynamicTests();
     }
 
@@ -758,227 +790,18 @@ public class ClprMessagesSuite {
                         .gas(500_000L));
     }
 
-                // Complete destination-side connector pairing once source middleware address is known.
-                .onNetwork(
-                        PUBLIC_LEDGER,
-                        withOpContext((spec, log) -> allRunFor(
-                                spec,
-                                contractCallWithFunctionAbi(
-                                                requireNonNull(publicMiddlewareContractId.get()),
-                                                ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
-                                                DESTINATION_CONNECTOR_ID,
-                                                asHeadlongAddress(asAddress(requireNonNull(privateMiddlewareId.get()))))
-                                        .gas(500_000L))))
-
-                // Send first request and capture app message id.
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    final var firstSendTxn = "firstSendWithFailover";
-                    final var connectorIds = new AtomicReference<Object[]>();
-                    final var connectorConfig = new AtomicReference<Object[]>();
-                    allRunFor(
-                            spec,
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()), ABI_GET_CONNECTOR_IDS)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorIds::set),
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_CONNECTORS,
-                                            SOURCE_CONNECTOR_ID)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorConfig::set),
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()),
-                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
-                                            PAYLOAD_ONE)
-                                    .gas(5_000_000L)
-                                    .via(firstSendTxn),
-                            getTxnRecord(firstSendTxn)
-                                    .andAllChildRecords()
-                                    .logged()
-                                    .exposingAllTo(records -> {
-                                        log.info(
-                                                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=pre_send_snapshot|connectorIds={}|connectorConfig={}|dryRun=skipped",
-                                                Arrays.deepToString(connectorIds.get()),
-                                                Arrays.deepToString(connectorConfig.get()));
-                                        log.info(
-                                                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=first_send_records|count={}",
-                                                records.size());
-                                        for (int i = 0; i < records.size(); i++) {
-                                            final var rec = records.get(i);
-                                            final var result = rec.getContractCallResult();
-                                            log.info(
-                                                    "CLPR_TEST_OBS|component=clpr_messages_suite|stage=first_send_record|index={}|status={}|gasUsed={}|resultBytes={}|errorMessage={}",
-                                                    i,
-                                                    rec.getReceipt().getStatus(),
-                                                    result.getGasUsed(),
-                                                    result.getContractCallResult()
-                                                            .size(),
-                                                    result.getErrorMessage());
-                                        }
-                                    }));
-                    awaitMessageQueueCountersAtLeast(
-                            log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()), 0L, 1L);
-                }))
-
-                // Verify destination app handled the request and source app received the response.
-                .onNetwork(
-                        PUBLIC_LEDGER,
-                        withOpContext((spec, log) -> awaitUint64AtLeast(
-                                spec,
-                                log,
-                                requireNonNull(publicEchoAppContractId.get()),
-                                ABI_REQUEST_COUNT,
-                                1L,
-                                "echo requestCount")))
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    final var receivedAppMsgId = awaitUint64AtLeast(
-                            spec,
-                            log,
-                            requireNonNull(privateSourceAppContractId.get()),
-                            ABI_LAST_RECEIVED_APP_MSG_ID,
-                            1L,
-                            "source lastReceivedAppMsgId");
-                    appMsgIdOne.set(receivedAppMsgId);
-                    final var response = queryBytes(
-                            spec,
-                            requireNonNull(privateSourceAppContractId.get()),
-                            ABI_GET_RESPONSE,
-                            BigInteger.valueOf(appMsgIdOne.get()));
-                    assertThat(response).isEqualTo(PAYLOAD_ONE);
-                }))
-
-                // Send second request to prove repeatability.
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()),
-                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
-                                            PAYLOAD_TWO)
-                                    .gas(5_000_000L));
-                    awaitMessageQueueCountersAtLeast(
-                            log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()), 0L, 2L);
-                }))
-                .onNetwork(
-                        PUBLIC_LEDGER,
-                        withOpContext((spec, log) -> awaitUint64AtLeast(
-                                spec,
-                                log,
-                                requireNonNull(publicEchoAppContractId.get()),
-                                ABI_REQUEST_COUNT,
-                                2L,
-                                "echo requestCount")))
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    final var receivedAppMsgId = awaitUint64AtLeast(
-                            spec,
-                            log,
-                            requireNonNull(privateSourceAppContractId.get()),
-                            ABI_LAST_RECEIVED_APP_MSG_ID,
-                            appMsgIdOne.get() + 1,
-                            "source lastReceivedAppMsgId");
-                    appMsgIdTwo.set(receivedAppMsgId);
-                    final var response = queryBytes(
-                            spec,
-                            requireNonNull(privateSourceAppContractId.get()),
-                            ABI_GET_RESPONSE,
-                            BigInteger.valueOf(appMsgIdTwo.get()));
-                    assertThat(response).isEqualTo(PAYLOAD_TWO);
-                }))
-
-                // Queue-state assertions prove request/response were consumed, not left queued.
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    awaitMessageQueueCountersAtLeast(
-                            log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()), 2L, 2L);
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()));
-                }))
-                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
-                    awaitMessageQueueCountersAtLeast(
-                            log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()), 2L, 2L);
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()));
-                }));
-
-        return builder.asDynamicTests();
-    }
-
-    @Order(2)
-    @MultiNetworkHapiTest(
-            networks = {
-                @MultiNetworkHapiTest.Network(
-                        name = PUBLIC_LEDGER_L,
-                        size = 1,
-                        firstGrpcPort = 35400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
-                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240"),
-                        }),
-                @MultiNetworkHapiTest.Network(
-                        name = PUBLIC_LEDGER_S,
-                        size = 1,
-                        firstGrpcPort = 36400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
-                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
-                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144"),
-                        })
-            })
-    @DisplayName("Respect bundle shape when publish messages")
-    Stream<DynamicTest> respectBundleShapeMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork netB) {
-        final var configPublicLedger = new AtomicReference<ClprLedgerConfiguration>();
-        final var configPrivateLedger = new AtomicReference<ClprLedgerConfiguration>();
-        final var messageQueuePrivateLedger = new AtomicReference<ClprMessageQueueMetadata>();
-        final var expectedQueueMetadata = ClprMessageQueueMetadata.newBuilder()
-                .nextMessageId(21)
-                .sentMessageId(20)
-                .receivedMessageId(20)
-                .build();
-
-        final var builder = multiNetworkHapiTest(netA, netB)
-                // get public ledger config
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-                    assertThat(ledgerConfig)
-                            .as("Try to fetch config of the public ledger")
-                            .isNotNull();
-                    configPublicLedger.set(ledgerConfig);
-                }))
-
-                // to trigger the exchange submit the public ledger config to the private ledger
-                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-                    submitConfiguration(spec.targetNetworkOrThrow().nodes().getFirst(), configPublicLedger.get());
-                }))
-
-                // get latest private network queue
-                .onNetwork(PUBLIC_LEDGER_S, doingContextual(spec -> {
-                    // fetch local confing and queue
-                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-                    configPrivateLedger.set(ledgerConfig);
-
-                    final var messageQueue = tryFetchMessageQueueMetadata(getFirstNode(spec), configPublicLedger.get());
-                    messageQueuePrivateLedger.set(messageQueue);
-                }))
-
-                // check if private ledger succeed to push its queue to the public ledger
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    // validate the public ledger queue has the expected message id's
-                    awaitMatchingCountsMessageQueue(
-                            log, spec.getNetworkNodes(), configPrivateLedger.get(), expectedQueueMetadata);
-                }))
-                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-                    // validate the private ledger queue has the expected message id's
-                    awaitMatchingCountsMessageQueue(
-                            log, spec.getNetworkNodes(), configPublicLedger.get(), expectedQueueMetadata);
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPublicLedger.get());
-                }))
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    // validate the public ledger queue has been fully drained
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPrivateLedger.get());
-                }));
-
-        return builder.asDynamicTests();
+    /**
+     * Completes bi-directional connector/middleware linkage on the destination side.
+     */
+    private static void completeConnectorPairing(final HapiSpec spec, final ClprContractRefs refs) {
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.publicMiddlewareContractId.get()),
+                                ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
+                                DESTINATION_CONNECTOR_ID,
+                                asHeadlongAddress(asAddress(requireNonNull(refs.privateMiddlewareId.get()))))
+                        .gas(500_000L));
     }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
