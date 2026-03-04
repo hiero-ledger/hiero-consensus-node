@@ -16,6 +16,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
@@ -25,7 +26,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import com.hedera.node.app.spi.info.NodeInfo;
 import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -160,9 +160,8 @@ public class ClprEndpointClient {
             // still agree on the assignment.
             final var consensusTimestamp = stateProofManager.getLatestConsensusTimestamp();
             final long rotationPeriodSeconds = Math.max(1, clprConfig.connectionFrequency() / 1000);
-            final long cycle = consensusTimestamp != null
-                    ? consensusTimestamp.getEpochSecond() / rotationPeriodSeconds
-                    : 0L;
+            final long cycle =
+                    consensusTimestamp != null ? consensusTimestamp.getEpochSecond() / rotationPeriodSeconds : 0L;
 
             for (final var entry : configsByLedgerId.entrySet()) {
                 final var remoteLedgerId = entry.getKey();
@@ -200,21 +199,14 @@ public class ClprEndpointClient {
      * @return {@code true} if this node should communicate with the remote ledger this cycle
      */
     boolean isAssignedToLedger(
-            @NonNull final ClprLedgerId remoteLedgerId,
-            final long cycle,
-            final int selfIndex,
-            final int rosterSize) {
+            @NonNull final ClprLedgerId remoteLedgerId, final long cycle, final int selfIndex, final int rosterSize) {
         if (rosterSize == 0 || selfIndex < 0) {
             // Graceful degradation: if roster is unavailable or node not found, contact all ledgers
             return true;
         }
         final int ledgerHash = Math.floorMod(remoteLedgerId.ledgerId().hashCode(), rosterSize);
         final int assignedIndex = Math.floorMod(ledgerHash + (int) cycle, rosterSize);
-        log.info(
-                "CLPR Endpoint: Current cycle {}; Assigned node {} for {}",
-                cycle,
-                assignedIndex,
-                remoteLedgerId);
+        log.info("CLPR Endpoint: Current cycle {}; Assigned node {} for {}", cycle, assignedIndex, remoteLedgerId);
         return assignedIndex == selfIndex;
     }
 

@@ -45,9 +45,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -679,15 +676,21 @@ public class ClprMessagesSuite {
                     submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteAConfig.get()));
                     submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteBConfig.get()));
                 }))
-                .onNetwork(REMOTE_A, withOpContext((spec, log) ->
-                        submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
-                .onNetwork(REMOTE_B, withOpContext((spec, log) ->
-                        submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
+                .onNetwork(
+                        REMOTE_A,
+                        withOpContext((spec, log) ->
+                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
+                .onNetwork(
+                        REMOTE_B,
+                        withOpContext((spec, log) ->
+                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
 
                 // Stage 3: Await message queue metadata on source for both remote ledgers.
                 .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    awaitMessageQueueMetadataAvailable(log, spec.getNetworkNodes(), requireNonNull(remoteAConfig.get()));
-                    awaitMessageQueueMetadataAvailable(log, spec.getNetworkNodes(), requireNonNull(remoteBConfig.get()));
+                    awaitMessageQueueMetadataAvailable(
+                            log, spec.getNetworkNodes(), requireNonNull(remoteAConfig.get()));
+                    awaitMessageQueueMetadataAvailable(
+                            log, spec.getNetworkNodes(), requireNonNull(remoteBConfig.get()));
                 }))
 
                 // Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
@@ -749,7 +752,8 @@ public class ClprMessagesSuite {
                         final int ledgerHash = Math.floorMod(entry.remoteLedger.hashCode(), rosterSize);
                         final int expected = Math.floorMod(ledgerHash + (int) entry.cycle, rosterSize);
                         assertThat(entry.assignedNode)
-                                .as("Cycle %d, ledger ...%s: expected node%d but saw node%d",
+                                .as(
+                                        "Cycle %d, ledger ...%s: expected node%d but saw node%d",
                                         entry.cycle,
                                         entry.remoteLedger.length() > 8
                                                 ? entry.remoteLedger.substring(entry.remoteLedger.length() - 8)
@@ -769,7 +773,8 @@ public class ClprMessagesSuite {
                             }
                         }
                         if (distinctNodes.size() > 1) {
-                            log.info("CLPR_RR_TEST|stage=rotation_confirmed|ledger=...{}|nodes={}",
+                            log.info(
+                                    "CLPR_RR_TEST|stage=rotation_confirmed|ledger=...{}|nodes={}",
                                     ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger,
                                     distinctNodes);
                             return; // rotation confirmed for at least one ledger
@@ -782,11 +787,13 @@ public class ClprMessagesSuite {
                         for (final var e : assignments) {
                             if (e.remoteLedger.equals(ledger)) nodes.add(e.assignedNode);
                         }
-                        nodesPerLedger.append(String.format("  ...%s -> %s\n",
+                        nodesPerLedger.append(String.format(
+                                "  ...%s -> %s\n",
                                 ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger, nodes));
                     }
                     assertThat(false)
-                            .as("Expected rotation but each ledger was always assigned to the same node:\n%s",
+                            .as(
+                                    "Expected rotation but each ledger was always assigned to the same node:\n%s",
                                     nodesPerLedger)
                             .isTrue();
                 }));

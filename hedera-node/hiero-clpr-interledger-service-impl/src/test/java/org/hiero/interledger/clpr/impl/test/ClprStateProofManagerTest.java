@@ -14,9 +14,9 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
@@ -26,11 +26,11 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -435,8 +435,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var writablePlatformState =
                 writableStates.<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
         writablePlatformState.put(PlatformState.newBuilder()
-                .consensusSnapshot(
-                        ConsensusSnapshot.newBuilder().round(round).build())
+                .consensusSnapshot(ConsensusSnapshot.newBuilder().round(round).build())
                 .build());
         if (writableStates instanceof CommittableWritableStates committableStates) {
             committableStates.commit();
@@ -456,8 +455,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
                 writableStates.<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
         writablePlatformState.put(PlatformState.newBuilder()
                 .consensusSnapshot(ConsensusSnapshot.newBuilder()
-                        .consensusTimestamp(
-                                new com.hedera.hapi.node.base.Timestamp(seconds, nanos))
+                        .consensusTimestamp(new com.hedera.hapi.node.base.Timestamp(seconds, nanos))
                         .build())
                 .build());
         if (writableStates instanceof CommittableWritableStates committableStates) {
