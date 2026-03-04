@@ -23,6 +23,7 @@ import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -31,6 +32,10 @@ import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreat
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.entityid.NodeIdGenerator;
+import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -367,6 +372,253 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
     }
 
+    @Test
+    @DisplayName("calculateFees uses signature-based pricing with SubType.DEFAULT")
+    void calculateFeesUsesSignatureBasedPricing() {
+        final var feeCtx = mock(FeeContext.class);
+        final var feeCalcFact = mock(FeeCalculatorFactory.class);
+        final var feeCalc = mock(FeeCalculator.class);
+        final var expectedFees = new Fees(1, 0, 0);
+        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
+        given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
+        given(feeCtx.numTxnSignatures()).willReturn(3);
+        given(feeCalc.addVerificationsPerTransaction(2L)).willReturn(feeCalc);
+        given(feeCalc.calculate()).willReturn(expectedFees);
+
+        assertThat(subject.calculateFees(feeCtx)).isEqualTo(expectedFees);
+        verify(feeCalc).resetUsage();
+        verify(feeCalc).addVerificationsPerTransaction(2L);
+    }
+
+    @Test
+    @DisplayName("calculateFees with zero signatures adds zero verifications")
+    void calculateFeesWithZeroSignatures() {
+        final var feeCtx = mock(FeeContext.class);
+        final var feeCalcFact = mock(FeeCalculatorFactory.class);
+        final var feeCalc = mock(FeeCalculator.class);
+        final var expectedFees = new Fees(1, 0, 0);
+        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
+        given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
+        given(feeCtx.numTxnSignatures()).willReturn(0);
+        given(feeCalc.addVerificationsPerTransaction(0L)).willReturn(feeCalc);
+        given(feeCalc.calculate()).willReturn(expectedFees);
+
+        assertThat(subject.calculateFees(feeCtx)).isEqualTo(expectedFees);
+        verify(feeCalc).addVerificationsPerTransaction(0L);
+    }
+
+    // ─── Port boundary tests ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("handle succeeds with port zero")
+    void handleSucceedsWithPortZero() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 501L;
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(endpointWithPort(0))).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    @Test
+    @DisplayName("handle succeeds with port 65535")
+    void handleSucceedsWithPort65535() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 502L;
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(endpointWithPort(65535))).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    @Test
+    @DisplayName("handle fails for port above 65535")
+    void handleFailsForPortAbove65535() {
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(endpointWithPort(65536))).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
+    }
+
+    // ─── IPv6 tests ─────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("handle succeeds with valid IPv6 address")
+    void handleSucceedsWithIpv6Address() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 503L;
+        final var ipv6Endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[16]))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(ipv6Endpoint)).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    @Test
+    @DisplayName("handle fails for invalid IPv6 length (15 bytes)")
+    void handleFailsForInvalidIpv6Length() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[15]))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    // ─── Domain name validation tests ───────────────────────────────────
+
+    @Test
+    @DisplayName("handle fails for domain name exceeding max length")
+    void handleFailsForDomainNameTooLong() {
+        final var longDomain = "a".repeat(251);
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(domainEndpoint(longDomain))).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle fails for domain label exceeding 63 characters")
+    void handleFailsForDomainLabelTooLong() {
+        final var longLabel = "a".repeat(64) + ".com";
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(domainEndpoint(longLabel))).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle fails for domain with non-ASCII characters")
+    void handleFailsForDomainWithNonAsciiChars() {
+        final var txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(domainEndpoint("bl\u00F6ck.example.com")))
+                .build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle fails for domain with leading or trailing hyphen")
+    void handleFailsForDomainWithLeadingOrTrailingHyphen() {
+        // Leading hyphen
+        var txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(domainEndpoint("-block.example.com")))
+                .build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+
+        // Trailing hyphen
+        txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(domainEndpoint("block-.example.com")))
+                .build());
+        given(handleContext.body()).willReturn(txn);
+
+        msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle fails for domain with invalid characters")
+    void handleFailsForDomainWithInvalidChars() {
+        final var txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(domainEndpoint("block_node.example.com")))
+                .build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle fails for empty domain name")
+    void handleFailsForEmptyDomainName() {
+        final var txn = txnWithOp(
+                opBuilder().serviceEndpoint(List.of(domainEndpoint(" "))).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("handle succeeds with domain name having trailing dot")
+    void handleSucceedsWithDomainWithTrailingDot() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 504L;
+        final var txn = txnWithOp(opBuilder()
+                .serviceEndpoint(List.of(domainEndpoint("block.example.com.")))
+                .build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
+    // ─── Boundary tests ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("handle succeeds with exactly max (50) endpoints")
+    void handleSucceedsWithExactlyMaxEndpoints() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long newId = 505L;
+        final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
+        for (int i = 0; i < 50; i++) {
+            endpoints.add(validEndpoint());
+        }
+        final var txn = txnWithOp(opBuilder().serviceEndpoint(endpoints).build());
+
+        givenHandleContext(txn, newId, stack, attributeValidator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).put(any());
+    }
+
     private void givenHandleContext(
             final TransactionBody txn,
             final long newId,
@@ -400,6 +652,28 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     private static RegisteredServiceEndpoint validEndpoint() {
         return RegisteredServiceEndpoint.newBuilder()
                 .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(443)
+                .requiresTls(true)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint endpointWithPort(final int port) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(port)
+                .requiresTls(true)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint domainEndpoint(final String domain) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .domainName(domain)
                 .port(443)
                 .requiresTls(true)
                 .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
