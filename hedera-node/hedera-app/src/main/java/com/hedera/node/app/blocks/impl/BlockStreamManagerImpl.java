@@ -980,6 +980,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
 
+            // Writer may be null if the fatal shutdown path already closed and cleared it while this task was still
+            // queued. Discard the item gracefully.
+            if (writer == null) {
+                return false;
+            }
             final BlockHeader header = item.blockHeader();
             if (header != null) {
                 writer.openBlock(header.number());

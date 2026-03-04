@@ -4,9 +4,11 @@ package com.hedera.services.bdd.suites.freeze;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -23,6 +25,8 @@ import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.spec.utilops.FakeNmt;
+import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.nio.file.Files;
@@ -53,7 +57,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
                 "hedera.recordStream.liveWritePrevWrappedRecordHashes"
             })
-    final Stream<DynamicTest> generatesJumpstart() {
+    final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
@@ -63,6 +67,17 @@ class JumpstartFileSuite implements LifecycleTest {
 
         return hapiTest(
                 overriding("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"),
+                // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
+                logIt("Phase 0: shut down extra nodes (if any)"),
+                doingContextual(spec -> {
+                    final var nodesToShutDown = spec.targetNetworkOrThrow().nodes().stream()
+                            .filter(node -> !CLASSIC_NODE_IDS.contains(node.getNodeId()))
+                            .map(node -> FakeNmt.removeNode(NodeSelector.byNodeId(node.getNodeId())))
+                            .toList();
+                    if (!nodesToShutDown.isEmpty()) {
+                        allRunFor(spec, nodesToShutDown.toArray(new RemoveNodeOp[0]));
+                    }
+                }),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart file"),

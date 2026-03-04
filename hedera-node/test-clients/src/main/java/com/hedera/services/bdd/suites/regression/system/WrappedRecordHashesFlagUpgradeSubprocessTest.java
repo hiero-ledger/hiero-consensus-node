@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -38,7 +39,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
-// @Order(0)
+@Order(0)
 public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTest {
     private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
     private static final long DISK_IO_WAIT_MS = 1_000;
@@ -46,7 +47,6 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false"));
-        testLifecycle.doAdhoc(sleepFor(10000));
         // Delete the wrapped record hashes file if it exists
         testLifecycle.doAdhoc(doingContextual(spec -> {
             final var workingDirs = spec.getNetworkNodes().stream()
@@ -71,7 +71,6 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
-                sleepFor(10000),
                 doingContextual(spec -> assertNoWrappedHashesWritten(spec.getNetworkNodes().stream()
                         .map(n -> n.getExternalPath(ExternalPath.WORKING_DIR))
                         .toList())),

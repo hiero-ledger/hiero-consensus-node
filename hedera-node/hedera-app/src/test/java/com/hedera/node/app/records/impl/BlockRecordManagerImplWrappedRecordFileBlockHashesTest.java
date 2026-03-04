@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -403,7 +402,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
-    void liveAndDiskModeCallsAppendPrecomputed() {
+    void liveAndDiskModeDoesNotCallDiskWriter() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -459,8 +458,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
             mgr.startUserTransaction(t1, state);
         }
-        // When both flags are on, appendPrecomputed is used (not appendAsync)
-        verify(diskWriter).appendPrecomputed(notNull());
+        // When live mode is on, hashes are computed in-memory via recordWrappedBlockHashes —
+        // the disk writer is never used (live mode takes precedence over disk-only mode)
+        verify(diskWriter, never()).appendPrecomputed(any());
         verify(diskWriter, never()).appendAsync(any());
     }
 

@@ -764,15 +764,16 @@ final class BlockRecordManagerTest extends AppTestBase {
         }
 
         @Test
-        void liveModeDelegatesPrecomputedToDiskWriter() {
+        void liveModeDoesNotDelegateToDiskWriter() {
             final var state = liveApp.workingStateAccessor().getState();
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             try (final var manager = createManager(liveApp, state, diskWriter, InitTrigger.GENESIS)) {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
             }
-            // Since both flags are on, appendPrecomputed should have been called (not appendAsync)
-            verify(diskWriter).appendPrecomputed(notNull());
+            // Live mode computes hashes in-memory via recordWrappedBlockHashes —
+            // the disk writer is never used (live mode takes precedence)
+            verify(diskWriter, org.mockito.Mockito.never()).appendPrecomputed(notNull());
             verify(diskWriter, org.mockito.Mockito.never()).appendAsync(notNull());
         }
 
