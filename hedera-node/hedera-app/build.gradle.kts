@@ -150,7 +150,6 @@ tasks.register<JavaExec>("run") {
             "-server",
             "-Djava.awt.headless=true",
             "-Djava.util.concurrent.ForkJoinPool.common.parallelism=2",
-            "--limit-modules=java.desktop",
             "-XX:+UseSerialGC",
             //"-XX:+UseParallelGC",
             "-Xms196M",
