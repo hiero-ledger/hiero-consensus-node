@@ -37,7 +37,12 @@ import org.apache.logging.log4j.Logger;
 public class StakingRewardsHelper {
     private static final Logger log = LogManager.getLogger(StakingRewardsHelper.class);
     /**
-     * The maximum pending rewards that can be paid out in a single staking period, which is 50B whole coins.
+     * The total supply of whole coins (50 billion), used to derive the maximum pending rewards cap.
+     */
+    private static final long TOTAL_SUPPLY_WHOLE_UNITS = 50_000_000_000L;
+
+    /**
+     * The maximum pending rewards that can be paid out in a single staking period.
      * Derived from the configured denomination converter at construction time.
      */
     private final long maxPendingRewards;
@@ -58,7 +63,8 @@ public class StakingRewardsHelper {
                 .getConfiguration()
                 .getConfigData(StakingConfig.class)
                 .assumeContiguousPeriods();
-        this.maxPendingRewards = Math.multiplyExact(50_000_000_000L, denominationConverter.subunitsPerWholeUnit());
+        this.maxPendingRewards =
+                Math.multiplyExact(TOTAL_SUPPLY_WHOLE_UNITS, denominationConverter.subunitsPerWholeUnit());
     }
 
     /**

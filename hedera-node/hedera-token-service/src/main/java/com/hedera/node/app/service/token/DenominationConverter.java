@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
+import com.hedera.node.app.spi.fees.util.FeeUtils;
 import java.math.BigInteger;
 
 /**
@@ -10,9 +11,11 @@ import java.math.BigInteger;
 public final class DenominationConverter {
 
     /**
-     * The number of subunits per whole HBAR assumed by the default fee schedule (10^8).
+     * Maximum number of decimal places supported. Matches the 18-decimal precision of Ethereum wei.
      */
-    public static final long DEFAULT_SUBUNITS_PER_HBAR = 100_000_000L;
+    public static final int MAX_DECIMALS = 18;
+
+    private static final long DECIMAL_BASE = 10L;
 
     private final long subunitsPerWholeUnit;
     private final int decimals;
@@ -20,17 +23,18 @@ public final class DenominationConverter {
     /**
      * Creates a converter for a token with the given number of decimal places.
      *
-     * @param decimals the number of decimal places (must be between 0 and 18 inclusive)
+     * @param decimals the number of decimal places (must be between 0 and {@value MAX_DECIMALS} inclusive)
      * @throws IllegalArgumentException if decimals is outside the valid range
      */
     public DenominationConverter(final int decimals) {
-        if (decimals < 0 || decimals > 18) {
-            throw new IllegalArgumentException("decimals must be in range [0, 18], but was " + decimals);
+        if (decimals < 0 || decimals > MAX_DECIMALS) {
+            throw new IllegalArgumentException(
+                    "decimals must be in range [0, " + MAX_DECIMALS + "], but was " + decimals);
         }
         this.decimals = decimals;
         long result = 1L;
         for (int i = 0; i < decimals; i++) {
-            result *= 10L;
+            result *= DECIMAL_BASE;
         }
         this.subunitsPerWholeUnit = result;
     }
@@ -61,7 +65,7 @@ public final class DenominationConverter {
      * @return {@code BigInteger.valueOf(10^(18 - decimals))}
      */
     public BigInteger weibarsPerSubunit() {
-        return BigInteger.TEN.pow(18 - decimals);
+        return BigInteger.TEN.pow(MAX_DECIMALS - decimals);
     }
 
     /**
@@ -72,13 +76,7 @@ public final class DenominationConverter {
      * @return the fee amount scaled to the configured denomination
      */
     public long scaleToSubunits(final long defaultTinybars) {
-        if (subunitsPerWholeUnit == DEFAULT_SUBUNITS_PER_HBAR) {
-            return defaultTinybars;
-        }
-        return BigInteger.valueOf(defaultTinybars)
-                .multiply(BigInteger.valueOf(subunitsPerWholeUnit))
-                .divide(BigInteger.valueOf(DEFAULT_SUBUNITS_PER_HBAR))
-                .longValueExact();
+        return FeeUtils.scaleToSubunits(defaultTinybars, subunitsPerWholeUnit);
     }
 
     /**

@@ -13,6 +13,7 @@ import com.esaulpaugh.headlong.abi.TypeFactory;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.DenominationConverter;
+import com.hedera.node.app.spi.fees.util.FeeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
@@ -40,7 +41,7 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
             .contractNum(numberOfLongZero(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS)))
             .build();
 
-    private static final BigInteger DEFAULT_SUBUNITS = BigInteger.valueOf(100_000_000L);
+    private static final BigInteger DEFAULT_SUBUNITS = BigInteger.valueOf(FeeUtils.DEFAULT_SUBUNITS_PER_HBAR);
 
     private long gasRequirement;
     private final DenominationConverter denominationConverter;
