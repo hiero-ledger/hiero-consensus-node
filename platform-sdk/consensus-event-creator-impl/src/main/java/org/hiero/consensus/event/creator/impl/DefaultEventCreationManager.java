@@ -142,6 +142,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
     }
 
 
+
+    Instant[] captures = new Instant[1000];
+    Instant[] capturesLocal = new Instant[1000];
+    int counter =0;
+
     /**
      * {@inheritDoc}
      */
@@ -149,7 +154,18 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Nullable
     public PlatformEvent maybeCreateEvent(Instant now) {
 
-        log.info(RECONNECT.getMarker(),"Heartbeat delay {} @ {}", (Duration.between(now, time.now()).toNanos()), now);
+
+
+        if ( ++counter < captures.length) {
+            captures[counter] = now;
+            capturesLocal[counter] = time.now();
+        } if (counter == captures.length) {
+            for ( int i = 1; i < captures.length; i++) {
+                log.info(RECONNECT.getMarker(),"Heartbeat delay {} @ {}", (Duration.between(captures[i], capturesLocal[i]).toNanos()), captures[i] );
+            }
+
+        }
+
 
 
 
