@@ -39,6 +39,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
+// This test should run first to ensure the later `JumpstartFileSuite`'s constructed jumpstart file targets a block
+// number safely after the wrapped record hashes file flag is enabled
 @Order(0)
 public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTest {
     private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
@@ -71,6 +73,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
+                sleepFor(DISK_IO_WAIT_MS),
                 doingContextual(spec -> assertNoWrappedHashesWritten(spec.getNetworkNodes().stream()
                         .map(n -> n.getExternalPath(ExternalPath.WORKING_DIR))
                         .toList())),

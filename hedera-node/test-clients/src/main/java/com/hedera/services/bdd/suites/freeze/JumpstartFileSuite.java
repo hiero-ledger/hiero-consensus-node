@@ -68,7 +68,7 @@ class JumpstartFileSuite implements LifecycleTest {
         return hapiTest(
                 overriding("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"),
                 // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
-                logIt("Phase 0: shut down extra nodes (if any)"),
+                logIt("Phase 0: Shut down extra nodes (if any)"),
                 doingContextual(spec -> {
                     final var nodesToShutDown = spec.targetNetworkOrThrow().nodes().stream()
                             .filter(node -> !CLASSIC_NODE_IDS.contains(node.getNodeId()))
