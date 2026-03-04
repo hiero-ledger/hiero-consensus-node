@@ -357,7 +357,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
         byte[] authorizationList = null;
         Object[] authorizationListRlp = null;
-        if (type == EthTransactionType.EIP7702 && authorizationListItems != null) {
+        if (type == EthTransactionType.EIP7702 && !authorizationListItems.isEmpty()) {
             authorizationListRlp = authorizationListItems.stream()
                     .map(item -> {
                         final var nonce = item.nonceFn().apply(spec);

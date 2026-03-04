@@ -40,6 +40,7 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumSet;
@@ -156,6 +157,9 @@ public class DispatchProcessor {
             }
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
+            // For EIP-7702 eth type 4 transactions we need to commit the code delegation related actions before rolling
+            // back
+            commitPossibleDelegationActions(dispatch, functionality);
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
             e.maybeReplayFees(dispatch);
@@ -350,5 +354,20 @@ public class DispatchProcessor {
             }
         }
         return false;
+    }
+
+    private void commitPossibleDelegationActions(
+            @NonNull final Dispatch dispatch, @NonNull final HederaFunctionality functionality) {
+        if (hasAuthorizationList(dispatch, functionality)) {
+            dispatch.stack().commitFullStack();
+        }
+    }
+
+    private boolean hasAuthorizationList(
+            @NonNull final Dispatch dispatch, @NonNull final HederaFunctionality functionality) {
+        final var ethTransaction = dispatch.txnInfo().txBody().ethereumTransaction();
+        final var type4TransactionPrefix = Bytes.fromHex("04");
+        return functionality == ETHEREUM_TRANSACTION
+                && ethTransaction.ethereumData().contains(0, type4TransactionPrefix);
     }
 }

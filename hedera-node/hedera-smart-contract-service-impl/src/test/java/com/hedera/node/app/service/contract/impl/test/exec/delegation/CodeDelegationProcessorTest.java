@@ -18,10 +18,14 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
+import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.config.data.EntitiesConfig;
+import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
@@ -53,6 +57,18 @@ class CodeDelegationProcessorTest {
 
     @Mock
     private CryptoCreateStreamBuilder cryptoCreateStreamBuilder;
+
+    @Mock
+    protected Enhancement enhancement;
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private HederaNativeOperations hederaNativeOperations;
+
+    @Mock
+    private EntitiesConfig entitiesConfig;
 
     private static final long CHAIN_ID = 298L;
     private static final BigInteger HALF_ORDER =
@@ -246,6 +262,11 @@ class CodeDelegationProcessorTest {
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
+        when(proxyWorldUpdater.enhancement()).thenReturn(enhancement);
+        when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
+        when(hederaNativeOperations.configuration()).thenReturn(configuration);
+        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(true);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
         when(proxyWorldUpdater.lazyCreationCostInGas(authAddr)).thenReturn(25000L);

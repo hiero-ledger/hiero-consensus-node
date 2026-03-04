@@ -3,14 +3,22 @@ package com.hedera.node.app.service.contract.impl.exec.delegation;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.config.data.EntitiesConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
@@ -80,6 +88,7 @@ public record CodeDelegationProcessor(long chainId) {
         return state.toResult();
     }
 
+    @SuppressWarnings("java:S3776")
     private void processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
             final CodeDelegation codeDelegation,
@@ -135,10 +144,18 @@ public record CodeDelegationProcessor(long chainId) {
             if (state.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
                 state.addHollowAccountCreationGasCharge(lazyCreationCost);
             } else {
+                final var unlimitedAutoAssociations = proxyWorldUpdater
+                        .enhancement()
+                        .nativeOperations()
+                        .configuration()
+                        .getConfigData(EntitiesConfig.class)
+                        .unlimitedAutoAssociationsEnabled();
                 // Create failed record due to insufficient gas for lazy creation
                 final var failedRecord =
                         proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
+                failedRecord.signedTx(synthCreateTransactionBody(
+                        authorizerAddress, delegatedContractAddress, unlimitedAutoAssociations));
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
                 return;
             }
@@ -183,6 +200,20 @@ public record CodeDelegationProcessor(long chainId) {
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
+    }
+
+    @NonNull
+    private SignedTransaction synthCreateTransactionBody(
+            @NonNull final Address authorizerAddress,
+            @NonNull final Address delegatedContractAddress,
+            final boolean unlimitedAutoAssociations) {
+        return signedTxWith(TransactionBody.newBuilder()
+                .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
+                        tuweniToPbjBytes(authorizerAddress),
+                        Key.DEFAULT,
+                        tuweniToPbjBytes(delegatedContractAddress),
+                        unlimitedAutoAssociations))
+                .build());
     }
 
     private boolean canSetCodeDelegation(final Account account) {

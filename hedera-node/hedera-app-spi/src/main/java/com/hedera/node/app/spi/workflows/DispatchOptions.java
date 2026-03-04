@@ -180,6 +180,42 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
+     * Returns options for a dispatch that is independent of the parent dispatch yet executed with parent.
+     * Use cases related to EIP-7702 code delegation,
+     * <ul>
+     *     <li>Creating a hollow account from a public key set in authorization list field of type 4 Ethereum transactions.</li>
+     *     <li>Updating account to include code delegation target.</li>
+     * </ul>
+     * <b>Important:</b> Since such dispatches <b>are</b> logically part of the parent dispatch, it is expected that
+     * this type of dispatch is executed even if the parent fails.
+     *
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @return the options for the setup dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> independentStepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType) {
+        return new DispatchOptions<>(
+                Commit.WITH_PARENT,
+                payerId,
+                body,
+                UsePresetTxnId.NO,
+                PREAUTHORIZED_KEYS,
+                emptySet(),
+                TransactionCategory.PRECEDING,
+                ConsensusThrottling.OFF,
+                streamBuilderType,
+                ReversingBehavior.IRREVERSIBLE,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                EMPTY_METADATA,
+                UNIVERSAL_NOOP_FEE_CHARGING);
+    }
+
+    /**
      * Returns options for a dispatch that is part of the parent dispatch's transactional unit, but in a setup role
      * that logically precedes the parent transaction's effects. Use cases include,
      * <ul>
