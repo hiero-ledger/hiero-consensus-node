@@ -19,18 +19,30 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @OtterSpecs(randomNodeIds = false)
 @ContainerSpecs(proxyEnabled = false)
-public class CreationAttemptRateExperiment {
-    private static final Logger log = LogManager.getLogger(CreationAttemptRateExperiment.class);
+public class CreationPeriodExperiment {
+    private static final Logger log = LogManager.getLogger(CreationPeriodExperiment.class);
 
     /**
-     * Test creationAttemptRate=1000.
+     * Test creationPeriod=1ms.
      */
     @OtterTest
     @Order(1)
-    void creationAttemptRate(@NonNull final TestEnvironment env) {
-        log.info("=== CreationAttemptRate Experiment: creationAttemptRate=1000 ===");
-        runBenchmark(env, "creationAttemptRate", BenchmarkParameters.defaults(), network -> {
-            network.withConfigValue("event.creation.creationAttemptRate", 1000);
+    void creationPeriod(@NonNull final TestEnvironment env) {
+        log.info("=== CreationPeriod Experiment: period=1ms ===");
+        runBenchmark(env, "creationPeriod", BenchmarkParameters.defaults(), network -> {
+            network.withConfigValue("event.creation.period", "1ms");
+        });
+    }
+
+    /**
+     * Test creationFrequency=1ms.
+     */
+    @OtterTest
+    @Order(2)
+    void creationPeriod500us(@NonNull final TestEnvironment env) {
+        log.info("=== CreationPeriod Experiment: frequency=500us ===");
+        runBenchmark(env, "creationPeriod500us", BenchmarkParameters.defaults(), network -> {
+            network.withConfigValue("event.creation.period", "500us");
         });
     }
 }
