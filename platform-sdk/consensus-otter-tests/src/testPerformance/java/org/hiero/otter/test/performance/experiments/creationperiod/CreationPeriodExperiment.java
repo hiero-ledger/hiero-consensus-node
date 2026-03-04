@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
-package org.hiero.sloth.test.performance.experiments.creationattemoptrate;
+package org.hiero.otter.test.performance.experiments.creationperiod;
 
 import static org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.runBenchmark;
 
