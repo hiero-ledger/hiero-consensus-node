@@ -153,6 +153,26 @@ public class BlockNodeConnectionManager {
     private ExecutorService blockingIoExecutor;
 
     /**
+     * A record that holds a candidate node configuration along with the block number it wants to stream.
+     *
+     * @param config      the block node configuration
+     * @param wantedBlock the block number the block node wants to receive next
+     */
+    record NodeCandidate(BlockNodeConfiguration config, long wantedBlock) {}
+
+    /**
+     * Outcome of evaluating one priority group.
+     *
+     * @param inRangeCandidates       candidates this CN can stream to immediately
+     * @param lowestAheadCandidates   candidates tied for lowest wanted block (when all candidates are ahead)
+     * @param lowestAheadWantedBlock  the lowest wanted block among ahead candidates
+     */
+    record GroupSelectionOutcome(
+            List<NodeCandidate> inRangeCandidates,
+            List<NodeCandidate> lowestAheadCandidates,
+            long lowestAheadWantedBlock) {}
+
+    /**
      * A class that holds retry state for a block node connection.
      */
     class RetryState {
@@ -537,26 +557,47 @@ public class BlockNodeConnectionManager {
         final SortedMap<Integer, List<BlockNodeConfiguration>> priorityGroups = snapshot.stream()
                 .collect(Collectors.groupingBy(BlockNodeConfiguration::priority, TreeMap::new, toList()));
 
-        BlockNodeConfiguration selectedNode = null;
+        final List<NodeCandidate> globalLowestAheadCandidates = new ArrayList<>();
+        long globalLowestWantedBlock = Long.MAX_VALUE;
 
         for (final Map.Entry<Integer, List<BlockNodeConfiguration>> entry : priorityGroups.entrySet()) {
             final int priority = entry.getKey();
             final List<BlockNodeConfiguration> nodesInGroup = entry.getValue();
+            final GroupSelectionOutcome outcome;
             try {
-                selectedNode = findAvailableNode(nodesInGroup);
+                outcome = findAvailableNode(nodesInGroup);
             } catch (final Exception e) {
                 logger.warn("Error encountered while trying to find available node in priority group {}", priority, e);
+                continue;
             }
 
-            if (selectedNode == null) {
+            if (outcome == null) {
                 logger.debug("No available node found in priority group {}.", priority);
-            } else {
-                logger.debug("Found available node in priority group {}.", priority);
-                return selectedNode;
+                continue;
+            }
+
+            if (!outcome.inRangeCandidates().isEmpty()) {
+                logger.debug("Found in-range available node in priority group {}.", priority);
+                return selectRandomCandidate(outcome.inRangeCandidates());
+            }
+
+            if (outcome.lowestAheadWantedBlock() < globalLowestWantedBlock) {
+                globalLowestWantedBlock = outcome.lowestAheadWantedBlock();
+                globalLowestAheadCandidates.clear();
+                globalLowestAheadCandidates.addAll(outcome.lowestAheadCandidates());
+            } else if (outcome.lowestAheadWantedBlock() == globalLowestWantedBlock) {
+                globalLowestAheadCandidates.addAll(outcome.lowestAheadCandidates());
             }
         }
 
-        return selectedNode;
+        if (globalLowestAheadCandidates.isEmpty()) {
+            return null;
+        }
+
+        logger.debug(
+                "All groups only had ahead candidates. Selecting from global lowest wantedBlock={}",
+                globalLowestWantedBlock);
+        return selectRandomCandidate(globalLowestAheadCandidates);
     }
 
     /**
@@ -589,9 +630,9 @@ public class BlockNodeConnectionManager {
      * This ensures we always create fresh BlockNodeConnection instances for new pipelines.
      *
      * @param nodes list of possible nodes to connect to
-     * @return a node that is a candidate to connect to, or null if no candidate was found
+     * @return outcome for this priority group, or null if no candidates were eligible
      */
-    private @Nullable BlockNodeConfiguration findAvailableNode(@NonNull final List<BlockNodeConfiguration> nodes) {
+    private @Nullable GroupSelectionOutcome findAvailableNode(@NonNull final List<BlockNodeConfiguration> nodes) {
         requireNonNull(nodes, "nodes must not be null");
         // Only allow the selection of nodes which are not currently in the connections map
         final List<BlockNodeConfiguration> candidateNodes = nodes.stream()
@@ -639,7 +680,7 @@ public class BlockNodeConnectionManager {
         // have available in the buffer
         final long earliestAvailableBlock = blockBufferService.getEarliestAvailableBlockNumber();
         final long latestAvailableBlock = blockBufferService.getLastBlockNumberProduced();
-        final List<BlockNodeConfiguration> nodesToSelectFrom = new ArrayList<>();
+        final List<NodeCandidate> eligibleCandidates = new ArrayList<>();
 
         for (int i = 0; i < candidateNodes.size(); ++i) {
             final BlockNodeConfiguration nodeConfig = candidateNodes.get(i);
@@ -706,8 +747,9 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
+            final long wantedBlock;
             if (latestAvailableBlock != -1) {
-                final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
+                wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
 
                 if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
                     logger.info(
@@ -719,25 +761,53 @@ public class BlockNodeConnectionManager {
                             latestAvailableBlock);
                     continue;
                 }
+            } else {
+                // Startup case: no blocks available yet, use -1 as placeholder
+                wantedBlock = -1;
             }
 
             logger.info(
-                    "[{}:{}] Block node is available for streaming", nodeConfig.address(), nodeConfig.servicePort());
-            nodesToSelectFrom.add(nodeConfig);
+                    "[{}:{}] Block node is available for streaming (wantedBlock: {})",
+                    nodeConfig.address(),
+                    nodeConfig.servicePort(),
+                    wantedBlock);
+            eligibleCandidates.add(new NodeCandidate(nodeConfig, wantedBlock));
         }
 
-        if (nodesToSelectFrom.isEmpty()) {
+        if (eligibleCandidates.isEmpty()) {
             return null;
         }
 
-        if (nodesToSelectFrom.size() == 1) {
-            return nodesToSelectFrom.getFirst();
+        if (latestAvailableBlock == -1) {
+            // Startup case: treat all reachable candidates as immediately streamable.
+            return new GroupSelectionOutcome(eligibleCandidates, List.of(), Long.MAX_VALUE);
         }
 
-        // If there are multiple good nodes, shuffle them and pick the first one.
-        // This will add some randomness to the selection process.
-        Collections.shuffle(nodesToSelectFrom);
-        return nodesToSelectFrom.getFirst();
+        final List<NodeCandidate> inRangeCandidates = eligibleCandidates.stream()
+                .filter(c -> c.wantedBlock() <= latestAvailableBlock)
+                .toList();
+        if (!inRangeCandidates.isEmpty()) {
+            return new GroupSelectionOutcome(inRangeCandidates, List.of(), Long.MAX_VALUE);
+        }
+
+        final long lowestAheadWantedBlock = eligibleCandidates.stream()
+                .mapToLong(NodeCandidate::wantedBlock)
+                .min()
+                .orElse(Long.MAX_VALUE);
+        final List<NodeCandidate> lowestAheadCandidates = eligibleCandidates.stream()
+                .filter(c -> c.wantedBlock() == lowestAheadWantedBlock)
+                .toList();
+        return new GroupSelectionOutcome(List.of(), lowestAheadCandidates, lowestAheadWantedBlock);
+    }
+
+    private @NonNull BlockNodeConfiguration selectRandomCandidate(@NonNull final List<NodeCandidate> candidates) {
+        requireNonNull(candidates, "candidates must not be null");
+        if (candidates.size() == 1) {
+            return candidates.getFirst().config();
+        }
+        final List<NodeCandidate> shuffled = new ArrayList<>(candidates);
+        Collections.shuffle(shuffled);
+        return shuffled.getFirst().config();
     }
 
     /**
