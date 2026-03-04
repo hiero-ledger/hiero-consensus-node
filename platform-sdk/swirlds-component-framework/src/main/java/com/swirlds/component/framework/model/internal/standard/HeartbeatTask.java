@@ -10,12 +10,11 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.TimerTask;
 
 /**
  * A task that produces a heartbeat at a specified rate.
  */
-public class HeartbeatTask extends TimerTask {
+public class HeartbeatTask implements Runnable {
 
     private final Time time;
     private final Duration period;
