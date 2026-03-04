@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization;
 
-import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hashable;
-import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -26,11 +25,15 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * Performs synchronization in the role of the learner.
  */
-public class LearningSynchronizer implements ReconnectNodeCount {
+public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
     private static final Logger logger = LogManager.getLogger(LearningSynchronizer.class);
+
+    private final StandardWorkGroup workGroup;
+
+    private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
 
     /**
      * Used to get data from the teacher.
@@ -42,8 +45,6 @@ public class LearningSynchronizer implements ReconnectNodeCount {
      */
     private final SerializableDataOutputStream outputStream;
 
-    private final Runnable breakConnection;
-
     /**
      * New state root node used to put data from the teacher.
      */
@@ -54,20 +55,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
      */
     private final LearnerTreeView view;
 
-    private int leafNodesReceived;
-    private int internalNodesReceived;
-    private int redundantLeafNodes;
-    private int redundantInternalNodes;
-
-    private long synchronizationTimeMilliseconds;
-    private long hashTimeMilliseconds;
-
-    protected final ReconnectConfig reconnectConfig;
-
-    /**
-     * Responsible for creating and managing threads used by this object.
-     */
-    private final ThreadManager threadManager;
+    private final ReconnectConfig reconnectConfig;
 
     /**
      * Create a new learning synchronizer.
@@ -90,9 +78,6 @@ public class LearningSynchronizer implements ReconnectNodeCount {
             @NonNull final LearnerTreeView view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
-
-        this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
-
         inputStream = Objects.requireNonNull(in, "inputStream is null");
         outputStream = Objects.requireNonNull(out, "outputStream is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
@@ -100,7 +85,11 @@ public class LearningSynchronizer implements ReconnectNodeCount {
         this.newRoot = Objects.requireNonNull(newRoot, "newRoot is null");
         this.view = Objects.requireNonNull(view, "view is null");
 
-        this.breakConnection = breakConnection;
+        final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
+            firstReconnectException.compareAndSet(null, ex);
+            return false;
+        };
+        workGroup = createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
     }
 
     /**
@@ -108,80 +97,52 @@ public class LearningSynchronizer implements ReconnectNodeCount {
      */
     public void synchronize() throws InterruptedException {
         logger.info(RECONNECT.getMarker(), "learner calls receiveTree()");
-        final long syncStartTime = System.currentTimeMillis();
         receiveTree();
-        synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
         logger.info(RECONNECT.getMarker(), "learner calls hash()");
-        final long hashStartTime = System.currentTimeMillis();
         hash();
-        hashTimeMilliseconds = System.currentTimeMillis() - hashStartTime;
-        logger.info(RECONNECT.getMarker(), "learner calls logStatistics()");
-        logStatistics();
         logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
     }
 
     /**
      * Hash the tree.
      */
-    private void hash() throws InterruptedException {
-        logger.info(RECONNECT.getMarker(), "hashing tree");
-        final long start = System.currentTimeMillis();
-
+    private void hash() {
         newRoot.getHash(); // calculate hash
-
-        hashTimeMilliseconds = System.currentTimeMillis() - start;
-        logger.info(RECONNECT.getMarker(), "hashing complete");
-    }
-
-    /**
-     * Log information about the synchronization.
-     */
-    private void logStatistics() {
-        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
-                .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
-                .setHashTimeInSeconds(hashTimeMilliseconds * MILLISECONDS_TO_SECONDS)
-                .setTotalNodes(leafNodesReceived + internalNodesReceived)
-                .setLeafNodes(leafNodesReceived)
-                .setRedundantLeafNodes(redundantLeafNodes)
-                .setInternalNodes(internalNodesReceived)
-                .setRedundantInternalNodes(redundantInternalNodes)
-                .toString());
     }
 
     /**
      * Receive a tree (or subtree) from the teacher
      */
     private void receiveTree() throws InterruptedException {
-        final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-        final Function<Throwable, Boolean> reconnectExceptionListener = t -> {
-            firstReconnectException.compareAndSet(null, t);
-            return false;
-        };
-        final StandardWorkGroup workGroup =
-                createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
+        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
+        in.start();
+        final AtomicBoolean teacherSentLastRequest = new AtomicBoolean(false);
+        final AsyncOutputStream out = buildOutputStream(
+                workGroup, outputStream, () -> in.isAlive() && !teacherSentLastRequest.get(), reconnectConfig);
+        out.start();
 
-        view.startLearnerTasks(this, workGroup, inputStream, outputStream);
         InterruptedException interruptException = null;
-        try {
+        try (view) {
+            view.startLearnerTasks(workGroup, in, out, () -> teacherSentLastRequest.set(true));
             workGroup.waitForTermination();
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
-            logger.warn(RECONNECT.getMarker(), "interrupted while waiting for work group termination");
+            logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");
         } catch (final Throwable t) {
-            logger.info(RECONNECT.getMarker(), "caught exception while receiving tree", t);
+            logger.info(RECONNECT.getMarker(), "Caught exception while receiving tree", t);
             throw t;
         }
 
         if (interruptException != null || workGroup.hasExceptions()) {
-            // Depending on where the failure occurred, there may be deserialized objects still sitting in
-            // the async input stream's queue that haven't been attached to any tree.
-            view.abort();
+            in.abort();
             if (interruptException != null) {
                 throw interruptException;
             }
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
         }
+
+        logger.info(RECONNECT.getMarker(), "Finished receiving tree");
     }
 
     protected StandardWorkGroup createStandardWorkGroup(
@@ -194,40 +155,11 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     /**
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
-    public <T extends SelfSerializable> AsyncOutputStream<T> buildOutputStream(
-            final StandardWorkGroup workGroup, final SerializableDataOutputStream out) {
-        return new AsyncOutputStream<>(out, workGroup, reconnectConfig);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementLeafCount() {
-        leafNodesReceived++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementRedundantLeafCount() {
-        redundantLeafNodes++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementInternalCount() {
-        internalNodesReceived++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementRedundantInternalCount() {
-        redundantInternalNodes++;
+    protected AsyncOutputStream buildOutputStream(
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final SerializableDataOutputStream out,
+            @NonNull final Supplier<Boolean> alive,
+            @NonNull final ReconnectConfig reconnectConfig) {
+        return new AsyncOutputStream(out, workGroup, alive, reconnectConfig);
     }
 }
