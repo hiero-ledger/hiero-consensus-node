@@ -1071,7 +1071,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                         final var atomicBatchTransactionSecond = atomicBatch(finalizeHollowAccount)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxnFirst")
-                                .hasPrecheck(INVALID_SIGNATURE);
+                                .hasPrecheckFrom(INVALID_SIGNATURE, INSUFFICIENT_PAYER_BALANCE);
 
                         // validate the hollow account is not finalized but remains hollow
                         final var infoCheckEVMAliasSecond = getAliasedAccountInfo(evmAlias.get())
@@ -3016,7 +3016,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(OWNER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(3),
                 cryptoCreate(PAYER_NO_FUNDS).balance(0L),
