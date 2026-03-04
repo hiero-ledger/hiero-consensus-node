@@ -249,7 +249,7 @@ tasks {
                     (taskName.contains("Crypto") ||
                         taskName.contains("Token") ||
                         taskName.contains("Misc") ||
-                            taskName.contains("TimeConsuming")) && !taskName.contains("Serial")
+                        taskName.contains("TimeConsuming")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
