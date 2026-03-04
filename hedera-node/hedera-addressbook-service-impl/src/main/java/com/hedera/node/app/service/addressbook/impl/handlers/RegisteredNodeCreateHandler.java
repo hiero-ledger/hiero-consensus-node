@@ -61,7 +61,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
 
         addressBookValidator.validateDescription(op.description(), nodesConfig);
-        addressBookValidator.validateRegisteredServiceEndpoint(op.serviceEndpoint(), nodesConfig);
+        addressBookValidator.validateRegisteredServiceEndpoints(op.serviceEndpoint(), nodesConfig);
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var storeFactory = handleContext.storeFactory();
