@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"uint32","name":"no","type":"uint32"}],"name":"believeIn","outputs":[{"internalType":"uint32","name":"","type":"uint32"}],"stateMutability":"nonpayable","type":"function"}]

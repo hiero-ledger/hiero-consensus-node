@@ -675,13 +675,244 @@ class AtomicBatchPrecompileTest {
                                 .maxGasAllowance(ONE_HUNDRED_HBARS)
                                 .payingWith(RELAYER)
                                 .via(createTxn);
-                        allRunFor(spec, ethCreate);
+                        allRunFor(spec, atomicBatchDefaultOperator(ethCreate).via("atomicCreate").logged());
                     }),
                     // Validate the constructor transfer happened
                     getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
                     getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
                     // Log the create transaction record with child records
                     // showing the successful precompile call and synthetic logs
+//                    getTxnRecord(createTxn).andAllChildRecords().logged()));
+                    getTxnRecord("atomicCreate").andAllChildRecords().logged()));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> atomicScheduleContractCreateCryptoTransferTxn() {
+            final var scheduleName = "contractCreateSchedule";
+            final var schedulePayer = "schedulePayer";
+            final var CONSTRUCTOR_CONTRACT = "ConstructorTransferToken";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(schedulePayer).balance(10 * ONE_HBAR),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    uploadInitCode(CONSTRUCTOR_CONTRACT),
+                    // Predict contract entity (file + 2, accounting for schedule entity in between),
+                    // set up delegate key on sender/receiver BEFORE scheduling.
+                    withOpContext((spec, opLog) -> {
+                        final var fileId = spec.registry().getFileId(CONSTRUCTOR_CONTRACT);
+                        final var predictedContractNum = fileId.getFileNum() + 2;
+                        final var predictedContractId = ContractID.newBuilder()
+                                .setContractNum(predictedContractNum)
+                                .build();
+                        spec.registry().saveContractId(CONSTRUCTOR_CONTRACT, predictedContractId);
+
+                        allRunFor(
+                                spec,
+                                newKeyNamed(DELEGATE_KEY)
+                                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(
+                                                sigs(ON, CONSTRUCTOR_CONTRACT))),
+                                cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                                cryptoUpdate(RECEIVER).key(DELEGATE_KEY));
+                    }),
+                    // Schedule a contractCreate that deploys ConstructorTransferToken
+                    // with real token/sender/receiver addresses as constructor args.
+                    // (EthereumTransaction is not in SchedulableTransactionBody protobuf,
+                    // so contractCreate is the only option for scheduled contract deployment.)
+                    sourcing(() -> scheduleCreate(
+                                    scheduleName,
+                                    contractCreate(
+                                                    CONSTRUCTOR_CONTRACT,
+                                                    asHeadlongAddress(asAddress(tokenId.get())),
+                                                    asHeadlongAddress(asAddress(senderId.get())),
+                                                    asHeadlongAddress(asAddress(receiverId.get())),
+                                                    amountToBeSent)
+                                            .gas(GAS_TO_OFFER)
+                                            .omitAdminKey())
+                            .designatingPayer(schedulePayer)
+                            .via(scheduleName)
+                            .recordingScheduledTxn()),
+                    // Schedule is not yet executed (waiting for designated payer signature)
+                    getScheduleInfo(scheduleName).isNotExecuted(),
+                    // Override blacklist to allow ScheduleSign inside an AtomicBatch
+                    overriding("atomicBatch.blacklist", "Freeze,AtomicBatch,ScheduleCreate"),
+                    // Atomic batch containing ScheduleSign to trigger the scheduled contractCreate
+                    atomicBatchDefaultOperator(scheduleSign(scheduleName)
+                                    .alsoSigningWith(schedulePayer)
+                                    .via("signTx")
+                                    .hasKnownStatus(SUCCESS))
+                            .via("atomicSign")
+                            .logged(),
+                    // Verify the schedule was executed
+                    getScheduleInfo(scheduleName).isExecuted().hasRecordedScheduledTxn(),
+                    // Validate the constructor transfer happened
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                    // Log records
+//                    getTxnRecord("atomicSign").andAllChildRecords().logged(),
+//                    getTxnRecord("signTx").andAllChildRecords().logged(),
+                    // The scheduled contractCreate record contains the contractCreateResult
+                    // with logInfo entries (synthetic logs for the HTS token transfer)
+                    getTxnRecord(scheduleName).andAllChildRecords().logged()));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> atomicScheduleContractCallCryptoTransferTxn() {
+            final var scheduleName = "contractCallSchedule";
+            final var schedulePayer = "schedulePayer";
+            final var CONSTRUCTOR_CONTRACT = "ConstructorTransferToken";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(schedulePayer).balance(10 * ONE_HBAR),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    // Deploy the contract first (constructor transfer will fail gracefully
+                    // since delegate key isn't set up yet), then create delegate key
+                    uploadInitCode(CONSTRUCTOR_CONTRACT),
+                    withOpContext((spec, opLog) -> {
+                        final var tokenAddr = asHeadlongAddress(asAddress(tokenId.get()));
+                        final var senderAddr = asHeadlongAddress(asAddress(senderId.get()));
+                        final var receiverAddr = asHeadlongAddress(asAddress(receiverId.get()));
+                        allRunFor(
+                                spec,
+                                contractCreate(
+                                                CONSTRUCTOR_CONTRACT,
+                                                tokenAddr,
+                                                senderAddr,
+                                                receiverAddr,
+                                                amountToBeSent)
+                                        .gas(GAS_TO_OFFER));
+                    }),
+                    newKeyNamed(DELEGATE_KEY)
+                            .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONSTRUCTOR_CONTRACT))),
+                    cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                    cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
+                    // Schedule a contractCall to the transfer function on ConstructorTransferToken
+                    sourcing(() -> scheduleCreate(
+                                    scheduleName,
+                                    contractCall(
+                                                    CONSTRUCTOR_CONTRACT,
+                                                    "transfer",
+                                                    asHeadlongAddress(asAddress(tokenId.get())),
+                                                    asHeadlongAddress(asAddress(senderId.get())),
+                                                    asHeadlongAddress(asAddress(receiverId.get())),
+                                                    amountToBeSent).via("scheduleCall")
+                                            .gas(GAS_TO_OFFER))
+                            .designatingPayer(schedulePayer)
+                            .via(scheduleName)
+                            .recordingScheduledTxn()),
+                    // Schedule is not yet executed (waiting for designated payer signature)
+                    getScheduleInfo(scheduleName).isNotExecuted(),
+                    // Override blacklist to allow ScheduleSign inside an AtomicBatch
+                    overriding("atomicBatch.blacklist", "Freeze,AtomicBatch,ScheduleCreate"),
+                    // Atomic batch containing ScheduleSign to trigger the scheduled contractCall
+                    atomicBatchDefaultOperator(scheduleSign(scheduleName)
+                                    .alsoSigningWith(schedulePayer)
+                                    .via("signTx")
+                                    .hasKnownStatus(SUCCESS))
+                            .via("atomicSign")
+                            .logged(),
+                    // Verify the schedule was executed
+                    getScheduleInfo(scheduleName).isExecuted().hasRecordedScheduledTxn(),
+                    // Validate the transfer happened
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                    // Log records - the scheduled contractCall record with synthetic logs
+                    getTxnRecord(scheduleName).scheduled().andAllChildRecords().logged()));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> createCryptoTransferTxn() {
+            final var createTxn = "contractCreateTxn";
+            final var CONSTRUCTOR_CONTRACT = "ConstructorTransferToken";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    uploadInitCode(CONSTRUCTOR_CONTRACT),
+                    // Predict the contract entity number (file entity + 1), pre-register it,
+                    // set up delegate key on sender/receiver BEFORE deployment so the
+                    // constructor's transferToken precompile call is authorized.
+                    withOpContext((spec, opLog) -> {
+                        final var fileId = spec.registry().getFileId(CONSTRUCTOR_CONTRACT);
+                        final var predictedContractNum = fileId.getFileNum() + 1;
+                        final var predictedContractId = ContractID.newBuilder()
+                                .setContractNum(predictedContractNum)
+                                .build();
+                        spec.registry().saveContractId(CONSTRUCTOR_CONTRACT, predictedContractId);
+
+                        allRunFor(
+                                spec,
+                                newKeyNamed(DELEGATE_KEY)
+                                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(
+                                                sigs(ON, CONSTRUCTOR_CONTRACT))),
+                                cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                                cryptoUpdate(RECEIVER).key(DELEGATE_KEY));
+
+                        // Deploy via contractCreate with real constructor args
+                        final var tokenAddr = asHeadlongAddress(asAddress(tokenId.get()));
+                        final var senderAddr = asHeadlongAddress(asAddress(senderId.get()));
+                        final var receiverAddr = asHeadlongAddress(asAddress(receiverId.get()));
+                        allRunFor(
+                                spec,
+                                contractCreate(
+                                                CONSTRUCTOR_CONTRACT,
+                                                tokenAddr,
+                                                senderAddr,
+                                                receiverAddr,
+                                                amountToBeSent)
+                                        .gas(GAS_TO_OFFER)
+                                        .via(createTxn));
+                    }),
+                    // Validate the constructor transfer happened
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                    // Log the create transaction record with child records
                     getTxnRecord(createTxn).andAllChildRecords().logged()));
         }
 
@@ -744,10 +975,91 @@ class AtomicBatchPrecompileTest {
                             .via("signTx")
                             .hasKnownStatus(SUCCESS),
                     // Retrieve and log the triggering transaction record with child records
+                    getTxnRecord(scheduleName).scheduled()
+                            .andAllChildRecords()
+                            .logged(),
                     getTxnRecord("signTx")
                             .andAllChildRecords()
                             .logged(),
 //                    getTxnRecord(scheduleName).scheduled().andAllChildRecords().logged(),
+                    // Verify the schedule was executed
+                    getScheduleInfo(scheduleName).isExecuted().hasRecordedScheduledTxn(),
+                    // Validate token balances after the scheduled transfer
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50)));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> scheduleCreateDefaultOperator() {
+            final var scheduleName = "contractCreateSchedule";
+            final var schedulePayer = "schedulePayer";
+            final var CONSTRUCTOR_CONTRACT = "ConstructorTransferToken";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(schedulePayer).balance(10 * ONE_HBAR),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    uploadInitCode(CONSTRUCTOR_CONTRACT),
+                    // Predict contract entity (file + 2, accounting for schedule entity),
+                    // set up delegate key on sender/receiver BEFORE scheduling.
+                    withOpContext((spec, opLog) -> {
+                        final var fileId = spec.registry().getFileId(CONSTRUCTOR_CONTRACT);
+                        final var predictedContractNum = fileId.getFileNum() + 2;
+                        final var predictedContractId = ContractID.newBuilder()
+                                .setContractNum(predictedContractNum)
+                                .build();
+                        spec.registry().saveContractId(CONSTRUCTOR_CONTRACT, predictedContractId);
+
+                        allRunFor(
+                                spec,
+                                newKeyNamed(DELEGATE_KEY)
+                                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(
+                                                sigs(ON, CONSTRUCTOR_CONTRACT))),
+                                cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                                cryptoUpdate(RECEIVER).key(DELEGATE_KEY));
+                    }),
+                    // Schedule a contractCreate that deploys ConstructorTransferToken
+                    // with real constructor args; the constructor calls the transferToken
+                    // precompile, authorized via delegate key on sender/receiver.
+                    sourcing(() -> scheduleCreate(
+                                    scheduleName,
+                                    contractCreate(
+                                                    CONSTRUCTOR_CONTRACT,
+                                                    asHeadlongAddress(asAddress(tokenId.get())),
+                                                    asHeadlongAddress(asAddress(senderId.get())),
+                                                    asHeadlongAddress(asAddress(receiverId.get())),
+                                                    amountToBeSent)
+                                            .gas(GAS_TO_OFFER)
+                                            .omitAdminKey())
+                            .designatingPayer(schedulePayer)
+                            .via(scheduleName)
+                            .recordingScheduledTxn()),
+                    // Schedule is not yet executed (waiting for designated payer signature)
+                    getScheduleInfo(scheduleName).isNotExecuted(),
+                    // Sign with the designated payer to trigger execution
+                    scheduleSign(scheduleName)
+                            .alsoSigningWith(schedulePayer)
+                            .via("signTx")
+                            .hasKnownStatus(SUCCESS),
+                    // Retrieve and log the triggering transaction record with child records
+                    getTxnRecord(scheduleName).scheduled()
+                            .andAllChildRecords()
+                            .logged(),
                     // Verify the schedule was executed
                     getScheduleInfo(scheduleName).isExecuted().hasRecordedScheduledTxn(),
                     // Validate token balances after the scheduled transfer

@@ -10,8 +10,9 @@ contract Multipurpose {
     fallback() external payable {}
     constructor() public payable {}
 
-    function believeIn(uint32 no) public {
+    function believeIn(uint32 no) public returns (uint32) {
         luckyNumber = no;
+        return no;
     }
 
     function pick() public view returns (uint32) {

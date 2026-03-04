@@ -121,6 +121,12 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "TransferTokenHook", creationGas = 5_000_000L)
     static SpecContract TRANSFER_TOKEN_HOOK;
 
+    @Contract(contract = "TransferTokenMultipleHook", creationGas = 5_000_000L)
+    static SpecContract TRANSFER_TOKEN_MULTIPLE_HOOK;
+
+    @Contract(contract = "MultipleContractCallsHook", creationGas = 1_000_000L)
+    static SpecContract MULTIPLE_CONTRACT_CALLS_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -130,6 +136,8 @@ public class Hip1195StreamParityTest {
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRANSFER_TOKEN_HOOK.getInfo());
+        testLifecycle.doAdhoc(TRANSFER_TOKEN_MULTIPLE_HOOK.getInfo());
+        testLifecycle.doAdhoc(MULTIPLE_CONTRACT_CALLS_HOOK.getInfo());
     }
 
     @HapiTest
@@ -550,5 +558,289 @@ public class Hip1195StreamParityTest {
                 // Verify that the counterparty received the tokens from the hook's transferToken call
                 getAccountInfo("counterparty")
                         .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(HOOK_TOKEN_AMOUNT)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionsWithAliasesMultiple() {
+        // Calldata layout for TransferTokenMultipleHook:
+        //   (address token, address receiver1, address receiver2, address receiver3, int64 transferAmount)
+        // The hook calls transferToken 3 times (owner->receiver1, owner->receiver2, owner->receiver3)
+        final var HOOK_CALLDATA_TYPE = TupleType.parse("(address,address,address,address,int64)");
+        final var FUNGIBLE_TOKEN = "fungibleToken";
+        final var FUNGIBLE_TOKEN_2 = "fungibleToken2";
+        final long HOOK_GAS_LIMIT = 3_000_000L;
+        final long HOOK_TOKEN_AMOUNT = 5L;
+        final long TOTAL_SUPPLY = 1_000L;
+
+        return hapiTest(
+                newKeyNamed("alias"),
+                // Create party with balance
+                cryptoCreate("party")
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .maxAutomaticTokenAssociations(5),
+                // Create three counterparties who will receive tokens from the hook's inner transfers
+                cryptoCreate("counterparty1").maxAutomaticTokenAssociations(5),
+                cryptoCreate("counterparty2").maxAutomaticTokenAssociations(5),
+                cryptoCreate("counterparty3").maxAutomaticTokenAssociations(5),
+                // Create fungible tokens
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN_2)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .treasury(TOKEN_TREASURY),
+                // Auto-create aliased account via HBAR transfer
+                cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS).between("party", "alias"))
+                        .signedBy(DEFAULT_PAYER, "party")
+                        .via("aliasCreation"),
+                getTxnRecord("aliasCreation")
+                        .hasChildRecords(recordWith().status(SUCCESS).memo(AUTO_MEMO)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, "alias")),
+                // Associate alias and counterparties with the token, then fund the alias
+                tokenAssociate("alias", List.of(FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2)),
+                tokenAssociate("counterparty1", List.of(FUNGIBLE_TOKEN)),
+                tokenAssociate("counterparty2", List.of(FUNGIBLE_TOKEN)),
+                tokenAssociate("counterparty3", List.of(FUNGIBLE_TOKEN)),
+                cryptoTransfer(
+                        moving(100, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, "alias"),
+                        moving(100, FUNGIBLE_TOKEN_2).between(TOKEN_TREASURY, "alias")),
+                // Attach TransferTokenMultipleHook to the aliased account
+                cryptoUpdateAliased("alias")
+                        .withHooks(
+                                accountAllowanceHook(1L, TRANSFER_TOKEN_MULTIPLE_HOOK.name()),
+                                accountAllowanceHook(2L, TRANSFER_TOKEN_MULTIPLE_HOOK.name()),
+                                accountAllowanceHook(3L, TRANSFER_TOKEN_MULTIPLE_HOOK.name()))
+                        .signedBy(DEFAULT_PAYER, "alias"),
+                // Trigger three hooks: the main HBAR transfer triggers hook 1,
+                // a FUNGIBLE_TOKEN transfer triggers hook 2, and a FUNGIBLE_TOKEN_2
+                // transfer triggers hook 3. Each hook performs 3 separate
+                // transferToken calls (each HOOK_TOKEN_AMOUNT) via the HTS precompile.
+                withOpContext((spec, opLog) -> {
+                    final var aliasId = spec.registry().getAccountID("alias");
+                    final var partyId = spec.registry().getAccountID("party");
+
+                    // Build the EVM addresses for the hook calldata
+                    final long tokenNum =
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum();
+                    final var tokenAddr = Address.wrap(Address.toChecksumAddress(
+                            new java.math.BigInteger(1, asEvmAddress(tokenNum))));
+                    final long cp1Num =
+                            spec.registry().getAccountID("counterparty1").getAccountNum();
+                    final var cp1Addr = Address.wrap(
+                            Address.toChecksumAddress(new java.math.BigInteger(1, asEvmAddress(cp1Num))));
+                    final long cp2Num =
+                            spec.registry().getAccountID("counterparty2").getAccountNum();
+                    final var cp2Addr = Address.wrap(
+                            Address.toChecksumAddress(new java.math.BigInteger(1, asEvmAddress(cp2Num))));
+                    final long cp3Num =
+                            spec.registry().getAccountID("counterparty3").getAccountNum();
+                    final var cp3Addr = Address.wrap(
+                            Address.toChecksumAddress(new java.math.BigInteger(1, asEvmAddress(cp3Num))));
+
+                    // Shared hook calldata for all 3 hooks:
+                    //   (token, receiver1, receiver2, receiver3, transferAmount)
+                    final var hookCalldata = ByteString.copyFrom(
+                            HOOK_CALLDATA_TYPE.encode(Tuple.of(
+                                    tokenAddr, cp1Addr, cp2Addr, cp3Addr, HOOK_TOKEN_AMOUNT)));
+
+                    allRunFor(
+                            spec,
+                            cryptoTransfer((s, b) -> {
+                                        // HBAR transfer with hook 1
+                                        b.setTransfers(TransferList.newBuilder()
+                                                .addAccountAmounts(AccountAmount.newBuilder()
+                                                        .setAccountID(aliasId)
+                                                        .setAmount(-10L)
+                                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                                .setHookId(1L)
+                                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                                        .setGasLimit(HOOK_GAS_LIMIT)
+                                                                        .setData(hookCalldata))))
+                                                .addAccountAmounts(AccountAmount.newBuilder()
+                                                        .setAccountID(partyId)
+                                                        .setAmount(+10L)));
+                                        // Token transfer (FUNGIBLE_TOKEN) with hook 2
+                                        b.addTokenTransfers(TokenTransferList.newBuilder()
+                                                .setToken(s.registry().getTokenID(FUNGIBLE_TOKEN))
+                                                .addTransfers(AccountAmount.newBuilder()
+                                                        .setAccountID(aliasId)
+                                                        .setAmount(-1L)
+                                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                                .setHookId(2L)
+                                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                                        .setGasLimit(HOOK_GAS_LIMIT)
+                                                                        .setData(hookCalldata))))
+                                                .addTransfers(AccountAmount.newBuilder()
+                                                        .setAccountID(partyId)
+                                                        .setAmount(+1L)));
+                                        // Token transfer (FUNGIBLE_TOKEN_2) with hook 3
+                                        b.addTokenTransfers(TokenTransferList.newBuilder()
+                                                .setToken(s.registry().getTokenID(FUNGIBLE_TOKEN_2))
+                                                .addTransfers(AccountAmount.newBuilder()
+                                                        .setAccountID(aliasId)
+                                                        .setAmount(-1L)
+                                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                                .setHookId(3L)
+                                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                                        .setGasLimit(HOOK_GAS_LIMIT)
+                                                                        .setData(hookCalldata))))
+                                                .addTransfers(AccountAmount.newBuilder()
+                                                        .setAccountID(partyId)
+                                                        .setAmount(+1L)));
+                                    })
+                                    .signedBy(DEFAULT_PAYER)
+                                    .via("hookTransfer"));
+                }),
+                // Log the full transaction record including all child records from hook execution.
+                // Each of the 3 hooks produces 1 ContractCall child + 3 inner transferToken children = 4 each.
+                // Total: 12 child records.
+                getTxnRecord("hookTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(
+                                // Hook 1 (HBAR transfer trigger): execution + 3 inner transfers
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS),
+                                // Hook 2 (FUNGIBLE_TOKEN transfer trigger): execution + 3 inner transfers
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS),
+                                // Hook 3 (FUNGIBLE_TOKEN_2 transfer trigger): execution + 3 inner transfers
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS),
+                                recordWith().status(SUCCESS))
+                        .logged(),
+                // Verify that each counterparty received tokens from all 3 hooks' transferToken calls
+                // (5 tokens per hook × 3 hooks = 15 tokens each)
+                getAccountInfo("counterparty1")
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(3 * HOOK_TOKEN_AMOUNT)),
+                getAccountInfo("counterparty2")
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(3 * HOOK_TOKEN_AMOUNT)),
+                getAccountInfo("counterparty3")
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(3 * HOOK_TOKEN_AMOUNT)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookMultipleContractCalls() {
+        // Hook triggered on CryptoTransfer; allow() makes 2 nested contract calls to
+        // Multipurpose (believeIn(1), believeIn(2)) - 3 contract calls total, no precompiles.
+        // Hooks 1, 2, 3 (same contract) are triggered by HBAR transfer, token1 transfer, token2 transfer.
+        final var HOOK_CALLDATA_TYPE = TupleType.parse("(address)");
+        final var TOKEN_1 = "token1";
+        final var TOKEN_2 = "token2";
+        final long HOOK_GAS_LIMIT = 500_000L;
+        final long TOTAL_SUPPLY = 1_000L;
+
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("party").balance(10 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(2),
+                cryptoCreate("counterparty"),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN_1)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(TOKEN_2)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .treasury(TOKEN_TREASURY),
+                // Auto-create aliased account via HBAR transfer
+                cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS).between("party", "alias"))
+                        .signedBy(DEFAULT_PAYER, "party")
+                        .via("aliasCreation"),
+                getTxnRecord("aliasCreation")
+                        .hasChildRecords(recordWith().status(SUCCESS).memo(AUTO_MEMO)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, "alias")),
+                tokenAssociate("alias", List.of(TOKEN_1, TOKEN_2)),
+                tokenAssociate("party", List.of(TOKEN_1, TOKEN_2)),
+                cryptoTransfer(
+                        moving(100, TOKEN_1).between(TOKEN_TREASURY, "alias"),
+                        moving(100, TOKEN_2).between(TOKEN_TREASURY, "alias")),
+                // Attach MultipleContractCallsHook as hooks 1, 2 and 3 on the aliased account
+                cryptoUpdateAliased("alias")
+                        .withHooks(
+                                accountAllowanceHook(1L, MULTIPLE_CONTRACT_CALLS_HOOK.name()),
+                                accountAllowanceHook(2L, MULTIPLE_CONTRACT_CALLS_HOOK.name()),
+                                accountAllowanceHook(3L, MULTIPLE_CONTRACT_CALLS_HOOK.name()))
+                        .signedBy(DEFAULT_PAYER, "alias"),
+                // Trigger hook 1 via HBAR, hook 2 via token1, hook 3 via token2 (no repeated account in same list)
+                withOpContext((spec, opLog) -> {
+                    final var aliasId = spec.registry().getAccountID("alias");
+                    final var partyId = spec.registry().getAccountID("party");
+                    final var hookData = ByteString.copyFrom(HOOK_CALLDATA_TYPE.encode(
+                            Single.of(MULTIPURPOSE.addressOn(spec.targetNetworkOrThrow()))));
+                    final var evmHookCall = EvmHookCall.newBuilder()
+                            .setGasLimit(HOOK_GAS_LIMIT)
+                            .setData(hookData)
+                            .build();
+                    allRunFor(
+                            spec,
+                            cryptoTransfer((s, b) -> {
+                                // HBAR transfer with hook 1
+                                b.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(aliasId)
+                                                .setAmount(-10L)
+                                                .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                        .setHookId(1L)
+                                                        .setEvmHookCall(evmHookCall)))
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(partyId)
+                                                .setAmount(+10L)));
+                                // Token transfer (TOKEN_1) with hook 2
+                                b.addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(s.registry().getTokenID(TOKEN_1))
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(aliasId)
+                                                .setAmount(-1L)
+                                                .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                        .setHookId(2L)
+                                                        .setEvmHookCall(evmHookCall)))
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(partyId)
+                                                .setAmount(+1L)));
+                                // Token transfer (TOKEN_2) with hook 3
+                                b.addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(s.registry().getTokenID(TOKEN_2))
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(aliasId)
+                                                .setAmount(-1L)
+                                                .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                        .setHookId(3L)
+                                                        .setEvmHookCall(evmHookCall)))
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(partyId)
+                                                .setAmount(+1L)));
+                            })
+                                    .signedBy(DEFAULT_PAYER)
+                                    .via("hookTransfer"));
+                }),
+                // 3 child records: one per hook execution (hook 1, 2, 3)
+                getTxnRecord("hookTransfer")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(3)
+                        .hasChildRecords(
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
+                        .logged());
     }
 }

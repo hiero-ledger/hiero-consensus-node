@@ -456,7 +456,7 @@ public class ERCPrecompileSuite {
                                                                         spec.registry()
                                                                                 .getAccountID(RECIPIENT))))
                                                         .longValue(2)))))
-                                .andAllChildRecords())),
+                                .andAllChildRecords().logged())),
                 childRecordsCheck(
                         TRANSFER_TXN,
                         SUCCESS,
