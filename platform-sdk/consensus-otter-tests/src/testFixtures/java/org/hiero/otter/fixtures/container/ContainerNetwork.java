@@ -51,6 +51,8 @@ public class ContainerNetwork extends AbstractNetwork {
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
     private final boolean proxyEnabled;
+    private final boolean gcLoggingEnabled;
+    private final List<String> jvmArgs;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -60,13 +62,17 @@ public class ContainerNetwork extends AbstractNetwork {
      * @param rootOutputDirectory  the root output directory for the network
      * @param useRandomNodeIds     {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      * @param proxyEnabled         {@code true} if the toxiproxy should be enabled; {@code false} otherwise
+     * @param gcLoggingEnabled     {@code true} if GC logging should be enabled for all node processes; {@code false} otherwise
+     * @param jvmArgs              additional JVM arguments to pass to all node processes
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory,
             final boolean useRandomNodeIds,
-            final boolean proxyEnabled) {
+            final boolean proxyEnabled,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
@@ -75,6 +81,8 @@ public class ContainerNetwork extends AbstractNetwork {
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
         transactionGenerator.setNodesSupplier(this::nodes);
         this.proxyEnabled = proxyEnabled;
+        this.gcLoggingEnabled = gcLoggingEnabled;
+        this.jvmArgs = List.copyOf(requireNonNull(jvmArgs));
     }
 
     /**
@@ -120,7 +128,9 @@ public class ContainerNetwork extends AbstractNetwork {
                 dockerImage,
                 outputDir,
                 networkConfiguration,
-                consensusRoundPool);
+                consensusRoundPool,
+                gcLoggingEnabled,
+                jvmArgs);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -141,7 +151,9 @@ public class ContainerNetwork extends AbstractNetwork {
                 dockerImage,
                 outputDir,
                 networkConfiguration,
-                consensusRoundPool);
+                consensusRoundPool,
+                gcLoggingEnabled,
+                jvmArgs);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

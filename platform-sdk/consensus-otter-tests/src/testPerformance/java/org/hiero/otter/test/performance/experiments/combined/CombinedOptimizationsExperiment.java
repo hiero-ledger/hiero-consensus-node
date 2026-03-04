@@ -23,7 +23,17 @@ import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
  */
 @SuppressWarnings("NewClassNamingConvention")
 @OtterSpecs(randomNodeIds = false)
-@ContainerSpecs(proxyEnabled = false)
+@ContainerSpecs(
+        proxyEnabled = false,
+        gcLogging = true,
+        jvmArgs = {
+            "-XX:+UseZGC",
+            "-XX:+ZGenerational",
+            "-XX:+AlwaysPreTouch",
+            "-XX:ConcGCThreads=4",
+            "-Xms16g",
+            "-Xmx16g"
+        })
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
