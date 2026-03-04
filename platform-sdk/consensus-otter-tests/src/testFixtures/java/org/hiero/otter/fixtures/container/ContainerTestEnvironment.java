@@ -82,8 +82,13 @@ public class ContainerTestEnvironment implements TestEnvironment {
         }
 
         network = new ContainerNetwork(
-                timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds, proxyEnabled,
-                gcLoggingEnabled, jvmArgs);
+                timeManager,
+                transactionGenerator,
+                rootOutputDirectory,
+                useRandomNodeIds,
+                proxyEnabled,
+                gcLoggingEnabled,
+                jvmArgs);
     }
 
     /**
