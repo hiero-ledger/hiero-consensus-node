@@ -181,15 +181,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastRunningHashes = runningHashState.get();
             assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         }
-        // Initialize wrapped record block hash tracking.
-        //  - If a migration result exists and the flag is enabled, seed from the migration (first startup after
-        // upgrade, before state is populated).
-        //  - Otherwise if liveWritePrevWrappedRecordHashes is enabled (non-genesis), seed from
-        //    BlockInfo state (subsequent restarts, where the hash was persisted at freeze).
-        //  - Otherwise use empty defaults.
+        // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS
                 && migrationResult != null
                 && recordStreamConfig.computeHashesFromWrappedRecordBlocks()) {
+            // If a migration result exists and the flag is enabled, seed from the migration (first startup after
+            // upgrade, before state is populated)
             final var migrationIntermediateHashes =
                     migrationResult.wrappedIntermediatePreviousBlockRootHashes().stream()
                             .map(Bytes::toByteArray)
@@ -204,6 +201,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     this.previousWrappedRecordBlockRootHash,
                     migrationResult.wrappedIntermediateBlockRootsLeafCount());
         } else if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
+            // Otherwise if liveWritePrevWrappedRecordHashes is enabled (non-genesis), seed from
+            // BlockInfo state
             final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                     .map(Bytes::toByteArray)
                     .toList();
@@ -215,6 +214,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     this.previousWrappedRecordBlockRootHash,
                     this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         } else if (initTrigger == InitTrigger.GENESIS) {
+            // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(SHA_384_DIGEST, List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
         }
