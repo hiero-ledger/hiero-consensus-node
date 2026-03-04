@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static com.swirlds.common.utility.InstantUtils.instantToMicros;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -10,12 +11,16 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * An implementation of the {@link ExecutionLayer} for the Otter tests.
@@ -28,6 +33,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
     private final TransactionPoolNexus transactionPool;
 
     private final Random random;
+
+    private final AtomicLong nonceGenerator = new AtomicLong(0);
 
     /**
      * Constructs a new OtterExecutionLayer.
@@ -63,6 +70,17 @@ public class OtterExecutionLayer implements ExecutionLayer {
      */
     public boolean submitApplicationTransaction(@NonNull final byte[] transaction) {
         return transactionPool.submitApplicationTransaction(Bytes.wrap(transaction));
+    }
+
+    public boolean generateTransaction(){
+        final Instant now = Instant.now();
+        final OtterTransaction t = OtterTransaction.newBuilder()
+                .setNonce(nonceGenerator.getAndIncrement())
+                .setBenchmarkTransaction(
+                        BenchmarkTransaction.newBuilder().setSubmissionTimeMicros(instantToMicros(now))
+                )
+                .build();
+        return transactionPool.submitApplicationTransaction(Bytes.wrap(t.toByteArray()));
     }
 
     /**

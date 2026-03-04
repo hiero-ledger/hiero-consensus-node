@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -212,6 +213,21 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             responseObserver.onNext(TransactionRequestAnswer.newBuilder()
                     .setNumFailed(numFailed)
                     .build());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public synchronized void generateTransaction(final Empty request, final StreamObserver<BoolValue> responseObserver) {
+        log.debug(DEMO_INFO.getMarker(), "Received generate transaction request");
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+
+        wrapWithErrorHandling(responseObserver, () -> {
+            final boolean generated = consensusNodeManager.generateTransaction();
+            responseObserver.onNext(BoolValue.of(generated));
             responseObserver.onCompleted();
         });
     }

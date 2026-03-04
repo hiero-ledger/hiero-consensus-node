@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test.performance.benchmark;
 
-import static com.swirlds.common.utility.InstantUtils.instantToMicros;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -14,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -25,8 +23,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
-import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
-import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
@@ -147,8 +143,7 @@ public class ConsensusLayerBenchmark {
                 params.transactionCount(),
                 params.maxTps());
 
-        final LoadThrottler throttler = new LoadThrottler(
-                env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
+        final LoadThrottler throttler = new LoadThrottler(env);
         throttler.submitWithRate(params.transactionCount(), params.maxTps());
         // Wait for all transactions to be processed
         timeManager.waitFor(Duration.ofSeconds(params.collectionTime()));
@@ -177,23 +172,5 @@ public class ConsensusLayerBenchmark {
     @FunctionalInterface
     public interface NetworkConfigurator {
         void configure(@NonNull Network network);
-    }
-
-    /**
-     * Creates a new benchmark transaction with the specified submission timestamp.
-     *
-     * @param nonce the nonce for the benchmark transaction
-     * @param submissionTime the submission timestamp
-     * @return a benchmark transaction
-     */
-    @NonNull
-    public static OtterTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
-        final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
-                .setSubmissionTimeMicros(instantToMicros(submissionTime))
-                .build();
-        return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setBenchmarkTransaction(benchmarkTransaction)
-                .build();
     }
 }

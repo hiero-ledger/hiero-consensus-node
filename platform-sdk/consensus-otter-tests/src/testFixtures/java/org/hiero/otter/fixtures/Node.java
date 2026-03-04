@@ -119,6 +119,8 @@ public interface Node {
      */
     void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
+    void generateTransaction();
+
     /**
      * Overrides the default timeout for node operations.
      *

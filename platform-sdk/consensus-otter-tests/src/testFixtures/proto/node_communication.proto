@@ -10,6 +10,7 @@ import "platform/event/gossip_event.proto";
 import "platform/event/event_consensus_data.proto";
 import "platform/event/event_descriptor.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 
 option java_multiple_files = true;
 
@@ -208,6 +209,8 @@ service NodeCommunicationService {
   // RPC used by the test harness to submit a transaction to the running
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+
+  rpc GenerateTransaction(google.protobuf.Empty) returns (google.protobuf.BoolValue);
 
   // RPC to change the synthetic bottleneck of the handle thread.
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);

@@ -18,6 +18,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.Empty;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
@@ -372,6 +373,21 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
+        }
+    }
+
+    @Override
+    public void generateTransaction() {
+        throwIfInLifecycle(INIT, "Node has not been started yet.");
+        throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
+        throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
+        try {
+            final BoolValue answer = nodeCommBlockingStub.generateTransaction(Empty.getDefaultInstance());
+            if (!answer.getValue()) {
+                fail("Failed to generate transaction on node %d.".formatted(selfId.id()));
+            }
+        } catch (final Exception e) {
+            fail("Failed to generate transaction on node %d.".formatted(selfId.id()), e);
         }
     }
 

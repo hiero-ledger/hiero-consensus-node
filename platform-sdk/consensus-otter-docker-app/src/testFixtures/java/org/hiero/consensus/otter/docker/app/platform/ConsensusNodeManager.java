@@ -204,6 +204,10 @@ public class ConsensusNodeManager {
         return executionCallback.submitApplicationTransaction(transaction);
     }
 
+    public boolean generateTransaction(){
+        return executionCallback.generateTransaction();
+    }
+
     /**
      * Registers a listener to receive notifications about new consensus rounds.
      *

@@ -24,19 +24,16 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 public class LoadThrottler {
 
     private final Network network;
-    private final Supplier<OtterTransaction> transactionFactory;
 
     /**
      * Creates a new LoadThrottler.
      *
      * @param environment the environment containing nodes to submit transactions to
-     * @param transactionFactory the transaction factory used to create the transactions to submit
      *
      */
     public LoadThrottler(
-            @NonNull final TestEnvironment environment, @NonNull final Supplier<OtterTransaction> transactionFactory) {
+            @NonNull final TestEnvironment environment) {
         this.network = Objects.requireNonNull(environment).network();
-        this.transactionFactory = Objects.requireNonNull(transactionFactory);
     }
 
     /**
@@ -76,8 +73,8 @@ public class LoadThrottler {
             // Select node with even distribution
             final Node targetNode = candidates.get(i % candidates.size());
 
-            // Submit transaction and track count
-            targetNode.submitTransaction(transactionFactory.get());
+            // Generate transaction and track count
+            targetNode.generateTransaction();
 
             // Rate limit to achieve target rate (compensating for work time)
             final long expectedNanos = (i + 1) * intervalNanos;

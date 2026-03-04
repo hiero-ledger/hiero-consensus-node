@@ -398,6 +398,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    @Override
+    public void generateTransaction() {
+        throwIsNotInLifecycle(RUNNING, "Cannot generate transaction when the network is not running.");
+        assert executionLayer != null; // executionLayer must be initialized if lifeCycle is STARTED
+        executionLayer.generateTransaction();
+    }
+
     /**
      * {@inheritDoc}
      */
