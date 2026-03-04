@@ -4,6 +4,7 @@ package com.swirlds.component.framework.model.internal.standard;
 import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCommonHyperlink;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -49,8 +50,8 @@ public abstract class AbstractHeartbeatScheduler {
      * factors.
      *
      * @param period           the period of the heartbeat. For example, setting a period of 100ms will cause the
-     *                         heartbeat to be sent at 10 hertz. Note that time is measured at millisecond precision,
-     *                         and so periods less than 1ms are not supported.
+     *                         heartbeat to be sent at 10 hertz. Note that time is measured at microsecond precision,
+     *                         and so periods less than 1us are not supported.
      * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      * @throws IllegalStateException if start has already been called
@@ -66,35 +67,14 @@ public abstract class AbstractHeartbeatScheduler {
             throw new IllegalArgumentException("Period must be positive");
         }
 
-        if (period.toMillis() == 0) {
-            throw new IllegalArgumentException(
-                    "Time is measured at millisecond precision, and so periods less than 1ms are not supported. "
-                            + "Requested period: " + period);
+        if (period.toNanos() <= 0 || period.toNanos() % InstantUtils.NANOS_IN_MICRO > 0) {
+            throw new IllegalArgumentException("Period granularity of less than a 1us is not supported");
         }
 
         final HeartbeatTask task = new HeartbeatTask(model, HEARTBEAT_SCHEDULER_NAME, time, period, exceptionHandler);
         tasks.add(task);
 
         return task.getOutputWire();
-    }
-
-    /**
-     * Build a wire that produces an instant (reflecting current time) at the specified rate. Note that the exact rate
-     * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
-     * factors.
-     *
-     * @param frequency        the frequency of the heartbeat in hertz. Note that time is measured at millisecond
-     *                         precision, and so frequencies greater than 1000hz are not supported.
-     * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
-     * @return the output wire
-     */
-    public OutputWire<Instant> buildHeartbeatWire(
-            final double frequency, @NonNull final UncaughtExceptionHandler exceptionHandler) {
-        if (frequency <= 0) {
-            throw new IllegalArgumentException("Frequency must be positive");
-        }
-        final Duration period = Duration.ofMillis((long) (1000.0 / frequency));
-        return buildHeartbeatWire(period, exceptionHandler);
     }
 
     /**
