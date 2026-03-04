@@ -143,7 +143,15 @@ final class BlockRecordManagerTest extends AppTestBase {
                         RUNNING_HASHES_STATE_ID, new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
                 .withSingletonState(
                         BLOCKS_STATE_ID,
-                        new BlockInfo(-1, EPOCH, STARTING_RUNNING_HASH_OBJ.hash(), null, false, EPOCH, EPOCH, EPOCH))
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .migrationRecordsStreamed(false)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .commit();
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
@@ -175,9 +183,9 @@ final class BlockRecordManagerTest extends AppTestBase {
             app.stateMutator(NAME)
                     .withSingletonState(
                             BLOCKS_STATE_ID,
-                            new BlockInfo(
-                                    STARTING_BLOCK - 1,
-                                    new Timestamp(
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(STARTING_BLOCK - 1)
+                                    .firstConsTimeOfLastBlock(new Timestamp(
                                             TEST_BLOCKS
                                                             .get(0)
                                                             .get(0)
@@ -185,13 +193,14 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                             .consensusTimestamp()
                                                             .seconds()
                                                     - 2,
-                                            0),
-                                    STARTING_RUNNING_HASH_OBJ.hash(),
-                                    CONSENSUS_TIME,
-                                    true,
-                                    FIRST_CONS_TIME_OF_LAST_BLOCK,
-                                    EPOCH,
-                                    EPOCH))
+                                            0))
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                                    .migrationRecordsStreamed(true)
+                                    .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .build())
                     .commit();
         }
 
@@ -274,9 +283,9 @@ final class BlockRecordManagerTest extends AppTestBase {
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
-                        new BlockInfo(
-                                BLOCK_NUM - 1,
-                                new Timestamp(
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(BLOCK_NUM - 1)
+                                .firstConsTimeOfLastBlock(new Timestamp(
                                         TEST_BLOCKS
                                                         .get(0)
                                                         .get(0)
@@ -284,13 +293,14 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                         .consensusTimestamp()
                                                         .seconds()
                                                 - 2,
-                                        0),
-                                STARTING_RUNNING_HASH_OBJ.hash(),
-                                CONSENSUS_TIME,
-                                true,
-                                FIRST_CONS_TIME_OF_LAST_BLOCK,
-                                EPOCH,
-                                EPOCH))
+                                        0))
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .commit();
 
         final Random random = new Random(82792874);
@@ -417,8 +427,14 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @Test
     void isDefaultConsTimeForNullConsensusTimeOfLastHandledTxn() {
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(
-                new BlockInfo(0, CONSENSUS_TIME, Bytes.EMPTY, null, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
@@ -428,15 +444,29 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .seconds(EPOCH.seconds())
                 .nanos(EPOCH.nanos() + 1)
                 .build();
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(new BlockInfo(
-                0, CONSENSUS_TIME, Bytes.EMPTY, timestampAfterEpoch, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(timestampAfterEpoch)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isFalse();
     }
 
     @Test
     void isDefaultConsTimeForTimestampAtEpoch() {
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(
-                new BlockInfo(0, CONSENSUS_TIME, Bytes.EMPTY, EPOCH, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(EPOCH)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
@@ -446,14 +476,29 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .seconds(EPOCH.seconds())
                 .nanos(EPOCH.nanos() - 1)
                 .build();
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(new BlockInfo(
-                0, CONSENSUS_TIME, Bytes.EMPTY, timestampBeforeEpoch, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(timestampBeforeEpoch)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
     @Test
     void consTimeOfLastHandledTxnIsSet() {
-        final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, CONSENSUS_TIME, false, EPOCH, EPOCH, EPOCH);
+        final var blockInfo = BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(EPOCH)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(EPOCH)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build();
         final var state = simpleBlockInfoState(blockInfo);
         final var subject = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -472,7 +517,14 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @Test
     void consTimeOfLastHandledTxnIsNotSet() {
-        final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, null, false, EPOCH, EPOCH, EPOCH);
+        final var blockInfo = BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(EPOCH)
+                .blockHashes(Bytes.EMPTY)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(EPOCH)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build();
         final var state = simpleBlockInfoState(blockInfo);
         final var subject = new BlockRecordManagerImpl(
                 app.configProvider(),

@@ -35,6 +35,7 @@ import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
@@ -230,6 +231,13 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
+
+        // The migration itself is gated by appropriate feature flags
+        hedera.wrappedRecordBlockHashMigration()
+                .execute(
+                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
+
         platform.start();
         hedera.run();
     }
