@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PR
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
@@ -19,13 +20,19 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeFullFeeUsd;
@@ -35,6 +42,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenRevokeKycFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFungibleFullFeeUsd;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
@@ -347,5 +355,108 @@ public class TokenOpsShortPrefixTest {
                         .via("feeScheduleUpdateTxn"),
                 validateChargedUsdWithin(
                         "feeScheduleUpdateTxn", expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)), 5.0));
+    }
+
+    // -------- Non-token operations with UNIQUE_PREFIXES --------
+
+    @HapiTest
+    @DisplayName("CryptoTransfer HBAR succeeds with short (unique) prefixes")
+    final Stream<DynamicTest> cryptoTransferHbarWithShortPrefixes() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ACCOUNT).balance(0L),
+                cryptoTransfer(tinyBarsFromTo(PAYER, ACCOUNT, 1L))
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("hbarXferTxn"),
+                validateChargedUsdWithin(
+                        "hbarXferTxn", expectedCryptoTransferHbarFullFeeUsd(1L, 0L, 2L, 0L, 0L), 5.0));
+    }
+
+    @HapiTest
+    @DisplayName("CryptoTransfer fungible token succeeds with short (unique) prefixes")
+    final Stream<DynamicTest> cryptoTransferFungibleTokenWithShortPrefixes() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(TREASURY)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS),
+                tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, TREASURY)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("ftXferTxn"),
+                validateChargedUsdWithin(
+                        "ftXferTxn", expectedCryptoTransferFTFullFeeUsd(2L, 0L, 2L, 1L, 0L), 5.0));
+    }
+
+    @HapiTest
+    @DisplayName("CryptoUpdate succeeds with short (unique) prefixes")
+    final Stream<DynamicTest> cryptoUpdateWithShortPrefixes() {
+        final var newKey = "newKey";
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(newKey),
+                cryptoUpdate(PAYER)
+                        .key(newKey)
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, newKey)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("cryptoUpdateTxn"),
+                validateChargedUsdWithin(
+                        "cryptoUpdateTxn", expectedCryptoUpdateFullFeeUsd(Map.of(SIGNATURES, 2L)), 5.0));
+    }
+
+    @HapiTest
+    @DisplayName("TokenCreate fungible succeeds with short (unique) prefixes")
+    final Stream<DynamicTest> tokenCreateFungibleWithShortPrefixes() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TREASURY).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TREASURY)
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, ADMIN_KEY, TREASURY)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("tokenCreateTxn"),
+                validateChargedUsdWithin(
+                        "tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(3L, 1L), 5.0));
+    }
+
+    @HapiTest
+    @DisplayName("TokenUpdate succeeds with short (unique) prefixes")
+    final Stream<DynamicTest> tokenUpdateWithShortPrefixes() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TREASURY).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TREASURY)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS),
+                tokenUpdate(TOKEN)
+                        .memo("Updated memo")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, ADMIN_KEY)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("tokenUpdateTxn"),
+                validateChargedUsdWithin("tokenUpdateTxn", expectedTokenUpdateFullFeeUsd(2L, 0L), 10.0));
     }
 }
