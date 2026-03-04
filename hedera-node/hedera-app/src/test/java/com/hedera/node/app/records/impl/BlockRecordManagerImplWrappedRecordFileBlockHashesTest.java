@@ -337,6 +337,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1);
             mgr.startUserTransaction(t1, state);
         }
+
         verify(diskWriter, never()).appendAsync(any());
     }
 
@@ -396,9 +397,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
             mgr.startUserTransaction(t1, state);
         }
-        // Neither appendAsync nor appendPrecomputed should be called when only live mode is on
+
+        // appendAsync should never be called when only live mode is on
         verify(diskWriter, never()).appendAsync(any());
-        verify(diskWriter, never()).appendPrecomputed(any());
     }
 
     @Test
@@ -458,9 +459,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
             mgr.startUserTransaction(t1, state);
         }
+
         // When live mode is on, hashes are computed in-memory via recordWrappedBlockHashes —
-        // the disk writer is never used (live mode takes precedence over disk-only mode)
-        verify(diskWriter, never()).appendPrecomputed(any());
+        // the disk writer is never used (live mode takes precedence over disk hashes mode)
         verify(diskWriter, never()).appendAsync(any());
     }
 
@@ -520,7 +521,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
         // No disk writer calls and no assertions about BlockInfo wrapped hash fields being non-empty
         verify(diskWriter, never()).appendAsync(any());
-        verify(diskWriter, never()).appendPrecomputed(any());
 
         // Verify BlockInfo wrapped hash fields remain at defaults
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
