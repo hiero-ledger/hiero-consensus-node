@@ -4,8 +4,10 @@ package com.hedera.node.app.service.token.impl;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.NATIVE_COIN_DECIMALS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.token.NativeCoinDecimals;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -45,21 +47,26 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.ZoneId;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /** An implementation of the {@link TokenService} interface. */
 public class TokenServiceImpl implements TokenService {
+    private static final Logger log = LogManager.getLogger(TokenServiceImpl.class);
+
     public static final long THREE_MONTHS_IN_SECONDS = 7776000L;
     public static final long MAX_SERIAL_NO_ALLOWED = 0xFFFFFFFFL;
-    public static final long HBARS_TO_TINYBARS = 100_000_000L;
     public static final ZoneId ZONE_UTC = ZoneId.of("UTC");
 
     public TokenServiceImpl(@NonNull final AppContext appContext) {
@@ -73,6 +80,7 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
         registry.register(new V0700TokenSchema());
+        registry.register(new V0710TokenSchema());
     }
 
     @Override
@@ -90,6 +98,17 @@ public class TokenServiceImpl implements TokenService {
         networkRewardsState.put(networkRewards);
         writableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID).put(NodeRewards.DEFAULT);
         writableStates.<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID).put(NodePayments.DEFAULT);
+
+        // Persist genesis decimals (DD-3, DD-8 — immutable after genesis)
+        final int configDecimals =
+                configuration.getConfigData(NativeCoinConfig.class).decimals();
+        final var nativeCoinDecimals =
+                NativeCoinDecimals.newBuilder().decimals(configDecimals).build();
+        writableStates
+                .<NativeCoinDecimals>getSingleton(NATIVE_COIN_DECIMALS_STATE_ID)
+                .put(nativeCoinDecimals);
+        log.info("nativeCoin.decimals configured: {}", configDecimals);
+
         return true;
     }
 

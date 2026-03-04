@@ -8,7 +8,4 @@ public final class Units {
     private Units() {
         throw new UnsupportedOperationException("Utility Class");
     }
-
-    /** Conversion factor from hbar to tinybar. */
-    public static final long HBARS_TO_TINYBARS = 100_000_000L;
 }
