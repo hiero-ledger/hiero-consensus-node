@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
@@ -17,6 +18,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -42,6 +45,8 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  * Default implementation of the {@link EventCreationManager}.
  */
 public class DefaultEventCreationManager implements EventCreationManager {
+
+    private static final Logger log = LogManager.getLogger(DefaultEventCreationManager.class);
 
     private static final DoubleGauge.Config SYNC_ROUND_LAG_METRIC_CONFIG = new DoubleGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "syncRoundLag")
@@ -125,12 +130,19 @@ public class DefaultEventCreationManager implements EventCreationManager {
         syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
     }
 
+
+    long lastHeartbeat = System.nanoTime();
+
     /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
     public PlatformEvent maybeCreateEvent() {
+
+        log.info(RECONNECT.getMarker(),"Heartbeat delay {}", (System.nanoTime() - lastHeartbeat));
+        lastHeartbeat = System.nanoTime();
+
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());
             return null;
