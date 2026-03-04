@@ -46,6 +46,7 @@ import com.hedera.hapi.node.token.CryptoGetInfoResponse.AccountInfo;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
@@ -109,7 +110,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     public void setUp() {
         super.setUp();
         cryptoOpsUsage = new CryptoOpsUsage();
-        subject = new CryptoGetAccountInfoHandler(cryptoOpsUsage, instantSource);
+        subject = new CryptoGetAccountInfoHandler(cryptoOpsUsage, instantSource, new DenominationConverter(8));
     }
 
     @Test

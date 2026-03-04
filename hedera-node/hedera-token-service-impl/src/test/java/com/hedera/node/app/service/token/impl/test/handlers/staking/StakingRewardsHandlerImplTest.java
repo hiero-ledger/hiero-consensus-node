@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
-import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.totalStake;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static java.util.Collections.emptyMap;
@@ -15,6 +13,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -83,12 +82,14 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.consensusTime()).willReturn(consensusInstant);
         givenStoresAndConfig(context);
 
-        stakingRewardHelper = new StakingRewardsHelper(configProvider);
+        final var denominationConverter = new DenominationConverter(8);
+        stakingRewardHelper = new StakingRewardsHelper(configProvider, denominationConverter);
         stakePeriodManager = new StakePeriodManager(configProvider, instantSource);
-        stakeRewardCalculator = new StakeRewardCalculatorImpl(stakePeriodManager);
+        stakeRewardCalculator = new StakeRewardCalculatorImpl(stakePeriodManager, denominationConverter);
         rewardsPayer = new StakingRewardsDistributor(stakingRewardHelper, stakeRewardCalculator);
-        stakeInfoHelper = new StakeInfoHelper();
-        subject = new StakingRewardsHandlerImpl(rewardsPayer, stakePeriodManager, stakeInfoHelper, entityIdFactory);
+        stakeInfoHelper = new StakeInfoHelper(denominationConverter);
+        subject = new StakingRewardsHandlerImpl(
+                rewardsPayer, stakePeriodManager, stakeInfoHelper, entityIdFactory, denominationConverter);
     }
 
     @Test
@@ -168,7 +169,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     void anAccountThatStartedStakingBeforeCurrentPeriodAndHasntBeenRewardedUnclaimsStakeWhenChangingElection() {
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
-                .withBalance(55L * HBARS_TO_TINYBARS)
+                .withBalance(55L * 100_000_000L)
                 .withStakeAtStartOfLastRewardPeriod(-1L)
                 .withStakePeriodStart(stakePeriodStart)
                 .withDeclineReward(false)
@@ -206,7 +207,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void anAccountThatStartedStakingBeforeCurrentPeriodAndWasRewardedDaysAgoUnclaimsStakeWhenChangingElection() {
-        final var newBalance = 55L * HBARS_TO_TINYBARS;
+        final var newBalance = 55L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(newBalance)
@@ -241,7 +242,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void anAccountThatStartedStakingBeforeCurrentPeriodAndWasRewardedTodayUnclaimsStakeStartWhenChangingElection() {
-        final var newBalance = 55L * HBARS_TO_TINYBARS;
+        final var newBalance = 55L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(newBalance)
@@ -275,7 +276,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void anAccountThatStartedStakingAtCurrentPeriodDoesntUnclaimStakeWhenChangingElection() {
-        final var newBalance = 555L * HBARS_TO_TINYBARS;
+        final var newBalance = 555L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(newBalance)
@@ -303,7 +304,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void anAccountThatDeclineRewardsDoesntUnclaimStakeWhenChangingElection() {
-        final var newBalance = 555L * HBARS_TO_TINYBARS;
+        final var newBalance = 555L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(newBalance)
@@ -350,8 +351,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(manager.firstNonRewardableStakePeriod(readableRewardsStore)).willReturn(3L);
         given(account.stakePeriodStart()).willReturn(2L);
 
-        final StakingRewardsHandlerImpl impl =
-                new StakingRewardsHandlerImpl(rewardsPayer, manager, stakeInfoHelper, entityIdFactory);
+        final StakingRewardsHandlerImpl impl = new StakingRewardsHandlerImpl(
+                rewardsPayer, manager, stakeInfoHelper, entityIdFactory, new DenominationConverter(8));
 
         assertThat(impl.shouldUpdateStakeAtStartOfLastRewardPeriod(
                         account, true, 0L, readableRewardsStore, consensusInstant))
@@ -360,7 +361,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void anAccountWithAlreadyCollectedRewardShouldNotHaveStakeStartUpdated() {
-        final var newBalance = 555L * HBARS_TO_TINYBARS;
+        final var newBalance = 555L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(newBalance)
@@ -390,8 +391,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void calculatesRewardIfNeededStakingToNode() {
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -420,12 +421,12 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(node1InfoBefore.pendingRewards()).isEqualTo(1000000L);
 
         writableAccountStore.put(account.copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .stakedNodeId(0L)
                 .build());
         writableAccountStore.put(ownerAccount
                 .copyBuilder()
-                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .tinybarBalance(ownerBalance + 100_000_000L)
                 .stakedNodeId(0L)
                 .build());
 
@@ -452,7 +453,9 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
         assertThat(node0InfoAfter.stakeToReward())
                 .isEqualTo(node0InfoBefore.stakeToReward()
-                        + roundedToHbar(totalStake(modifiedPayer) + roundedToHbar(totalStake(modifiedOwner))));
+                        + new DenominationConverter(8)
+                                .roundToWholeUnit(totalStake(modifiedPayer)
+                                        + new DenominationConverter(8).roundToWholeUnit(totalStake(modifiedOwner))));
 
         assertThat(node1InfoAfter.unclaimedStakeRewardStart())
                 .isEqualTo(node1InfoBefore.unclaimedStakeRewardStart() + accountBalance);
@@ -465,8 +468,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void doesNotAwardStakeFromDeletedAccount() {
-        final var accountBalance = 555L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var accountBalance = 555L * 100_000_000L;
+        final var ownerBalance = 111L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -497,7 +500,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build());
         writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
-                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .tinybarBalance(123L * 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -520,7 +523,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void stakingEffectsWorkAsExpectedWhenStakingToNodeWithNoStakingMetaChanges() {
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -538,7 +541,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         mockEntityIdFactory();
 
         writableAccountStore.put(account.copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -558,15 +561,14 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(node1Info.unclaimedStakeRewardStart()).isZero();
 
         final var modifiedAccount = writableAccountStore.get(payerId);
-        assertThat(modifiedAccount.tinybarBalance())
-                .isEqualTo(accountBalance - HBARS_TO_TINYBARS + rewards.get(payerId));
+        assertThat(modifiedAccount.tinybarBalance()).isEqualTo(accountBalance - 100_000_000L + rewards.get(payerId));
         assertThat(modifiedAccount.stakePeriodStart()).isNotEqualTo(initialStakePeriodStart);
         assertThat(modifiedAccount.stakePeriodStart()).isNotEqualTo(stakePeriodStart + 2);
     }
 
     @Test
     void stakingEffectsWorkAsExpectedWhenStakingToNodeWithNoStakingMetaChangesAndNoReward() {
-        final var accountBalance = 555L * HBARS_TO_TINYBARS;
+        final var accountBalance = 555L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -582,7 +584,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var node1InfoBefore = writableStakingInfoState.get(node1Id);
 
         writableAccountStore.put(account.copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -604,14 +606,14 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(node1Info.unclaimedStakeRewardStart()).isZero();
 
         final var modifiedAccount = writableAccountStore.get(payerId);
-        assertThat(modifiedAccount.tinybarBalance()).isEqualTo(accountBalance - HBARS_TO_TINYBARS);
+        assertThat(modifiedAccount.tinybarBalance()).isEqualTo(accountBalance - 100_000_000L);
         assertThat(modifiedAccount.stakePeriodStart()).isEqualTo(initialStakePeriodStart);
     }
 
     @Test
     void sasolarpMgmtWorksAsExpectedWhenStakingToNodeWithNoStakingMetaChangesAndNoReward() {
-        final var payerInitialBalance = 55L * HBARS_TO_TINYBARS;
-        final var payerAfterBalance = 54L * HBARS_TO_TINYBARS;
+        final var payerInitialBalance = 55L * 100_000_000L;
+        final var payerAfterBalance = 54L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(payerInitialBalance)
@@ -652,16 +654,16 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(node1Info.unclaimedStakeRewardStart()).isZero();
 
         final var modifiedAccount = writableAccountStore.get(payerId);
-        assertThat(modifiedAccount.tinybarBalance()).isEqualTo(payerInitialBalance - HBARS_TO_TINYBARS);
+        assertThat(modifiedAccount.tinybarBalance()).isEqualTo(payerInitialBalance - 100_000_000L);
         assertThat(modifiedAccount.stakePeriodStart()).isEqualTo(stakePeriodStart);
         assertThat(modifiedAccount.stakeAtStartOfLastRewardedPeriod()).isEqualTo(payerInitialBalance);
     }
 
     @Test
     void stakingEffectsWorkAsExpectedWhenStakingToAccount() {
-        final var payerInitialBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerInitialBalance = 11L * HBARS_TO_TINYBARS;
-        final var payerLaterBalance = 54L * HBARS_TO_TINYBARS;
+        final var payerInitialBalance = 55L * 100_000_000L;
+        final var ownerInitialBalance = 11L * 100_000_000L;
+        final var payerLaterBalance = 54L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(payerInitialBalance)
@@ -724,8 +726,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // payer switches stake from owner to node
         // payer should get reward from the node
         // owner should get no reward
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -751,12 +753,12 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // change payer stake from owner account to node 1
         writableAccountStore.put(payerAccountBefore
                 .copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .stakedNodeId(node1Id.number())
                 .build());
         writableAccountStore.put(ownerAccount
                 .copyBuilder()
-                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .tinybarBalance(ownerBalance + 100_000_000L)
                 .build());
 
         // run forward two periods
@@ -775,8 +777,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // payer switches stake from owner to node
         // payer should get no reward
         // owner should get no reward
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -791,12 +793,12 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // change payer stake from owner account to node 1
         writableAccountStore.put(payerAccountBefore
                 .copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .stakedAccountId(ownerId)
                 .build());
         writableAccountStore.put(ownerAccount
                 .copyBuilder()
-                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .tinybarBalance(ownerBalance + 100_000_000L)
                 .build());
 
         // run forward two periods
@@ -816,8 +818,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // payer switches stake from owner to nothing (node -1)
         // payer should get no reward
         // owner should still get the reward from before the switch
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -842,12 +844,12 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // change payer stake from owner account to node -1
         writableAccountStore.put(payerAccountBefore
                 .copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .stakedNodeId(-1) // switch to staking to nothing
                 .build());
         writableAccountStore.put(ownerAccount
                 .copyBuilder()
-                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .tinybarBalance(ownerBalance + 100_000_000L)
                 .build());
 
         // run forward two periods
@@ -863,8 +865,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void rewardsUltimateBeneficiaryInsteadOfDeletedAccount() {
-        final var accountBalance = 555L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var accountBalance = 555L * 100_000_000L;
+        final var ownerBalance = 111L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -895,7 +897,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build());
         writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
-                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .tinybarBalance(123L * 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -918,8 +920,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void doesntTrackAnythingIfRedirectBeneficiaryDeclinedReward() {
-        final var payerInitialBalance = 555L * HBARS_TO_TINYBARS;
-        final var ownerInitialBalance = 111L * HBARS_TO_TINYBARS;
+        final var payerInitialBalance = 555L * 100_000_000L;
+        final var ownerInitialBalance = 111L * 100_000_000L;
         final var ownerAfterBalance = ownerInitialBalance + payerInitialBalance;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
@@ -971,8 +973,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsHardIfMoreRedirectsThanDeletedEntitiesAreNeeded() {
-        final var accountBalance = 555L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var accountBalance = 555L * 100_000_000L;
+        final var ownerBalance = 111L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -1011,7 +1013,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build());
         writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
-                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .tinybarBalance(123L * 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -1035,8 +1037,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void updatesStakedToMeSideEffects() {
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -1064,7 +1066,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var node0InfoBefore = writableStakingInfoState.get(node0Id);
 
         writableAccountStore.put(account.copyBuilder()
-                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .tinybarBalance(accountBalance - 100_000_000L)
                 .stakedAccountId(ownerId)
                 .build());
 
@@ -1085,7 +1087,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var modifiedPayer = writableAccountStore.get(payerId);
         final var modifiedOwner = writableAccountStore.get(ownerId);
 
-        assertThat(modifiedOwner.stakedToMe()).isEqualTo(ownerAccountBefore.stakedToMe() - HBARS_TO_TINYBARS);
+        assertThat(modifiedOwner.stakedToMe()).isEqualTo(ownerAccountBefore.stakedToMe() - 100_000_000L);
         // stakePeriodStart is updated everytime when reward is applied
         assertThat(modifiedOwner.stakePeriodStart()).isEqualTo(stakePeriodStart - 1);
 
@@ -1093,14 +1095,14 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(modifiedPayer.stakePeriodStart()).isEqualTo(stakePeriodStart);
 
         final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
-        assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0InfoBefore.stakeToReward() - HBARS_TO_TINYBARS);
+        assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0InfoBefore.stakeToReward() - 100_000_000L);
         assertThat(node0InfoAfter.unclaimedStakeRewardStart()).isZero();
     }
 
     @Test
     void doesntUpdateStakedToMeIfStakerBalanceIsExactlyTheSame() {
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)
@@ -1128,7 +1130,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // Just change 800 balance
         writableAccountStore.put(stakingRewardAccount
                 .copyBuilder()
-                .tinybarBalance(stakingRewardAccount.tinybarBalance() + HBARS_TO_TINYBARS)
+                .tinybarBalance(stakingRewardAccount.tinybarBalance() + 100_000_000L)
                 .build());
 
         given(context.consensusTime())
@@ -1163,8 +1165,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void stakePeriodStartUpdatedWhenStakedToAccount() {
-        final var accountBalance = 55L * HBARS_TO_TINYBARS;
-        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var accountBalance = 55L * 100_000_000L;
+        final var ownerBalance = 11L * 100_000_000L;
         final var payerAccountBefore = new AccountCustomizer()
                 .withAccount(account)
                 .withBalance(accountBalance)

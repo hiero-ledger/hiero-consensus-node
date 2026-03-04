@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,7 +51,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         given(account.memo()).willReturn("");
         given(account.key()).willReturn(accountKey);
         given(account.expirationSecond()).willReturn(5L);
-        given(account.tinybarBalance()).willReturn(7L * HBARS_TO_TINYBARS);
+        given(account.tinybarBalance()).willReturn(7L * 100_000_000L);
         given(account.memo()).willReturn("Hello World");
         given(account.deleted()).willReturn(true);
         given(account.receiverSigRequired()).willReturn(true);
@@ -89,7 +88,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         assertThat(mappedAccount).isNotNull();
         assertThat(mappedAccount.key()).isEqualTo(accountKey);
         assertThat(mappedAccount.expirationSecond()).isEqualTo(5L);
-        assertThat(mappedAccount.tinybarBalance()).isEqualTo(7L * HBARS_TO_TINYBARS);
+        assertThat(mappedAccount.tinybarBalance()).isEqualTo(7L * 100_000_000L);
         assertThat(mappedAccount.memo()).isEqualTo("Hello World");
         assertThat(mappedAccount.deleted()).isTrue();
         assertThat(mappedAccount.receiverSigRequired()).isTrue();

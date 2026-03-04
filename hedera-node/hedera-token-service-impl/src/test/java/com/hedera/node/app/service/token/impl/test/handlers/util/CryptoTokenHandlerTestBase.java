@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.ZONE_UTC;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
@@ -896,8 +895,8 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .nodeNumber(0)
                 .stake(1000L)
                 .stakeToNotReward(400L)
-                .stakeToReward(666L * HBARS_TO_TINYBARS)
-                .stakeRewardStart(2 * 555L * HBARS_TO_TINYBARS)
+                .stakeToReward(666L * 100_000_000L)
+                .stakeRewardStart(2 * 555L * 100_000_000L)
                 .maxStake(1000000000L)
                 .minStake(500000000)
                 .weight(200)
@@ -909,8 +908,8 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .nodeNumber(1)
                 .stake(1000L)
                 .stakeToNotReward(400L)
-                .stakeToReward(666L * HBARS_TO_TINYBARS)
-                .stakeRewardStart(2 * 555L * HBARS_TO_TINYBARS)
+                .stakeToReward(666L * 100_000_000L)
+                .stakeRewardStart(2 * 555L * 100_000_000L)
                 .maxStake(1000000000L)
                 .minStake(500000000)
                 .weight(300)
@@ -1097,7 +1096,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .expirationSecond(1_234_567L)
                 .memo("testAccount")
                 .deleted(false)
-                .stakedToMe(1_234L * HBARS_TO_TINYBARS)
+                .stakedToMe(1_234L * 100_000_000L)
                 .stakePeriodStart(stakePeriodStart)
                 .declineReward(false)
                 .receiverSigRequired(true)

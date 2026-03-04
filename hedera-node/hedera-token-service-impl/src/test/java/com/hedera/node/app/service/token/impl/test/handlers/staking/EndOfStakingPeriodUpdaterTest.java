@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
@@ -23,6 +22,7 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -92,7 +92,10 @@ public class EndOfStakingPeriodUpdaterTest {
                 .tinybarBalance(100_000_000_000L)
                 .build());
         subject = new EndOfStakingPeriodUpdater(
-                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER, entityIdFactory);
+                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER, new DenominationConverter(8)),
+                DEFAULT_CONFIG_PROVIDER,
+                entityIdFactory,
+                new DenominationConverter(8));
     }
 
     @Test
@@ -158,23 +161,23 @@ public class EndOfStakingPeriodUpdaterTest {
     }
 
     private static final int SUM_OF_CONSENSUS_WEIGHTS = 500;
-    private static final long MIN_STAKE = 100L * HBARS_TO_TINYBARS;
-    private static final long MAX_STAKE = 800L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_REWARD_1 = 700L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_REWARD_2 = 300L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_REWARD_3 = 30L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_NOT_REWARD_1 = 300L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_NOT_REWARD_2 = 200L * HBARS_TO_TINYBARS;
-    private static final long STAKE_TO_NOT_REWARD_3 = 20L * HBARS_TO_TINYBARS;
-    private static final long STAKED_REWARD_START_1 = 1_000L * HBARS_TO_TINYBARS;
+    private static final long MIN_STAKE = 100L * 100_000_000L;
+    private static final long MAX_STAKE = 800L * 100_000_000L;
+    private static final long STAKE_TO_REWARD_1 = 700L * 100_000_000L;
+    private static final long STAKE_TO_REWARD_2 = 300L * 100_000_000L;
+    private static final long STAKE_TO_REWARD_3 = 30L * 100_000_000L;
+    private static final long STAKE_TO_NOT_REWARD_1 = 300L * 100_000_000L;
+    private static final long STAKE_TO_NOT_REWARD_2 = 200L * 100_000_000L;
+    private static final long STAKE_TO_NOT_REWARD_3 = 20L * 100_000_000L;
+    private static final long STAKED_REWARD_START_1 = 1_000L * 100_000_000L;
     private static final long UNCLAIMED_STAKED_REWARD_START_1 = STAKED_REWARD_START_1 / 10;
-    private static final long STAKED_REWARD_START_2 = 700L * HBARS_TO_TINYBARS;
+    private static final long STAKED_REWARD_START_2 = 700L * 100_000_000L;
     private static final long UNCLAIMED_STAKED_REWARD_START_2 = STAKED_REWARD_START_2 / 10;
-    private static final long STAKED_REWARD_START_3 = 10_000L * HBARS_TO_TINYBARS;
+    private static final long STAKED_REWARD_START_3 = 10_000L * 100_000_000L;
     private static final long UNCLAIMED_STAKED_REWARD_START_3 = STAKED_REWARD_START_3 / 10;
-    private static final long STAKE_1 = 2_000L * HBARS_TO_TINYBARS;
-    private static final long STAKE_2 = 750L * HBARS_TO_TINYBARS;
-    private static final long STAKE_3 = 75L * HBARS_TO_TINYBARS;
+    private static final long STAKE_1 = 2_000L * 100_000_000L;
+    private static final long STAKE_2 = 750L * 100_000_000L;
+    private static final long STAKE_3 = 75L * 100_000_000L;
     private static final List<Long> REWARD_SUM_HISTORY_1 = List.of(8L, 7L, 2L);
     private static final List<Long> REWARD_SUM_HISTORY_2 = List.of(5L, 5L, 4L);
     private static final List<Long> REWARD_SUM_HISTORY_3 = List.of(4L, 2L, 1L);

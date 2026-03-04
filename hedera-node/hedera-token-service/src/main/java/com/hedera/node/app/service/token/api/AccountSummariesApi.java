@@ -142,6 +142,7 @@ public interface AccountSummariesApi {
      * @param account the account
      * @param stakingInfoStore the staking info store
      * @param estimatedConsensusNow the estimated consensus time
+     * @param subunitsPerWholeUnit the number of subunits per whole coin (e.g. 10^8 for hbar)
      * @return the summary of the account's staking info
      */
     static StakingInfo summarizeStakingInfo(
@@ -150,7 +151,8 @@ public interface AccountSummariesApi {
             final boolean areRewardsActive,
             @NonNull final Account account,
             @NonNull final ReadableStakingInfoStore stakingInfoStore,
-            @NonNull final Instant estimatedConsensusNow) {
+            @NonNull final Instant estimatedConsensusNow,
+            final long subunitsPerWholeUnit) {
         requireNonNull(account);
         requireNonNull(stakingInfoStore);
         requireNonNull(estimatedConsensusNow);
@@ -166,7 +168,8 @@ public interface AccountSummariesApi {
                     account,
                     stakingInfoStore,
                     stakingInfo,
-                    estimatedConsensusNow);
+                    estimatedConsensusNow,
+                    subunitsPerWholeUnit);
         } else if (account.hasStakedAccountId() && account.stakedAccountId() != null) {
             stakingInfo.stakedAccountId(account.stakedAccountIdOrThrow());
         }
@@ -191,7 +194,8 @@ public interface AccountSummariesApi {
             @NonNull final Account account,
             @NonNull final ReadableStakingInfoStore readableStakingInfoStore,
             @NonNull final StakingInfo.Builder stakingInfo,
-            @NonNull final Instant estimatedConsensusNow) {
+            @NonNull final Instant estimatedConsensusNow,
+            final long subunitsPerWholeUnit) {
         stakingInfo
                 .stakePeriodStart(Timestamp.newBuilder()
                         .seconds(epochSecondAtStartOfPeriod(account.stakePeriodStart(), stakePeriodMins)))
@@ -201,6 +205,7 @@ public interface AccountSummariesApi {
                         areRewardsActive,
                         account,
                         readableStakingInfoStore,
-                        estimatedConsensusNow));
+                        estimatedConsensusNow,
+                        subunitsPerWholeUnit));
     }
 }

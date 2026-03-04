@@ -16,6 +16,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.RecordFinalizerBase;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
@@ -49,11 +50,12 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class FinalizeRecordHandler extends RecordFinalizerBase {
     private static final Logger logger = LogManager.getLogger(FinalizeRecordHandler.class);
-    public static final long LEDGER_TOTAL_TINY_BAR_FLOAT = 5000000000000000000L;
+    private static final long TOTAL_SUPPLY_WHOLE_UNITS = 50_000_000_000L;
 
     private final StakingRewardsHandler stakingRewardsHandler;
     private final AccountsConfig accountsConfig;
     private final EntityIdFactory entityIdFactory;
+    private final long ledgerTotalTinyBarFloat;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -63,6 +65,7 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
      * @param stakingRewardsHandler the {@link StakingRewardsHandler} instance
      * @param configProvider the {@link ConfigProvider} instance
      * @param entityIdFactory the {@link EntityIdFactory} instance
+     * @param denominationConverter the {@link DenominationConverter} instance
      * @param systemEntitiesCreatedFlag the system entity creation flag, if not already done
      */
     @Inject
@@ -70,11 +73,22 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             @NonNull final StakingRewardsHandler stakingRewardsHandler,
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final DenominationConverter denominationConverter,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.stakingRewardsHandler = stakingRewardsHandler;
         this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
         this.entityIdFactory = entityIdFactory;
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        try {
+            this.ledgerTotalTinyBarFloat =
+                    Math.multiplyExact(TOTAL_SUPPLY_WHOLE_UNITS, denominationConverter.subunitsPerWholeUnit());
+        } catch (final ArithmeticException e) {
+            throw new IllegalStateException(
+                    "Total supply overflow: " + TOTAL_SUPPLY_WHOLE_UNITS + " * 10^"
+                            + denominationConverter.decimals() + " exceeds Long.MAX_VALUE ("
+                            + Long.MAX_VALUE + "). Reduce nativeCoin.decimals.",
+                    e);
+        }
     }
 
     @Override
@@ -201,7 +215,7 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     : childRecord.transferList().accountAmounts();
             if (childHbarChangesFromRecord.size() == 1) {
                 var genesisTreasuryCredit = List.of(AccountAmount.newBuilder()
-                        .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
+                        .amount(ledgerTotalTinyBarFloat)
                         .accountID(entityIdFactory.newAccountId(accountsConfig.treasury()))
                         .build());
 

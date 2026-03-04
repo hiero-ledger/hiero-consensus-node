@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Fraction;
@@ -105,6 +104,7 @@ public final class EndOfStakingPeriodUtils {
      * @param reservedStakingRewards the total amount of staking rewards reserved in the 0.0.800 balance
      * @param unreservedStakingRewardBalance the remaining "unreserved" part of the 0.0.800 balance
      * @param memo the memo to include in the transaction
+     * @param subunitsPerWholeUnit the number of subunits per whole coin (e.g. 10^8 for hbar)
      * @return the transaction builder with the {@code NodeStakeUpdateTransactionBody} set
      */
     public static TransactionBody.Builder newNodeStakeUpdateBuilder(
@@ -115,7 +115,8 @@ public final class EndOfStakingPeriodUtils {
             final long maxPerHbarRewardRate,
             final long reservedStakingRewards,
             final long unreservedStakingRewardBalance,
-            @NonNull final String memo) {
+            @NonNull final String memo,
+            final long subunitsPerWholeUnit) {
         requireNonNull(stakingPeriodEnd);
         requireNonNull(nodeStakes);
         requireNonNull(stakingConfig);
@@ -127,7 +128,8 @@ public final class EndOfStakingPeriodUtils {
                 totalStakedRewardStart,
                 maxPerHbarRewardRate,
                 reservedStakingRewards,
-                unreservedStakingRewardBalance);
+                unreservedStakingRewardBalance,
+                subunitsPerWholeUnit);
         return TransactionBody.newBuilder().memo(memo).nodeStakeUpdate(txnBody);
     }
 
@@ -141,6 +143,7 @@ public final class EndOfStakingPeriodUtils {
      * @param maxPerHbarRewardRate the maximum reward rate per hbar for the period (per HIP-782)
      * @param reservedStakingRewards the total amount of staking rewards reserved in the 0.0.800 balance
      * @param unreservedStakingRewardBalance the remaining "unreserved" part of the 0.0.800 balance
+     * @param subunitsPerWholeUnit the number of subunits per whole coin (e.g. 10^8 for hbar)
      * @return the {@link NodeStakeUpdateTransactionBody}
      */
     public static NodeStakeUpdateTransactionBody newNodeStakeUpdate(
@@ -150,8 +153,9 @@ public final class EndOfStakingPeriodUtils {
             final long totalStakedRewardStart,
             final long maxPerHbarRewardRate,
             final long reservedStakingRewards,
-            final long unreservedStakingRewardBalance) {
-        final long hbarsStakedToReward = (totalStakedRewardStart / HBARS_TO_TINYBARS);
+            final long unreservedStakingRewardBalance,
+            final long subunitsPerWholeUnit) {
+        final long hbarsStakedToReward = totalStakedRewardStart / subunitsPerWholeUnit;
         final long maxTotalReward = maxPerHbarRewardRate * hbarsStakedToReward;
         final var nodeRewardFeeFraction = Fraction.newBuilder()
                 .numerator(stakingConfig.feesNodeRewardPercentage())
