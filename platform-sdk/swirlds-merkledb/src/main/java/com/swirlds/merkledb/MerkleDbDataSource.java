@@ -29,6 +29,7 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.GarbageScannerTask;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
@@ -1328,15 +1329,31 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     public void runHashStoreCompaction() {
-        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.HASH_STORE_DISK, newHashStoreDiskCompactor());
+        if (hashStoreDisk == null) return;
+        final String storeName = DataFileCompactor.HASH_STORE_DISK;
+        final GarbageScannerTask scanner =
+                new GarbageScannerTask(pathToDiskLocationInternalNodes, hashStoreDisk.getFileCollection(), storeName);
+        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
+        compactionCoordinator.submitCompactionTasks(
+                storeName, hashStoreDisk.getFileCollection(), this::newHashStoreDiskCompactor, merkleDbConfig);
     }
 
     public void runPathToKeyStoreCompaction() {
-        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.PATH_TO_KEY_VALUE, newPathToKeyValueCompactor());
+        final String storeName = DataFileCompactor.PATH_TO_KEY_VALUE;
+        final GarbageScannerTask scanner =
+                new GarbageScannerTask(pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), storeName);
+        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
+        compactionCoordinator.submitCompactionTasks(
+                storeName, pathToKeyValue.getFileCollection(), this::newPathToKeyValueCompactor, merkleDbConfig);
     }
 
     public void runKeyToPathStoreCompaction() {
-        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.OBJECT_KEY_TO_PATH, newKeyToPathCompactor());
+        final String storeName = DataFileCompactor.OBJECT_KEY_TO_PATH;
+        final GarbageScannerTask scanner = new GarbageScannerTask(
+                keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), storeName);
+        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
+        compactionCoordinator.submitCompactionTasks(
+                storeName, keyToPath.getFileCollection(), this::newKeyToPathCompactor, merkleDbConfig);
     }
 
     public void awaitForCurrentCompactionsToComplete(final long timeoutMillis) {

@@ -73,7 +73,7 @@ public class DataFileCollectionBench extends BaseBench {
         // Merge files
         start = System.currentTimeMillis();
         final List<DataFileReader> filesToMerge = store.getAllCompletedFiles();
-        compactor.compact();
+        compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
         System.out.println(
                 "Merged " + filesToMerge.size() + " files in " + (System.currentTimeMillis() - start) + "ms");
 

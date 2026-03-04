@@ -465,9 +465,8 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
 
         @Override
         protected void doWork() throws Exception {
-
             if (iteration % 5 == 0) {
-                compactor.compact();
+                compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
             }
             iteration++;
         }

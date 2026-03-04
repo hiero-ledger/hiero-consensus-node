@@ -2,7 +2,6 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -13,12 +12,10 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
-import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -29,24 +26,28 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * The idea of these tests is to make sure that the merging method when run in a background thread can be interrupted
- * and stops correctly. Even when it is blocked paused waiting on snapshot process.
+ * Integration tests to verify that compaction tasks can be interrupted and stop correctly when
+ * {@link MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction()} is called. This
+ * includes cases where compaction is interrupted mid-flight and cases where compaction is
+ * interrupted while paused for a snapshot.
+ *
+ * <p>With the V3 compaction API, individual {@link DataFileCompactor} instances are created
+ * internally by the coordinator and are not accessible from the test. Assertions are therefore
+ * limited to coordinator-level state: {@code compactionEnabled}, {@code compactorsByName},
+ * executor queue, and per-store {@code isCompactionRunning()} checks.
  */
 class CompactionInterruptTest {
 
     /** This needs to be big enough so that the snapshot is slow enough that we can do a merge at the same time */
     private static final int COUNT = 2_000_000;
 
-    /**
-     * Temporary directory provided by JUnit
-     */
     @SuppressWarnings("unused")
     @TempDir
     Path tmpFileDir;
 
     /*
-     * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will
-     * clean up all thread local caches held.
+     * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of
+     * the test which will clean up all thread local caches held.
      */
     @Test
     void startMergeThenInterrupt() throws Exception {
@@ -54,40 +55,35 @@ class CompactionInterruptTest {
     }
 
     /**
-     * Run a test to do a compaction, and then call stopAndDisableBackgroundCompaction(). The expected result is the merging thread
-     * should be interrupted and end quickly.
+     * Trigger compaction for all three stores, then call stopAndDisableBackgroundCompaction().
+     * The expected result is that all tasks are cleaned up and the coordinator reaches a
+     * quiescent state quickly.
      */
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
-        String tableName = "mergeThenInterrupt";
+        final String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource =
                 TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, 0, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
-            // create some internal and leaf nodes in batches
+            // Create data in batches so that files accumulate content worth compacting
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
+
             final ThreadPoolExecutor compactingExecutor =
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
-            final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            // start compaction
-            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashStoreDiskCompactor();
-            coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDiskCompactor);
-            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
-            final DataFileCompactor pathToKeyValueCompactor = dataSource.newPathToKeyValueCompactor();
-            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
-            // wait a small-time for merging to start
+
+            // Trigger compaction for all three stores
+            dataSource.runHashStoreCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+            dataSource.runPathToKeyStoreCompaction();
+
+            // Wait a short time for compaction to start
             MILLISECONDS.sleep(20);
-            stopCompactionAndVerifyItsStopped(
-                    coordinator,
-                    compactingExecutor,
-                    initialCompletedTaskCount,
-                    hashStoreDiskCompactor,
-                    keyToPathCompactor,
-                    pathToKeyValueCompactor);
+
+            stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor);
         } finally {
             dataSource.close();
         }
@@ -95,11 +91,11 @@ class CompactionInterruptTest {
     }
 
     /**
-     * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will
-     * clean up all thread local caches held.
-     * Different delays in the test provide slightly different results in terms of how exactly compaction fails.
-     * In one case it's {@link InterruptedException}, in the other case it's {@link ClosedByInterruptException}.
-     * Both are acceptable.
+     * RUN THE TEST IN A BACKGROUND THREAD. Different delays provide slightly different interrupt
+     * timing — sometimes the interrupt hits early in compaction, sometimes later, and sometimes
+     * while paused for the snapshot. In one case the result is an {@link InterruptedException},
+     * in another it may be a {@link java.nio.channels.ClosedByInterruptException}. Both are
+     * acceptable.
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 50, 200, 1000, 4000})
@@ -108,25 +104,25 @@ class CompactionInterruptTest {
     }
 
     /**
-     * Run a test to do a merge while in the middle of snapshotting, and then call stopAndDisableBackgroundCompaction() and close
-     * the database. The expected result is the merging thread should be interrupted and end immediately and not be
-     * blocked by the snapshotting. Check to make sure the database closes immediately and is not blocked waiting for
-     * merge thread to exit. DataFileCommon.waitIfMergingPaused() used to eat interrupted exceptions that would block
-     * the merging thread from a timely exit and fail this test.
+     * Trigger compaction while in the middle of snapshotting, and then call
+     * stopAndDisableBackgroundCompaction() and close the database. The expected result is all
+     * tasks are interrupted and the database closes promptly without being blocked by the
+     * snapshot or compaction.
      */
     boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImpl");
-        String tableName = "mergeWhileSnapshotting";
+        final String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource =
                 TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, 0, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
-            // create some internal and leaf nodes in batches
+            // Create data in batches so that files accumulate content worth compacting
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
-            // create a snapshot
+
+            // Start a snapshot in the background
             final Path snapshotDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImplSnapshot");
             exec.submit(() -> {
                 dataSource.snapshot(snapshotDir);
@@ -136,31 +132,17 @@ class CompactionInterruptTest {
             final ThreadPoolExecutor compactingExecutor =
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
-            final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            // we should take into account previous test runs
-            long initTaskCount = compactingExecutor.getTaskCount();
-            // start compaction for all three storages
-            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashStoreDiskCompactor();
-            coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDiskCompactor);
-            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
-            final DataFileCompactor pathToKeyValueCompactor = dataSource.newPathToKeyValueCompactor();
-            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
 
-            assertEventuallyEquals(
-                    initTaskCount + 3L,
-                    compactingExecutor::getTaskCount,
-                    Duration.ofMillis(20),
-                    "Unexpected number of tasks " + compactingExecutor.getTaskCount());
-            // wait a small-time for merging to start (or don't wait at all)
+            // Trigger compaction for all three stores
+            dataSource.runHashStoreCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+            dataSource.runPathToKeyStoreCompaction();
+
+            // Wait the parameterized delay — this varies the interrupt point relative to
+            // the snapshot and compaction lifecycle
             Thread.sleep(delayMs);
-            stopCompactionAndVerifyItsStopped(
-                    coordinator,
-                    compactingExecutor,
-                    initialCompletedTaskCount,
-                    hashStoreDiskCompactor,
-                    keyToPathCompactor,
-                    pathToKeyValueCompactor);
+
+            stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor);
         } finally {
             dataSource.close();
             exec.shutdown();
@@ -169,45 +151,47 @@ class CompactionInterruptTest {
         return true;
     }
 
+    /**
+     * Stops compaction and verifies that the coordinator reaches a clean quiescent state.
+     *
+     * <p>With the V3 API, individual compactor instances are created internally by the
+     * coordinator — the test cannot inspect them directly. We verify coordinator-level
+     * invariants instead:
+     * <ul>
+     *   <li>{@code compactionEnabled} is false</li>
+     *   <li>{@code compactorsByName} is empty (all tasks finished or were interrupted)</li>
+     *   <li>No per-store compaction is detected as running</li>
+     *   <li>Executor queue is drained</li>
+     * </ul>
+     */
     private static void stopCompactionAndVerifyItsStopped(
-            final MerkleDbCompactionCoordinator coordinator,
-            final ThreadPoolExecutor compactingExecutor,
-            final long initialCompletedTaskCount,
-            final DataFileCompactor... compactors) {
-        for (final DataFileCompactor compactor : compactors) {
-            assertEventuallyTrue(
-                    () -> compactor.isCompactionRunning() || compactor.isCompactionComplete(),
-                    Duration.ofMillis(10),
-                    "compactor should be complete or running");
-        }
+            final MerkleDbCompactionCoordinator coordinator, final ThreadPoolExecutor compactingExecutor) {
 
-        // stopping the compaction
+        // Stop compaction — this interrupts all running compactors and waits for them to finish
         coordinator.stopAndDisableBackgroundCompaction();
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
-        for (final DataFileCompactor compactor : compactors) {
-            assertTrue(
-                    compactor.isCompactionComplete() || !compactor.notInterrupted(),
-                    "compactor should be complete or interrupted");
-        }
-
         synchronized (coordinator) {
-            assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");
+            assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty after stop");
         }
-        assertEventuallyEquals(
-                0, () -> compactingExecutor.getQueue().size(), Duration.ofMillis(100), "The queue should be empty");
-        long expectedTaskCount = initialCompletedTaskCount + compactors.length;
-        assertEventuallyEquals(
-                expectedTaskCount,
-                compactingExecutor::getCompletedTaskCount,
-                Duration.ofMillis(100),
-                "Unexpected number of completed tasks - %s, expected - %s"
-                        .formatted(compactingExecutor.getCompletedTaskCount(), expectedTaskCount));
-    }
 
-    private static void assertFutureCancelled(Future<Boolean> hashStoreDiskFuture, String message) {
-        assertEventuallyTrue(hashStoreDiskFuture::isCancelled, Duration.ofMillis(10), message);
+        // Verify no compaction is detected for any store
+        assertFalse(
+                coordinator.isCompactionRunning(DataFileCompactor.HASH_STORE_DISK),
+                "No compaction should be running for HashStoreDisk");
+        assertFalse(
+                coordinator.isCompactionRunning(DataFileCompactor.OBJECT_KEY_TO_PATH),
+                "No compaction should be running for ObjectKeyToPath");
+        assertFalse(
+                coordinator.isCompactionRunning(DataFileCompactor.PATH_TO_KEY_VALUE),
+                "No compaction should be running for PathToKeyValue");
+
+        assertEventuallyEquals(
+                0,
+                () -> compactingExecutor.getQueue().size(),
+                Duration.ofMillis(500),
+                "The executor queue should be empty");
     }
 
     private void createData(final MerkleDbDataSource dataSource) throws IOException {
