@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1300;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
@@ -35,9 +34,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 @DisplayName("Governance Transactions Tests Post Ingest")
