@@ -15,6 +15,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -128,20 +129,29 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .build();
 
         syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
+
     }
 
 
-    long lastHeartbeat = System.nanoTime();
+
+
+    public PlatformEvent maybeCreateEvent() {
+        return maybeCreateEvent(Instant.now());
+    }
+
+
+    Instant lastHeartbeat = Instant.now();
 
     /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
-    public PlatformEvent maybeCreateEvent() {
+    public PlatformEvent maybeCreateEvent(Instant now) {
 
-        log.info(RECONNECT.getMarker(),"Heartbeat delay {}", (System.nanoTime() - lastHeartbeat));
-        lastHeartbeat = System.nanoTime();
+        log.info(RECONNECT.getMarker(),"Heartbeat delay {}", (Duration.between(lastHeartbeat, now).toNanos()));
+        lastHeartbeat = now;
+
 
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());

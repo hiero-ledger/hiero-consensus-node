@@ -4,6 +4,7 @@ package org.hiero.consensus.event.creator.impl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.Instant;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -21,7 +22,7 @@ public interface EventCreationManager {
      * @return the created event, or null if no event was created
      */
     @Nullable
-    PlatformEvent maybeCreateEvent();
+    PlatformEvent maybeCreateEvent(Instant now);
 
     /**
      * Register a new event from event intake.
