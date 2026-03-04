@@ -44,6 +44,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_F
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.Map;
@@ -122,7 +123,7 @@ public class TokenFeeScheduleUpdateSpecs {
                                 .fee(ONE_HBAR));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"tokens.maxCustomFeesAllowed"})
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeUpdated() {
         final var hbarAmount = 1_234L;
         final var htsAmount = 2_345L;

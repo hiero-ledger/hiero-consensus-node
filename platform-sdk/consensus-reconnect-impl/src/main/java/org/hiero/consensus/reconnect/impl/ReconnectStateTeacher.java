@@ -203,7 +203,7 @@ public class ReconnectStateTeacher {
         logger.info(
                 RECONNECT.getMarker(),
                 () -> new ReconnectFinishPayload(
-                        "Finished reconnect in the role of the sender.",
+                        "Finished reconnect in the role of the sender",
                         false,
                         selfId.id(),
                         otherId.id(),
@@ -216,7 +216,6 @@ public class ReconnectStateTeacher {
      * @throws InterruptedException thrown if the current thread is interrupted
      */
     private void reconnect() throws InterruptedException, IOException {
-        logger.info(RECONNECT.getMarker(), "Starting synchronization in the role of the sender.");
         statistics.incrementSenderStartTimes();
 
         connection.getDis().getSyncByteCounter().resetCount();
@@ -235,7 +234,6 @@ public class ReconnectStateTeacher {
         connection.getDos().flush();
 
         statistics.incrementSenderEndTimes();
-        logger.info(RECONNECT.getMarker(), "Finished synchronization in the role of the sender.");
     }
 
     /**
