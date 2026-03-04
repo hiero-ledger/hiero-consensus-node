@@ -122,7 +122,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     /**
      * Keeps the running history of all previous (wrapped record) block hashes.
      */
-    private final IncrementalStreamingHasher prevWrappedRecordBlockHashes;
+    private IncrementalStreamingHasher prevWrappedRecordBlockHashes;
     /**
      * The most recent wrapped record block root hash.
      */
@@ -214,7 +214,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     "Seeded wrapped record block hash state from BlockInfo: prevHash={}, leafCount={}",
                     this.previousWrappedRecordBlockRootHash,
                     this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-        } else {
+        } else if (initTrigger == InitTrigger.GENESIS) {
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(SHA_384_DIGEST, List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
         }
@@ -605,8 +605,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 computeWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
 
         // Update running state: add this block's root hash as a leaf to the streaming hasher
-        prevWrappedRecordBlockHashes.addNodeByHash(blockRootHash.toByteArray());
-        previousWrappedRecordBlockRootHash = blockRootHash;
+        prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());
+        previousWrappedRecordBlockRootHash = requireNonNull(blockRootHash);
     }
 
     /**
