@@ -248,10 +248,28 @@ public class ClprStateProofManager {
             throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
         }
 
+        final var tssSigBytes = snapshot.tssSignature();
+        if (tssSigBytes == null || Objects.equals(tssSigBytes, Bytes.EMPTY)) {
+            throw new IllegalStateException("TSS signature is missing or invalid");
+        }
+
+        final var blockTimestamp = snapshot.blockTimestamp();
+        if (blockTimestamp == null || Objects.equals(blockTimestamp, Timestamp.DEFAULT)) {
+            throw new IllegalStateException("Block timestamp is missing or invalid");
+        }
+
+        final var path = snapshot.path();
+        if (path == null || Objects.equals(path, MerklePath.DEFAULT) || !path.hasHash()) {
+            throw new IllegalStateException("Merkle path is missing or invalid");
+        }
+
         return buildMerkleStateProof(
                 virtualMapState,
                 V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
-                ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                ClprLedgerId.PROTOBUF.toBytes(ledgerId),
+                tssSigBytes,
+                blockTimestamp,
+                path);
     }
 
     /**

@@ -82,7 +82,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
                         testState, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH)));
 
         // Create dev mode config for testing
-        devModeConfig = new ClprConfig(true, 5000, true, true);
+        devModeConfig = new ClprConfig(true, 5000, true, true, 5, 6144);
         manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
     }
 
@@ -205,7 +205,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void isDevModeEnabledReflectsConfig() {
         assertTrue(manager.isDevModeEnabled());
-        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false, 5, 6144);
         final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
         assertFalse(prodManager.isDevModeEnabled());
     }
@@ -233,14 +233,14 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     @Test
     void getLedgerConfigurationReturnsNullWhenDevModeDisabled() {
-        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false, 5, 6144);
         final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
         assertNull(prodManager.getLedgerConfiguration(remoteClprLedgerId));
     }
 
     @Test
     void validateStateProofThrowsWhenDevModeDisabled() {
-        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false, 5, 6144);
         final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
         final var stateProof = buildLocalClprStateProofWrapper(remoteClprConfig);
         final var txn = validTransaction(stateProof);
@@ -323,7 +323,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void clprEnabledReflectsConfig() {
         assertTrue(manager.clprEnabled());
-        final var disabledConfig = new ClprConfig(false, devModeConfig.connectionFrequency(), true, true);
+        final var disabledConfig = new ClprConfig(false, devModeConfig.connectionFrequency(), true, true, 5, 6144);
         final var disabledManager = new ClprStateProofManager(snapshotProvider, disabledConfig);
         assertFalse(disabledManager.clprEnabled());
     }
