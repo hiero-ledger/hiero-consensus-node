@@ -12,7 +12,7 @@ EXPERIMENTS="
 broadcast:BroadcastExperiment
 maxotherparents:MaxOtherParentsExperiment
 antiselfishness:AntiSelfishnessExperiment
-maxcreationrate:MaxCreationRateExperiment
+creationPeriod:CreationPeriodExperiment
 signature:SignatureSchemeExperiment
 combined:CombinedOptimizationsExperiment
 benchmark:ConsensusLayerBenchmark
@@ -51,7 +51,7 @@ if [[ "$EXPERIMENT_NAME" != "all" ]]; then
         echo "    - broadcast: Test enabling broadcast"
         echo "    - maxotherparents: Test maxOtherParents configuration"
         echo "    - antiselfishness: Test antiSelfishnessFactor configuration"
-        echo "    - maxcreationrate: Test maxCreationRate configuration"
+        echo "    - creationPeriod: Test creation period configuration"
         echo "    - signature: Test signature scheme (RSA vs ED25519)"
         echo "    - combined: Test all optimizations together"
         echo "    - all: Run all experiments"

@@ -80,6 +80,12 @@ public class FeeResult {
     /**
      * Applies a multiplier to the service and node totals using a fixed-point scale.
      *
+     * <p>The canonical totals are scaled directly from the pre-multiplication values so that a
+     * single integer-division rounding error is incurred rather than one per fee component.
+     * The per-component breakdown (base fees and extras) is also scaled for informational
+     * purposes; in rare edge cases the sum of the scaled components may differ by ±1 tinycent
+     * from the canonical total due to rounding, but the total itself is always precise.
+     *
      * @param rawMultiplier the multiplier value in fixed-point form
      * @param scale the fixed-point scale (e.g. 1000 for 3 decimal places)
      */
@@ -91,11 +97,17 @@ public class FeeResult {
         if (rawMultiplier == scale) {
             return;
         }
+        // Capture totals before modifying any components so we can scale them directly.
+        final long originalServiceTotal = serviceTotal;
+        final long originalNodeTotal = nodeTotal;
         serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
         nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
         scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
         scaleFeeDetails(nodeExtrasDetails, rawMultiplier, scale);
-        recomputeTotals();
+        // Use directly-scaled totals for precision instead of recomputing from scaled components,
+        // which would accumulate one rounding error per fee component.
+        serviceTotal = scaleAmount(originalServiceTotal, rawMultiplier, scale);
+        nodeTotal = scaleAmount(originalNodeTotal, rawMultiplier, scale);
     }
 
     /**
