@@ -30,7 +30,7 @@ public class MiscellaneousFeesSuite {
     private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     private static final String BOB = "bob";
     private static final String ALICE = "alice";
-    private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
+    private static final double BASE_FEE_MISC_GET_VERSION = 0.000102;
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
     private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
     public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.000102;

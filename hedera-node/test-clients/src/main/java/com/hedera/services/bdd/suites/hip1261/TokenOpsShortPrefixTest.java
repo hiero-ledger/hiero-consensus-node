@@ -371,8 +371,7 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("hbarXferTxn"),
-                validateChargedUsdWithin(
-                        "hbarXferTxn", expectedCryptoTransferHbarFullFeeUsd(1L, 0L, 2L, 0L, 0L), 5.0));
+                validateChargedUsdWithin("hbarXferTxn", expectedCryptoTransferHbarFullFeeUsd(1L, 0L, 2L, 0L, 0L), 5.0));
     }
 
     @HapiTest
@@ -395,8 +394,7 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("ftXferTxn"),
-                validateChargedUsdWithin(
-                        "ftXferTxn", expectedCryptoTransferFTFullFeeUsd(2L, 0L, 2L, 1L, 0L), 5.0));
+                validateChargedUsdWithin("ftXferTxn", expectedCryptoTransferFTFullFeeUsd(2L, 0L, 2L, 1L, 0L), 5.0));
     }
 
     @HapiTest
@@ -433,8 +431,7 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("tokenCreateTxn"),
-                validateChargedUsdWithin(
-                        "tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(3L, 1L), 5.0));
+                validateChargedUsdWithin("tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(3L, 1L), 5.0));
     }
 
     @HapiTest

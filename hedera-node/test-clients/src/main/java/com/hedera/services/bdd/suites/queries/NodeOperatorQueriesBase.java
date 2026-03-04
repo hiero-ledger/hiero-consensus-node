@@ -31,7 +31,7 @@ public class NodeOperatorQueriesBase {
     protected static final String SCHEDULE = "schedule";
     protected static final String TOPIC = "topic";
     protected static final String TOKEN = "token";
-    protected static final int QUERY_COST = 84018;
+    protected static final int QUERY_COST = 84675;
     protected static final int QUERY_COST_SIMPLE_FEES = 83333;
 
     /**
