@@ -208,26 +208,13 @@ class AddressBookValidatorTest {
     }
 
     @Test
-    void registeredEndpointsForUpdateAcceptsEmptyList() {
-        assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpointsForUpdate(List.of(), newNodesConfig()));
-    }
-
-    @Test
-    void registeredEndpointsForUpdateAcceptsValidEndpoints() {
-        assertDoesNotThrow(() -> new AddressBookValidator()
-                .validateRegisteredServiceEndpointsForUpdate(
-                        List.of(blockNodeEndpoint(new byte[] {10, 0, 0, 1})), newNodesConfig()));
-    }
-
-    @Test
-    void registeredEndpointsForUpdateRejectsExceedingLimit() {
+    void registeredEndpointsRejectsExceedingLimit() {
         final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
         for (int i = 0; i < 51; i++) {
             endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpointsForUpdate(endpoints, newNodesConfig()));
+                .validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
         assertEquals(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT, e.getStatus());
     }
 
@@ -416,24 +403,24 @@ class AddressBookValidatorTest {
     }
 
     @Test
-    void registeredEndpointsForUpdateAcceptsExactlyMaxEntries() {
+    void registeredEndpointsAcceptsExactlyMaxEntries() {
         final var endpoints = new ArrayList<RegisteredServiceEndpoint>();
         for (int i = 0; i < 50; i++) {
             endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
         }
-        assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpointsForUpdate(endpoints, newNodesConfig()));
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
     }
 
     @Test
-    void registeredEndpointsForUpdateRejectsInvalidEndpoint() {
+    void registeredEndpointsRejectsInvalidEndpoint() {
         final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
                 .ipAddress(Bytes.wrap(new byte[] {127, 0, 0}))
                 .port(443)
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpointsForUpdate(List.of(badEndpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoint(List.of(badEndpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 

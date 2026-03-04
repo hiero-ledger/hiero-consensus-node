@@ -250,26 +250,6 @@ public class AddressBookValidator {
         }
     }
 
-    /**
-     * Validates registered service endpoints for an update operation. An empty list is allowed
-     * (means "not set" in proto3 repeated semantics). If non-empty, at most
-     * nodesConfig.maxRegisteredServiceEndpoint entries are allowed.
-     *
-     * @param endpoints the list of registered service endpoints to validate
-     */
-    public void validateRegisteredServiceEndpointsForUpdate(
-            @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(endpoints);
-        if (endpoints.isEmpty()) {
-            return;
-        }
-        validateFalse(
-                endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), REGISTERED_ENDPOINTS_EXCEEDED_LIMIT);
-        for (final var endpoint : endpoints) {
-            validateRegisteredServiceEndpoint(endpoint, nodesConfig);
-        }
-    }
-
     private void validateRegisteredServiceEndpoint(
             @NonNull final RegisteredServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
