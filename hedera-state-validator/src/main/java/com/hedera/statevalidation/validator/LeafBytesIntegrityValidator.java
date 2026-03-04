@@ -5,7 +5,6 @@ import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationErro
 
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.swirlds.merkledb.MerkleDbDataSource;
@@ -14,14 +13,13 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -30,9 +28,6 @@ import org.hiero.base.crypto.Hash;
 public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(LeafBytesIntegrityValidator.class);
-
-    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST =
-            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     public static final String LEAF_GROUP = "leaf";
 
@@ -52,7 +47,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicLong nullHashChunkCount = new AtomicLong(0);
 
     // A minor optimization to avoid multiple chunk loads from disk
-    final AtomicReference<VirtualHashChunk> lastChunk = new AtomicReference<>();
+    private final ThreadLocal<VirtualHashChunk> lastChunk = new ThreadLocal<>();
 
     /**
      * {@inheritDoc}
@@ -115,7 +110,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             }
 
             // Check leaf hash against the hash stored in the hash chunk
-            final Hash leafHash = hashLeafRecord(leafBytes);
+            final Hash leafHash = VirtualHasher.hashLeafRecord(leafBytes);
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(p2KvPath, hashChunkHeight);
             final VirtualHashChunk hashChunk;
             final VirtualHashChunk lastLoadedChunk = lastChunk.get();
@@ -129,7 +124,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                     log.error("Hash chunk with ID {} is not found for leaf path={}", hashChunkId, p2KvPath);
                     return;
                 }
-                lastChunk.compareAndSet(lastLoadedChunk, hashChunk);
+                lastChunk.set(hashChunk);
             }
             final Hash storedHash = hashChunk.calcHash(p2KvPath, firstLeafPath, lastLeafPath);
             if (!leafHash.equals(storedHash)) {
@@ -181,19 +176,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                                 nullHashChunkCount.get(),
                                 exceptionCount.get(),
                                 successCount.get()));
-    }
-
-    /**
-     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
-     *
-     * @param leaf the leaf bytes to hash
-     * @return the computed hash
-     */
-    private static Hash hashLeafRecord(final VirtualLeafBytes<?> leaf) {
-        final WritableMessageDigest wmd = MESSAGE_DIGEST.get();
-        leaf.writeToForHashing(wmd);
-        // Calling digest() resets the digest
-        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     private static StateValue parseValue(Bytes valueBytes) throws ParseException {
