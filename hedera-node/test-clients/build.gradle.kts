@@ -174,11 +174,8 @@ val prCheckPropOverrides =
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put(
-            "hapiTestClpr",
-            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
-        )
-        put("hapiTestMultiNetwork", "clpr.clprEnabled=true,clpr.devModeEnabled=true")
+        put("hapiTestClpr", "clpr.clprEnabled=true,clpr.connectionFrequency=100")
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=true")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
@@ -278,10 +275,6 @@ tasks.register<Test>("testSubprocess") {
         testsArgWithEquals || testsArgWithSeparatePattern || testSingleProperty
     val shouldEnableClpr =
         ciTagExpression.contains("CLPR") || testFiltersClpr || commandLineRequestsClpr
-    val shouldEnableClprDevMode = shouldEnableClpr || ciTagExpression.contains("MULTINETWORK")
-    if (shouldEnableClprDevMode) {
-        systemProperty("clpr.devModeEnabled", "true")
-    }
     if (shouldEnableClpr) {
         systemProperty("clpr.clprEnabled", "true")
         systemProperty("clpr.publicizeNetworkAddresses", "true")
