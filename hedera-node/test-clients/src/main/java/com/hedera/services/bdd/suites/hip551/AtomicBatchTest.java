@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -955,7 +954,6 @@ public class AtomicBatchTest {
 
     @Nested
     @DisplayName("Validate usedGas amount for Precompile calls")
-    @Tag(SERIAL)
     class ValidatePrecompileGasUsedForInnerTxnChildren {
 
         @HapiTest

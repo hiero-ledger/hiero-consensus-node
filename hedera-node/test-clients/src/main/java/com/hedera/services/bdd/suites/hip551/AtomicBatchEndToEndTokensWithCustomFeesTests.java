@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -26,10 +25,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -58,7 +55,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
-@Tag(SERIAL)
 public class AtomicBatchEndToEndTokensWithCustomFeesTests {
     private static final long HBAR_FEE = 1L;
     private static final long HTS_FEE = 1L;
@@ -2388,9 +2384,9 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                        .balance(ONE_MILLION_HBARS)
+                        .balance(ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(-1),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),
