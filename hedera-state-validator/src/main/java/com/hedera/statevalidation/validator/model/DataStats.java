@@ -9,49 +9,41 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class DataStats {
 
     private final StatGroup p2kv = new StatGroup();
-    private final StatGroup p2h = new StatGroup();
+    private final StatGroup id2c = new StatGroup();
     private final StatGroup k2p = new StatGroup();
-    private final StatGroup p2hMemory = new StatGroup();
 
     public StatGroup getP2kv() {
         return p2kv;
     }
 
-    public StatGroup getP2h() {
-        return p2h;
+    public StatGroup getId2c() {
+        return id2c;
     }
 
     public StatGroup getK2p() {
         return k2p;
     }
 
-    public StatGroup getP2hMemory() {
-        return p2hMemory;
-    }
-
     // --- Aggregations ---
 
     public long getTotalSpaceSize() {
-        // Note: memory items don't track space (no disk footprint)
-        return p2h.getSpaceSize() + p2kv.getSpaceSize() + k2p.getSpaceSize();
+        return id2c.getSpaceSize() + p2kv.getSpaceSize() + k2p.getSpaceSize();
     }
 
     public long getTotalItemCount() {
-        return p2h.getItemCount() + p2kv.getItemCount() + k2p.getItemCount() + p2hMemory.getItemCount();
+        return id2c.getItemCount() + p2kv.getItemCount() + k2p.getItemCount();
     }
 
     public long getObsoleteSpaceSize() {
-        // Note: memory items don't track obsolete space (no disk footprint)
-        return p2h.getObsoleteSpaceSize() + p2kv.getObsoleteSpaceSize() + k2p.getObsoleteSpaceSize();
+        return id2c.getObsoleteSpaceSize() + p2kv.getObsoleteSpaceSize() + k2p.getObsoleteSpaceSize();
     }
 
     public long getObsoleteItemCount() {
-        // Note: memory items don't track obsolete items (no disk footprint)
-        return p2h.getObsoleteItemCount() + p2kv.getObsoleteItemCount() + k2p.getObsoleteItemCount();
+        return id2c.getObsoleteItemCount() + p2kv.getObsoleteItemCount() + k2p.getObsoleteItemCount();
     }
 
     public boolean hasErrorReads() {
-        return p2kv.hasErrors() || p2h.hasErrors() || k2p.hasErrors() || p2hMemory.hasErrors();
+        return p2kv.hasErrors() || id2c.hasErrors() || k2p.hasErrors();
     }
 
     @Override
