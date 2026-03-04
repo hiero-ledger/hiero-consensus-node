@@ -191,12 +191,26 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        List<Block> blocks = null;
-        final var blockPaths = spec.getNetworkNodes().stream()
+        final var nodeBlockPaths = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
-                .map(Path::toAbsolutePath)
                 .toList();
-        for (final var path : blockPaths) {
+        return readBlocksFromNodeBlockPaths(nodeBlockPaths);
+    }
+
+    /**
+     * Reads blocks by resolving each node's block stream path to its parent {@code blockStreams/}
+     * directory, so that {@code Files.walk()} discovers blocks across all {@code block-X.Y.Z}
+     * subdirectories. This is necessary because a node's account ID can change during tests
+     * that rotate nodes, resulting in multiple subdirectories under the same working directory.
+     */
+    static Optional<List<Block>> readBlocksFromNodeBlockPaths(@NonNull final List<Path> nodeBlockPaths) {
+        List<Block> blocks = null;
+        final var parentDirs = nodeBlockPaths.stream()
+                .map(Path::getParent)
+                .map(Path::toAbsolutePath)
+                .distinct()
+                .toList();
+        for (final var path : parentDirs) {
             try {
                 log.info("Trying to read blocks from {}", path);
                 blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
@@ -239,8 +253,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                // Get all marker file numbers
-                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                // Use the parent blockStreams directory to find marker files across all
+                // account ID subdirectories (a node may have multiple block-X.Y.Z dirs
+                // if its account ID changed during the test)
+                final var path =
+                        node.getExternalPath(BLOCK_STREAMS_DIR).getParent().toAbsolutePath();
                 final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
                 final var nodeId = node.getNodeId();
