@@ -313,7 +313,7 @@ public class AddressBookValidator {
         }
         // ASCII only
         for (int i = 0; i < trimmed.length(); i++) {
-            if (trimmed.charAt(i) > 0x7F) {
+            if (trimmed.charAt(i) < 0x20 || trimmed.charAt(i) > 0x7F) {
                 return false;
             }
         }
