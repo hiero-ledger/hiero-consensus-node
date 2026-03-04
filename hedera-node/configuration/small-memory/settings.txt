@@ -61,7 +61,7 @@ platformStatus.observingStatusDelay,                0s
                                           #############################
                                           #       State Retention     #
                                           #############################
-state.roundsToKeepForSigning,                       5
+state.roundsToKeepForSigning,                       3
 state.signedStateDisk,                              1
 state.periodicSnapshotsEnabled                      false
 
