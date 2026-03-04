@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromTinybarsToTinycents;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromTinycentsToTinybars;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.scaleToSubunits;
 import static com.hedera.node.app.spi.workflows.FunctionalityResourcePrices.PREPAID_RESOURCE_PRICES;
 
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -17,6 +18,7 @@ import java.util.Objects;
  */
 public class TinybarValues {
     private final ExchangeRate exchangeRate;
+    private final long subunitsPerWholeUnit;
     private final FunctionalityResourcePrices topLevelResourcePrices;
     // Only non-null for a top-level transaction, since queries cannot have child transactions
     @Nullable
@@ -31,8 +33,9 @@ public class TinybarValues {
      * @param exchangeRate the current exchange rate
      * @return a query-appropriate instance of {@link TinybarValues}
      */
-    public static TinybarValues forQueryWith(@NonNull final ExchangeRate exchangeRate) {
-        return new TinybarValues(exchangeRate, PREPAID_RESOURCE_PRICES, null);
+    public static TinybarValues forQueryWith(
+            @NonNull final ExchangeRate exchangeRate, final long subunitsPerWholeUnit) {
+        return new TinybarValues(exchangeRate, subunitsPerWholeUnit, PREPAID_RESOURCE_PRICES, null);
     }
 
     /**
@@ -46,16 +49,20 @@ public class TinybarValues {
      */
     public static TinybarValues forTransactionWith(
             @NonNull final ExchangeRate exchangeRate,
+            final long subunitsPerWholeUnit,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
-        return new TinybarValues(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
+        return new TinybarValues(
+                exchangeRate, subunitsPerWholeUnit, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
     private TinybarValues(
             @NonNull final ExchangeRate exchangeRate,
+            final long subunitsPerWholeUnit,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
         this.exchangeRate = Objects.requireNonNull(exchangeRate);
+        this.subunitsPerWholeUnit = subunitsPerWholeUnit;
         this.topLevelResourcePrices = Objects.requireNonNull(topLevelResourcePrices);
         this.childTransactionResourcePrices = childTransactionResourcePrices;
     }
@@ -67,7 +74,7 @@ public class TinybarValues {
      * @return the amount in tinybars
      */
     public long asTinybars(final long tinycents) {
-        return fromTinycentsToTinybars(exchangeRate, tinycents);
+        return scaleToSubunits(fromTinycentsToTinybars(exchangeRate, tinycents), subunitsPerWholeUnit);
     }
 
     public long asTinycents(final long tinyBars) {

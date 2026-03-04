@@ -25,6 +25,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -106,16 +107,20 @@ public final class FeeManager {
 
     private final CongestionMultipliers congestionMultipliers;
 
+    private final DenominationConverter denominationConverter;
+
     @Inject
     public FeeManager(
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull CongestionMultipliers congestionMultipliers,
             @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
-            @NonNull Set<QueryFeeCalculator> queryFeeCalculators) {
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
+            @NonNull final DenominationConverter denominationConverter) {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.congestionMultipliers = requireNonNull(congestionMultipliers);
         this.serviceFeeCalculators = requireNonNull(serviceFeeCalculators);
         this.queryFeeCalculators = requireNonNull(queryFeeCalculators);
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /**
@@ -246,7 +251,8 @@ public final class FeeManager {
                 isInternalDispatch,
                 congestionMultipliers,
                 storeFactory,
-                this.simpleFeesSchedule);
+                this.simpleFeesSchedule,
+                denominationConverter.subunitsPerWholeUnit());
     }
 
     public long congestionMultiplierFor(
@@ -271,7 +277,8 @@ public final class FeeManager {
                 congestionMultipliers,
                 storeFactory,
                 functionality,
-                this.simpleFeesSchedule);
+                this.simpleFeesSchedule,
+                denominationConverter.subunitsPerWholeUnit());
     }
 
     /**
@@ -337,6 +344,15 @@ public final class FeeManager {
                         t.hederaFunctionality());
             }
         });
+    }
+
+    /**
+     * Returns the number of native coin subunits per whole HBAR for the configured decimals.
+     *
+     * @return the subunits-per-whole-unit conversion factor
+     */
+    public long subunitsPerWholeUnit() {
+        return denominationConverter.subunitsPerWholeUnit();
     }
 
     @NonNull

@@ -19,6 +19,7 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.scaleToSubunits;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
@@ -352,8 +353,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         final var scaledAssociationFeeTinycents =
                 (associationFeeTinycents * rawMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
         final var activeRate = fromPbj(context.activeRate());
-        final var associationFeeTinybars = tinycentsToTinybars(associationFeeTinycents, activeRate);
-        final var scaledAssociationFeeTinybars = tinycentsToTinybars(scaledAssociationFeeTinycents, activeRate);
+        final var spwu = context.subunitsPerWholeUnit();
+        final var associationFeeTinybars =
+                scaleToSubunits(tinycentsToTinybars(associationFeeTinycents, activeRate), spwu);
+        final var scaledAssociationFeeTinybars =
+                scaleToSubunits(tinycentsToTinybars(scaledAssociationFeeTinycents, activeRate), spwu);
         return scaledAssociationFeeTinybars - associationFeeTinybars;
     }
 
@@ -571,7 +575,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             var airdropFee = simpleFeeCalculator.getExtraFee(Extra.AIRDROPS);
             final var highVolumeMultiplier = simpleFeeCalculator.highVolumeRawMultiplier(context.body(), context);
             airdropFee = (airdropFee * highVolumeMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
-            return tinycentsToTinybars(airdropFee, fromPbj(context.activeRate()));
+            return scaleToSubunits(
+                    tinycentsToTinybars(airdropFee, fromPbj(context.activeRate())), context.subunitsPerWholeUnit());
         }
 
         return context.feeCalculatorFactory()

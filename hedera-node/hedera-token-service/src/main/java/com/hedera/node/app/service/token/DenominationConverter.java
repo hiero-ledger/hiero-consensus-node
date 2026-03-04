@@ -9,6 +9,11 @@ import java.math.BigInteger;
  */
 public final class DenominationConverter {
 
+    /**
+     * The number of subunits per whole HBAR assumed by the default fee schedule (10^8).
+     */
+    public static final long DEFAULT_SUBUNITS_PER_HBAR = 100_000_000L;
+
     private final long subunitsPerWholeUnit;
     private final int decimals;
 
@@ -60,10 +65,27 @@ public final class DenominationConverter {
     }
 
     /**
+     * Scales a fee amount computed in default tinybars (10^-8 HBAR) to the
+     * configured native coin subunits (10^-decimals HBAR).
+     *
+     * @param defaultTinybars the fee amount in default tinybars
+     * @return the fee amount scaled to the configured denomination
+     */
+    public long scaleToSubunits(final long defaultTinybars) {
+        if (subunitsPerWholeUnit == DEFAULT_SUBUNITS_PER_HBAR) {
+            return defaultTinybars;
+        }
+        return BigInteger.valueOf(defaultTinybars)
+                .multiply(BigInteger.valueOf(subunitsPerWholeUnit))
+                .divide(BigInteger.valueOf(DEFAULT_SUBUNITS_PER_HBAR))
+                .longValueExact();
+    }
+
+    /**
      * Rounds the given subunit amount down to the nearest whole unit boundary.
      *
      * @param subunits the amount in subunits (must be non-negative)
-     * @return the largest multiple of {@link #subunitsPerWholeUnit()} that is less than or equal to the input
+     * @return the largest multiple of {@link #subunitsPerWholeUnit()} that is &le; the input
      * @throws IllegalArgumentException if subunits is negative
      */
     public long roundToWholeUnit(final long subunits) {

@@ -592,6 +592,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public long subunitsPerWholeUnit() {
+        return feeManager.subunitsPerWholeUnit();
+    }
+
+    @Override
     public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
         return throttleAdviser.highVolumeThrottleUtilization(functionality);
     }

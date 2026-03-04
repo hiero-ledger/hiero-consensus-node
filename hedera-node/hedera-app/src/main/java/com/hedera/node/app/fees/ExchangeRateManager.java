@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.fees.schemas.V0490FeeSchema;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.util.FileUtilities;
@@ -55,13 +56,16 @@ public final class ExchangeRateManager {
     private static final BigInteger ONE_HUNDRED = BigInteger.valueOf(100);
 
     private final ConfigProvider configProvider;
+    private final DenominationConverter denominationConverter;
 
     private ExchangeRateInfo currentExchangeRateInfo;
     private ExchangeRateSet midnightRates;
 
     @Inject
-    public ExchangeRateManager(@NonNull final ConfigProvider configProvider) {
+    public ExchangeRateManager(
+            @NonNull final ConfigProvider configProvider, @NonNull final DenominationConverter denominationConverter) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     public void init(
@@ -262,7 +266,8 @@ public final class ExchangeRateManager {
      */
     public long getTinybarsFromTinycents(final long amount, @NonNull final Instant consensusTime) {
         final var rate = activeRate(consensusTime);
-        return getAFromB(amount, rate.hbarEquiv(), rate.centEquiv());
+        final long defaultTinybars = getAFromB(amount, rate.hbarEquiv(), rate.centEquiv());
+        return denominationConverter.scaleToSubunits(defaultTinybars);
     }
 
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {

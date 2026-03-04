@@ -12,6 +12,7 @@ import com.esaulpaugh.headlong.abi.BigIntegerType;
 import com.esaulpaugh.headlong.abi.TypeFactory;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.token.DenominationConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
@@ -39,11 +40,16 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
             .contractNum(numberOfLongZero(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS)))
             .build();
 
+    private static final BigInteger DEFAULT_SUBUNITS = BigInteger.valueOf(100_000_000L);
+
     private long gasRequirement;
+    private final DenominationConverter denominationConverter;
 
     @Inject
-    public ExchangeRateSystemContract(@NonNull final GasCalculator gasCalculator) {
+    public ExchangeRateSystemContract(
+            @NonNull final GasCalculator gasCalculator, @NonNull final DenominationConverter denominationConverter) {
         super(PRECOMPILE_NAME, gasCalculator);
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     @Override
@@ -58,12 +64,22 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
             final var selector = input.getInt(0);
             final var amount = biValueFrom(input);
             final var activeRate = proxyUpdaterFor(messageFrame).currentExchangeRate();
+            final var subunits = BigInteger.valueOf(denominationConverter.subunitsPerWholeUnit());
             final var result =
                     switch (selector) {
-                        case TO_TINYBARS_SELECTOR -> padded(
-                                ConversionUtils.fromAToB(amount, activeRate.hbarEquiv(), activeRate.centEquiv()));
-                        case TO_TINYCENTS_SELECTOR -> padded(
-                                ConversionUtils.fromAToB(amount, activeRate.centEquiv(), activeRate.hbarEquiv()));
+                        case TO_TINYBARS_SELECTOR -> {
+                            // tinycents → default tinybars → subunits
+                            final var defaultTinybars =
+                                    ConversionUtils.fromAToB(amount, activeRate.hbarEquiv(), activeRate.centEquiv());
+                            yield padded(defaultTinybars.multiply(subunits).divide(DEFAULT_SUBUNITS));
+                        }
+                        case TO_TINYCENTS_SELECTOR -> {
+                            // subunits → default tinybars → tinycents
+                            final var defaultTinybars =
+                                    amount.multiply(DEFAULT_SUBUNITS).divide(subunits);
+                            yield padded(ConversionUtils.fromAToB(
+                                    defaultTinybars, activeRate.centEquiv(), activeRate.hbarEquiv()));
+                        }
                         default -> null;
                     };
             requireNonNull(result);

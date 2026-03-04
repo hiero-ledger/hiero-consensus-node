@@ -178,6 +178,11 @@ public class ChildFeeContext implements FeeContext {
     }
 
     @Override
+    public long subunitsPerWholeUnit() {
+        return feeManager.subunitsPerWholeUnit();
+    }
+
+    @Override
     public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
         return context.getHighVolumeThrottleUtilization(functionality);
     }

@@ -13,6 +13,7 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -52,7 +53,7 @@ class ExchangeRateManagerTest {
     @BeforeEach
     void setup() {
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
-        subject = new ExchangeRateManager(configProvider);
+        subject = new ExchangeRateManager(configProvider, new DenominationConverter(8));
         final var state = new FakeState();
         final var midnightRates = new AtomicReference<>(validRatesObj);
         state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, midnightRates));

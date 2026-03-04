@@ -14,6 +14,7 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.config.data.ContractsConfig;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -50,7 +51,7 @@ class ExchangeRateSystemContractTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ExchangeRateSystemContract(gasCalculator);
+        subject = new ExchangeRateSystemContract(gasCalculator, new DenominationConverter(8));
         frameUtils = Mockito.mockStatic(FrameUtils.class);
     }
 

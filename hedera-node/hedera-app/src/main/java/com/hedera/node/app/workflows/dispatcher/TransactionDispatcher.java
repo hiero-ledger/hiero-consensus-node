@@ -140,7 +140,8 @@ public class TransactionDispatcher {
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                         .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
-                return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+                return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()))
+                        .scaledToSubunits(feeContext.subunitsPerWholeUnit());
             }
             return handler.calculateFees(feeContext);
         } catch (UnsupportedOperationException ex) {

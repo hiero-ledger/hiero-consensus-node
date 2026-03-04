@@ -36,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -75,8 +76,13 @@ public interface TransactionModule {
     static TinybarValues provideTinybarValues(
             @TopLevelResourcePrices @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
-            @NonNull final ExchangeRate exchangeRate) {
-        return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
+            @NonNull final ExchangeRate exchangeRate,
+            @NonNull final DenominationConverter denominationConverter) {
+        return TinybarValues.forTransactionWith(
+                exchangeRate,
+                denominationConverter.subunitsPerWholeUnit(),
+                topLevelResourcePrices,
+                childTransactionResourcePrices);
     }
 
     @Provides

@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.spi.fees.util.FeeUtils;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,8 @@ class TinybarValuesTest {
 
     @BeforeEach
     void setUp() {
-        subject = TinybarValues.forTransactionWith(RATE_TO_USE, resourcePrices, childResourcePrices);
+        subject = TinybarValues.forTransactionWith(
+                RATE_TO_USE, FeeUtils.DEFAULT_SUBUNITS_PER_HBAR, resourcePrices, childResourcePrices);
     }
 
     @Test
@@ -74,10 +76,11 @@ class TinybarValuesTest {
     }
 
     private void withTransactionSubject() {
-        subject = TinybarValues.forTransactionWith(RATE_TO_USE, resourcePrices, childResourcePrices);
+        subject = TinybarValues.forTransactionWith(
+                RATE_TO_USE, FeeUtils.DEFAULT_SUBUNITS_PER_HBAR, resourcePrices, childResourcePrices);
     }
 
     private void withQuerySubject() {
-        subject = TinybarValues.forQueryWith(RATE_TO_USE);
+        subject = TinybarValues.forQueryWith(RATE_TO_USE, FeeUtils.DEFAULT_SUBUNITS_PER_HBAR);
     }
 }
