@@ -64,4 +64,12 @@ message NetworkGetVersionInfoResponse {
      * operating the network.
      */
     SemanticVersion hederaServicesVersion = 3;
+
+    /**
+     * The number of decimal places used by the native coin on this network.
+     * <p>
+     * This value is set at genesis and SHALL NOT change after that.<br/>
+     * A value of 8 means 1 whole coin = 10^8 subunits (the default).
+     */
+    uint32 native_coin_decimals = 4;
 }
