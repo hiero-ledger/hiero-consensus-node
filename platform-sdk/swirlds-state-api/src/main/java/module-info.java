@@ -6,7 +6,7 @@ module com.swirlds.state.api {
     exports com.swirlds.state.binary;
 
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.common;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;

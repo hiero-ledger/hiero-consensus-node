@@ -17,7 +17,9 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -47,11 +49,10 @@ class AsyncInputStreamTest {
         try (final PairedStreams streams = new PairedStreams()) {
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
 
-            final AsyncInputStream<SerializableLong> in = new AsyncInputStream<>(
-                    streams.getTeacherInput(), workGroup, SerializableLong::new, reconnectConfig);
+            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
 
-            final AsyncOutputStream<SerializableLong> out =
-                    new AsyncOutputStream<>(streams.getLearnerOutput(), workGroup, reconnectConfig);
+            final AsyncOutputStream out =
+                    new AsyncOutputStream(streams.getLearnerOutput(), workGroup, in::isAlive, reconnectConfig);
 
             in.start();
             out.start();
@@ -60,13 +61,14 @@ class AsyncInputStreamTest {
 
             for (int i = 0; i < count; i++) {
                 out.sendAsync(new SerializableLong(i));
-                in.anticipateMessage();
-                final SerializableLong message = in.readAnticipatedMessage();
+                final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
                 assertEquals(i, message.getValue(), "message should match the value that was serialized");
             }
 
-            in.close();
-            out.close();
+            // Send reconnect completion marker
+            streams.getLearnerOutput().writeInt(-1);
+            streams.getLearnerOutput().flush();
+
             workGroup.waitForTermination();
         }
     }
@@ -78,11 +80,10 @@ class AsyncInputStreamTest {
         try (final PairedStreams streams = new PairedStreams()) {
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
 
-            final AsyncInputStream<SerializableLong> in = new AsyncInputStream<>(
-                    streams.getTeacherInput(), workGroup, SerializableLong::new, reconnectConfig);
+            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
 
-            final AsyncOutputStream<SerializableLong> out =
-                    new AsyncOutputStream<>(streams.getLearnerOutput(), workGroup, reconnectConfig);
+            final AsyncOutputStream out =
+                    new AsyncOutputStream(streams.getLearnerOutput(), workGroup, in::isAlive, reconnectConfig);
 
             in.start();
             out.start();
@@ -90,17 +91,15 @@ class AsyncInputStreamTest {
             final int count = 100;
 
             for (int i = 0; i < count; i++) {
-                in.anticipateMessage();
-            }
-
-            for (int i = 0; i < count; i++) {
                 out.sendAsync(new SerializableLong(i));
-                final SerializableLong message = in.readAnticipatedMessage();
+                final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
                 assertEquals(i, message.getValue(), "message should match the value that was serialized");
             }
 
-            in.close();
-            out.close();
+            // Send reconnect completion marker
+            streams.getLearnerOutput().writeInt(-1);
+            streams.getLearnerOutput().flush();
+
             workGroup.waitForTermination();
         }
     }
@@ -121,8 +120,9 @@ class AsyncInputStreamTest {
         // Block all bytes from this stream, data can only sit in async stream buffer
         blockingOut.lock();
 
-        final AsyncOutputStream<SerializableLong> out =
-                new AsyncOutputStream<>(new SerializableDataOutputStream(blockingOut), workGroup, reconnectConfig);
+        final AtomicBoolean keepRunning = new AtomicBoolean(true);
+        final AsyncOutputStream out = new AsyncOutputStream(
+                new SerializableDataOutputStream(blockingOut), workGroup, keepRunning::get, reconnectConfig);
 
         out.start();
 
@@ -135,10 +135,11 @@ class AsyncInputStreamTest {
                             messagesSent.getAndIncrement();
                         } catch (final InterruptedException ex) {
                             Thread.currentThread().interrupt();
-                            ex.printStackTrace();
+                            ex.printStackTrace(System.err);
                             break;
                         }
                     }
+                    keepRunning.set(false);
                 })
                 .setThreadName("output-thread")
                 .build();
@@ -147,21 +148,24 @@ class AsyncInputStreamTest {
         // Sender will send until the sender buffer is full.
         MILLISECONDS.sleep(100);
 
-        // The buffer will fill up, and one message will be held by the sending thread (which is blocked)
-        assertEquals(bufferSize + 1, messagesSent.get(), "incorrect message count");
+        final int messageCount = messagesSent.get();
+        // The buffer will fill up, and one or more messages will be held by the sending thread (which is
+        // blocked), up to double buffer size
+        assertTrue(messageCount >= bufferSize + 1, "incorrect message count");
+        assertTrue(messageCount <= 2 * bufferSize, "incorrect message count");
 
         // Unblock the buffer, allowing remaining messages to be sent
         blockingOut.unlock();
 
         assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should have been sent");
 
-        out.close();
         workGroup.waitForTermination();
 
         // Sanity check, make sure all the messages were written to the stream
         final byte[] bytes = byteOut.toByteArray();
         final SerializableDataInputStream in = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         for (int i = 0; i < count; i++) {
+            assertEquals(Long.BYTES, in.readInt()); // SerializableLong length
             final SerializableLong value = new SerializableLong();
             value.deserialize(in, value.getVersion());
             assertEquals(i, value.getValue(), "deserialized value should match expected value");
@@ -182,6 +186,7 @@ class AsyncInputStreamTest {
         final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         for (int i = 0; i < count; i++) {
             // This is the way that each object is written by the AsyncOutputStream, mimic that format
+            out.writeInt(Long.BYTES); // size of SerializableLong
             new SerializableLong(i).serialize(out);
         }
         MILLISECONDS.sleep(100);
@@ -189,13 +194,9 @@ class AsyncInputStreamTest {
 
         final BlockingInputStream blockingIn = new BlockingInputStream(new ByteArrayInputStream(data));
 
-        final AsyncInputStream<SerializableLong> in = new AsyncInputStream<>(
-                new SerializableDataInputStream(blockingIn), workGroup, SerializableLong::new, reconnectConfig);
+        final AsyncInputStream in =
+                new AsyncInputStream(new SerializableDataInputStream(blockingIn), workGroup, reconnectConfig);
         in.start();
-
-        for (int i = 0; i < count; i++) {
-            in.anticipateMessage();
-        }
 
         // Give the stream some time to accept as much data as it wants. Stream will stop accepting when queue fills up.
         MILLISECONDS.sleep(100);
@@ -208,12 +209,11 @@ class AsyncInputStreamTest {
                 .setRunnable(() -> {
                     for (int i = 0; i < count; i++) {
                         try {
-                            assertEquals(i, in.readAnticipatedMessage().getValue(), "value does not match expected");
+                            final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
+                            assertEquals(i, message.getValue(), "value does not match expected");
                             messagesReceived.getAndIncrement();
-                        } catch (final InterruptedException ex) {
-                            Thread.currentThread().interrupt();
-                            ex.printStackTrace();
-                            break;
+                        } catch (final IOException ex) {
+                            throw new UncheckedIOException(ex);
                         }
                     }
                 })
@@ -233,7 +233,10 @@ class AsyncInputStreamTest {
 
         assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(5), "all messages should be read");
 
-        in.close();
+        // Send reconnect completion marker
+        out.writeInt(-1);
+        out.flush();
+
         workGroup.waitForTermination();
     }
 
@@ -250,21 +253,26 @@ class AsyncInputStreamTest {
             final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "input-stream-abort-deadlock", null);
 
-            final AsyncOutputStream<ExplodingSelfSerializable> teacherOut =
-                    new AsyncOutputStream<>(pairedStreams.getTeacherOutput(), workGroup, reconnectConfig);
+            final AsyncOutputStream teacherOut =
+                    new AsyncOutputStream(pairedStreams.getTeacherOutput(), workGroup, () -> true, reconnectConfig);
 
-            final AsyncInputStream<ExplodingSelfSerializable> learnerIn = new AsyncInputStream<>(
-                    pairedStreams.getLearnerInput(), workGroup, ExplodingSelfSerializable::new, reconnectConfig);
+            final AsyncInputStream learnerIn =
+                    new AsyncInputStream(pairedStreams.getLearnerInput(), workGroup, reconnectConfig);
+
+            final Runnable reader = () -> {
+                try {
+                    learnerIn.readAnticipatedMessageSync(ExplodingSelfSerializable::new);
+                } catch (final Exception e) {
+                    workGroup.handleError(e);
+                }
+            };
+            workGroup.execute(reader);
 
             learnerIn.start();
             teacherOut.start();
 
             teacherOut.sendAsync(new ExplodingSelfSerializable());
-            learnerIn.anticipateMessage();
             Thread.sleep(100);
-
-            teacherOut.close();
-            learnerIn.close();
 
             workGroup.waitForTermination();
             assertTrue(workGroup.hasExceptions(), "work group is expected to have an exception");
@@ -281,7 +289,7 @@ class AsyncInputStreamTest {
             abortThread.join();
 
         } catch (final IOException e) {
-            e.printStackTrace();
+            e.printStackTrace(System.err);
             fail("exception encountered", e);
         }
     }

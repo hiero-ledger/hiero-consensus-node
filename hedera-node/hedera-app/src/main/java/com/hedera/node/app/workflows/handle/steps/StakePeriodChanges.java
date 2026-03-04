@@ -160,13 +160,15 @@ public class StakePeriodChanges {
                     final var weightFunction = tokenContext
                             .readableStore(ReadableStakingInfoStore.class)
                             .weightFunction();
-                    final var reweightedRoster =
-                            new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
-                                    .map(rosterEntry -> rosterEntry
-                                            .copyBuilder()
-                                            .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
-                                            .build())
-                                    .toList());
+                    final var rosterToReweight = rosterStore.getCandidateRosterHash() == null
+                            ? requireNonNull(rosterStore.getActiveRoster())
+                            : requireNonNull(rosterStore.getCandidateRoster());
+                    final var reweightedRoster = new Roster(rosterToReweight.rosterEntries().stream()
+                            .map(rosterEntry -> rosterEntry
+                                    .copyBuilder()
+                                    .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
+                                    .build())
+                            .toList());
                     if (!hasZeroWeight(reweightedRoster)) {
                         rosterStore.putCandidateRoster(reweightedRoster);
                         stack.commitFullStack();
