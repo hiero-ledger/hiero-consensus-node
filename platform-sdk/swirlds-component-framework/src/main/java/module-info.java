@@ -17,6 +17,7 @@ module com.swirlds.component.framework {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.metrics;
+    requires com.swirlds.common;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;

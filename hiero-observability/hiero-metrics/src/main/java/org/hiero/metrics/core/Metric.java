@@ -40,6 +40,7 @@ public abstract class Metric implements MetricInfo {
     private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
+    @Nullable
     private final MetricSnapshot snapshot;
 
     protected Metric(Builder<?, ?> builder) {
@@ -51,7 +52,11 @@ public abstract class Metric implements MetricInfo {
         staticLabels = builder.staticLabels.values().stream().sorted().toList();
         dynamicLabelNames = builder.dynamicLabelNames.stream().sorted().toList();
 
-        snapshot = new MetricSnapshot(this);
+        if (builder.snapshotable) {
+            snapshot = new MetricSnapshot(this);
+        } else {
+            snapshot = null;
+        }
     }
 
     @NonNull
@@ -114,6 +119,7 @@ public abstract class Metric implements MetricInfo {
      * This method is package private to avoid exposing it in the public API and only called from metric registry
      * when providing snapshot to registered exporter.
      */
+    @Nullable
     final MetricSnapshot snapshot() {
         return snapshot;
     }
@@ -134,7 +140,9 @@ public abstract class Metric implements MetricInfo {
      * @param measurementSnapshot the measurement snapshot to add, must not be {@code null}
      */
     protected final void addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
-        snapshot.addMeasurementSnapshot(measurementSnapshot);
+        if (snapshot != null) {
+            snapshot.addMeasurementSnapshot(measurementSnapshot);
+        }
     }
 
     /**
@@ -216,6 +224,7 @@ public abstract class Metric implements MetricInfo {
         private final MetricKey<M> key;
         private String description;
         private String unit;
+        private boolean snapshotable = true;
 
         private final Map<String, Label> staticLabels = new HashMap<>();
         private final Set<String> dynamicLabelNames = new HashSet<>();
@@ -329,6 +338,10 @@ public abstract class Metric implements MetricInfo {
             }
 
             return self();
+        }
+
+        final void doNotSnapshot() {
+            this.snapshotable = false;
         }
 
         /**

@@ -52,6 +52,7 @@ import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
@@ -77,7 +78,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -146,7 +146,6 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@ConstructableIgnored
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
     /**
@@ -716,11 +715,25 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
-            final VirtualLeafBytes<V> leaf = valueCodec != null
-                    ? new VirtualLeafBytes<>(path, key, value, valueCodec)
-                    : new VirtualLeafBytes<>(path, key, valueBytes);
-            cache.putLeaf(leaf);
+            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
+            // the data source, and the path above can be used as the old path
+            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
+            final VirtualLeafBytes<V> updated;
+            if (existing != null) {
+                updated = valueCodec != null
+                        ? existing.withValue(value, valueCodec)
+                        : existing.withValueBytes(valueBytes);
+            } else {
+                // There is a leaf with the given key (because path != INVALID_PATH), but it
+                // isn't in the cache, so it must be on disk. Loading the record from disk
+                // with records.findLeafRecord() would be expensive and actually not needed.
+                // The path and the key are known, it's enough to create a new record and
+                // mark it as not moved
+                updated = valueCodec != null
+                        ? new VirtualLeafBytes<>(path, false, key, value, valueCodec)
+                        : new VirtualLeafBytes<>(path, false, key, valueBytes);
+            }
+            cache.putLeaf(updated);
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
@@ -1238,11 +1251,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
-                new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPushVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
@@ -1335,13 +1350,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new LearnerPushVirtualTreeView(
-                        reconnectConfig,
-                        this,
-                        originalMap.records,
-                        originalState,
-                        reconnectState,
-                        nodeRemover,
-                        mapStats);
+                        this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
                 final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
                 yield new LearnerPullVirtualTreeView(
@@ -1364,6 +1373,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         reconnectState,
                         nodeRemover,
                         twoPhasePessimistic,
+                        mapStats);
+            }
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> {
+                final NodeTraversalOrder parallelSync = new ParallelSyncTraversalOrder();
+                yield new LearnerPullVirtualTreeView(
+                        reconnectConfig,
+                        this,
+                        originalMap.records,
+                        originalState,
+                        reconnectState,
+                        nodeRemover,
+                        parallelSync,
                         mapStats);
             }
             default ->

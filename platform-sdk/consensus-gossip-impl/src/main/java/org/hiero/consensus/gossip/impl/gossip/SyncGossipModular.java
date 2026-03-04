@@ -201,8 +201,8 @@ public class SyncGossipModular implements Gossip {
 
         clearInput.bindConsumer(ignored -> rpcProtocol.clear());
         eventInput.bindConsumer(event -> {
-            synchronizer.addEvent(event);
             rpcProtocol.addEvent(event);
+            synchronizer.addEvent(event);
         });
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
