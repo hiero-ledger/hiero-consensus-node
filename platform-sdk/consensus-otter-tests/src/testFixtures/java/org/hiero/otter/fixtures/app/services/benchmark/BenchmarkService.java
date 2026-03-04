@@ -5,6 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.utility.InstantUtils;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -13,6 +16,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
@@ -39,6 +43,8 @@ public class BenchmarkService implements OtterService {
      */
     private static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
 
+    private NodeId selfId = null;
+
     /**
      * {@inheritDoc}
      */
@@ -57,6 +63,14 @@ public class BenchmarkService implements OtterService {
         return STATE_SPECIFICATION;
     }
 
+    @Override
+    public void initialize(@NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final VirtualMapState state) {
+        this.selfId = selfId;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -69,6 +83,12 @@ public class BenchmarkService implements OtterService {
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
 
         if (!transaction.hasBenchmarkTransaction()) {
+            return;
+        }
+
+        if (!event.getCreatorId().equals(selfId)) {
+            // Only log transactions created by this node because the submission timestamp is only trustworthy for the
+            // node that created the transaction
             return;
         }
 
