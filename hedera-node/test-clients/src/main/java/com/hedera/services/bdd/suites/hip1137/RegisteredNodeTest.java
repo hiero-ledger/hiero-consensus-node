@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -29,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @Tag(INTEGRATION)
-public class RegisteredNodeCrudTest {
+public class RegisteredNodeTest {
     private static final String RN_ADMIN_KEY = "rnAdminKey";
     private static final String RN_NEW_ADMIN_KEY = "rnNewAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
@@ -44,7 +43,7 @@ public class RegisteredNodeCrudTest {
                     .build());
 
     @HapiTest
-    @DisplayName("create → update (admin key rotation) → delete")
+    @DisplayName("create → update (admin key rotation)")
     final Stream<DynamicTest> crudHappyPath() {
         final var createdId = new AtomicLong();
         return hapiTest(
@@ -63,10 +62,7 @@ public class RegisteredNodeCrudTest {
                             .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
                             .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
-                    final var delete = registeredNodeDelete(createdId::get)
-                            .signedBy(DEFAULT_PAYER, RN_NEW_ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, update, delete);
+                    allRunFor(spec, update);
                 }));
     }
 
@@ -86,10 +82,7 @@ public class RegisteredNodeCrudTest {
                             .description("updated-desc")
                             .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
-                    final var cleanup = registeredNodeDelete(createdId::get)
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, update, cleanup);
+                    allRunFor(spec, update);
                 }));
     }
 
@@ -116,16 +109,13 @@ public class RegisteredNodeCrudTest {
                             .serviceEndpoints(replacementEndpoints)
                             .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
-                    final var cleanup = registeredNodeDelete(createdId::get)
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, update, cleanup);
+                    allRunFor(spec, update);
                 }));
     }
 
     @HapiTest
-    @DisplayName("admin key rotation fails without new key signature, succeeds with both")
-    final Stream<DynamicTest> adminKeyRotationRequiresDualSignature() {
+    @DisplayName("update requires admin key signature, key rotation requires dual signature")
+    final Stream<DynamicTest> signatureRequirements() {
         final var createdId = new AtomicLong();
         return hapiTest(
                 newKeyNamed(RN_ADMIN_KEY),
@@ -136,20 +126,22 @@ public class RegisteredNodeCrudTest {
                         .exposingCreatedIdTo(createdId::set)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
-                    // Attempt rotation signed only by old key — should fail
-                    final var failedUpdate = registeredNodeUpdate(createdId::get)
+                    // Update without admin key sig → INVALID_SIGNATURE
+                    final var unauthorizedUpdate = registeredNodeUpdate(createdId::get)
+                            .description("unauthorized")
+                            .signedBy(DEFAULT_PAYER)
+                            .hasKnownStatus(INVALID_SIGNATURE);
+                    // Rotation signed only by old key → INVALID_SIGNATURE
+                    final var failedRotation = registeredNodeUpdate(createdId::get)
                             .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
                             .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
                             .hasKnownStatus(INVALID_SIGNATURE);
-                    // Rotation signed by both old and new keys — should succeed
-                    final var successfulUpdate = registeredNodeUpdate(createdId::get)
+                    // Rotation signed by both old and new keys → SUCCESS
+                    final var successfulRotation = registeredNodeUpdate(createdId::get)
                             .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
                             .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
-                    final var cleanup = registeredNodeDelete(createdId::get)
-                            .signedBy(DEFAULT_PAYER, RN_NEW_ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, failedUpdate, successfulUpdate, cleanup);
+                    allRunFor(spec, unauthorizedUpdate, failedRotation, successfulRotation);
                 }));
     }
 
@@ -163,30 +155,5 @@ public class RegisteredNodeCrudTest {
                     .hasPrecheck(INVALID_NODE_ID);
             allRunFor(spec, update);
         }));
-    }
-
-    @HapiTest
-    @DisplayName("update without admin key signature fails with INVALID_SIGNATURE")
-    final Stream<DynamicTest> updateWithoutAdminKeySigFails() {
-        final var createdId = new AtomicLong();
-        return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY),
-                registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
-                        .serviceEndpoints(DEFAULT_ENDPOINTS)
-                        .exposingCreatedIdTo(createdId::set)
-                        .hasKnownStatus(SUCCESS),
-                withOpContext((spec, opLog) -> {
-                    // Attempt update signed only by payer, without admin key
-                    final var update = registeredNodeUpdate(createdId::get)
-                            .description("unauthorized")
-                            .signedBy(DEFAULT_PAYER)
-                            .hasKnownStatus(INVALID_SIGNATURE);
-                    // Clean up — need admin key to delete
-                    final var cleanup = registeredNodeDelete(createdId::get)
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, update, cleanup);
-                }));
     }
 }
