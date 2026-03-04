@@ -25,6 +25,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.contract.ContractGetInfoUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
@@ -50,17 +51,22 @@ import javax.inject.Singleton;
 public class ContractGetInfoHandler extends PaidQueryHandler {
     private static final long BYTES_PER_EVM_KEY_VALUE_PAIR = 64;
     private final EntityIdFactory entityIdFactory;
-
     private final InstantSource instantSource;
+    private final DenominationConverter denominationConverter;
 
     /**
      * @param instantSource the source of the current instant
+     * @param entityIdFactory the entity id factory
+     * @param denominationConverter the denomination converter
      */
     @Inject
     public ContractGetInfoHandler(
-            @NonNull final InstantSource instantSource, @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final InstantSource instantSource,
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final DenominationConverter denominationConverter) {
         this.instantSource = requireNonNull(instantSource);
         this.entityIdFactory = requireNonNull(entityIdFactory);
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     @Override
@@ -136,7 +142,8 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
                 stakingRewardsStore.isStakingRewardsActivated(),
                 contract,
                 stakingInfoStore,
-                instantSource.instant());
+                instantSource.instant(),
+                denominationConverter.subunitsPerWholeUnit());
         final var maxReturnedRels = tokensConfig.maxRelsPerInfoQuery();
         final var builder = ContractInfo.newBuilder()
                 .ledgerId(ledgerConfig.id())

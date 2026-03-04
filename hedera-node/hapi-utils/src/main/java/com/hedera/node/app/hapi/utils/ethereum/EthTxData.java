@@ -38,13 +38,6 @@ public record EthTxData(
         byte[] r,
         byte[] s) {
 
-    /**
-     * A "wiebar" is 10⁻¹⁸ of an hbar.  The relationship is weibar : hbar as wei : ether.  Ethereum
-     * transactions come in with transfer amounts in units of weibar.  Elsewhere in Hedera we use
-     * units of tinybar (10⁻⁸ of an hbar), and here is the conversion factor:
-     */
-    public static final BigInteger WEIBARS_IN_A_TINYBAR = BigInteger.valueOf(10_000_000_000L);
-
     // Copy of constants from besu-native, remove when next besu-native publishes
     static final int SECP256K1_FLAGS_TYPE_COMPRESSION = 1 << 1;
     static final int SECP256K1_FLAGS_BIT_COMPRESSION = 1 << 8;
@@ -178,8 +171,14 @@ public record EthTxData(
         };
     }
 
-    public long getAmount() {
-        return value.divide(WEIBARS_IN_A_TINYBAR).longValueExact();
+    /**
+     * Returns the transaction value converted from weibars to subunits (e.g., tinybars).
+     *
+     * @param weibarsInATinybar the number of weibars per subunit (e.g., 10^10 for 8-decimal HBAR)
+     * @return the value in subunits
+     */
+    public long getAmount(@NonNull final BigInteger weibarsInATinybar) {
+        return value.divide(weibarsInATinybar).longValueExact();
     }
 
     public BigInteger getMaxGasAsBigInteger(final long tinybarGasPrice) {
@@ -196,32 +195,29 @@ public record EthTxData(
 
     /**
      * Returns the effective offered gas price for this transaction, defined as the minimum of the
-     * nominal offered gas price in tinybars and {@code (Long.MAX_VALUE / gasLimit)}.
-     *
-     * <p>Clearly the latter value would always be un-payable, since the transaction would cost more
-     * than the entire hbar supply. We just do this to avoid integral overflow.
+     * nominal offered gas price in subunits and {@code (Long.MAX_VALUE / gasLimit)}.
      *
      * @param weibarGasPrice the current gas price in weibars
-     * @return the effective offered gas price in tinybars
+     * @param weibarsInATinybar the number of weibars per subunit
+     * @return the effective offered gas price in subunits
      */
-    public long effectiveOfferedGasPriceInTinybars(final long weibarGasPrice) {
+    public long effectiveOfferedGasPriceInTinybars(
+            final long weibarGasPrice, @NonNull final BigInteger weibarsInATinybar) {
         return BigInteger.valueOf(Long.MAX_VALUE)
-                .min(getMaxGasAsBigInteger(weibarGasPrice).divide(WEIBARS_IN_A_TINYBAR))
+                .min(getMaxGasAsBigInteger(weibarGasPrice).divide(weibarsInATinybar))
                 .longValueExact();
     }
 
     /**
-     * Returns the effective tinybar value of this transaction, defined as the minimum of the nominal
-     * value in tinybars and {@code Long.MAX_VALUE}.
+     * Returns the effective subunit value of this transaction, defined as the minimum of the nominal
+     * value in subunits and {@code Long.MAX_VALUE}.
      *
-     * <p>Clearly the latter value would always be un-payable, since the transaction would send more
-     * than the entire hbar supply. We just do this to avoid integral overflow.
-     *
-     * @return the effective tinybar value
+     * @param weibarsInATinybar the number of weibars per subunit
+     * @return the effective value in subunits
      */
-    public long effectiveTinybarValue() {
+    public long effectiveTinybarValue(@NonNull final BigInteger weibarsInATinybar) {
         return BigInteger.valueOf(Long.MAX_VALUE)
-                .min(value.divide(WEIBARS_IN_A_TINYBAR))
+                .min(value.divide(weibarsInATinybar))
                 .longValueExact();
     }
 

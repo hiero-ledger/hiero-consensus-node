@@ -38,6 +38,7 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -45,6 +46,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.math.BigInteger;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -119,7 +121,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -135,7 +138,10 @@ class ContextTransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
-                ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
+                ETH_DATA_WITH_TO_ADDRESS,
+                rootProxyWorldUpdater,
+                Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
+                BigInteger.valueOf(10_000_000_000L));
         final var expectedResult = new CallOutcome(
                 protoResult,
                 SUCCESS,
@@ -148,7 +154,8 @@ class ContextTransactionProcessorTest {
                         ETH_DATA_WITHOUT_TO_ADDRESS,
                         rootProxyWorldUpdater,
                         Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
-                        null),
+                        null,
+                        BigInteger.valueOf(10_000_000_000L)),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null);
@@ -172,7 +179,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -188,7 +196,10 @@ class ContextTransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
-                ETH_DATA_WITHOUT_TO_ADDRESS, rootProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
+                ETH_DATA_WITHOUT_TO_ADDRESS,
+                rootProxyWorldUpdater,
+                Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                BigInteger.valueOf(10_000_000_000L));
         final var expectedResult = new CallOutcome(
                 protoResult,
                 SUCCESS,
@@ -201,7 +212,8 @@ class ContextTransactionProcessorTest {
                         ETH_DATA_WITHOUT_TO_ADDRESS,
                         rootProxyWorldUpdater,
                         Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
-                        null),
+                        null,
+                        BigInteger.valueOf(10_000_000_000L)),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null);
@@ -224,7 +236,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -239,7 +252,8 @@ class ContextTransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
-        final var protoResult = SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult =
+                SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater, null, BigInteger.valueOf(10_000_000_000L));
         final var expectedResult = new CallOutcome(
                 protoResult,
                 SUCCESS,
@@ -248,7 +262,8 @@ class ContextTransactionProcessorTest {
                 null,
                 List.of(),
                 List.of(),
-                SUCCESS_RESULT.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(
+                        null, rootProxyWorldUpdater, null, null, BigInteger.valueOf(10_000_000_000L)),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -271,7 +286,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -306,7 +322,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -338,7 +355,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(RELAYER_ID);
@@ -369,7 +387,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -401,7 +420,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -436,7 +456,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -471,7 +492,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
@@ -501,7 +523,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
     }
@@ -524,7 +547,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                new DenominationConverter(8));
 
         final var payer = AccountID.DEFAULT;
         given(context.body()).willReturn(transactionBody);

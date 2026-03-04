@@ -57,6 +57,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -72,6 +73,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -95,6 +97,7 @@ public class HevmTransactionFactory {
     private final EthTxSigsCache ethereumSignatures;
     private final HederaEvmContext hederaEvmContext;
     private final EntityIdFactory entityIdFactory;
+    private final BigInteger weibarsPerSubunit;
 
     @Inject
     public HevmTransactionFactory(
@@ -114,7 +117,8 @@ public class HevmTransactionFactory {
             @NonNull final EthTxSigsCache ethereumSignatures,
             @NonNull final HederaEvmContext hederaEvmContext,
             @NonNull final EntityIdFactory entityIdFactory,
-            @NonNull final HooksConfig hooksConfig) {
+            @NonNull final HooksConfig hooksConfig,
+            @NonNull final DenominationConverter denominationConverter) {
         this.featureFlags = featureFlags;
         this.hydratedEthTxData = hydratedEthTxData;
         this.gasCalculator = requireNonNull(gasCalculator);
@@ -132,6 +136,7 @@ public class HevmTransactionFactory {
         this.hederaEvmContext = requireNonNull(hederaEvmContext);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.hooksConfig = requireNonNull(hooksConfig);
+        this.weibarsPerSubunit = requireNonNull(denominationConverter).weibarsPerSubunit();
     }
 
     /**
@@ -233,7 +238,7 @@ public class HevmTransactionFactory {
             @NonNull final AccountID senderId,
             @NonNull final EthTxData ethTxData,
             final long maxGasAllowance) {
-        validateTrue(ethTxData.getAmount() >= 0, CONTRACT_NEGATIVE_VALUE);
+        validateTrue(ethTxData.getAmount(weibarsPerSubunit) >= 0, CONTRACT_NEGATIVE_VALUE);
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
@@ -241,9 +246,9 @@ public class HevmTransactionFactory {
                 ethTxData.nonce(),
                 ethTxData.hasCallData() ? Bytes.wrap(ethTxData.callData()) : Bytes.EMPTY,
                 Bytes.wrap(ethTxData.chainId()),
-                ethTxData.effectiveTinybarValue(),
+                ethTxData.effectiveTinybarValue(weibarsPerSubunit),
                 ethTxData.gasLimit(),
-                ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
+                ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice(), weibarsPerSubunit),
                 maxGasAllowance,
                 null,
                 null,
@@ -262,11 +267,11 @@ public class HevmTransactionFactory {
                 ethTxData.nonce(),
                 Bytes.wrap(ethTxData.callData()),
                 Bytes.wrap(ethTxData.chainId()),
-                ethTxData.effectiveTinybarValue(),
+                ethTxData.effectiveTinybarValue(weibarsPerSubunit),
                 ethTxData.gasLimit(),
-                ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
+                ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice(), weibarsPerSubunit),
                 maxGasAllowance,
-                synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData, weibarsPerSubunit),
                 null,
                 null);
     }

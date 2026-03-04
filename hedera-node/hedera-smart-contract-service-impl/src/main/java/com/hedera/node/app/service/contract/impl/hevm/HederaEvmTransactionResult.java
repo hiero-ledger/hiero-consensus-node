@@ -42,6 +42,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.List;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -91,15 +92,20 @@ public record HederaEvmTransactionResult(
     public ContractFunctionResult asProtoResultOf(
             @Nullable final EthTxData ethTxData,
             @NonNull final RootProxyWorldUpdater updater,
-            @Nullable final Bytes callData) {
+            @Nullable final Bytes callData,
+            @NonNull final BigInteger weibarsPerSubunit) {
         if (haltReason != null) {
-            return withMaybeEthFields(asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData, callData);
+            return withMaybeEthFields(
+                    asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData, callData, weibarsPerSubunit);
         } else if (revertReason != null) {
             // This curious presentation of the revert reason is needed for backward compatibility
             return withMaybeEthFields(
-                    asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData, callData);
+                    asUncommittedFailureResult(errorMessageForRevert(revertReason)),
+                    ethTxData,
+                    callData,
+                    weibarsPerSubunit);
         } else {
-            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData, callData);
+            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData, callData, weibarsPerSubunit);
         }
     }
 
@@ -116,19 +122,26 @@ public record HederaEvmTransactionResult(
             @Nullable final EthTxData ethTxData,
             @NonNull final RootProxyWorldUpdater updater,
             @Nullable final Bytes callData,
-            @Nullable final HookId hookId) {
+            @Nullable final HookId hookId,
+            @NonNull final BigInteger weibarsPerSubunit) {
         if (haltReason != null) {
             return txWithMaybeEthFields(
-                    asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData, callData, hookId);
+                    asUncommittedFailureResultBuilder(errorMessageFor(haltReason)),
+                    ethTxData,
+                    callData,
+                    hookId,
+                    weibarsPerSubunit);
         } else if (revertReason != null) {
             // This curious presentation of the revert reason is needed for backward compatibility
             return txWithMaybeEthFields(
                     asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)),
                     ethTxData,
                     callData,
-                    hookId);
+                    hookId,
+                    weibarsPerSubunit);
         } else {
-            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(updater), ethTxData, callData, hookId);
+            return txWithMaybeEthFields(
+                    asSuccessResultForCommittedBuilder(updater), ethTxData, callData, hookId, weibarsPerSubunit);
         }
     }
 
@@ -356,10 +369,12 @@ public record HederaEvmTransactionResult(
     private ContractFunctionResult withMaybeEthFields(
             @NonNull final ContractFunctionResult.Builder builder,
             @Nullable final EthTxData ethTxData,
-            @Nullable final Bytes callData) {
+            @Nullable final Bytes callData,
+            @NonNull final BigInteger weibarsPerSubunit) {
         if (ethTxData != null) {
+            final var amount = ethTxData.getAmount(weibarsPerSubunit);
             builder.gas(ethTxData.gasLimit())
-                    .amount(ethTxData.getAmount())
+                    .amount(amount)
                     .senderId(senderId)
                     .functionParameters(requireNonNull(callData));
         }
@@ -370,11 +385,13 @@ public record HederaEvmTransactionResult(
             @NonNull final EvmTransactionResult.Builder builder,
             @Nullable final EthTxData ethTxData,
             @Nullable final Bytes callData,
-            @Nullable final HookId hookId) {
+            @Nullable final HookId hookId,
+            @NonNull final BigInteger weibarsPerSubunit) {
         if (ethTxData != null) {
+            final var amount = ethTxData.getAmount(weibarsPerSubunit);
             builder.senderId(senderId)
-                    .internalCallContext(new InternalCallContext(
-                            ethTxData.gasLimit(), ethTxData.getAmount(), requireNonNull(callData)));
+                    .internalCallContext(
+                            new InternalCallContext(ethTxData.gasLimit(), amount, requireNonNull(callData)));
             if (signerNonce != null) {
                 builder.signerNonce(signerNonce);
             }

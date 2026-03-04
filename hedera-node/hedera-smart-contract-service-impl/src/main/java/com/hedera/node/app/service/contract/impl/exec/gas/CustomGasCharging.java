@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -33,17 +34,18 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  */
 @Singleton
 public class CustomGasCharging {
-    /** One HBAR denominated in tinybars */
-    public static final long ONE_HBAR_IN_TINYBARS = 100_000_000L;
-
     private final GasCalculator gasCalculator;
+    private final long oneWholeUnitInSubunits;
 
     /**
      * @param gasCalculator the gas calculator to use
+     * @param denominationConverter the denomination converter for subunit arithmetic
      */
     @Inject
-    public CustomGasCharging(@NonNull final GasCalculator gasCalculator) {
+    public CustomGasCharging(
+            @NonNull final GasCalculator gasCalculator, @NonNull final DenominationConverter denominationConverter) {
         this.gasCalculator = gasCalculator;
+        this.oneWholeUnitInSubunits = requireNonNull(denominationConverter).subunitsPerWholeUnit();
     }
 
     /**
@@ -181,7 +183,7 @@ public class CustomGasCharging {
                 gasCostGiven(intrinsicGas, context.gasPrice()),
                 hederaAccount.getBalance().toLong());
         // protective check to ensure that the fee is not excessive
-        final var protectedFee = Math.min(fee, ONE_HBAR_IN_TINYBARS);
+        final var protectedFee = Math.min(fee, oneWholeUnitInSubunits);
         validateTrue(hederaAccount.getBalance().toLong() >= protectedFee, INSUFFICIENT_PAYER_BALANCE);
         return protectedFee;
     }

@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CallOutcomeTest {
+    private static final BigInteger WEIBARS_PER_TINYBAR = BigInteger.valueOf(10_000_000_000L);
+
     @Mock
     private RootProxyWorldUpdater updater;
 
@@ -68,14 +71,14 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null, WEIBARS_PER_TINYBAR),
                 SUCCESS,
                 null,
                 null,
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null, WEIBARS_PER_TINYBAR),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -87,14 +90,15 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(null, updater, null),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(null, updater, null, WEIBARS_PER_TINYBAR),
                 SUCCESS,
                 null,
                 null,
                 null,
                 null,
                 null,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ethTxData, updater, Bytes.EMPTY, null),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
+                        ethTxData, updater, Bytes.EMPTY, null, WEIBARS_PER_TINYBAR),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -107,14 +111,14 @@ class CallOutcomeTest {
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null, WEIBARS_PER_TINYBAR),
                 SUCCESS,
                 null,
                 null,
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null, WEIBARS_PER_TINYBAR),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -125,14 +129,14 @@ class CallOutcomeTest {
     void calledIdIsFromResult() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null, WEIBARS_PER_TINYBAR),
                 INVALID_CONTRACT_ID,
                 CALLED_CONTRACT_ID,
                 null,
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null, WEIBARS_PER_TINYBAR),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);

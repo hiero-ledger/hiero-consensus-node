@@ -41,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -52,6 +53,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HederaEvmTransactionResultTest {
+    private static final BigInteger WEIBARS_PER_TINYBAR = BigInteger.valueOf(10_000_000_000L);
+
     @Mock
     private MessageFrame frame;
 
@@ -74,7 +77,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(SELF_DESTRUCT_TO_SELF));
         final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(OBTAINER_SAME_CONTRACT_ID, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null, WEIBARS_PER_TINYBAR);
         assertEquals(SELF_DESTRUCT_TO_SELF.toString(), protoResult.errorMessage());
     }
 
@@ -85,7 +88,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
         final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(INSUFFICIENT_GAS, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null, WEIBARS_PER_TINYBAR);
         assertEquals(ExceptionalHaltReason.INSUFFICIENT_GAS.toString(), protoResult.errorMessage());
     }
 
@@ -154,7 +157,7 @@ class HederaEvmTransactionResultTest {
                 frame,
                 tracer,
                 entityIdFactory);
-        final var protoResult = result.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult = result.asProtoResultOf(null, rootProxyWorldUpdater, null, WEIBARS_PER_TINYBAR);
         assertEquals(GAS_LIMIT / 2, protoResult.gasUsed());
         assertEquals(bloomForAll(BESU_LOGS), protoResult.bloom());
         assertEquals(OUTPUT_DATA, protoResult.contractCallResult());
@@ -189,9 +192,12 @@ class HederaEvmTransactionResultTest {
                 tracer,
                 entityIdFactory);
         final var protoResult = result.asProtoResultOf(
-                ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
+                ETH_DATA_WITH_TO_ADDRESS,
+                rootProxyWorldUpdater,
+                Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
+                WEIBARS_PER_TINYBAR);
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.gasLimit(), protoResult.gas());
-        assertEquals(ETH_DATA_WITH_TO_ADDRESS.getAmount(), protoResult.amount());
+        assertEquals(ETH_DATA_WITH_TO_ADDRESS.getAmount(WEIBARS_PER_TINYBAR), protoResult.amount());
         assertArrayEquals(
                 ETH_DATA_WITH_TO_ADDRESS.callData(),
                 protoResult.functionParameters().toByteArray());
