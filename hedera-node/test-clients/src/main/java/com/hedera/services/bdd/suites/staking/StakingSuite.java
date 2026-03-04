@@ -85,7 +85,7 @@ public class StakingSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> flakyTestA() {
+    final Stream<DynamicTest> flakyTest1() {
         return defaultHapiSpec("flakyTest1")
                 .given()
                 .when(
@@ -101,7 +101,7 @@ public class StakingSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> flakyTestB() {
+    final Stream<DynamicTest> flakyTest2() {
         return defaultHapiSpec("flakyTest2")
                 .given()
                 .when(
