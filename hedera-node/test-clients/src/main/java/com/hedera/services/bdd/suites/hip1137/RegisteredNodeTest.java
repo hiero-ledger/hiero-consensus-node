@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -29,8 +30,8 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(INTEGRATION)
 public class RegisteredNodeTest {
-    private static final String RN_ADMIN_KEY = "rnAdminKey";
-    private static final String RN_NEW_ADMIN_KEY = "rnNewAdminKey";
+    private static final String ADMIN_KEY = "adminKey";
+    private static final String NEW_ADMIN_KEY = "newAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
 
     private static final List<RegisteredServiceEndpoint> DEFAULT_ENDPOINTS =
@@ -43,14 +44,14 @@ public class RegisteredNodeTest {
                     .build());
 
     @HapiTest
-    @DisplayName("create → update (admin key rotation)")
+    @DisplayName("create, update (admin key rotation), and delete")
     final Stream<DynamicTest> crudHappyPath() {
         final var createdId = new AtomicLong();
         return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY),
-                newKeyNamed(RN_NEW_ADMIN_KEY),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(NEW_ADMIN_KEY),
                 registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
+                        .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .via(CREATE_TXN)
                         .exposingCreatedIdTo(createdId::set)
@@ -59,11 +60,14 @@ public class RegisteredNodeTest {
                 withOpContext((spec, opLog) -> {
                     final var update = registeredNodeUpdate(createdId::get)
                             .description("new-desc")
-                            .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
+                            .adminKey(spec.registry().getKey(NEW_ADMIN_KEY))
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, update);
-                }));
+                }),
+                registeredNodeDelete(createdId::get)
+                        .signedBy(DEFAULT_PAYER, NEW_ADMIN_KEY)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
@@ -71,16 +75,16 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> descriptionOnlyUpdate() {
         final var createdId = new AtomicLong();
         return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY),
+                newKeyNamed(ADMIN_KEY),
                 registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
+                        .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .exposingCreatedIdTo(createdId::set)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
                     final var update = registeredNodeUpdate(createdId::get)
                             .description("updated-desc")
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, update);
                 }));
@@ -98,16 +102,16 @@ public class RegisteredNodeTest {
                         .build())
                 .build());
         return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY),
+                newKeyNamed(ADMIN_KEY),
                 registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
+                        .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .exposingCreatedIdTo(createdId::set)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
                     final var update = registeredNodeUpdate(createdId::get)
                             .serviceEndpoints(replacementEndpoints)
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, update);
                 }));
@@ -115,13 +119,13 @@ public class RegisteredNodeTest {
 
     @HapiTest
     @DisplayName("update requires admin key signature, key rotation requires dual signature")
-    final Stream<DynamicTest> signatureRequirements() {
+    final Stream<DynamicTest> updateSignatureRequirements() {
         final var createdId = new AtomicLong();
         return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY),
-                newKeyNamed(RN_NEW_ADMIN_KEY),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(NEW_ADMIN_KEY),
                 registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
+                        .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .exposingCreatedIdTo(createdId::set)
                         .hasKnownStatus(SUCCESS),
@@ -133,13 +137,13 @@ public class RegisteredNodeTest {
                             .hasKnownStatus(INVALID_SIGNATURE);
                     // Rotation signed only by old key → INVALID_SIGNATURE
                     final var failedRotation = registeredNodeUpdate(createdId::get)
-                            .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY)
+                            .adminKey(spec.registry().getKey(NEW_ADMIN_KEY))
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                             .hasKnownStatus(INVALID_SIGNATURE);
                     // Rotation signed by both old and new keys → SUCCESS
                     final var successfulRotation = registeredNodeUpdate(createdId::get)
-                            .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
+                            .adminKey(spec.registry().getKey(NEW_ADMIN_KEY))
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, unauthorizedUpdate, failedRotation, successfulRotation);
                 }));
@@ -148,7 +152,7 @@ public class RegisteredNodeTest {
     @HapiTest
     @DisplayName("update of non-existent registered node fails with INVALID_NODE_ID")
     final Stream<DynamicTest> updateNonExistentNodeFails() {
-        return hapiTest(newKeyNamed(RN_ADMIN_KEY), withOpContext((spec, opLog) -> {
+        return hapiTest(newKeyNamed(ADMIN_KEY), withOpContext((spec, opLog) -> {
             final var update = registeredNodeUpdate(() -> 999_999L)
                     .description("ghost")
                     .signedBy(DEFAULT_PAYER)
