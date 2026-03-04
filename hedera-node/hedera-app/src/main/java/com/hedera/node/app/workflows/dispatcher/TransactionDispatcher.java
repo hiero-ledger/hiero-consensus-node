@@ -189,8 +189,12 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE,
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
-            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
-            case REGISTERED_NODE_CREATE, REGISTERED_NODE_UPDATE, REGISTERED_NODE_DELETE -> true;
+            case NODE_CREATE,
+                    NODE_UPDATE,
+                    NODE_DELETE,
+                    REGISTERED_NODE_CREATE,
+                    REGISTERED_NODE_UPDATE,
+                    REGISTERED_NODE_DELETE -> true;
             case CONTRACT_CREATE_INSTANCE,
                     CONTRACT_DELETE_INSTANCE,
                     CONTRACT_CALL,

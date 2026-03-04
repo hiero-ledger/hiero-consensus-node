@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateDescription;
-import static com.hedera.node.app.service.addressbook.impl.validators.RegisteredNodeValidator.validateServiceEndpointsForCreate;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -20,6 +19,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -33,33 +33,39 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
 
     @Inject
     public RegisteredNodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
-        this.addressBookValidator = requireNonNull(addressBookValidator);
+        this.addressBookValidator = requireNonNull(addressBookValidator, "addressBookValidator must not be null");
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeCreateOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+
+        final var op = txn.registeredNodeCreateOrThrow();
+        validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_REGISTERED_ENDPOINT);
         addressBookValidator.validateAdminKey(op.adminKey());
-        validateDescription(op.description());
-        validateServiceEndpointsForCreate(op.serviceEndpoint());
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().registeredNodeCreateOrThrow();
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
     }
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().registeredNodeCreateOrThrow();
+        final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
+
+        addressBookValidator.validateDescription(op.description(), nodesConfig);
+        addressBookValidator.validateRegisteredServiceEndpoint(op.serviceEndpoint(), nodesConfig);
+        handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
-        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
         final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = new RegisteredNode.Builder()
@@ -78,6 +84,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));

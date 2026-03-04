@@ -13,10 +13,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
@@ -29,6 +33,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -37,6 +42,7 @@ import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -51,6 +57,7 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AddressBookValidator {
+
     /**
      * Default constructor for injection.
      */
@@ -66,7 +73,7 @@ public class AddressBookValidator {
      * @param nodesConfig The nodes configuration
      */
     public void validateDescription(@Nullable final String description, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         if (description == null || description.isEmpty()) {
             return;
@@ -98,7 +105,7 @@ public class AddressBookValidator {
      */
     public void validateGossipEndpoint(
             @Nullable final List<ServiceEndpoint> endpointList, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxGossipEndpoint(), GOSSIP_ENDPOINTS_EXCEEDED_LIMIT);
@@ -119,7 +126,7 @@ public class AddressBookValidator {
      */
     public void validateServiceEndpoint(
             @Nullable final List<ServiceEndpoint> endpointList, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_SERVICE_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxServiceEndpoint(), SERVICE_ENDPOINTS_EXCEEDED_LIMIT);
@@ -175,7 +182,7 @@ public class AddressBookValidator {
 
     public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.port() == 0, INVALID_ENDPOINT);
         final var addressLen = endpoint.ipAddressV4().length();
@@ -194,7 +201,7 @@ public class AddressBookValidator {
      */
     public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
-        requireNonNull(nodesConfig);
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
         validateFqdnSize(endpoint, nodesConfig);
@@ -224,5 +231,121 @@ public class AddressBookValidator {
         } catch (Exception ignore) {
             throw new PreCheckException(INVALID_GOSSIP_CA_CERTIFICATE);
         }
+    }
+
+    /**
+     * Validates registered service endpoints for a create operation. The list must be non-empty
+     * and contain at most nodesConfig.maxRegisteredServiceEndpoint entries.
+     *
+     * @param endpoints the list of registered service endpoints to validate
+     */
+    public void validateRegisteredServiceEndpoint(
+            @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoints);
+        validateFalse(endpoints.isEmpty(), INVALID_REGISTERED_ENDPOINT);
+        validateFalse(
+                endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), REGISTERED_ENDPOINTS_EXCEEDED_LIMIT);
+        for (final var endpoint : endpoints) {
+            validateRegisteredServiceEndpoint(endpoint, nodesConfig);
+        }
+    }
+
+    /**
+     * Validates registered service endpoints for an update operation. An empty list is allowed
+     * (means "not set" in proto3 repeated semantics). If non-empty, at most
+     * nodesConfig.maxRegisteredServiceEndpoint entries are allowed.
+     *
+     * @param endpoints the list of registered service endpoints to validate
+     */
+    public void validateRegisteredServiceEndpointsForUpdate(
+            @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoints);
+        if (endpoints.isEmpty()) {
+            return;
+        }
+        validateFalse(
+                endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), REGISTERED_ENDPOINTS_EXCEEDED_LIMIT);
+        for (final var endpoint : endpoints) {
+            validateRegisteredServiceEndpoint(endpoint, nodesConfig);
+        }
+    }
+
+    private void validateRegisteredServiceEndpoint(
+            @NonNull final RegisteredServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoint);
+
+        final int port = endpoint.port();
+        validateTrue(port >= 0 && port <= 65535, INVALID_REGISTERED_ENDPOINT);
+
+        // oneof address is REQUIRED
+        final var addressKind = endpoint.address().kind();
+        switch (addressKind) {
+            case IP_ADDRESS -> {
+                final Bytes ip = endpoint.ipAddressOrThrow();
+                final long len = ip.length();
+                validateTrue(len == 4L || len == 16L, INVALID_REGISTERED_ENDPOINT_ADDRESS);
+            }
+            case DOMAIN_NAME -> {
+                final String domain = endpoint.domainNameOrThrow();
+                validateTrue(
+                        isValidAsciiFqdn(domain, nodesConfig.maxRegisteredFqdnSize()),
+                        INVALID_REGISTERED_ENDPOINT_ADDRESS);
+            }
+            default -> throw new HandleException(INVALID_REGISTERED_ENDPOINT);
+        }
+
+        // oneof endpoint_type is REQUIRED
+        validateTrue(
+                endpoint.endpointType().kind() != RegisteredServiceEndpoint.EndpointTypeOneOfType.UNSET,
+                INVALID_REGISTERED_ENDPOINT_TYPE);
+    }
+
+    private boolean isValidAsciiFqdn(@Nullable final String domain, final int maxFqdnSize) {
+        if (domain == null) {
+            return false;
+        }
+        final var trimmed = domain.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        if (trimmed.length() > maxFqdnSize) {
+            return false;
+        }
+        // ASCII only
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (trimmed.charAt(i) < 0x20 || trimmed.charAt(i) > 0x7F) {
+                return false;
+            }
+        }
+
+        // Basic DNS label rules: labels 1..63, overall <=253, only [A-Za-z0-9-], no leading/trailing '-'
+        if (trimmed.length() > 253) {
+            return false;
+        }
+        if (trimmed.endsWith(".")) {
+            // Allow a trailing dot by stripping it for label validation
+            return isValidAsciiFqdn(trimmed.substring(0, trimmed.length() - 1), maxFqdnSize);
+        }
+        final var labels = trimmed.split("\\.");
+        if (labels.length == 0) {
+            return false;
+        }
+        for (final var label : labels) {
+            if (label.isEmpty() || label.length() > 63) {
+                return false;
+            }
+            if (label.charAt(0) == '-' || label.charAt(label.length() - 1) == '-') {
+                return false;
+            }
+            for (int i = 0; i < label.length(); i++) {
+                final char c = label.charAt(i);
+                final boolean ok =
+                        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+                if (!ok) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
