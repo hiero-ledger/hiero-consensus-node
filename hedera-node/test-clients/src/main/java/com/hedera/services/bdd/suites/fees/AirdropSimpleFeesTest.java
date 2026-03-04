@@ -25,10 +25,10 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenClaimAirdropFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
@@ -48,7 +48,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class AirdropSimpleFeesTest extends TokenAirdropBase {
-    private static final double BASE_CLAIM_AIRDROP_FEE = 0.001;
     private static final double BASE_CANCEL_AIRDROP_FEE = 0.001;
     // NFTs always charge token association fee, so 0.1 base
     private static final double NFT_AIRDROP_FEE = AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE;
@@ -135,7 +134,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, receiver)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver)))),
-                validateChargedUsdWithin("claimTxn", BASE_CLAIM_AIRDROP_FEE, 11.0),
+                validateChargedUsd("claimTxn", expectedTokenClaimAirdropFullFeeUsd(2L)),
                 // assert balance fungible tokens
                 getAccountBalance(receiver).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                 // assert balances NFT

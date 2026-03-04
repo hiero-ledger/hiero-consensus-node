@@ -2260,6 +2260,10 @@ public class FeesChargingUtils {
      * service = AIRDROP_CLAIM_FEE
      * total   = node + network + service
      */
+    public static double expectedTokenClaimAirdropFullFeeUsd(long sigs) {
+        return expectedTokenClaimAirdropFullFeeUsd(sigs, 0);
+    }
+
     private static double expectedTokenClaimAirdropFullFeeUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);

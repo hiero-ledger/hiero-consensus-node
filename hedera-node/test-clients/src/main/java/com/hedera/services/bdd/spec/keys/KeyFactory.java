@@ -81,6 +81,12 @@ public class KeyFactory {
     private final Map<Key, SigControl> controlMap = new ConcurrentHashMap<>();
     /**
      * The default {@link SigMapGenerator}, uses full prefixes for all signatures in the {@link SignatureMap}.
+     *
+     * <p>FULL_PREFIXES matches production SDK behavior and ensures deterministic transaction sizes
+     * for fee validation tests. UNIQUE_PREFIXES generates variable-length prefixes depending on
+     * random key material, causing non-deterministic numTxnBytes() and affecting numTxnSignatures()
+     * through Phase 1 expansion in SignatureExpanderImpl (which only processes full-length prefixes).
+     * See TokenOpsShortPrefixTest for explicit short-prefix coverage.
      */
     private final SigMapGenerator defaultSigMapGen = TrieSigMapGenerator.withNature(FULL_PREFIXES);
     /**
