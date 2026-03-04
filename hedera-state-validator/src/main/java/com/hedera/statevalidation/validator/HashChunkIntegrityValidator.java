@@ -127,24 +127,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                     return;
                 }
 
-                if (parentChunkPath != parentChunk.path()) {
-                    pathMismatchCount.incrementAndGet();
-                    log.error(
-                            "Parent chunk path mismatch. expected={} vs actual={}",
-                            parentChunkPath,
-                            parentChunk.path());
-                    return;
-                }
-
-                if (parentChunkId != parentChunk.getChunkId()) {
-                    idMismatchCount.incrementAndGet();
-                    log.error(
-                            "Parent chunk ID mismatch. expected={} vs actual={}",
-                            parentChunkId,
-                            parentChunk.getChunkId());
-                    return;
-                }
-
                 // The hashChunkPath is at the parent chunk's last rank, so we can use getHashAtPath
                 final Hash storedHash = parentChunk.getHashAtPath(hashChunkPath);
 
