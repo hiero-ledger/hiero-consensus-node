@@ -67,6 +67,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * Tracks the current phase of event creation.
      */
     private final PhaseTimer<EventCreationStatus> phase;
+    private final Time time;
 
     /**
      * The duration that the system has been unhealthy.
@@ -129,6 +130,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .build();
 
         syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
+        this.time = time;
 
     }
 
@@ -140,8 +142,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     }
 
 
-    Instant lastHeartbeat = Instant.now();
-
     /**
      * {@inheritDoc}
      */
@@ -149,8 +149,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Nullable
     public PlatformEvent maybeCreateEvent(Instant now) {
 
-        log.info(RECONNECT.getMarker(),"Heartbeat delay {}", (Duration.between(lastHeartbeat, now).toNanos()));
-        lastHeartbeat = now;
+        log.info(RECONNECT.getMarker(),"Heartbeat delay {} @ {}", (Duration.between(now, time.now()).toNanos()), now);
+
 
 
         if (!eventCreationRules.isEventCreationPermitted()) {
