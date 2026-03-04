@@ -11,8 +11,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -28,9 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -113,8 +109,6 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link TeacherPushVirtualTreeView}.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
      * @param map
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
@@ -123,7 +117,6 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
      * 		The pipeline managing the virtual map.
      */
     public TeacherPushVirtualTreeView(
-            final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
             final VirtualMap map,
             final VirtualMapMetadata state,
@@ -139,18 +132,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream inputStream,
-            final SerializableDataOutputStream outputStream) {
-        final AsyncInputStream<QueryResponse> in =
-                new AsyncInputStream<>(inputStream, workGroup, QueryResponse::new, reconnectConfig);
-        in.start();
-        final AsyncOutputStream<Lesson> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
-        out.start();
-
+            final AsyncInputStream in,
+            final AsyncOutputStream out) {
         final AtomicBoolean senderIsFinished = new AtomicBoolean(false);
-
         final TeacherPushSendTask teacherSendTask =
-                new TeacherPushSendTask(time, reconnectConfig, workGroup, in, out, this, senderIsFinished);
+                new TeacherPushSendTask(time, reconnectConfig, workGroup, out, this, senderIsFinished);
         teacherSendTask.start();
         final TeacherPushReceiveTask teacherReceiveTask =
                 new TeacherPushReceiveTask(workGroup, in, this, senderIsFinished);
@@ -248,9 +234,12 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
                 ? ConcurrentNodeStatusTracker.Status.KNOWN
                 : ConcurrentNodeStatusTracker.Status.NOT_KNOWN;
         nodeStatusTracker.set(node, status);
-        if (node == lastNodeAwaitingReporting) {
-            synchronized (node) {
-                node.notifyAll();
+        if (node.equals(lastNodeAwaitingReporting)) {
+            // Need a local var to make sure lastNodeAwaitingReporting is not changed in
+            // a different thread
+            final Long toNotify = lastNodeAwaitingReporting;
+            synchronized (toNotify) {
+                toNotify.notifyAll();
             }
         }
     }
@@ -280,7 +269,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void serializeLeaf(final SerializableDataOutputStream out, final Long leaf) throws IOException {
         checkValidLeaf(leaf, reconnectState);
-        final VirtualLeafBytes leafRecord = records.findLeafRecord(leaf);
+        final VirtualLeafBytes<?> leafRecord = records.findLeafRecord(leaf);
         assert leafRecord != null : "Unexpected null leaf record at path=" + leaf;
         VirtualReconnectUtils.writeLeafRecord(out, leafRecord);
     }
@@ -349,7 +338,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         try {
             records.close();
         } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
+            logger.error(EXCEPTION.getMarker(), "Interrupted while attempting to close data source");
         }
     }
 }
