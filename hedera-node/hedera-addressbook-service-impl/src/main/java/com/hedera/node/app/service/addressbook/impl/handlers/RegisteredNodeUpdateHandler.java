@@ -72,7 +72,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateDescription(op.description(), nodesConfig);
         }
         if (!op.serviceEndpoint().isEmpty()) {
-            addressBookValidator.validateRegisteredServiceEndpoint(op.serviceEndpoint(), nodesConfig);
+            addressBookValidator.validateRegisteredServiceEndpoints(op.serviceEndpoint(), nodesConfig);
         }
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);

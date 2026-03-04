@@ -239,7 +239,7 @@ public class AddressBookValidator {
      *
      * @param endpoints the list of registered service endpoints to validate
      */
-    public void validateRegisteredServiceEndpoint(
+    public void validateRegisteredServiceEndpoints(
             @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoints);
         validateFalse(endpoints.isEmpty(), INVALID_REGISTERED_ENDPOINT);

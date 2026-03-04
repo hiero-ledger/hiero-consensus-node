@@ -121,21 +121,21 @@ class AddressBookValidatorTest {
     @Test
     void registeredEndpointsForCreateRejectsEmptyList() {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
     @Test
     void registeredEndpointsForCreateAcceptsValidIpv4() {
         assertDoesNotThrow(() -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(
+                .validateRegisteredServiceEndpoints(
                         List.of(blockNodeEndpoint(new byte[] {127, 0, 0, 1})), newNodesConfig()));
     }
 
     @Test
     void registeredEndpointsForCreateAcceptsValidIpv6() {
         assertDoesNotThrow(() -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(blockNodeEndpoint(new byte[16])), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(blockNodeEndpoint(new byte[16])), newNodesConfig()));
     }
 
     @Test
@@ -146,7 +146,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -156,7 +156,7 @@ class AddressBookValidatorTest {
             endpoints.add(blockNodeEndpoint(new byte[] {127, 0, 0, 1}));
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
+                .validateRegisteredServiceEndpoints(endpoints, newNodesConfig()));
         assertEquals(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT, e.getStatus());
     }
 
@@ -167,7 +167,7 @@ class AddressBookValidatorTest {
             endpoints.add(blockNodeEndpoint(new byte[] {127, 0, 0, 1}));
         }
         assertDoesNotThrow(
-                () -> new AddressBookValidator().validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
+                () -> new AddressBookValidator().validateRegisteredServiceEndpoints(endpoints, newNodesConfig()));
     }
 
     @Test
@@ -177,7 +177,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
@@ -188,14 +188,14 @@ class AddressBookValidatorTest {
                 .port(443)
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_TYPE, e.getStatus());
     }
 
     @Test
     void registeredEndpointsForCreateRejectsInvalidIpv4Length() {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(
+                .validateRegisteredServiceEndpoints(
                         List.of(blockNodeEndpoint(new byte[] {127, 0, 0})), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
@@ -203,7 +203,7 @@ class AddressBookValidatorTest {
     @Test
     void registeredEndpointsForCreateRejectsInvalidIpv6Length() {
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(blockNodeEndpoint(new byte[15])), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(blockNodeEndpoint(new byte[15])), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -214,7 +214,7 @@ class AddressBookValidatorTest {
             endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
+                .validateRegisteredServiceEndpoints(endpoints, newNodesConfig()));
         assertEquals(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT, e.getStatus());
     }
 
@@ -226,7 +226,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -238,7 +238,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -253,7 +253,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -265,7 +265,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -277,7 +277,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -288,7 +288,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -299,7 +299,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
@@ -311,7 +311,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -322,7 +322,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -334,7 +334,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -346,7 +346,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -358,7 +358,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -370,7 +370,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -385,7 +385,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -398,7 +398,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), config));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), config));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -409,7 +409,7 @@ class AddressBookValidatorTest {
             endpoints.add(blockNodeEndpoint(new byte[] {10, 0, 0, 1}));
         }
         assertDoesNotThrow(
-                () -> new AddressBookValidator().validateRegisteredServiceEndpoint(endpoints, newNodesConfig()));
+                () -> new AddressBookValidator().validateRegisteredServiceEndpoints(endpoints, newNodesConfig()));
     }
 
     @Test
@@ -420,7 +420,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(badEndpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(badEndpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -432,7 +432,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -448,7 +448,7 @@ class AddressBookValidatorTest {
                 .blockNode(blockNodeEndpointType())
                 .build();
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
-                .validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
         assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
     }
 
@@ -460,7 +460,7 @@ class AddressBookValidatorTest {
                 .mirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.DEFAULT)
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     @Test
@@ -471,7 +471,7 @@ class AddressBookValidatorTest {
                 .rpcRelay(RegisteredServiceEndpoint.RpcRelayEndpoint.DEFAULT)
                 .build();
         assertDoesNotThrow(() ->
-                new AddressBookValidator().validateRegisteredServiceEndpoint(List.of(endpoint), newNodesConfig()));
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
     private static RegisteredServiceEndpoint blockNodeEndpoint(final byte[] ip) {
