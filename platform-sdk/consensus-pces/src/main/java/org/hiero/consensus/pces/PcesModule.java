@@ -27,6 +27,9 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  */
 public interface PcesModule {
 
+    /** The config property name used for module selection in {@code ModulesConfig}. */
+    String NAME = "pces";
+
     /**
      * Initialize the PCES module.
      *

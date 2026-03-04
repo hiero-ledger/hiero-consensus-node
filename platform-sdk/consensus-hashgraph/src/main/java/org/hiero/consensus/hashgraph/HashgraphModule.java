@@ -25,6 +25,9 @@ import org.hiero.consensus.model.status.PlatformStatus;
  */
 public interface HashgraphModule {
 
+    /** The config property name used for module selection in {@code ModulesConfig}. */
+    String NAME = "hashgraph";
+
     /**
      * Initialize the Hashgraph module.
      *

@@ -23,6 +23,9 @@ import org.hiero.consensus.transaction.TransactionLimits;
  */
 public interface EventIntakeModule {
 
+    /** The config property name used for module selection in {@code ModulesConfig}. */
+    String NAME = "eventIntake";
+
     /**
      * Initialize the event intake module.
      *

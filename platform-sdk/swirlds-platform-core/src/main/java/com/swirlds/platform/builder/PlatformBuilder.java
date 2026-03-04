@@ -449,7 +449,7 @@ public final class PlatformBuilder {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule();
+            this.gossipModule = createGossipModule(configuration);
         }
 
         gossipModule.initialize(
@@ -552,17 +552,17 @@ public final class PlatformBuilder {
                 new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
 
         if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createEventCreatorModule();
+            this.eventCreatorModule = createEventCreatorModule(configuration);
         }
         if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createEventIntakeModule();
+            this.eventIntakeModule = createEventIntakeModule(configuration);
         }
-        this.pcesModule = createPcesModule();
+        this.pcesModule = createPcesModule(configuration);
         if (this.hashgraphModule == null) {
-            this.hashgraphModule = createHashgraphModule();
+            this.hashgraphModule = createHashgraphModule(configuration);
         }
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule();
+            this.gossipModule = createGossipModule(configuration);
         }
 
         final PlatformComponents platformComponents = PlatformComponents.create(

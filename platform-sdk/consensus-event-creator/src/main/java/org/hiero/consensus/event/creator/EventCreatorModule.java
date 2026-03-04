@@ -27,6 +27,9 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  */
 public interface EventCreatorModule {
 
+    /** The config property name used for module selection in {@code ModulesConfig}. */
+    String NAME = "eventCreator";
+
     /**
      * Initialize the event creator
      *
