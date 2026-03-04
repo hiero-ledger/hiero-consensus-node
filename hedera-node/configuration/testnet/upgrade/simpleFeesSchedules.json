@@ -414,9 +414,9 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 1000000000,
+          "baseFee": 0,
           "extras": [
-            { "name": "AIRDROPS", "includedCount": 1 }
+            { "name": "AIRDROPS", "includedCount": 0 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
