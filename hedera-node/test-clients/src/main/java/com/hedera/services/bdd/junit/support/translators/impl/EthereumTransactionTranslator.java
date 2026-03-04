@@ -30,6 +30,7 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -94,7 +95,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                 if (finalEthTxData != null) {
                                     knownCreation = !finalEthTxData.hasToAddress();
                                     derivedBuilder.gas(finalEthTxData.gasLimit());
-                                    derivedBuilder.amount(finalEthTxData.getAmount());
+                                    derivedBuilder.amount(
+                                            finalEthTxData.getAmount(BigInteger.valueOf(10_000_000_000L)));
                                     derivedBuilder.functionParameters(Bytes.wrap(finalEthTxData.callData()));
                                 }
                                 if (parts.status() == SUCCESS) {

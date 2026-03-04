@@ -45,6 +45,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
@@ -103,6 +104,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 GrpcConfig.class,
                 HederaConfig.class,
                 LedgerConfig.class,
+                NativeCoinConfig.class,
                 NettyConfig.class,
                 NetworkAdminConfig.class,
                 RatesConfig.class,

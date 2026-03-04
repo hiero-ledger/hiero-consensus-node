@@ -21,6 +21,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.state.token.NativeCoinDecimals;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -260,6 +261,10 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
+            }
+            case NativeCoinDecimals nativeCoinDecimals -> {
+                return new OneOf<>(
+                        SingletonUpdateChange.NewValueOneOfType.NATIVE_COIN_DECIMALS_VALUE, nativeCoinDecimals);
             }
             default ->
                 throw new IllegalArgumentException(

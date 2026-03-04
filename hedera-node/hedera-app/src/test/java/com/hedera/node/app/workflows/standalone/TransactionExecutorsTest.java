@@ -66,6 +66,7 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
@@ -503,7 +504,7 @@ public class TransactionExecutorsTest {
         Set.of(
                         new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
-                        new ContractServiceImpl(appContext, NO_OP_METRICS),
+                        new ContractServiceImpl(appContext, NO_OP_METRICS, new DenominationConverter(8)),
                         new FileServiceImpl(),
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),

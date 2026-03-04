@@ -16,6 +16,7 @@ import com.hedera.hapi.node.network.NetworkGetVersionInfoResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetVersionInfoHandler;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -36,7 +37,7 @@ class NetworkGetVersionInfoHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new NetworkGetVersionInfoHandler();
+        subject = new NetworkGetVersionInfoHandler(new DenominationConverter(8));
     }
 
     @Test
@@ -124,6 +125,26 @@ class NetworkGetVersionInfoHandlerTest {
                 subject.findResponse(context, responseHeader).networkGetVersionInfoOrThrow();
         assertDoesNotThrow(op::hederaServicesVersionOrThrow);
         assertDoesNotThrow(op::hapiProtoVersionOrThrow);
+        assertEquals(8, op.nativeCoinDecimals());
+    }
+
+    @Test
+    @DisplayName("nativeCoinDecimals reflects configured decimals value")
+    void findResponseIncludesNativeCoinDecimals() {
+        final var handler = new NetworkGetVersionInfoHandler(new DenominationConverter(6));
+        final var responseHeader = ResponseHeader.newBuilder()
+                .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
+                .build();
+
+        final var query = validQuery();
+        given(context.query()).willReturn(query);
+
+        final Configuration config = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(config);
+
+        final NetworkGetVersionInfoResponse op =
+                handler.findResponse(context, responseHeader).networkGetVersionInfoOrThrow();
+        assertEquals(6, op.nativeCoinDecimals());
     }
 
     @NonNull
