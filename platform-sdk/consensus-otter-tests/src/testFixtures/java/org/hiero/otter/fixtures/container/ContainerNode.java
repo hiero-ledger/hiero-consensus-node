@@ -35,7 +35,6 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -134,10 +133,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerProfiler profiler;
 
     /** Whether GC logging is enabled for the consensus node process */
-    protected boolean gcLoggingEnabled = false;
+    private final boolean gcLoggingEnabled;
 
     /** JVM arguments to add when starting up the java process */
-    protected List<String> jvmArgs = new ArrayList<>();
+    private final List<String> jvmArgs;
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -150,6 +149,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * @param outputDirectory the directory where the node's output will be stored
      * @param networkConfiguration the network configuration for this node
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
+     * @param gcLoggingEnabled {@code true} if GC logging should be enabled for the node process
+     * @param jvmArgs additional JVM arguments to pass to the node process
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -159,7 +160,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
-            @NonNull final ConsensusRoundPool consensusRoundPool) {
+            @NonNull final ConsensusRoundPool consensusRoundPool,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -169,6 +172,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
+        this.gcLoggingEnabled = gcLoggingEnabled;
+        this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
