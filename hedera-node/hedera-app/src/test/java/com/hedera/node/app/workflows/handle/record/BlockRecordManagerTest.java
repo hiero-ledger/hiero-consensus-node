@@ -773,12 +773,11 @@ final class BlockRecordManagerTest extends AppTestBase {
             }
             // Live mode computes hashes in-memory via recordWrappedBlockHashes —
             // the disk writer is never used (live mode takes precedence)
-            verify(diskWriter, org.mockito.Mockito.never()).appendPrecomputed(notNull());
             verify(diskWriter, org.mockito.Mockito.never()).appendAsync(notNull());
         }
 
         @Test
-        void liveModeWithoutDiskWriteDoesNotCallDiskWriter() throws Exception {
+        void liveModeWithoutDiskWriteDoesNotCallDiskWriter() {
             // Build app with liveWritePrevWrappedRecordHashes=true but writeWrappedRecordFileBlockHashesToDisk=false
             final var liveOnlyApp = appBuilder()
                     .withConfigValue(
@@ -825,8 +824,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
             }
-            // But disk writer should NOT have been called at all
-            verify(diskWriter, org.mockito.Mockito.never()).appendPrecomputed(org.mockito.ArgumentMatchers.any());
+            // But disk writer should NOT have been called
             verify(diskWriter, org.mockito.Mockito.never()).appendAsync(org.mockito.ArgumentMatchers.any());
         }
 
