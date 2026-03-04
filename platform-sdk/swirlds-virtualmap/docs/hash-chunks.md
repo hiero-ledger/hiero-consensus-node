@@ -176,6 +176,13 @@ example above with current leaf range `[10, 20]` and chunk height 2:
 * For chunk 3 (at path 5), only two hashes are stored: hash 11 at path 23 and hash 12 at path 25
 * Chunk 4 (at path 6) is similar to chunk 3, its two hashes are stored at paths 27 and 29
 
+The general rule: when a hash needs to be stored for a path that is **not** at the chunk's lowest
+rank, it is placed at the slot that corresponds to that path's **left grand child** at the lowest
+rank. For example, path 10 in chunk 2 is at rank 3, but the chunk's lowest rank is 4. The left
+grand child of 10 at rank 4 is 21, so hash 10 occupies the slot for path 21. This means that from
+the chunk's perspective, there is no distinction between "hash for path 21" and "hash for path 10
+stored at slot 21" — the slot is the same in both cases.
+
 There is something to be very careful about here. Given a chunk, there is no way to understand if
 a hash at a path is for that very path, or for some of its parents. This really depends on the
 current leaf range. If a hash was set for path `P`, which is not at the lowest chunk rank, it must
@@ -210,16 +217,77 @@ Here is an example:
 * Total number of hashes in every chunk is therefore 2^6 == 64
 * Assume a chunk is used to store only 2 ranks of hashes. Ranks 3 to 6 are beyond the leaf range
 * 2 ranks of hashes are paths 3, 4, 5, and 6 relative to the chunk path
-* As described in `Hashes in partical chunks` section above, hash 3 is stored at offset 0, hash 4
+* As described in `Hashes in partial chunks` section above, hash 3 is stored at offset 0, hash 4
   is at offset 16, hash 5 is at offset 32, and hash 6 is at offset 48
 * On disk, the chunk is serialized with only these 4 hashes, that is 4*48 bytes, plus other
   protobuf fields
 * When the chunk is deserialized, a byte buffer of 64 hashes is allocated. Then the first hash on
   disk is read into offset 0, the second hash is read into offset 16*48, and so on
-* If such chunk is at the first/last leaf path boundary, it could contain 3 hashes for relative
-  paths 3, 4, and 2. Path 2 is at the first chunk rank, paths 3 and 4 are at the second rank. In
-  this case, when the chunk is serialized, 4 hashes are written to disk: hash 3, hash 4, hash 2
-  (which is read as hash 5), and hash 6 (with undefined bytes)
+
+```mermaid
+block-beta
+  columns 4
+
+  block:disk["Packed on disk (4 hashes)"]:4
+    d0["hash 3"]
+    d1["hash 4"]
+    d2["hash 5"]
+    d3["hash 6"]
+  end
+
+  space:4
+
+  block:mem["Expanded in memory (64 slots)"]:4
+    m0["[0] hash 3"]
+    m1["[1..15] empty"]
+    m2["[16] hash 4"]
+    m3["[17..31] empty"]
+    m4["[32] hash 5"]
+    m5["[33..47] empty"]
+    m6["[48] hash 6"]
+    m7["[49..63] empty"]
+  end
+
+  d0 --> m0
+  d1 --> m2
+  d2 --> m4
+  d3 --> m6
+```
+
+If such chunk is at the first/last leaf path boundary, it could contain 3 hashes for relative
+paths 3, 4, and 2. Path 2 is at the first chunk rank, paths 3 and 4 are at the second rank. In
+this case, when the chunk is serialized, 4 hashes are written to disk: hash 3, hash 4, hash 2
+(which is read as hash 5), and hash 6 (with undefined bytes).
+
+```mermaid
+block-beta
+  columns 4
+
+  block:disk2["Packed on disk (boundary chunk)"]:4
+    b0["hash 3"]
+    b1["hash 4"]
+    b2["hash 2 → slot 5"]
+    b3["[undefined]"]
+  end
+
+  space:4
+
+  block:mem2["Expanded in memory"]:4
+    e0["[0] hash 3"]
+    e1["[1..15] empty"]
+    e2["[16] hash 4"]
+    e3["[17..31] empty"]
+    e4["[32] hash 2"]
+    e5["[33..47] empty"]
+    e6["[48] undef"]
+    e7["[49..63] empty"]
+  end
+
+  b0 --> e0
+  b1 --> e2
+  b2 --> e4
+  b3 --> e6
+```
 
 ## Related components
 
