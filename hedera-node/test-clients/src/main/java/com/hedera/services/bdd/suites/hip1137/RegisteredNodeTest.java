@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -282,5 +283,85 @@ public class RegisteredNodeTest {
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, delete);
                 }));
+    }
+
+    // ─── Create negatives ──────────────────────────────────────────
+
+    @HapiTest
+    @DisplayName("create fails without admin key signature")
+    final Stream<DynamicTest> createWithMissingAdminKeySigFails() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    @DisplayName("create fails with endpoint missing type")
+    final Stream<DynamicTest> createWithInvalidEndpointTypeFails() {
+        final var endpointMissingType = List.of(RegisteredServiceEndpoint.newBuilder()
+                .setDomainName("blocknode.example.com")
+                .setPort(8080)
+                // no block_node/mirror_node/rpc_relay set
+                .build());
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(endpointMissingType)
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_TYPE));
+    }
+
+    // ─── Update negative ───────────────────────────────────────────
+
+    @HapiTest
+    @DisplayName("update fails with endpoint missing type")
+    final Stream<DynamicTest> updateWithInvalidEndpointFails() {
+        final var createdId = new AtomicLong();
+        final var endpointMissingType = List.of(RegisteredServiceEndpoint.newBuilder()
+                .setDomainName("blocknode.example.com")
+                .setPort(8080)
+                .build());
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(createdId::set)
+                        .hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    final var update = registeredNodeUpdate(createdId::get)
+                            .serviceEndpoints(endpointMissingType)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                            .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_TYPE);
+                    allRunFor(spec, update);
+                }));
+    }
+
+    // ─── Delete negatives ──────────────────────────────────────────
+
+    @HapiTest
+    @DisplayName("delete non-existent registered node fails with INVALID_NODE_ID")
+    final Stream<DynamicTest> deleteNonExistentRegisteredNodeFails() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeDelete(() -> 999_999L).signedBy(DEFAULT_PAYER).hasPrecheck(INVALID_NODE_ID));
+    }
+
+    @HapiTest
+    @DisplayName("delete fails without admin key signature")
+    final Stream<DynamicTest> deleteWithMissingAdminKeySigFails() {
+        final var createdId = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(createdId::set)
+                        .hasKnownStatus(SUCCESS),
+                registeredNodeDelete(createdId::get).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE));
     }
 }
