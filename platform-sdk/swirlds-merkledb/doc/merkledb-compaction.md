@@ -188,12 +188,12 @@ If at least one file at a level exceeds the threshold, compaction proceeds for t
 
 After each flush, the flush handler submits two kinds of tasks to the compaction thread pool:
 
-1. **A scanner task** (if one is not already running for this store). The scanner traverses the in-memory index and caches per-file garbage statistics in `scanResultsByStore`.
+1. **A scanner task** (if one is not already running for this store). The scanner traverses the in-memory index
+   and caches per-file garbage statistics in `scanResultsByStore`.
 
 2. **A compaction task for each level** that has files (if a task for that store and level is not already queued or running).
-   The flush handler discovers levels by inspecting the file collection, not by reading scan results.
-
-3. This means tasks are submitted even before the first scan completes — they will simply no-op if no scan results are available yet.
+   The flush handler discovers levels by inspecting the file collection, not by reading scan results. This means tasks
+   are submitted even before the first scan completes — they will simply no-op if no scan results are available yet.
 
 Crucially, compaction tasks do **not** evaluate scan results at submission time. Evaluation is deferred to execution time inside the task itself.
 This design addresses a staleness problem: if all compaction threads are busy with long-running higher-level compactions, a task submitted during flush `N` may not execute until
@@ -345,13 +345,22 @@ It qualifies for compaction at any threshold. During compaction, the index trave
 file, so nothing is copied to the output. The file is simply deleted. This is correct behavior — the output file will
 only contain items from other files in the compaction set.
 
-**All files at a level below the max threshold.** If no file at a level exceeds `maxGarbageThreshold`, that level is not eligible for compaction, regardless of the aggregate garbage across all its files or whether some individual files exceed `minGarbageThreshold`. Compaction is not scheduled for this level.
+**All files at a level below the garbage threshold.** If no file at a level exceeds `garbageThreshold`,
+that level is not eligible for compaction, regardless of the aggregate garbage across all its files,
+compaction is not scheduled for this level.
 
-**New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files. These files are not included in the current compaction run (the compaction set is fixed at the start). They will be evaluated in the next scan cycle.
+**New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files.
+These files are not included in the current compaction run (the compaction set is fixed at the start).
+They will be evaluated in the next scan cycle.
 
-**CAS failure during index update.** When the compactor calls `putIfEqual(path, oldLocation, newLocation)`, the CAS may fail if a concurrent flush has already updated the index entry for that path to point to an even newer file. This is correct: the flush's data is more recent, so the compactor's copy should be discarded. The old file still gets deleted at the end of compaction, which is safe because the index no longer points to it (it points to the flush's file instead).
+**CAS failure during index update.** When the compactor calls `putIfEqual(path, oldLocation, newLocation)`, the CAS
+may fail if a concurrent flush has already updated the index entry for that path to point to an even newer file.
+This is correct: the flush's data is more recent, so the compactor's copy should be discarded.
+The old file still gets deleted at the end of compaction, which is safe because the index no longer points to it
+(it points to the flush's file instead).
 
-**Compaction output file at maxCompactionLevel.** When files at `maxCompactionLevel` are compacted, the output file stays at the same level (the cap prevents further promotion). This ensures a bounded number of levels and predictable metric cardinality.
+**Compaction output file at maxCompactionLevel.** When files at `maxCompactionLevel` are compacted, the output file
+stays at the same level (the cap prevents further promotion). This ensures a bounded number of levels and predictable metric cardinality.
 
 ### Configuration
 
