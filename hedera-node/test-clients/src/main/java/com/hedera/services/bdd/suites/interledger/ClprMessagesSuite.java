@@ -26,30 +26,22 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
-import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
-import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ContractID;
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
@@ -57,6 +49,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -65,8 +58,9 @@ import org.junit.jupiter.api.Tag;
  * <p>For the full human-readable staged specification of the test flow, see the comment block at the
  * start of {@link #twoNetworkMessagesExchange(SubProcessNetwork, SubProcessNetwork)}.
  */
+@OrderedInIsolation
 @Tag(TestTags.MULTINETWORK)
-public class ClprMessagesSuite {
+public class ClprMessagesSuite implements LifecycleTest {
 
     private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(1);
@@ -74,10 +68,6 @@ public class ClprMessagesSuite {
 
     private static final String PRIVATE_LEDGER = "private";
     private static final String PUBLIC_LEDGER = "public";
-
-    private static final String SOURCE_LEDGER = "source";
-    private static final String REMOTE_A = "remoteA";
-    private static final String REMOTE_B = "remoteB";
 
     private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
     private static final String CLPR_CONNECTOR = "MockClprConnector";
@@ -138,6 +128,7 @@ public class ClprMessagesSuite {
                         })
             })
     @DisplayName("Two-network middleware/system-contract round-trip")
+    @Order(1)
     Stream<DynamicTest> twoNetworkMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         /*
          * Specification: Two ledgers exchange one request/response pair twice through the full CLPR pipeline.
@@ -598,257 +589,7 @@ public class ClprMessagesSuite {
         return builder.asDynamicTests();
     }
 
-    @MultiNetworkHapiTest(
-            networks = {
-                @MultiNetworkHapiTest.Network(
-                        name = SOURCE_LEDGER,
-                        size = 3,
-                        firstGrpcPort = 35400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "5000"),
-                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
-                        }),
-                @MultiNetworkHapiTest.Network(
-                        name = REMOTE_A,
-                        size = 1,
-                        firstGrpcPort = 36400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "20000"),
-                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
-                        }),
-                @MultiNetworkHapiTest.Network(
-                        name = REMOTE_B,
-                        size = 1,
-                        firstGrpcPort = 37400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "20000"),
-                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
-                        })
-            })
-    @DisplayName("Three-node source round-robin node assignment")
-    Stream<DynamicTest> threeNodeSourceRoundRobinMessaging(
-            final SubProcessNetwork source, final SubProcessNetwork remoteA, final SubProcessNetwork remoteB) {
-        /*
-         * Specification: A 3-node source ledger communicates with two single-node remote ledgers.
-         *
-         * Goal:
-         * - Prove reduced redundancy — not all 3 nodes contact every remote ledger simultaneously.
-         * - Prove rotation — the responsible node changes over time (different cycles).
-         *
-         * Stage 1: Bootstrap all three ledgers and capture their CLPR configurations.
-         * Stage 2: Exchange configurations between source and both remotes.
-         * Stage 3: Await message queue metadata on source for both remote ledgers.
-         * Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
-         * Stage 5: Assert reduced redundancy — every source node has "Skipping ledger" in logs.
-         * Stage 6: Assert rotation — more than 1 source node logged "Completed publish/pull"
-         *          for at least one remote ledger.
-         */
-        final var sourceConfig = new AtomicReference<ClprLedgerConfiguration>();
-        final var remoteAConfig = new AtomicReference<ClprLedgerConfiguration>();
-        final var remoteBConfig = new AtomicReference<ClprLedgerConfiguration>();
-
-        final var builder = multiNetworkHapiTest(source, remoteA, remoteB)
-                // Stage 1: Bootstrap — capture each ledger's local configuration.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
-                    sourceConfig.set(config);
-                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=source|ledgerId={}", config.ledgerId());
-                }))
-                .onNetwork(REMOTE_A, withOpContext((spec, log) -> {
-                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
-                    remoteAConfig.set(config);
-                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=remoteA|ledgerId={}", config.ledgerId());
-                }))
-                .onNetwork(REMOTE_B, withOpContext((spec, log) -> {
-                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
-                    remoteBConfig.set(config);
-                    log.info("CLPR_RR_TEST|stage=bootstrap|ledger=remoteB|ledgerId={}", config.ledgerId());
-                }))
-
-                // Stage 2: Exchange configurations — source learns about both remotes and vice versa.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteAConfig.get()));
-                    submitConfiguration(spec, getFirstNode(spec), requireNonNull(remoteBConfig.get()));
-                }))
-                .onNetwork(
-                        REMOTE_A,
-                        withOpContext((spec, log) ->
-                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
-                .onNetwork(
-                        REMOTE_B,
-                        withOpContext((spec, log) ->
-                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(sourceConfig.get()))))
-
-                // Stage 3: Await message queue metadata on source for both remote ledgers.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    awaitMessageQueueMetadataAvailable(
-                            log, spec.getNetworkNodes(), requireNonNull(remoteAConfig.get()));
-                    awaitMessageQueueMetadataAvailable(
-                            log, spec.getNetworkNodes(), requireNonNull(remoteBConfig.get()));
-                }))
-
-                // Stage 4: Wait for multiple round-robin cycles to accumulate log evidence.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    log.info("CLPR_RR_TEST|stage=wait|waiting 20s for round-robin cycles");
-                    sleepQuietly(Duration.ofSeconds(20));
-                }))
-
-                // Stage 5: Reduced redundancy — every source node must have skipped at least one ledger.
-                .onNetwork(
-                        SOURCE_LEDGER,
-                        UtilVerbs.assertHgcaaLogContainsText(
-                                NodeSelector.allNodes(), "CLPR Endpoint: Skipping ledger", Duration.ZERO))
-
-                // Stage 6: Rotation matrix — parse "Current cycle" log lines from all source nodes,
-                //          build a (cycle × remoteLedger) matrix showing the assigned node index,
-                //          verify each assignment matches the formula, and assert rotation occurred.
-                .onNetwork(SOURCE_LEDGER, withOpContext((spec, log) -> {
-                    final var sourceNodes = spec.getNetworkNodes();
-                    final int rosterSize = sourceNodes.size();
-
-                    // Collect all (cycle, remoteLedger, assignedNode) tuples from logs
-                    final var assignments = collectAssignmentMatrix(sourceNodes);
-
-                    // Gather all observed cycles and remote ledger IDs for the matrix header
-                    final var allCycles = new TreeSet<Long>();
-                    final var allLedgers = new TreeSet<String>();
-                    for (final var entry : assignments) {
-                        allCycles.add(entry.cycle);
-                        allLedgers.add(entry.remoteLedger);
-                    }
-
-                    // Build and log the matrix: rows = cycles, columns = remote ledgers
-                    final var sb = new StringBuilder();
-                    sb.append("\n=== Round-Robin Assignment Matrix (cycle × remote ledger → assigned node) ===\n");
-                    sb.append(String.format("%-10s", "Cycle"));
-                    for (final var ledger : allLedgers) {
-                        // Use last 8 chars of ledger ID for readability
-                        final var shortId = ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger;
-                        sb.append(String.format("  %-12s", shortId));
-                    }
-                    sb.append('\n');
-
-                    // For each cycle, find the assigned node for each ledger
-                    for (final var cycle : allCycles) {
-                        sb.append(String.format("%-10d", cycle));
-                        for (final var ledger : allLedgers) {
-                            final var nodeIdx = findAssignedNode(assignments, cycle, ledger);
-                            sb.append(String.format("  %-12s", nodeIdx >= 0 ? "node" + nodeIdx : "-"));
-                        }
-                        sb.append('\n');
-                    }
-                    sb.append("=============================================================================\n");
-                    log.info("CLPR_RR_TEST|stage=rotation_matrix|{}", sb);
-
-                    // Verify each assignment matches the deterministic formula:
-                    //   assignedIndex = (ledgerHash + cycle) % rosterSize
-                    for (final var entry : assignments) {
-                        final int ledgerHash = Math.floorMod(entry.remoteLedger.hashCode(), rosterSize);
-                        final int expected = Math.floorMod(ledgerHash + (int) entry.cycle, rosterSize);
-                        assertThat(entry.assignedNode)
-                                .as(
-                                        "Cycle %d, ledger ...%s: expected node%d but saw node%d",
-                                        entry.cycle,
-                                        entry.remoteLedger.length() > 8
-                                                ? entry.remoteLedger.substring(entry.remoteLedger.length() - 8)
-                                                : entry.remoteLedger,
-                                        expected,
-                                        entry.assignedNode)
-                                .isEqualTo(expected);
-                    }
-
-                    // Assert rotation: for at least one remote ledger, more than 1 distinct node
-                    // was assigned across all observed cycles
-                    for (final var ledger : allLedgers) {
-                        final var distinctNodes = new HashSet<Integer>();
-                        for (final var entry : assignments) {
-                            if (entry.remoteLedger.equals(ledger)) {
-                                distinctNodes.add(entry.assignedNode);
-                            }
-                        }
-                        if (distinctNodes.size() > 1) {
-                            log.info(
-                                    "CLPR_RR_TEST|stage=rotation_confirmed|ledger=...{}|nodes={}",
-                                    ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger,
-                                    distinctNodes);
-                            return; // rotation confirmed for at least one ledger
-                        }
-                    }
-                    // If we get here, no ledger had >1 distinct assigned node
-                    final var nodesPerLedger = new StringBuilder();
-                    for (final var ledger : allLedgers) {
-                        final var nodes = new HashSet<Integer>();
-                        for (final var e : assignments) {
-                            if (e.remoteLedger.equals(ledger)) nodes.add(e.assignedNode);
-                        }
-                        nodesPerLedger.append(String.format(
-                                "  ...%s -> %s\n",
-                                ledger.length() > 8 ? ledger.substring(ledger.length() - 8) : ledger, nodes));
-                    }
-                    assertThat(false)
-                            .as(
-                                    "Expected rotation but each ledger was always assigned to the same node:\n%s",
-                                    nodesPerLedger)
-                            .isTrue();
-                }));
-
-        return builder.asDynamicTests();
-    }
-
-    /**
-     * A single observed round-robin assignment from a node's log.
-     */
-    private record CycleAssignment(long cycle, String remoteLedger, int assignedNode) {}
-
-    // Matches: "CLPR Endpoint: Current cycle {cycle}; Assigned node {node} for ClprLedgerId[ledgerId={id}]"
-    private static final Pattern CYCLE_ASSIGNMENT_PATTERN =
-            Pattern.compile("Current cycle (\\d+); Assigned node (\\d+) for ClprLedgerId\\[ledgerId=([^]]+)]");
-
-    /**
-     * Parses "Current cycle" log lines from all source nodes and returns the complete
-     * set of (cycle, remoteLedger, assignedNode) observations.
-     */
-    private static List<CycleAssignment> collectAssignmentMatrix(final List<HederaNode> nodes) {
-        final var result = new ArrayList<CycleAssignment>();
-        for (final var node : nodes) {
-            try {
-                final var logPath = node.getExternalPath(ExternalPath.APPLICATION_LOG);
-                for (final var line : Files.readAllLines(logPath)) {
-                    final Matcher m = CYCLE_ASSIGNMENT_PATTERN.matcher(line);
-                    if (m.find()) {
-                        final long cycle = Long.parseLong(m.group(1));
-                        final int assignedNode = Integer.parseInt(m.group(2));
-                        final var remoteLedger = m.group(3);
-                        result.add(new CycleAssignment(cycle, remoteLedger, assignedNode));
-                    }
-                }
-            } catch (final IOException e) {
-                throw new IllegalStateException("Failed to read log for node " + node.getName(), e);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Finds the assigned node index for a given cycle and remote ledger, or -1 if not observed.
-     */
-    private static int findAssignedNode(
-            final List<CycleAssignment> assignments, final long cycle, final String remoteLedger) {
-        for (final var entry : assignments) {
-            if (entry.cycle == cycle && entry.remoteLedger.equals(remoteLedger)) {
-                return entry.assignedNode;
-            }
-        }
-        return -1;
-    }
-
-    private static HederaNode getFirstNode(final HapiSpec spec) {
+    static HederaNode getFirstNode(final HapiSpec spec) {
         return spec.getNetworkNodes().getFirst();
     }
 
@@ -894,7 +635,7 @@ public class ClprMessagesSuite {
         return (byte[]) typed[0];
     }
 
-    private static ClprLedgerConfiguration awaitLocalLedgerConfiguration(final List<HederaNode> nodes) {
+    static ClprLedgerConfiguration awaitLocalLedgerConfiguration(final List<HederaNode> nodes) {
         final var deadline = Instant.now().plus(AWAIT_TIMEOUT);
         do {
             for (final var node : nodes) {
@@ -908,7 +649,7 @@ public class ClprMessagesSuite {
         throw new IllegalStateException("Timed out waiting for local CLPR ledger configuration");
     }
 
-    private static void awaitMessageQueueMetadataAvailable(
+    static void awaitMessageQueueMetadataAvailable(
             final Logger log, final List<HederaNode> nodes, final ClprLedgerConfiguration remoteConfiguration) {
         final var deadline = Instant.now().plus(AWAIT_TIMEOUT);
         do {
@@ -990,7 +731,7 @@ public class ClprMessagesSuite {
         }
     }
 
-    private static void submitConfiguration(
+    static void submitConfiguration(
             final HapiSpec spec, final HederaNode node, final ClprLedgerConfiguration configuration) {
         final var payer = toPbj(asAccount(spec, 2));
         final var proof = buildLocalClprStateProofWrapper(configuration);
@@ -1036,7 +777,7 @@ public class ClprMessagesSuite {
         return com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress(address);
     }
 
-    private static void sleepQuietly(final Duration duration) {
+    static void sleepQuietly(final Duration duration) {
         try {
             Thread.sleep(duration.toMillis());
         } catch (InterruptedException e) {
