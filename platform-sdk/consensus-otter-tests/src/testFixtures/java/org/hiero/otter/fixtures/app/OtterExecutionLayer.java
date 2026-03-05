@@ -31,6 +31,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
 
     /** the transaction pool, stores transactions that should be sumbitted to the network */
     private final TransactionPoolNexus transactionPool;
+
     private final Random random;
     private final AtomicLong nonceGenerator = new AtomicLong(0);
     private final Time time;
@@ -76,13 +77,12 @@ public class OtterExecutionLayer implements ExecutionLayer {
      * Generates a new transaction and submits it to the transaction pool.
      * @return true if the transaction was successfully submitted, false otherwise
      */
-    public boolean generateTransaction(){
+    public boolean generateTransaction() {
         final Instant now = time.now();
         final OtterTransaction t = OtterTransaction.newBuilder()
                 .setNonce(nonceGenerator.getAndIncrement())
                 .setBenchmarkTransaction(
-                        BenchmarkTransaction.newBuilder().setSubmissionTimeMicros(instantToMicros(now))
-                )
+                        BenchmarkTransaction.newBuilder().setSubmissionTimeMicros(instantToMicros(now)))
                 .build();
         return transactionPool.submitApplicationTransaction(Bytes.wrap(t.toByteArray()));
     }

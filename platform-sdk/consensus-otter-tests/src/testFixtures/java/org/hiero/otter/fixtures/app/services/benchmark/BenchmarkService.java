@@ -64,7 +64,8 @@ public class BenchmarkService implements OtterService {
     }
 
     @Override
-    public void initialize(@NonNull final InitTrigger trigger,
+    public void initialize(
+            @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
             @NonNull final VirtualMapState state) {

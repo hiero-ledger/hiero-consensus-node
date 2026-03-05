@@ -224,7 +224,8 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * @param responseObserver the observer used to confirm transaction submission
      */
     @Override
-    public synchronized void generateTransaction(final Empty ignored, final StreamObserver<BoolValue> responseObserver) {
+    public synchronized void generateTransaction(
+            final Empty ignored, final StreamObserver<BoolValue> responseObserver) {
         log.debug(DEMO_INFO.getMarker(), "Received generate transaction request");
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);

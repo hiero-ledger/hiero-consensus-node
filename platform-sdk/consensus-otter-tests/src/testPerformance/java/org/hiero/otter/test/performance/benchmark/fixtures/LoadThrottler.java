@@ -6,11 +6,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * Utility class that submits transactions to network nodes with rate limiting and even distribution.
@@ -31,8 +29,7 @@ public class LoadThrottler {
      * @param environment the environment containing nodes to submit transactions to
      *
      */
-    public LoadThrottler(
-            @NonNull final TestEnvironment environment) {
+    public LoadThrottler(@NonNull final TestEnvironment environment) {
         this.network = Objects.requireNonNull(environment).network();
     }
 

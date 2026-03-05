@@ -209,7 +209,7 @@ public class ConsensusNodeManager {
      *
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
-    public boolean generateTransaction(){
+    public boolean generateTransaction() {
         return executionCallback.generateTransaction();
     }
 
