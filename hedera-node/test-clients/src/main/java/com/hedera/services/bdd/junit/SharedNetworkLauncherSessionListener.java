@@ -282,23 +282,27 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     }
 
     private static void checkPrOverridesForBlockNodeStreaming(HederaNetwork network) {
-        if (network instanceof SubProcessNetwork) {
+        if (network instanceof SubProcessNetwork subProcessNetwork) {
             Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-            if (prCheckOverrides.containsKey("blockStream.writerMode")
-                    && prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")) {
+            final var writerMode = prCheckOverrides.get("blockStream.writerMode");
+            if ("GRPC".equals(writerMode) || "FILE_AND_GRPC".equals(writerMode)) {
                 log.info(
-                        "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
+                        "PR Check Override: blockStream.writerMode={} is set, configuring a shared Block Node network",
+                        writerMode);
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                final long[] sharedBlockNodeIds = new long[] {0L};
+                final long[] equalPriorities = new long[] {0L};
+                for (final var blockNodeId : sharedBlockNodeIds) {
+                    blockNodeNetwork.getBlockNodeModeById().put(blockNodeId, BlockNodeMode.SIMULATOR);
+                }
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);
                     blockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
-                            .put(node.getNodeId(), new long[] {node.getNodeId()});
-                    blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
+                            .put(node.getNodeId(), sharedBlockNodeIds);
+                    blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), equalPriorities);
                 });
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
-                SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
                 subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()

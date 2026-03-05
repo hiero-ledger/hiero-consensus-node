@@ -31,7 +31,10 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockNodeServiceInterface;
+import org.hiero.block.api.BlockStreamSubscribeServiceInterface;
 import org.hiero.block.api.BlockStreamPublishServiceInterface;
+import org.hiero.block.api.BlockEnd;
+import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -41,6 +44,8 @@ import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
 import org.hiero.block.api.ServerStatusRequest;
 import org.hiero.block.api.ServerStatusResponse;
+import org.hiero.block.api.SubscribeStreamRequest;
+import org.hiero.block.api.SubscribeStreamResponse;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -77,6 +82,7 @@ public class SimulatedBlockNodeServer {
     private final int port;
     private final MockBlockStreamServiceImpl streamingImpl;
     private final MockBlockNodeServiceImpl serviceImpl;
+    private final MockBlockStreamSubscribeServiceImpl subscribeImpl;
     private final boolean highLatency;
 
     // Configuration for EndOfStream responses
@@ -90,6 +96,8 @@ public class SimulatedBlockNodeServer {
 
     // Track all block numbers for which we have received end of block
     private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
+    // Track all block items by block number to support subscribe API queries
+    private final Map<Long, List<BlockItem>> blockItemsByNumber = new ConcurrentHashMap<>();
 
     // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
@@ -121,6 +129,7 @@ public class SimulatedBlockNodeServer {
         this.highLatency = highLatency;
         this.streamingImpl = new MockBlockStreamServiceImpl();
         this.serviceImpl = new MockBlockNodeServiceImpl();
+        this.subscribeImpl = new MockBlockStreamSubscribeServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
         final PbjConfig pbjConfig = PbjConfig.builder()
@@ -134,7 +143,7 @@ public class SimulatedBlockNodeServer {
 
         this.webServer = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl))
+                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl).service(subscribeImpl))
                 .addProtocol(pbjConfig)
                 .connectionConfig(connectionConfig)
                 .build();
@@ -391,6 +400,9 @@ public class SimulatedBlockNodeServer {
                                 if (item.hasBlockHeader()) {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
+                                    blockItemsByNumber
+                                            .computeIfAbsent(blockNumber, ignored -> new ArrayList<>())
+                                            .add(item);
 
                                     // We might want to catch up using a supplier from
                                     // another BN simulator
@@ -470,6 +482,9 @@ public class SimulatedBlockNodeServer {
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
+                                    blockItemsByNumber
+                                            .computeIfAbsent(blockNumber, ignored -> new ArrayList<>())
+                                            .add(item);
                                     log.info(
                                             "Received BlockProof for block {} on port {} from stream {}",
                                             blockNumber,
@@ -493,6 +508,10 @@ public class SimulatedBlockNodeServer {
                                                                 .hashCode()
                                                         : "none");
                                     }
+                                } else if (currentBlockNumber != null) {
+                                    blockItemsByNumber
+                                            .computeIfAbsent(currentBlockNumber, ignored -> new ArrayList<>())
+                                            .add(item);
                                 }
                             } // End of loop through BlockItems
                         } else if (request.hasEndOfBlock()) {
@@ -1012,6 +1031,45 @@ public class SimulatedBlockNodeServer {
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
             streamingImpl.removeStreamFromTracking(pipeline);
+        }
+    }
+
+    private class MockBlockStreamSubscribeServiceImpl implements BlockStreamSubscribeServiceInterface {
+        @Override
+        public void subscribeBlockStream(
+                @NonNull final SubscribeStreamRequest request,
+                @NonNull final Pipeline<? super SubscribeStreamResponse> replies) {
+            requireNonNull(request, "request cannot be null");
+            requireNonNull(replies, "replies cannot be null");
+            final long start = request.startBlockNumber();
+            final long end = request.endBlockNumber();
+            if (start > end) {
+                replies.onNext(SubscribeStreamResponse.newBuilder()
+                        .status(SubscribeStreamResponse.Code.INVALID_START_BLOCK_NUMBER)
+                        .build());
+                replies.onComplete();
+                return;
+            }
+            for (long blockNumber = start; blockNumber <= end; blockNumber++) {
+                final var items = blockItemsByNumber.get(blockNumber);
+                if (items == null || items.isEmpty()) {
+                    replies.onNext(SubscribeStreamResponse.newBuilder()
+                            .status(SubscribeStreamResponse.Code.NOT_AVAILABLE)
+                            .build());
+                    replies.onComplete();
+                    return;
+                }
+                replies.onNext(SubscribeStreamResponse.newBuilder()
+                        .blockItems(BlockItemSet.newBuilder().blockItems(items).build())
+                        .build());
+                replies.onNext(SubscribeStreamResponse.newBuilder()
+                        .endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber).build())
+                        .build());
+            }
+            replies.onNext(SubscribeStreamResponse.newBuilder()
+                    .status(SubscribeStreamResponse.Code.SUCCESS)
+                    .build());
+            replies.onComplete();
         }
     }
 }

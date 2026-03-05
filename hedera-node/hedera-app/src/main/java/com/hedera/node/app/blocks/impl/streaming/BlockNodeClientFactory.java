@@ -15,6 +15,7 @@ import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
 import java.util.Optional;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
+import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 
 /**
@@ -38,7 +39,8 @@ public class BlockNodeClientFactory {
 
     private enum ClientType {
         STREAMING,
-        SERVICE
+        SERVICE,
+        SUBSCRIBE
     }
 
     /**
@@ -65,6 +67,7 @@ public class BlockNodeClientFactory {
                 switch (clientType) {
                     case STREAMING -> config.streamingPort();
                     case SERVICE -> config.servicePort();
+                    case SUBSCRIBE -> config.servicePort();
                 };
 
         final WebClient webClient = WebClient.builder()
@@ -102,5 +105,18 @@ public class BlockNodeClientFactory {
             @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
         final PbjGrpcClient client = buildPbjClient(ClientType.SERVICE, config, timeout);
         return new BlockNodeServiceClient(client, new DefaultRequestOptions());
+    }
+
+    /**
+     * Create a new {@link BlockStreamSubscribeServiceClient} instance using the specified configuration.
+     *
+     * @param config the block node configuration to use
+     * @param timeout the timeout to use
+     * @return a new {@link BlockStreamSubscribeServiceClient} instance
+     */
+    public BlockStreamSubscribeServiceClient createSubscribeClient(
+            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+        final PbjGrpcClient client = buildPbjClient(ClientType.SUBSCRIBE, config, timeout);
+        return new BlockStreamSubscribeServiceClient(client, new DefaultRequestOptions());
     }
 }
