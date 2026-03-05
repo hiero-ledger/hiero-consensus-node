@@ -21,14 +21,13 @@ public class CommonUtils {
     }
 
     /**
-     * Calls {@link CommonUtils.tellUserConsole()} and highlights the message.
+     * Calls {@link CommonUtils#tellUserConsole(String)} and highlights the message.
      *
      * @param msg the message for the user
      */
     public static void tellUserConsoleHighlighted(final String msg) {
         tellUserConsole("\n***** " + msg + " *****\n");
     }
-
 
     /**
      * Given a name from the address book, return the corresponding alias to associate with certificates in the trust
@@ -64,5 +63,4 @@ public class CommonUtils {
         alias = alias.replaceAll("[^\\p{L}0-9]", "");
         return alias;
     }
-
 }
