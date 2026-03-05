@@ -210,7 +210,7 @@ class StakeRewardCalculatorImplTest {
         // reward = totalStake / subunitsPerWholeUnit * (5 - 0) = wholeUnits * 5
         final long reward = StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 8, subunitsPerWholeUnit);
 
-        assertEquals(wholeUnits * 5, reward);
+        assertEquals(wholeUnits * 5, reward, "Reward should equal wholeUnits * cumulative reward rate");
     }
 
     @ParameterizedTest
@@ -270,7 +270,7 @@ class StakeRewardCalculatorImplTest {
         final long expected = priorWholeUnits + wholeUnits * 5;
         final long reward = StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 6, subunitsPerWholeUnit);
 
-        assertEquals(expected, reward);
+        assertEquals(expected, reward, "Reward should include prior and current period contributions");
     }
 
     /* default */ static Stream<Arguments> decimalsAndSubunits() {

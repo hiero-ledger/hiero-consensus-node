@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class V0710TokenSchema extends Schema<SemanticVersion> {
 
+    @SuppressWarnings("PMD.FieldNamingConventions") // Standard logger naming convention
     private static final Logger log = LogManager.getLogger(V0710TokenSchema.class);
 
     public static final String NATIVE_COIN_DECIMALS_KEY = "NATIVE_COIN_DECIMALS";

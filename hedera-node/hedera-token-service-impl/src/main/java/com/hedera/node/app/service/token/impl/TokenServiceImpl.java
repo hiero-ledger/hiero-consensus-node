@@ -63,6 +63,7 @@ import org.apache.logging.log4j.Logger;
 
 /** An implementation of the {@link TokenService} interface. */
 public class TokenServiceImpl implements TokenService {
+    @SuppressWarnings("PMD.FieldNamingConventions") // Standard logger naming convention
     private static final Logger log = LogManager.getLogger(TokenServiceImpl.class);
 
     public static final long THREE_MONTHS_IN_SECONDS = 7776000L;

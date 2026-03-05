@@ -594,7 +594,10 @@ class HevmTransactionFactoryTest {
         assertEquals(0, transaction.nonce());
         assertEquals(CALL_DATA, transaction.payload());
         assertEquals(Bytes.wrap(dataToUse.chainId()), transaction.chainId());
-        assertEquals(dataToUse.value().divide(WEIBARS_PER_TINYBAR).longValueExact(), transaction.value());
+        assertEquals(
+                dataToUse.value().divide(WEIBARS_PER_TINYBAR).longValueExact(),
+                transaction.value(),
+                "Transaction value should match ETH data value converted from weibars");
         assertEquals(dataToUse.gasLimit(), transaction.gasLimit());
         assertEquals(
                 dataToUse.effectiveOfferedGasPriceInTinybars(TOP_LEVEL_TINYBAR_GAS_PRICE, WEIBARS_PER_TINYBAR),
