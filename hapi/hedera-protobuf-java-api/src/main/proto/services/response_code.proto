@@ -1959,4 +1959,10 @@ enum ResponseCodeEnum {
      * Exactly one of block_node, mirror_node, or rpc_relay MUST be set.
      */
     INVALID_REGISTERED_ENDPOINT_TYPE = 532;
+
+    /**
+     * A registered node cannot be deleted because it is still referenced
+     * by a consensus node via their associated registered node list.
+     */
+    REGISTERED_NODE_STILL_REFERENCED = 533;
 }
