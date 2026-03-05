@@ -47,10 +47,7 @@ class DataFileCollectionCompactionTest {
     private static final long DATE = 1004;
     private static final long EGGPLANT = 1005;
     private static final long FIG = 1006;
-    private static final long GRAPE = 1007;
-    private static final long AARDVARK = 2001;
     private static final long CUTTLEFISH = 2003;
-    private static final long FOX = 1006;
 
     private static long storeDataItem(final DataFileCollection coll, long[] values) throws IOException {
         return coll.storeDataItem(
@@ -131,12 +128,7 @@ class DataFileCollectionCompactionTest {
             }
         };
         final var compactor =
-                new DataFileCompactor(MERKLE_DB_CONFIG, storeName, coll, indexUpdater, null, null, null, null) {
-                    @Override
-                    int getMinNumberOfFilesToCompact() {
-                        return 2;
-                    }
-                };
+                new DataFileCompactor(MERKLE_DB_CONFIG, storeName, coll, indexUpdater, null, null, null, null);
         compactor.compactFiles(indexUpdater, getFilesToMerge(coll), 1);
 
         long prevKey = -1;
@@ -227,14 +219,8 @@ class DataFileCollectionCompactionTest {
                         }
                     };
 
-                    final DataFileCompactor compactor =
-                            new DataFileCompactor(
-                                    MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null) {
-                                @Override
-                                int getMinNumberOfFilesToCompact() {
-                                    return 2;
-                                }
-                            };
+                    final DataFileCompactor compactor = new DataFileCompactor(
+                            MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null);
 
                     try {
                         compactor.compactFiles(indexUpdater, filesToMerge, 1);
@@ -286,12 +272,7 @@ class DataFileCollectionCompactionTest {
             };
 
             final DataFileCompactor compactor =
-                    new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store2, indexUpdater, null, null, null, null) {
-                        @Override
-                        int getMinNumberOfFilesToCompact() {
-                            return 2;
-                        }
-                    };
+                    new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store2, indexUpdater, null, null, null, null);
 
             compactor.compactFiles(indexUpdater, filesToMerge, 1);
         } finally {

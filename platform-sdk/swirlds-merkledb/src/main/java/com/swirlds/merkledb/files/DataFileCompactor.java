@@ -30,9 +30,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * This class is responsible performing compaction of data files in a {@link DataFileCollection}.
- * The compaction is supposed to happen in the background and can be paused and resumed with {@link #pauseCompaction()}
+ * This class is responsible for performing compaction of data files in a {@link DataFileCollection}.
+ * Compaction runs in the background and can be paused and resumed with {@link #pauseCompaction()}
  * and {@link #resumeCompaction()} to prevent compaction from interfering with snapshots.
+ *
+ * <p>Each instance is used for a single compaction run (one level of one store). The
+ * {@code MerkleDbCompactionCoordinator} creates a fresh instance per task
+ * because each instance carries its own {@link #snapshotCompactionLock}, writer, and reader state.
  */
 public class DataFileCompactor {
 
@@ -76,6 +80,7 @@ public class DataFileCompactor {
     @Nullable
     private final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction;
 
+    @Nullable
     private final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction;
 
     /**
@@ -120,15 +125,16 @@ public class DataFileCompactor {
 
     /**
      * Indicates whether compaction is in progress at the time when {@link #pauseCompaction()}
-     * is called. This flag is then checked in {@link DataFileCompactor#resumeCompaction()} )} to start a new
+     * is called. This flag is then checked in {@link #resumeCompaction()} to start a new
      * compacted file or not. This field is synchronized using {@link #snapshotCompactionLock}.
      */
     private boolean compactionWasInProgress = false;
 
     /**
-     * This variable keeps track of the compaction level that was in progress at the time when it was suspended.
-     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to
-     * 0. This field is synchronized using {@link #snapshotCompactionLock}.
+     * This variable keeps track of the compaction level that was in progress at the time when
+     * it was suspended. Once the compaction is resumed, this level is used to start a new
+     * compacted file, and then it's reset to 0. This field is synchronized using
+     * {@link #snapshotCompactionLock}.
      */
     private int compactionLevelInProgress = 0;
 
@@ -140,14 +146,14 @@ public class DataFileCompactor {
     private volatile boolean interruptFlag = false;
 
     /**
-     * @param dbConfig                       MerkleDb config
-     * @param storeName                      name of the store to compact
-     * @param dataFileCollection             data file collection to compact
-     * @param index                          index to update during compaction
-     * @param reportDurationMetricFunction   function to report how long compaction took, in ms
-     * @param reportSavedSpaceMetricFunction function to report how much space was compacted, in Mb
-     * @param reportFileSizeByLevelMetricFunction function to report how much space is used by the store by compaction level, in Mb
-     * @param updateTotalStatsFunction       A function that updates statistics of total usage of disk space and off-heap space
+     * @param dbConfig                           MerkleDb config
+     * @param storeName                          name of the store to compact
+     * @param dataFileCollection                 data file collection to compact
+     * @param index                              index to update during compaction
+     * @param reportDurationMetricFunction       function to report how long compaction took, in ms
+     * @param reportSavedSpaceMetricFunction     function to report how much space was compacted, in Mb
+     * @param reportFileSizeByLevelMetricFunction function to report space used by level, in Mb
+     * @param updateTotalStatsFunction           updates statistics of total disk and off-heap usage
      */
     public DataFileCompactor(
             final MerkleDbConfig dbConfig,
@@ -169,12 +175,91 @@ public class DataFileCompactor {
     }
 
     /**
-     * Compacts all files in compactionPlan.
+     * Returns the data file collection managed by this compactor. Used by the compaction
+     * coordinator to access the file list for evaluating compaction candidates.
+     */
+    public DataFileCollection getDataFileCollection() {
+        return dataFileCollection;
+    }
+
+    /**
+     * Compacts pre-selected files from a single source level into the provided target level.
      *
-     * @param index          takes a map of moves from old location to new location. Once it is finished and
-     *                       returns it is assumed all readers will no longer be looking in old location, so old files
-     *                       can be safely deleted.
-     * @param filesToCompact list of files to compact
+     * @param filesToCompact files selected for compaction (all at the same source level)
+     * @param targetLevel    target compaction level for newly created file(s)
+     * @return true if compaction was performed, false otherwise
+     * @throws IOException          if there was a problem merging
+     * @throws InterruptedException if the merge thread was interrupted
+     */
+    public boolean compactSingleLevel(final List<DataFileReader> filesToCompact, final int targetLevel)
+            throws IOException, InterruptedException {
+        if (filesToCompact.isEmpty()) {
+            logger.debug(MERKLE_DB.getMarker(), "[{}] No need to compact, as the files list is empty", storeName);
+            return false;
+        }
+
+        final int filesCount = filesToCompact.size();
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Starting compaction of {} files to level {}",
+                storeName,
+                filesCount,
+                targetLevel);
+
+        final long start = System.currentTimeMillis();
+
+        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
+        logger.debug(
+                MERKLE_DB.getMarker(),
+                "[{}] Starting merging {} files / {}",
+                storeName,
+                filesCount,
+                formatSizeBytes(filesToCompactSize));
+
+        final List<Path> newFilesCreated = compactFiles(index, filesToCompact, targetLevel);
+
+        final long end = System.currentTimeMillis();
+        final long tookMillis = end - start;
+        if (reportDurationMetricFunction != null) {
+            reportDurationMetricFunction.accept(targetLevel, tookMillis);
+        }
+
+        final long compactedFilesSize = getSizeOfFilesByPath(newFilesCreated);
+        if (reportSavedSpaceMetricFunction != null) {
+            reportSavedSpaceMetricFunction.accept(
+                    targetLevel, (filesToCompactSize - compactedFilesSize) * UnitConstants.BYTES_TO_MEBIBYTES);
+        }
+
+        reportFileSizeByLevel(dataFileCollection.getAllCompletedFiles());
+
+        logCompactStats(
+                storeName,
+                tookMillis,
+                filesToCompact,
+                filesToCompactSize,
+                newFilesCreated,
+                targetLevel,
+                dataFileCollection);
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Finished compaction {} files / {} in {} ms",
+                storeName,
+                filesCount,
+                formatSizeBytes(filesToCompactSize),
+                tookMillis);
+
+        if (updateTotalStatsFunction != null) {
+            updateTotalStatsFunction.run();
+        }
+
+        return true;
+    }
+
+    /**
+     * Compacts all files in the provided list into one or more new files at the target level.
+     *
+     * @param index                 index to update during compaction
+     * @param filesToCompact        list of files to compact
      * @param targetCompactionLevel target compaction level
      * @return list of files created during the compaction
      * @throws IOException          If there was a problem with the compaction
@@ -185,8 +270,7 @@ public class DataFileCompactor {
             final List<? extends DataFileReader> filesToCompact,
             final int targetCompactionLevel)
             throws IOException, InterruptedException {
-        if (filesToCompact.size() < getMinNumberOfFilesToCompact()) {
-            // nothing to do we have merged since the last data update
+        if (filesToCompact.isEmpty()) {
             logger.debug(MERKLE_DB.getMarker(), "No files were available for merging [{}]", storeName);
             return Collections.emptyList();
         }
@@ -296,13 +380,8 @@ public class DataFileCompactor {
         return newCompactedFiles;
     }
 
-    // visible for testing
-    int getMinNumberOfFilesToCompact() {
-        return dbConfig.minNumberOfFilesInCompaction();
-    }
-
     /**
-     * Opens a new file for writing during compaction. This method is called, when compaction is
+     * Opens a new file for writing during compaction. This method is called when compaction is
      * started. If compaction is interrupted and resumed by data source snapshot using {@link
      * #pauseCompaction()} and {@link #resumeCompaction()}, a new file is created for writing using
      * this method before compaction is resumed.
@@ -356,7 +435,7 @@ public class DataFileCompactor {
      * <p>
      * This method should not be called on the compaction thread.
      * <p>
-     * <b>This method must be always balanced with and called before {@link DataFileCompactor#resumeCompaction()}. If
+     * <b>This method must be always balanced with and called before {@link #resumeCompaction()}. If
      * there are more / less calls to resume compactions than to pause, or if they are called in a
      * wrong order, it will result in deadlocks.</b>
      *
@@ -450,141 +529,14 @@ public class DataFileCompactor {
         }
     }
 
-    /**
-     * Compact data files in the collection according to the compaction algorithm.
-     *
-     * @throws IOException          if there was a problem merging
-     * @throws InterruptedException if the merge thread was interrupted
-     * @return true if compaction was performed, false otherwise
-     */
-    public boolean compact() throws IOException, InterruptedException {
-        final List<DataFileReader> completedFiles = dataFileCollection.getAllCompletedFiles();
-        reportFileSizeByLevel(completedFiles);
-        final List<DataFileReader> filesToCompact =
-                compactionPlan(completedFiles, getMinNumberOfFilesToCompact(), dbConfig.maxCompactionLevel());
-        if (filesToCompact.isEmpty()) {
-            logger.debug(MERKLE_DB.getMarker(), "[{}] No need to compact, as the compaction plan is empty", storeName);
-            return false;
-        }
-
-        final int filesCount = filesToCompact.size();
-        logger.info(MERKLE_DB.getMarker(), "[{}] Starting compaction", storeName);
-
-        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
-
-        final long start = System.currentTimeMillis();
-
-        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.debug(
-                MERKLE_DB.getMarker(),
-                "[{}] Starting merging {} files / {}",
-                storeName,
-                filesCount,
-                formatSizeBytes(filesToCompactSize));
-
-        final List<Path> newFilesCreated = compactFiles(index, filesToCompact, targetCompactionLevel);
-
-        final long end = System.currentTimeMillis();
-        final long tookMillis = end - start;
-        if (reportDurationMetricFunction != null) {
-            reportDurationMetricFunction.accept(targetCompactionLevel, tookMillis);
-        }
-
-        final long compactedFilesSize = getSizeOfFilesByPath(newFilesCreated);
-        if (reportSavedSpaceMetricFunction != null) {
-            reportSavedSpaceMetricFunction.accept(
-                    targetCompactionLevel,
-                    (filesToCompactSize - compactedFilesSize) * UnitConstants.BYTES_TO_MEBIBYTES);
-        }
-
-        reportFileSizeByLevel(dataFileCollection.getAllCompletedFiles());
-
-        logCompactStats(
-                storeName,
-                tookMillis,
-                filesToCompact,
-                filesToCompactSize,
-                newFilesCreated,
-                targetCompactionLevel,
-                dataFileCollection);
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "[{}] Finished compaction {} files / {} in {} ms",
-                storeName,
-                filesCount,
-                formatSizeBytes(filesToCompactSize),
-                tookMillis);
-
-        if (updateTotalStatsFunction != null) {
-            updateTotalStatsFunction.run();
-        }
-
-        return true;
-    }
-
     private void reportFileSizeByLevel(List<DataFileReader> allCompletedFiles) {
         if (reportFileSizeByLevelMetricFunction != null) {
-            final Map<Integer, List<DataFileReader>> readersByLevel = getReadersByLevel(allCompletedFiles);
-            for (int i = 0; i < readersByLevel.size(); i++) {
-                final List<DataFileReader> readers = readersByLevel.get(i);
-                if (readers != null) {
-                    reportFileSizeByLevelMetricFunction.accept(
-                            i, getSizeOfFiles(readers) * UnitConstants.BYTES_TO_MEBIBYTES);
-                }
+            final Map<Integer, List<DataFileReader>> readersByLevel = allCompletedFiles.stream()
+                    .collect(Collectors.groupingBy(r -> r.getMetadata().getCompactionLevel()));
+            for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
+                reportFileSizeByLevelMetricFunction.accept(
+                        entry.getKey(), getSizeOfFiles(entry.getValue()) * UnitConstants.BYTES_TO_MEBIBYTES);
             }
         }
-    }
-
-    /**
-     * The target compaction level should not exceed the maxCompactionLevel configuration parameter.
-     * We need a limit on compaction levels for two reasons:
-     *  - To ensure a reasonably predictable frequency for full compactions, even for data that changes infrequently.
-     *  - We maintain metrics for each level, and there should be a cap on the number of these metrics.
-     */
-    private int getTargetCompactionLevel(List<? extends DataFileReader> filesToCompact, int filesCount) {
-        int highestExistingCompactionLevel =
-                filesToCompact.get(filesCount - 1).getMetadata().getCompactionLevel();
-
-        return Math.min(highestExistingCompactionLevel + 1, dbConfig.maxCompactionLevel());
-    }
-
-    /**
-     * This method creates a compaction plan (a set of files to be compacted). The plan is organized by compaction levels
-     * in ascending order. If there are not enough files to compact, then no files are compacted and the plan will be empty.
-     * If the current level doesn't reach minNumberOfFilesToCompact threshold,
-     * then this level and the levels above it are not included in the plan.
-     * @return filter creating a compaction plan
-     */
-    static List<DataFileReader> compactionPlan(
-            List<DataFileReader> dataFileReaders, int minNumberOfFilesToCompact, int maxCompactionLevel) {
-        if (dataFileReaders.isEmpty()) {
-            return dataFileReaders;
-        }
-
-        final Map<Integer, List<DataFileReader>> readersByLevel = getReadersByLevel(dataFileReaders);
-
-        final List<DataFileReader> nonCompactedReaders = readersByLevel.get(INITIAL_COMPACTION_LEVEL);
-        if (nonCompactedReaders == null || nonCompactedReaders.size() < minNumberOfFilesToCompact) {
-            return Collections.emptyList();
-        }
-
-        // we always compact files from level 0 if we have enough files
-        final List<DataFileReader> readersToCompact = new ArrayList<>(nonCompactedReaders);
-
-        for (int i = 1; i <= maxCompactionLevel; i++) {
-            final List<DataFileReader> readers = readersByLevel.get(i);
-            // Presumably, one file comes from the compaction of the previous level.
-            // If, counting this file in, it still doesn't have enough, then it stops collecting.
-            if (readers == null || readers.size() < minNumberOfFilesToCompact - 1) {
-                break;
-            }
-            readersToCompact.addAll(readers);
-        }
-        return readersToCompact;
-    }
-
-    private static Map<Integer, List<DataFileReader>> getReadersByLevel(final List<DataFileReader> dataFileReaders) {
-        return dataFileReaders.stream()
-                .collect(Collectors.groupingBy(r -> r.getMetadata().getCompactionLevel()));
     }
 }

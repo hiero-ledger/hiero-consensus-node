@@ -57,7 +57,7 @@ public class KeyValueStoreBench extends BaseBench {
 
         // Merge files
         start = System.currentTimeMillis();
-        compactor.compact();
+        compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
         System.out.println("Compacted files in " + (System.currentTimeMillis() - start) + "ms");
 
         // Verify merged content

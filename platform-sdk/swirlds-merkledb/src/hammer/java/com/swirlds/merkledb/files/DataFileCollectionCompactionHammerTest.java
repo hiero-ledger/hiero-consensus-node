@@ -159,7 +159,8 @@ class DataFileCollectionCompactionHammerTest {
         Future<?> compactorFuture = compactorService.submit((Callable<Void>) () -> {
             while (!stop.get()) {
                 final List<DataFileReader> filesToMerge = coll.getAllCompletedFiles();
-                if (filesToMerge.size() > compactor.getMinNumberOfFilesToCompact()) {
+                final int minFilesForLogging = 8;
+                if (filesToMerge.size() > minFilesForLogging) {
                     System.out.println(filesToMerge.size());
                 }
                 if (filesToMerge.size() > 10000) {

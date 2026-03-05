@@ -162,7 +162,7 @@ class HalfDiskHashMapTest {
             createSomeData(testType, map, 1111, 10_000, 1);
             checkData(testType, map, 1, 10_000, 1);
             // do a merge
-            dataFileCompactor.compact();
+            dataFileCompactor.compactSingleLevel(map.getFileCollection().getAllCompletedFiles(), 1);
             // check all data after
             checkData(testType, map, 1, 10_000, 1);
         }

@@ -68,7 +68,8 @@ public class HalfDiskMapBench extends BaseBench {
 
         // Merge files
         start = System.currentTimeMillis();
-        dataFileCompactor.compact();
+        dataFileCompactor.compactSingleLevel(
+                dataFileCompactor.getDataFileCollection().getAllCompletedFiles(), 1);
         System.out.println("Compacted files in " + (System.currentTimeMillis() - start) + "ms");
 
         // Verify merged content

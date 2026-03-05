@@ -440,8 +440,8 @@ class DataFileCollectionTest {
         List<DataFileReader> filesLeft = fileCollection.getAllCompletedFiles();
         assertEquals(1, filesLeft.size(), "unexpected # of files #2");
 
-        // and trying to merge just one file is a no-op
-        List<Path> secondMergeResults = fileCompactor.compactFiles(null, filesLeft, 1);
+        // and trying to merge an empty file list is a no-op
+        List<Path> secondMergeResults = fileCompactor.compactFiles(storedOffsetsMap.get(testType), List.of(), 1);
         assertNotNull(secondMergeResults, "null merged files list");
         assertEquals(0, secondMergeResults.size(), "unexpected results from second merge");
     }
@@ -614,12 +614,7 @@ class DataFileCollectionTest {
     private static DataFileCompactor createFileCompactor(
             String storeName, DataFileCollection fileCollection, FilesTestType testType) {
         return new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null) {
-            @Override
-            int getMinNumberOfFilesToCompact() {
-                return 2;
-            }
-        };
+                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
     }
 
     @Order(203)

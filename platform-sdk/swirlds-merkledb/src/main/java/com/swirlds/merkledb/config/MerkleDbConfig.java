@@ -5,12 +5,8 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.validation.ConfigViolation;
-import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
-import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 
 /**
  * Instance-wide config for {@code MerkleDbDataSource}.
@@ -33,9 +29,8 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
- * @param minNumberOfFilesInCompaction
- * 	    The minimum number of files before we do a compaction. If there are less than this number then it is
- * 	    acceptable to not do a compaction.
+ * @param garbageThreshold
+ *      Garbage ratio that triggers compaction for a level.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
@@ -80,9 +75,8 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
-        @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
-        @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
-                int minNumberOfFilesInCompaction,
+        @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
+        @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
         @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
@@ -100,20 +94,6 @@ public record MerkleDbConfig(
     // spotless:on
 
     static double UNIT_FRACTION_PERCENT = 100.0;
-
-    public ConfigViolation minNumberOfFilesInCompactionValidation(final Configuration configuration) {
-        final long minNumberOfFilesInCompaction =
-                configuration.getConfigData(MerkleDbConfig.class).minNumberOfFilesInCompaction();
-        if (minNumberOfFilesInCompaction < 2) {
-            return new DefaultConfigViolation(
-                    "minNumberOfFilesInCompaction",
-                    "%d".formatted(minNumberOfFilesInCompaction),
-                    true,
-                    "Cannot configure minNumberOfFilesInCompaction to " + minNumberOfFilesInCompaction
-                            + ", it must be >= 2");
-        }
-        return null;
-    }
 
     public int getNumHalfDiskHashMapFlushThreads() {
         final int numProcessors = Runtime.getRuntime().availableProcessors();
