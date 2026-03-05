@@ -279,6 +279,24 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    @DisplayName("handle allows deletion when referencing consensus node is deleted")
+    void handleAllowsDeletionWhenReferencingNodeIsDeleted() {
+        givenHandleContext();
+
+        final var deletedReferencingNode = createNode()
+                .copyBuilder()
+                .deleted(true)
+                .associatedRegisteredNode(List.of(registeredNodeId))
+                .build();
+        given(readableNodeStore.keys())
+                .willReturn(List.of(EntityNumber.newBuilder().number(1).build()));
+        given(readableNodeStore.get(1)).willReturn(deletedReferencingNode);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(writableRegisteredNodeStore).remove(registeredNodeId);
+    }
+
+    @Test
     @DisplayName("handle forbids deletion when referenced among multiple consensus nodes")
     void handleForbidsDeletionWhenReferencedAmongMultipleNodes() {
         givenHandleContext();

@@ -81,8 +81,9 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         // Forbid deletion while referenced by any consensus node.
         final var isReferenced = nodeStore.keys().stream()
                 .map(key -> nodeStore.get(key.number()))
-                .anyMatch(
-                        node -> node != null && node.associatedRegisteredNode().contains(registeredNodeId));
+                .anyMatch(node -> node != null
+                        && !node.deleted()
+                        && node.associatedRegisteredNode().contains(registeredNodeId));
         validateFalse(isReferenced, REGISTERED_NODE_STILL_REFERENCED);
 
         registeredNodeStore.remove(registeredNodeId);
