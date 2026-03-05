@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -118,13 +119,15 @@ public class FileServiceSimpleFeesTest {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateExtraKeys"),
-                withOpContext((spec, opLog) -> validateChargedUsd(
-                        "fileCreateExtraKeys",
-                        FILE_CREATE_BASE_FEE
-                                + feeFromKeys
-                                + feeFromSignatures
-                                + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraKeys"),
-                        TRANSACTION_ALLOWED_PERCENT_DIFF)));
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        validateChargedUsd(
+                                "fileCreateExtraKeys",
+                                FILE_CREATE_BASE_FEE
+                                        + feeFromKeys
+                                        + feeFromSignatures
+                                        + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraKeys"),
+                                TRANSACTION_ALLOWED_PERCENT_DIFF))));
     }
 
     @HapiTest
@@ -209,7 +212,9 @@ public class FileServiceSimpleFeesTest {
                 fileCreate("ntb").key(CIVILIAN).contents(bytesWithLength(1500)),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
-                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF),
+                        "getFileContentsBasic",
+                        BASE_FEE_FILE_GET_CONTENT + 500 * STATE_BYTES_FEE_USD,
+                        QUERY_ALLOWED_PERCENT_DIFF),
                 validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
