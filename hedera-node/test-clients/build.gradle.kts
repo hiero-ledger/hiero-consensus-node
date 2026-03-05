@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val miscTagsSerial = "$miscTags&SERIAL"
 val matsSuffix = "MATS"
 
@@ -78,6 +78,7 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
@@ -87,6 +88,7 @@ val basePrCheckTags =
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestSimpleFeesSerial" to "(SIMPLE_FEES&SERIAL)",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
 val concurrentTasks =
@@ -99,6 +101,9 @@ val concurrentTasks =
         "hapiTestMiscSerial",
         "hapiTestMiscRecords",
         "hapiTestMiscRecordsSerial",
+        "hapiTestTimeConsuming",
+        "hapiTestTimeConsumingSerial",
+        "hapiTestStateThrottling",
         "hapiTestSimpleFees",
         "hapiTestSimpleFeesSerial",
     )
@@ -149,8 +154,10 @@ val prCheckStartPorts =
         put("hapiTestTokenSerial", "27800")
         put("hapiTestMiscSerial", "28000")
         put("hapiTestMiscRecordsSerial", "28200")
-        put("hapiTestSimpleFees", "28400")
-        put("hapiTestSimpleFeesSerial", "28600")
+        put("hapiTestTimeConsumingSerial", "28400")
+        put("hapiTestStateThrottling", "28600")
+        put("hapiTestSimpleFees", "28800")
+        put("hapiTestSimpleFeesSerial", "29000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -188,6 +195,8 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
@@ -248,6 +257,7 @@ tasks {
                     (taskName.contains("Crypto") ||
                         taskName.contains("Token") ||
                         taskName.contains("Misc") ||
+                        taskName.contains("TimeConsuming") ||
                         taskName.contains("SimpleFees")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
