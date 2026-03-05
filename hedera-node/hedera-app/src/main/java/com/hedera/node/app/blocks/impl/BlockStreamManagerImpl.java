@@ -45,6 +45,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -84,6 +85,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -610,36 +612,73 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 });
             } else {
                 final var attempt = blockHashSigner.sign(finalBlockRootHash);
-                attempt.signatureFuture().thenAcceptAsync(signature -> {
-                    if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
-                        log.debug(
-                                "Signature future completed with empty signature for block num {}, final block hash {}",
-                                blockNumber,
-                                finalBlockRootHash);
-                    } else {
-                        finishProofWithSignature(
-                                finalBlockRootHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
-                    }
-                    if (quiescenceEnabled) {
-                        final var lastCommand = lastQuiescenceCommand.get();
-                        final var commandNow = quiescenceController.getQuiescenceStatus();
-                        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                            log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                            platform.quiescenceCommand(commandNow);
-                            if (commandNow == QUIESCE) {
-                                final var config = configProvider.getConfiguration();
-                                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                                quiescedHeartbeat.start(
-                                        blockStreamConfig.quiescedHeartbeatInterval(),
-                                        new TctProbe(
-                                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                                config.getConfigData(StakingConfig.class)
-                                                        .periodMins(),
-                                                state));
+                attempt.signatureFuture()
+                        .thenAcceptAsync(signature -> {
+                            if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
+                                log.debug(
+                                        "Signature future completed with empty signature for block num {}, final block hash {}",
+                                        blockNumber,
+                                        finalBlockRootHash);
+                            } else {
+                                finishProofWithSignature(
+                                        finalBlockRootHash,
+                                        signature,
+                                        attempt.verificationKey(),
+                                        attempt.chainOfTrustProof());
                             }
-                        }
-                    }
-                });
+                            if (quiescenceEnabled) {
+                                final var lastCommand = lastQuiescenceCommand.get();
+                                final var commandNow = quiescenceController.getQuiescenceStatus();
+                                if (commandNow != lastCommand
+                                        && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                                    log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                                    platform.quiescenceCommand(commandNow);
+                                    if (commandNow == QUIESCE) {
+                                        final var config = configProvider.getConfiguration();
+                                        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                        quiescedHeartbeat.start(
+                                                blockStreamConfig.quiescedHeartbeatInterval(),
+                                                new TctProbe(
+                                                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                        config.getConfigData(StakingConfig.class)
+                                                                .periodMins(),
+                                                        state));
+                                    }
+                                }
+                            }
+                        })
+                        .exceptionally(t -> {
+                            if (t.getCause() instanceof IllegalStateException illegalStateException) {
+                                if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
+                                        illegalStateException.getMessage())) {
+                                    log.error(
+                                            "Invalid signature detected on block #{} ({})",
+                                            blockNumber,
+                                            finalBlockRootHash,
+                                            t);
+                                    return null;
+                                }
+                            }
+                            final boolean alreadyClosed = t instanceof CompletionException completionException
+                                    && completionException.getCause() instanceof IllegalStateException e
+                                    && Optional.ofNullable(e.getMessage())
+                                            .filter(m -> m.startsWith(
+                                                    "Cannot write to a FileBlockItemWriter that is not open"))
+                                            .isPresent();
+                            if (alreadyClosed) {
+                                log.info(
+                                        "Block #{} with hash {} already closed, skipping direct proof",
+                                        blockNumber,
+                                        finalBlockRootHash);
+                            } else {
+                                log.warn(
+                                        "Unhandled exception while signing block #{} with hash {}",
+                                        blockNumber,
+                                        finalBlockRootHash,
+                                        t);
+                            }
+                            return null;
+                        });
             }
 
             final var exportNetworkToDisk =
