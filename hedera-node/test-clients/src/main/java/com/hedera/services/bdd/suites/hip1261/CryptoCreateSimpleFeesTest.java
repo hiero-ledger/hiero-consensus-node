@@ -1287,8 +1287,7 @@ public class CryptoCreateSimpleFeesTest {
         @DisplayName("Corner Cases for CryptoCreate Simple Fees")
         class CornerCasesForCryptoCreateSimpleFees {
             @HapiTest
-            @DisplayName(
-                    "CryptoCreate - additional not required signature is charged - all verified sigs count")
+            @DisplayName("CryptoCreate - additional not required signature is charged - all verified sigs count")
             Stream<DynamicTest> cryptoCreateOneAdditionalSigIsCharged() {
                 return hapiTest(
                         newKeyNamed(ADMIN_KEY),

@@ -974,8 +974,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
         }
 
         @HapiTest
-        @DisplayName(
-                "Auto Create Hollow Account in one Batch and Hollow Account remains hollow after second Batch")
+        @DisplayName("Auto Create Hollow Account in one Batch and Hollow Account remains hollow after second Batch")
         Stream<DynamicTest> autoCreateHollowAccountRemainsHollowAfterSecondBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

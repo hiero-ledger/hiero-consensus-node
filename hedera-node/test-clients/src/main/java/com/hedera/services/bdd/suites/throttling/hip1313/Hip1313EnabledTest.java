@@ -371,8 +371,7 @@ public class Hip1313EnabledTest {
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
-                        final var observedRawMultiplier =
-                                entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
+                        final var observedRawMultiplier = entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
                         assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
