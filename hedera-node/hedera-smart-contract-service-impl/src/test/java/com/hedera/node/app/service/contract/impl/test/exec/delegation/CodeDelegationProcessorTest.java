@@ -159,7 +159,7 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
-        when(del.getYParity()).thenReturn(2 ^ 8);
+        when(del.getYParity()).thenReturn(256);
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
