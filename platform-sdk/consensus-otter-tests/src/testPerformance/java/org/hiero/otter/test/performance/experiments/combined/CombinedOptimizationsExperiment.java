@@ -51,6 +51,7 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.period", "400us")
+                    .withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
                     .withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
