@@ -1096,6 +1096,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         lenient().when(exchangeRateInfo.activeRate(any())).thenReturn(exchangeRate);
         lenient().when(exchangeRateManager.exchangeRateInfo(any(State.class))).thenReturn(exchangeRateInfo);
         given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
+        lenient().when(feeManager.subunitsPerWholeUnit()).thenReturn(100_000_000L);
         final var feeResult = new FeeResult(100_000L, 0, 0);
         lenient().when(simpleFeeCalculator.calculateQueryFee(any(), any())).thenReturn(feeResult);
     }
@@ -1161,6 +1162,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
+            lenient().when(feeManager.subunitsPerWholeUnit()).thenReturn(100_000_000L);
             final var result = new FeeResult(0, 100000L, 0);
             given(simpleFeeCalculator.calculateQueryFee(eq(query), any())).willReturn(result);
 
