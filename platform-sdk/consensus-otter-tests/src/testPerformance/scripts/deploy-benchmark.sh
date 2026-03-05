@@ -83,9 +83,9 @@ echo -e "${BLUE}=== Step 2: Checking remote server is idle ===${NC}"
 REMOTE_CHECK=$(ssh -o BatchMode=yes "$SSH_DEST" bash <<'REMOTE_EOF'
 ISSUES=""
 
-# Check for running Gradle daemons or tasks
-if pgrep -f "GradleDaemon|gradle" >/dev/null 2>&1; then
-    GRADLE_PROCS=$(pgrep -af "GradleDaemon|gradle" 2>/dev/null | head -5)
+# Check for active Gradle builds (ignore idle daemons and worker processes)
+GRADLE_PROCS=$(pgrep -af "gradlew|org.gradle.launcher.GradleMain|org.gradle.wrapper.GradleWrapperMain" 2>/dev/null | head -5 || true)
+if [[ -n "$GRADLE_PROCS" ]]; then
     ISSUES="${ISSUES}GRADLE_RUNNING\n${GRADLE_PROCS}\n"
 fi
 
@@ -160,7 +160,8 @@ echo -e "${BLUE}=== Step 4: Running benchmark on remote server ===${NC}"
 echo "Remote results will be stored at: $REMOTE_TMP_RESULTS"
 echo ""
 
-ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF
+BENCHMARK_EXIT=0
+ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF || BENCHMARK_EXIT=$?
 set -eo pipefail
 
 # Source profile to pick up JAVA_HOME and PATH in non-interactive SSH sessions
@@ -193,7 +194,11 @@ bash "\$SCRIPT_PATH" "$EXPERIMENT" "$NUM_RUNS"
 REMOTE_EOF
 
 echo ""
-echo -e "${GREEN}Remote benchmark completed.${NC}"
+if [[ "$BENCHMARK_EXIT" -ne 0 ]]; then
+    echo -e "${YELLOW}⚠️  Benchmark exited with code $BENCHMARK_EXIT — results (if any) will still be downloaded.${NC}"
+else
+    echo -e "${GREEN}Remote benchmark completed.${NC}"
+fi
 echo ""
 
 # ── Step 5: Tar results and transfer to local machine ────────────────────────
@@ -204,38 +209,65 @@ LOCAL_TAR_DIR="$LOCAL_RESULTS_DIR"
 mkdir -p "$LOCAL_TAR_DIR"
 LOCAL_TAR="${LOCAL_TAR_DIR}/benchmark-${SERVER}-${BRANCH//\//-}-${TIMESTAMP}.tar.gz"
 
-# Create tar on remote
-ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF
+# Create tar on remote (best-effort: archive whatever results exist)
+TRANSFER_EXIT=0
+ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF || TRANSFER_EXIT=$?
 set -eo pipefail
 if [[ ! -d "$REMOTE_TMP_RESULTS" ]] || [[ -z "\$(ls -A "$REMOTE_TMP_RESULTS")" ]]; then
-    echo "ERROR: No results found at $REMOTE_TMP_RESULTS"
-    exit 1
+    echo "WARNING: No results found at $REMOTE_TMP_RESULTS — nothing to archive."
+    exit 2
 fi
 echo "Compressing results..."
 tar -czf "$REMOTE_TAR" -C "$REMOTE_TMP_RESULTS" .
 echo "Archive size: \$(du -h "$REMOTE_TAR" | cut -f1)"
 REMOTE_EOF
 
-# Transfer to local
-echo "Downloading results to $LOCAL_TAR ..."
-scp -o BatchMode=yes "$SSH_DEST:$REMOTE_TAR" "$LOCAL_TAR"
+# Transfer to local (skip if there was nothing to archive)
+if [[ "$TRANSFER_EXIT" -eq 2 ]]; then
+    echo -e "${YELLOW}⚠️  No results were produced — skipping download.${NC}"
+elif [[ "$TRANSFER_EXIT" -ne 0 ]]; then
+    echo -e "${RED}ERROR: Failed to create remote archive (exit $TRANSFER_EXIT) — skipping download.${NC}"
+else
+    echo "Downloading results to $LOCAL_TAR ..."
+    scp -o BatchMode=yes "$SSH_DEST:$REMOTE_TAR" "$LOCAL_TAR"
+fi
 
-# Clean up remote temp files
+# Clean up remote temp files and stop Gradle daemons (always)
 echo "Cleaning up remote temporary files..."
-ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'"
+ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'" || true
+echo "Stopping Gradle daemons on remote..."
+ssh -o BatchMode=yes "$SSH_DEST" bash <<'STOP_EOF'
+for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
+    [[ -f "$f" ]] && source "$f" 2>/dev/null || true
+done
+cd hedera-services && ./gradlew --stop 2>/dev/null || true
+STOP_EOF
 
 echo ""
-echo -e "${GREEN}######################################################################${NC}"
-echo -e "${GREEN}=== Remote benchmark complete ===${NC}"
-echo -e "${GREEN}######################################################################${NC}"
-echo ""
-echo "Results archive: $LOCAL_TAR"
+if [[ "$BENCHMARK_EXIT" -ne 0 ]]; then
+    echo -e "${YELLOW}######################################################################${NC}"
+    echo -e "${YELLOW}=== Remote benchmark FAILED (exit code: $BENCHMARK_EXIT) ===${NC}"
+    echo -e "${YELLOW}######################################################################${NC}"
+else
+    echo -e "${GREEN}######################################################################${NC}"
+    echo -e "${GREEN}=== Remote benchmark complete ===${NC}"
+    echo -e "${GREEN}######################################################################${NC}"
+fi
 echo ""
 
-# Show contents summary
-echo -e "${BLUE}Archive contents:${NC}"
-tar -tzf "$LOCAL_TAR" | head -30
-RESULT_COUNT=$(tar -tzf "$LOCAL_TAR" | grep -c '/$' || true)
-echo "  ($RESULT_COUNT directories)"
-echo ""
-echo "To extract:  tar -xzf $LOCAL_TAR -C <destination>"
+# Show results summary only if we have a local archive
+if [[ -f "$LOCAL_TAR" ]]; then
+    echo "Results archive: $LOCAL_TAR"
+    echo ""
+    echo -e "${BLUE}Archive contents:${NC}"
+    tar -tzf "$LOCAL_TAR" | head -30
+    RESULT_COUNT=$(tar -tzf "$LOCAL_TAR" | grep -c '/$' || true)
+    echo "  ($RESULT_COUNT directories)"
+    echo ""
+    echo "To extract:  tar -xzf $LOCAL_TAR -C <destination>"
+fi
+
+# Propagate benchmark failure to the caller
+if [[ "$BENCHMARK_EXIT" -ne 0 ]]; then
+    exit "$BENCHMARK_EXIT"
+fi

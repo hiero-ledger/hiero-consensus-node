@@ -68,6 +68,7 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  *     Maximum number of file channels per file reader.
  * @param maxThreadsPerFileChannel
  *    Maximum number of threads per file channel.
+ * @param useDiskIndices if true, use disk-based indices to reduce off-heap memory usage
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -93,7 +94,8 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
-        @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel) {
+        @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
+        @ConfigProperty(defaultValue = "false") boolean useDiskIndices){
 
     // spotless:on
 

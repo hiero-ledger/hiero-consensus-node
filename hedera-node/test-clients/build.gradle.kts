@@ -63,7 +63,8 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+val miscTagsSerial = "$miscTags&SERIAL"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
@@ -72,19 +73,37 @@ val basePrCheckTags =
         "hapiTestCrypto" to "CRYPTO",
         "hapiTestCryptoSerial" to "(CRYPTO&SERIAL)",
         "hapiTestToken" to "TOKEN",
+        "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
+        "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
+        "hapiTestMiscRecordsSerial" to miscTagsSerial,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
-val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSerial")
+val concurrentTasks =
+    setOf(
+        "hapiTestCrypto",
+        "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
+        "hapiTestMisc",
+        "hapiTestMiscSerial",
+        "hapiTestMiscRecords",
+        "hapiTestMiscRecordsSerial",
+        "hapiTestTimeConsuming",
+        "hapiTestTimeConsumingSerial",
+        "hapiTestStateThrottling",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
@@ -94,7 +113,7 @@ val prCheckTags =
             put(task, "($tags)&(!MATS)")
 
             // MATS task → explicitly REQUIRE MATS
-            if (task !in cryptoTasks) {
+            if (task !in concurrentTasks) {
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
@@ -110,7 +129,7 @@ val remoteCheckTags =
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
                     "hapiTestToken",
-                    "hapiTestTokenMATS",
+                    "hapiTestTokenSerial",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
@@ -129,11 +148,16 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
+        put("hapiTestTokenSerial", "27800")
+        put("hapiTestMiscSerial", "28000")
+        put("hapiTestMiscRecordsSerial", "28200")
+        put("hapiTestTimeConsumingSerial", "28400")
+        put("hapiTestStateThrottling", "28600")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", port)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", port)
         }
     }
 val prCheckPropOverrides =
@@ -159,11 +183,21 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestMisc",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
+        put(
+            "hapiTestMiscSerial",
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
+        put(
+            "hapiTestMiscRecordsSerial",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
@@ -175,7 +209,7 @@ val prCheckPropOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", overrides)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", overrides)
         }
     }
 val prCheckPrepareUpgradeOffsets =
@@ -184,7 +218,7 @@ val prCheckPrepareUpgradeOffsets =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, offset: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", offset)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
 // Note: no MATS variants needed for history proofs
@@ -196,11 +230,12 @@ val prCheckNetSizeOverrides =
         put("hapiTestCrypto", "3")
         put("hapiTestCryptoSerial", "3")
         put("hapiTestToken", "3")
+        put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
-            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", size)
+            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", size)
         }
     }
 
@@ -210,7 +245,12 @@ tasks {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
-                if (taskName.contains("Crypto") && !taskName.contains("Serial"))
+                if (
+                    (taskName.contains("Crypto") ||
+                        taskName.contains("Token") ||
+                        taskName.contains("Misc") ||
+                        taskName.contains("TimeConsuming")) && !taskName.contains("Serial")
+                )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
             )
@@ -324,7 +364,15 @@ tasks.register<Test>("testSubprocess") {
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=6",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
@@ -504,11 +552,11 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
-val embeddedCryptoTasks = setOf("hapiTestCryptoEmbedded")
+val embeddedTasks = setOf("hapiTestCryptoEmbedded", "hapiTestMiscEmbedded")
 
 val embeddedBaseTags =
     mapOf(
-        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
+        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
     )
@@ -520,7 +568,7 @@ val prEmbeddedCheckTags =
             put(taskName, "($tags)")
 
             // Embedded MATS variant → REQUIRE MATS
-            if (taskName !in embeddedCryptoTasks) {
+            if (taskName !in embeddedTasks) {
                 put("$taskName$matsSuffix", "($tags)&MATS")
             }
         }
@@ -587,7 +635,7 @@ tasks.register<Test>("testEmbedded") {
     jvmArgs("-XX:ActiveProcessorCount=6")
 }
 
-val repeatableBaseTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
+val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
 
 val prRepeatableCheckTags =
     buildMap<String, String> {
