@@ -10,26 +10,26 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -53,18 +53,18 @@ import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
 import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.feeDistributionValidator;
-import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
-import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.nodeRewardsWithFeeCollectionValidator;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.hasFeeDistribution;
-import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordNotContains;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.isNodeRewardOrFeeDistribution;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.nodeRewardsWithFeeCollectionValidator;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordNotContains;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -331,10 +331,10 @@ public class Hip1259EnabledTests {
                 contractCreate(TRANSFERRING_CONTRACT).balance(ONE_HBAR).payingWith(CIVILIAN_PAYER),
                 // Try to transfer HBAR to fee collection account via smart contract
                 contractCall(
-                        TRANSFERRING_CONTRACT,
-                        "transferToAddress",
-                        asHeadlongAddress(asSolidityAddress(0, 0, 802L)),
-                        BigInteger.valueOf(1000))
+                                TRANSFERRING_CONTRACT,
+                                "transferToAddress",
+                                asHeadlongAddress(asSolidityAddress(0, 0, 802L)),
+                                BigInteger.valueOf(1000))
                         .payingWith(CIVILIAN_PAYER)
                         .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
@@ -597,10 +597,10 @@ public class Hip1259EnabledTests {
                 cryptoCreate("beneficiary").balance(0L).payingWith(CIVILIAN_PAYER),
                 // Use explicitDef to set the transfer account ID directly to 0.0.802
                 cryptoDelete((spec, b) -> {
-                    b.setDeleteAccountID(spec.registry().getAccountID("accountToDelete"));
-                    b.setTransferAccountID(
-                            AccountID.newBuilder().setAccountNum(802L).build());
-                })
+                            b.setDeleteAccountID(spec.registry().getAccountID("accountToDelete"));
+                            b.setTransferAccountID(
+                                    AccountID.newBuilder().setAccountNum(802L).build());
+                        })
                         .signedBy(CIVILIAN_PAYER, "accountToDelete")
                         .payingWith(CIVILIAN_PAYER)
                         .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
@@ -746,9 +746,9 @@ public class Hip1259EnabledTests {
                         .payingWith(CIVILIAN_PAYER),
                 // Attempt to self-destruct with fee collection account (0.0.802) as beneficiary
                 contractCall(
-                        SELF_DESTRUCT_CALLABLE_CONTRACT,
-                        "destroyExplicitBeneficiary",
-                        asHeadlongAddress(asSolidityAddress(0, 0, 802L)))
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                "destroyExplicitBeneficiary",
+                                asHeadlongAddress(asSolidityAddress(0, 0, 802L)))
                         .payingWith(CIVILIAN_PAYER)
                         .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
@@ -771,8 +771,7 @@ public class Hip1259EnabledTests {
                         .initialSupply(0L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
-                        .hasKnownStatus(INVALID_ACCOUNT_ID)
-        );
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     /**
@@ -799,16 +798,14 @@ public class Hip1259EnabledTests {
                 // Verify the failed transaction still charged a fee
                 getTxnRecord("failedTxn").exposingTo(record -> {
                     txnFee.set(record.getTransactionFee());
-                    assertTrue(record.getTransactionFee() > 0,
-                            "Failed transaction should still charge a fee");
+                    assertTrue(record.getTransactionFee() > 0, "Failed transaction should still charge a fee");
                 }),
                 // Verify fee collector balance increased by the charged fee
                 sourcing(() ->
                         getAccountBalance(FEE_COLLECTOR).hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())),
                 // Verify fee went to fee collector and not to legacy accounts
                 validateRecordContains("failedTxn", FEE_COLLECTOR_ACCOUNT),
-                validateRecordNotContains("failedTxn", UNEXPECTED_FEE_ACCOUNTS)
-        );
+                validateRecordNotContains("failedTxn", UNEXPECTED_FEE_ACCOUNTS));
     }
 
     /**
@@ -820,9 +817,7 @@ public class Hip1259EnabledTests {
     final Stream<DynamicTest> fungibleTokenAirdropToFeeCollectionAccountFails() {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                tokenCreate("fungibleToken")
-                        .treasury(CIVILIAN_PAYER)
-                        .initialSupply(1000L),
+                tokenCreate("fungibleToken").treasury(CIVILIAN_PAYER).initialSupply(1000L),
                 tokenAirdrop(TokenMovement.moving(100L, "fungibleToken").between(CIVILIAN_PAYER, FEE_COLLECTOR))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(CIVILIAN_PAYER)
@@ -845,18 +840,18 @@ public class Hip1259EnabledTests {
                 cryptoApproveAllowance()
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
-                        .addCryptoAllowance(CIVILIAN_PAYER, "spender", 2*ONE_HBAR)
+                        .addCryptoAllowance(CIVILIAN_PAYER, "spender", 2 * ONE_HBAR)
                         .hasKnownStatus(SUCCESS),
                 getAccountDetails(CIVILIAN_PAYER)
                         .has(accountDetailsWith()
                                 .cryptoAllowancesCount(1)
-                                .cryptoAllowancesContaining("spender", 2*ONE_HBAR)),
+                                .cryptoAllowancesContaining("spender", 2 * ONE_HBAR)),
                 // Attempt to use the allowance to transfer hbar to the fee collector
-                cryptoTransfer(TokenMovement.movingHbarWithAllowance(ONE_HBAR).betweenWithDecimals(CIVILIAN_PAYER, FEE_COLLECTOR))
+                cryptoTransfer(TokenMovement.movingHbarWithAllowance(ONE_HBAR)
+                                .betweenWithDecimals(CIVILIAN_PAYER, FEE_COLLECTOR))
                         .payingWith("spender")
                         .signedBy("spender")
-                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED)
-        );
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
 
     /**
@@ -879,18 +874,18 @@ public class Hip1259EnabledTests {
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
                 // Wrap a transfer-to-fee-collector inside an atomic batch
                 atomicBatch(
-                        cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, BATCH_OPERATOR, ONE_HBAR))
-                                .payingWith(CIVILIAN_PAYER)
-                                .signedBy(CIVILIAN_PAYER)
-                                .batchKey(BATCH_OPERATOR)
-                                .via("failedInnerOne")
-                                .hasKnownStatus(REVERTED_SUCCESS),
-                        cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, FEE_COLLECTOR, ONE_HBAR))
-                                .payingWith(CIVILIAN_PAYER)
-                                .signedBy(CIVILIAN_PAYER)
-                                .batchKey(BATCH_OPERATOR)
-                                .via("failedInnerTwo")
-                                .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED))
+                                cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, BATCH_OPERATOR, ONE_HBAR))
+                                        .payingWith(CIVILIAN_PAYER)
+                                        .signedBy(CIVILIAN_PAYER)
+                                        .batchKey(BATCH_OPERATOR)
+                                        .via("failedInnerOne")
+                                        .hasKnownStatus(REVERTED_SUCCESS),
+                                cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, FEE_COLLECTOR, ONE_HBAR))
+                                        .payingWith(CIVILIAN_PAYER)
+                                        .signedBy(CIVILIAN_PAYER)
+                                        .batchKey(BATCH_OPERATOR)
+                                        .via("failedInnerTwo")
+                                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED))
                         .payingWith(BATCH_OPERATOR)
                         .signedBy(BATCH_OPERATOR, CIVILIAN_PAYER)
                         .via("failedBatchTxn")
@@ -898,31 +893,28 @@ public class Hip1259EnabledTests {
                 // Verify the failed batch still charged a fee
                 getTxnRecord("failedBatchTxn").exposingTo(record -> {
                     batchTxnFee.set(record.getTransactionFee());
-                    assertTrue(record.getTransactionFee() > 0,
-                            "Failed atomic batch should still charge a fee");
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
                 }),
                 getTxnRecord("failedInnerOne").exposingTo(record -> {
                     innerOneFee.set(record.getTransactionFee());
-                    assertTrue(record.getTransactionFee() > 0,
-                            "Failed atomic batch should still charge a fee");
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
                 }),
                 getTxnRecord("failedInnerTwo").exposingTo(record -> {
                     innerTwoFee.set(record.getTransactionFee());
-                    assertTrue(record.getTransactionFee() > 0,
-                            "Failed atomic batch should still charge a fee");
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
                 }),
                 // Verify fee collector balance increased by the charged fee
-                sourcing(() ->
-                        getAccountBalance(FEE_COLLECTOR).hasTinyBars(
-                                initialFeeCollectionBalance.get() + batchTxnFee.get() + innerOneFee.get() + innerTwoFee.get()
-                        )),
+                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(initialFeeCollectionBalance.get()
+                                + batchTxnFee.get()
+                                + innerOneFee.get()
+                                + innerTwoFee.get())),
                 // Verify fees went to fee collector and not to legacy accounts
                 validateRecordContains("failedBatchTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("failedBatchTxn", UNEXPECTED_FEE_ACCOUNTS),
                 validateRecordContains("failedInnerOne", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("failedInnerOne", UNEXPECTED_FEE_ACCOUNTS),
                 validateRecordContains("failedInnerTwo", FEE_COLLECTOR_ACCOUNT),
-                validateRecordNotContains("failedInnerTwo", UNEXPECTED_FEE_ACCOUNTS)
-        );
+                validateRecordNotContains("failedInnerTwo", UNEXPECTED_FEE_ACCOUNTS));
     }
 }
