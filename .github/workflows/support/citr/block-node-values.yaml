@@ -35,11 +35,6 @@ blockNode:
   config:
     BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "1000"
     JAVA_OPTS: '-Xms16G -Xmx16G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
-  health:
-    readiness:
-      endpoint: "/healthz/readyz"
-    liveness:
-      endpoint: "/healthz/livez"
 
   persistence:
     archive:
