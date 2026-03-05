@@ -249,6 +249,36 @@ class NodeRewardManagerTest {
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
     }
 
+    @Test
+    void testOnCloseBlockUpdatesMetricsEveryBlock() {
+        final var initialRewards = NodeRewards.newBuilder()
+                .numRoundsInStakingPeriod(10)
+                .nodeFeesCollected(1000)
+                .nodeActivities(List.of(
+                        NodeActivity.newBuilder().nodeId(0L).numMissedJudgeRounds(2).build(),
+                        NodeActivity.newBuilder().nodeId(1L).numMissedJudgeRounds(5).build()))
+                .build();
+        givenSetup(initialRewards, platformStateWithFreezeTime(null), null);
+        final var metrics = mock(NodeMetrics.class);
+        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, metrics);
+        nodeRewardManager.onOpenBlock(state);
+
+        nodeRewardManager.onCloseBlock(state, 0L);
+
+        verify(metrics).registerNodeMetrics(anyList());
+        verify(metrics).updateNodeActiveMetrics(0L, 80.0);
+        verify(metrics).updateNodeActiveMetrics(1L, 50.0);
+    }
+
+    @Test
+    void testOnCloseBlockDoesNotThrowWhenMetricsNull() {
+        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
+        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, null);
+        nodeRewardManager.onOpenBlock(state);
+
+        assertDoesNotThrow(() -> nodeRewardManager.onCloseBlock(state, 0L));
+    }
+
     private void givenSetup(
             NodeRewards nodeRewards,
             final PlatformState platformState,

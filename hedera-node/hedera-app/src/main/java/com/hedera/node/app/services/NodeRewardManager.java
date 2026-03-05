@@ -108,6 +108,12 @@ public class NodeRewardManager {
         // judge counts
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).nodeRewardsEnabled()) {
             updateNodeRewardState(state, nodeFeesCollected);
+            final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+            final var activeRoster = rosterStore.getActiveRoster();
+            if (activeRoster != null) {
+                final var nodeRewardStore = new WritableNodeRewardsStoreImpl(state.getWritableStates(TokenService.NAME));
+                updateNodeMetrics(activeRoster.rosterEntries(), nodeRewardStore);
+            }
         }
     }
 
@@ -258,6 +264,9 @@ public class NodeRewardManager {
 
     private void updateNodeMetrics(
             final List<RosterEntry> rosterEntries, final WritableNodeRewardsStoreImpl nodeRewardStore) {
+        if (metrics == null) {
+            return;
+        }
         final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
         metrics.registerNodeMetrics(rosterEntries);
         final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
@@ -266,7 +275,7 @@ public class NodeRewardManager {
             final var nodeId = node.nodeId();
             final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
             final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
-            final var activePercent = activeRounds == 0 ? 0 : ((double) ((activeRounds * 100) / roundsLastPeriod));
+            final var activePercent = roundsLastPeriod == 0 ? 0.0 : ((double) activeRounds * 100.0) / roundsLastPeriod;
             metrics.updateNodeActiveMetrics(nodeId, activePercent);
         });
     }
