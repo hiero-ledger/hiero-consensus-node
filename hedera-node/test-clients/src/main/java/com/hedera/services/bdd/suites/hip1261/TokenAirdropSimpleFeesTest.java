@@ -1027,7 +1027,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .fee(ONE_HBAR / 100000)
                                     .setNode(4)
                                     .via(INNER_ID)
-                                    .hasPrecheck(INSUFFICIENT_TX_FEE),
+                                    .hasKnownStatus(INSUFFICIENT_TX_FEE),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
@@ -1058,7 +1058,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .signedBy(OWNER, PAYER_INSUFFICIENT_BALANCE)
                                     .setNode(4)
                                     .via(INNER_ID)
-                                    .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                                    .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
