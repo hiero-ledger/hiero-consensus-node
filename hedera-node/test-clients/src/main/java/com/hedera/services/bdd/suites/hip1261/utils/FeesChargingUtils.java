@@ -319,6 +319,42 @@ public class FeesChargingUtils {
         });
     }
 
+    public static HapiSpecOperation validateChargedUsdFromRecordWithTxnSize(
+            String txnId, IntToDoubleFunction expectedFeeUsd, double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
+            final double expectedFee = expectedFeeUsd.applyAsDouble(signedTxnSize);
+
+            final var subOp = getTxnRecord(txnId).assertingNothingAboutHashes();
+            allRunFor(spec, subOp);
+            final var record = subOp.getResponseRecord();
+
+            final long chargedTinyBars = record.getTransactionFee();
+            if (chargedTinyBars <= 0) {
+                throw new AssertionError("Expected positive charged fee but was" + chargedTinyBars);
+            }
+
+            final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+            final long hbarEquiv = rate.getHbarEquiv();
+            final long centEquiv = rate.getCentEquiv();
+
+            // Convert tinybars to USD
+            final double chargedUsd = (1.0 * chargedTinyBars)
+                    / ONE_HBAR // tinybars -> HBAR
+                    / hbarEquiv // HBAR -> "rate HBAR"
+                    * centEquiv // "rate HBAR" -> cents
+                    / 100.0; // cents -> USD
+
+            assertEquals(
+                    expectedFee,
+                    chargedUsd,
+                    (allowedPercentDifference / 100.0) * expectedFee,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(chargedUsd, 4), txnId, allowedPercentDifference));
+        });
+    }
+
     /**
      * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
      *

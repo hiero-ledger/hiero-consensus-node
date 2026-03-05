@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
+import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -15,8 +17,10 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -33,12 +37,12 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTAndNFTFullFeeUsd;
@@ -46,7 +50,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAirdropSurchargeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
@@ -73,10 +77,9 @@ import static org.hiero.hapi.support.fees.Extra.AIRDROPS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -89,7 +92,7 @@ import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -105,28 +108,18 @@ public class TokenAirdropSimpleFeesTest {
     private static final String PAYER = "payer";
     private static final String THRESHOLD_PAYER = "thresholdPayer";
     private static final String PAYER_INSUFFICIENT_BALANCE = "payerInsufficientBalance";
-    private static final String PAYER_WITH_HOOK = "payerWithHook";
-    private static final String PAYER_WITH_TWO_HOOKS = "payerWithTwoHooks";
-    private static final String PAYER_WITH_THREE_HOOKS = "payerWithThreeHooks";
     private static final String RECEIVER_ASSOCIATED_FIRST = "receiverAssociatedFirst";
     private static final String RECEIVER_ASSOCIATED_SECOND = "receiverAssociatedSecond";
     private static final String RECEIVER_ASSOCIATED_THIRD = "receiverAssociatedThird";
-    private static final String RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS = "receiverUnlimitedAutoAssociations";
     private static final String RECEIVER_FREE_AUTO_ASSOCIATIONS = "receiverFreeAutoAssociations";
     private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS = "receiverWithoutFreeAutoAssociations";
     private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND =
             "receiverWithoutFreeAutoAssociationsSecond";
     private static final String RECEIVER_NOT_ASSOCIATED = "receiverNotAssociated";
     private static final String RECEIVER_WITH_SIG_REQUIRED = "receiver_sig_required";
-    private static final String RECEIVER_ZERO_BALANCE = "receiverZeroBalance";
     private static final String VALID_ALIAS_ED25519 = "validAliasED25519";
-    private static final String VALID_ALIAS_ED25519_SECOND = "validAliasED25519Second";
     private static final String VALID_ALIAS_ECDSA = "validAliasECDSA";
-    private static final String VALID_ALIAS_ECDSA_SECOND = "validAliasECDSASecond";
-    private static final String VALID_ALIAS_HOLLOW = "validAliasHollow";
-    private static final String VALID_ALIAS_HOLLOW_SECOND = "validAliasHollowSecond";
     private static final String OWNER = "owner";
-    private static final String HBAR_OWNER_INSUFFICIENT_BALANCE = "hbarOwnerInsufficientBalance";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
@@ -696,6 +689,109 @@ public class TokenAirdropSimpleFeesTest {
                         getAccountBalance(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
                                 .hasTokenBalance(FUNGIBLE_TOKEN, 0L)));
             }
+
+            @HapiTest
+            @DisplayName("Token Airdrop - Auto Create Account with FT moving to ED25519 alias - full fees charging")
+            final Stream<DynamicTest> tokenAirdropAutoCreateAccountWithFTMovingToED25519AliasFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenAirdropTxn",
+                                txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                                SIGNATURES, 1L,
+                                                ACCOUNTS, 2L,
+                                                TOKEN_TYPES, 1L,
+                                                PROCESSING_BYTES, (long) txnSize))
+                                        + TOKEN_ASSOCIATE_BASE_FEE_USD
+                                        + expectedTokenAirdropSurchargeUsd(Map.of(AIRDROPS, 1L)),
+                                0.1),
+                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                        getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .hasMaxAutomaticAssociations(-1)
+                                .hasToken(relationshipWith(FUNGIBLE_TOKEN)),
+                        getAutoCreatedAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Airdrop - Auto Create Account with NFT moving to ECDSA alias - full fees charging")
+            final Stream<DynamicTest> tokenAirdropAutoCreateAccountWithNFTMovingToECDSAAliasFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ECDSA))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenAirdropTxn",
+                                txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
+                                                SIGNATURES, 1L,
+                                                ACCOUNTS, 2L,
+                                                TOKEN_TYPES, 1L,
+                                                PROCESSING_BYTES, (long) txnSize))
+                                        + TOKEN_ASSOCIATE_BASE_FEE_USD
+                                        + expectedTokenAirdropSurchargeUsd(Map.of(AIRDROPS, 1L)),
+                                0.1),
+                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                        getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                .hasMaxAutomaticAssociations(-1)
+                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)),
+                        getAutoCreatedAccountBalance(VALID_ALIAS_ECDSA).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+            }
+
+            @HapiTest
+            @DisplayName(
+                    "Token Airdrop - Auto Create Hollow Account with FT moving to non-existing evm alias - Resulting in pending airdrop and full fees charging")
+            final Stream<DynamicTest>
+                    tokenAirdropAutoCreateHollowAccountWithFTMovingResultingInPendingAirdropAndFullCharging() {
+
+                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+                        withOpContext((spec, log) -> {
+                            final var alias = evmAlias.get();
+
+                            final var tokenAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenAirdropTxn");
+
+                            final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
+                                    "tokenAirdropTxn",
+                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                                    SIGNATURES, 1L,
+                                                    ACCOUNTS, 2L,
+                                                    TOKEN_TYPES, 1L,
+                                                    PROCESSING_BYTES, (long) txnSize))
+                                            + TOKEN_ASSOCIATE_BASE_FEE_USD
+                                            + expectedTokenAirdropSurchargeUsd(Map.of(AIRDROPS, 1L)),
+                                    0.1);
+
+                            final var checkOpInfo = getAliasedAccountInfo(alias)
+                                    .isHollow()
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .hasEmptyKey()
+                                            .noAlias()
+                                            .balance(0L)
+                                            .maxAutoAssociations(-1));
+
+                            final var checkOwnerBalance =
+                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
+
+                            allRunFor(spec, tokenAirdropOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
+                        })));
+            }
         }
 
         @Nested
@@ -709,8 +805,6 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT to Associated Receiver from Sender with threshold key - Invalid signature fails on ingest")
                 final Stream<DynamicTest>
                         tokenAirdropFTToAssociatedReceiverFromSenderWithInvalidSignatureFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
 
                     // Define a threshold submit key that requires two simple keys signatures
                     KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -725,7 +819,6 @@ public class TokenAirdropSimpleFeesTest {
                                     .key(PAYER_KEY)
                                     .sigControl(forKey(PAYER_KEY, invalidSig))
                                     .balance(ONE_HUNDRED_HBARS),
-                            getAccountBalance(THRESHOLD_PAYER).exposingBalanceTo(initialBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             tokenAssociate(THRESHOLD_PAYER, FUNGIBLE_TOKEN),
                             cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, THRESHOLD_PAYER)),
@@ -737,13 +830,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .hasPrecheck(INVALID_SIGNATURE),
 
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(THRESHOLD_PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
@@ -751,11 +838,8 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT and NFT to Associated Receiver - with insufficient txn fee - fails on ingest")
                 final Stream<DynamicTest>
                         tokenAirdropFTAndNFTToAssociatedReceiverWithInsufficientTxnFeeFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
@@ -770,13 +854,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .via("tokenAirdropTxn")
                                     .hasPrecheck(INSUFFICIENT_TX_FEE),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
@@ -784,11 +862,8 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT and NFT to Associated Receiver - with insufficient payer balance - fails on ingest")
                 final Stream<DynamicTest>
                         tokenAirdropFTAndNFTToAssociatedReceiverWithInsufficientPayerBalanceFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER_INSUFFICIENT_BALANCE).exposingBalanceTo(initialBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
@@ -802,47 +877,29 @@ public class TokenAirdropSimpleFeesTest {
                                     .via("tokenAirdropTxn")
                                     .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER_INSUFFICIENT_BALANCE).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
                 @DisplayName("Token Airdrop - with empty token transfer body  - fails on ingest")
                 final Stream<DynamicTest> tokenAirdropWithEmptyTokenTransferBodyFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             tokenAirdrop()
                                     .payingWith(PAYER)
                                     .signedBy(PAYER)
                                     .via("tokenAirdropTxn")
                                     .hasPrecheckFrom(EMPTY_TOKEN_TRANSFER_BODY),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
                 @DisplayName("Token Airdrop - with multiple senders for a token - fails on ingest")
                 final Stream<DynamicTest> tokenAirdropWithMultipleSendersForATokenFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
                             cryptoCreate("newSender"),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
@@ -860,23 +917,14 @@ public class TokenAirdropSimpleFeesTest {
                                     .via("tokenAirdropTxn")
                                     .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
                 @DisplayName("Token Airdrop - with duplicate NFT Serial - fails on ingest")
                 final Stream<DynamicTest> tokenAirdropWithDuplicateNFTSerialFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
                             tokenAirdrop(
@@ -889,24 +937,15 @@ public class TokenAirdropSimpleFeesTest {
                                     .via("tokenAirdropTxn")
                                     .hasPrecheck(INVALID_ACCOUNT_AMOUNTS),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
 
                 @HapiTest
                 @DisplayName("Token Airdrop - with allowance is not supported - fails on ingest")
                 final Stream<DynamicTest> tokenAirdropWithAllowanceIsNotSupportedFailsOnIngest() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
                             cryptoCreate("spender").balance(ONE_HBAR),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             cryptoApproveAllowance()
                                     .payingWith(OWNER)
@@ -918,13 +957,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .via("tokenAirdropTxn")
                                     .hasPrecheck(NOT_SUPPORTED),
                             // assert no txn record is created
-                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            withOpContext((spec, log) -> {
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                            })));
+                            getTxnRecord("tokenAirdropTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND)));
                 }
             }
 
@@ -936,10 +969,6 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT to Associated Receiver from Sender with threshold key - Invalid signature fails on pre-handle")
                 final Stream<DynamicTest>
                         tokenAirdropFTToAssociatedReceiverFromSenderWithInvalidSignatureFailsOnPreHandle() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
-                    final AtomicLong initialNodeBalance = new AtomicLong();
-                    final AtomicLong afterNodeBalance = new AtomicLong();
 
                     final String INNER_ID = "txn-inner-id";
 
@@ -956,9 +985,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .key(PAYER_KEY)
                                     .sigControl(forKey(PAYER_KEY, invalidSig))
                                     .balance(ONE_HUNDRED_HBARS),
-                            getAccountBalance(THRESHOLD_PAYER).exposingBalanceTo(initialBalance::set),
                             cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                            getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             tokenAssociate(THRESHOLD_PAYER, FUNGIBLE_TOKEN),
                             cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, THRESHOLD_PAYER)),
@@ -969,24 +996,8 @@ public class TokenAirdropSimpleFeesTest {
                                     .setNode(4)
                                     .via(INNER_ID)
                                     .hasKnownStatus(INVALID_PAYER_SIGNATURE),
-
-                            // Save balances and assert changes
-                            getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                            getAccountBalance(THRESHOLD_PAYER).exposingBalanceTo(afterBalance::set),
-                            getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                            withOpContext((spec, log) -> {
-                                long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                                log.info("Node balance change: {}", nodeDelta);
-                                log.info(
-                                        "Recorded fee: {}",
-                                        expectedCryptoTransferNetworkFeeOnlyUsd(Map.of(SIGNATURES, 2L)));
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                                assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                            }),
-                            validateChargedFeeToUsdWithTxnSize(
+                            validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    initialNodeBalance,
-                                    afterNodeBalance,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01)));
@@ -997,18 +1008,12 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT and NFT to Associated Receiver - with insufficient txn fee - fails on pre-handle")
                 final Stream<DynamicTest>
                         tokenAirdropFTAndNFTToAssociatedReceiverWithInsufficientTxnFeeFailsOnPreHandle() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
-                    final AtomicLong initialNodeBalance = new AtomicLong();
-                    final AtomicLong afterNodeBalance = new AtomicLong();
 
                     final String INNER_ID = "txn-inner-id";
 
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                             cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                            getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
@@ -1023,23 +1028,8 @@ public class TokenAirdropSimpleFeesTest {
                                     .setNode(4)
                                     .via(INNER_ID)
                                     .hasPrecheck(INSUFFICIENT_TX_FEE),
-                            // Save balances and assert changes
-                            getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                            withOpContext((spec, log) -> {
-                                long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                                log.info("Node balance change: {}", nodeDelta);
-                                log.info(
-                                        "Recorded fee: {}",
-                                        expectedCryptoTransferNetworkFeeOnlyUsd(Map.of(SIGNATURES, 1L)));
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                                assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                            }),
-                            validateChargedFeeToUsdWithTxnSize(
+                            validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    initialNodeBalance,
-                                    afterNodeBalance,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01)));
@@ -1050,18 +1040,12 @@ public class TokenAirdropSimpleFeesTest {
                         "Token Airdrop FT and NFT to Associated Receiver - with insufficient payer balance - fails on pre-handle")
                 final Stream<DynamicTest>
                         tokenAirdropFTAndNFTToAssociatedReceiverWithInsufficientPayerBalanceFailsOnPreHandle() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
-                    final AtomicLong initialNodeBalance = new AtomicLong();
-                    final AtomicLong afterNodeBalance = new AtomicLong();
 
                     final String INNER_ID = "txn-inner-id";
 
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
-                            getAccountBalance(PAYER_INSUFFICIENT_BALANCE).exposingBalanceTo(initialBalance::set),
                             cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                            getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 3),
@@ -1075,23 +1059,8 @@ public class TokenAirdropSimpleFeesTest {
                                     .setNode(4)
                                     .via(INNER_ID)
                                     .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
-                            // Save balances and assert changes
-                            getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                            getAccountBalance(PAYER_INSUFFICIENT_BALANCE).exposingBalanceTo(afterBalance::set),
-                            getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                            withOpContext((spec, log) -> {
-                                long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                                log.info("Node balance change: {}", nodeDelta);
-                                log.info(
-                                        "Recorded fee: {}",
-                                        expectedCryptoTransferNetworkFeeOnlyUsd(Map.of(SIGNATURES, 2L)));
-                                assertEquals(initialBalance.get(), afterBalance.get());
-                                assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                            }),
-                            validateChargedFeeToUsdWithTxnSize(
+                            validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    initialNodeBalance,
-                                    afterNodeBalance,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01)));
@@ -1416,32 +1385,26 @@ public class TokenAirdropSimpleFeesTest {
                         .toList());
     }
 
+    private SpecOperation registerEvmAddressAliasFrom(String secp256k1KeyName, AtomicReference<ByteString> evmAlias) {
+        return withOpContext((spec, opLog) -> {
+            final var ecdsaKey =
+                    spec.registry().getKey(secp256k1KeyName).getECDSASecp256K1().toByteArray();
+            final var evmAddressBytes = recoverAddressFromPubKey(Bytes.wrap(ecdsaKey));
+            final var evmAddress = ByteString.copyFrom(evmAddressBytes.toByteArray());
+            evmAlias.set(evmAddress);
+        });
+    }
+
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 100000),
                 uploadInitCode(HOOK_CONTRACT),
                 contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER_WITH_HOOK)
-                        .balance(ONE_MILLION_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(PAYER_WITH_TWO_HOOKS)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(2L, HOOK_CONTRACT)),
-                cryptoCreate(PAYER_WITH_THREE_HOOKS)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(2L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(3L, HOOK_CONTRACT)),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(HBAR_OWNER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 100000),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_ASSOCIATED_THIRD).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS)
-                        .maxAutomaticTokenAssociations(-1)
-                        .balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_FREE_AUTO_ASSOCIATIONS)
                         .maxAutomaticTokenAssociations(2)
                         .balance(ONE_HBAR),
@@ -1452,13 +1415,8 @@ public class TokenAirdropSimpleFeesTest {
                         .maxAutomaticTokenAssociations(0)
                         .balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_NOT_ASSOCIATED).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_ZERO_BALANCE).balance(0L),
                 newKeyNamed(VALID_ALIAS_ED25519).shape(KeyShape.ED25519),
-                newKeyNamed(VALID_ALIAS_ED25519_SECOND).shape(KeyShape.ED25519),
                 newKeyNamed(VALID_ALIAS_ECDSA).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_ECDSA_SECOND).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_HOLLOW).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_HOLLOW_SECOND).shape(SECP_256K1_SHAPE),
                 newKeyNamed(adminKey),
                 newKeyNamed(supplyKey),
                 newKeyNamed(freezeKey),
