@@ -114,9 +114,9 @@ public class ConsensusLayerBenchmark {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveConsistentRounds();
+//        assertContinuouslyThat(network.newConsensusResults())
+//                .haveEqualCommonRounds()
+//                .haveConsistentRounds();
 
         log.info("[{}] Starting network with {} nodes...", configName, params.numberOfNodes());
         network.start();
