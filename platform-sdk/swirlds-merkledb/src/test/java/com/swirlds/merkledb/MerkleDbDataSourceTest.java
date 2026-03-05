@@ -689,10 +689,10 @@ class MerkleDbDataSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, 50_000, 99_999, 100_000, 199_998, 199_999, 200_000, 1_000_000, 8388608, Long.MAX_VALUE})
+    @ValueSource(longs = {0, 50_000, 299_999, 300_000, 300_001, 400_000, 1_000_000, 8388608, Long.MAX_VALUE})
     void migrateHashesToChunks(final long hashesRamToDiskThreshold) throws IOException {
         final String dbName = "vm";
-        final int size = 100_000;
+        final int size = 300_000;
         final long firstLeafPath = size - 1;
         final long lastLeafPath = 2 * size - 2;
         final TestType testType = TestType.long_fixed;
@@ -726,7 +726,7 @@ class MerkleDbDataSourceTest {
             }
             if (hashesRamToDiskThreshold <= lastLeafPath) {
                 final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
-                final LongListOffHeap hashStoreDiskIndex = new LongListOffHeap(1024, 1_000_000, 1024);
+                final LongListOffHeap hashStoreDiskIndex = new LongListOffHeap(1024, 2 * size, 1024);
                 final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
                         CONFIGURATION.getConfigData(MerkleDbConfig.class),
                         tmpDir,

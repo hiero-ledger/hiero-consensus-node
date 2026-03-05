@@ -315,11 +315,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
 
         // Get the max number of keys is set in the MerkleDb config, then multiply it by
-        // two, since virtual path range is 2 times number of keys stored in a virtual map.
-        // Path to hash and path to KV index capacity will be based on this max virtual
-        // path. Index capacity limits the max size of the index, but it doesn't have anything
-        // to do with index initial size. If a new MerkleDb instance is created, both path
-        // indices will have size 0
+        // two, since virtual path range is 2 times the number of keys stored in a virtual map.
+        // Path to KV index capacity will be based on this max virtual path. Hash chunk index
+        // capacity will be derived from this max virtual path, too. Index capacity limits
+        // the max size of the index, but it doesn't have anything to do with the index initial
+        // size. If a new MerkleDb instance is created, both indices will have size 0
         final long maxPath = merkleDbConfig.maxNumOfKeys() * 2;
         // Path to KV index capacity is the same as max virtual path
         final long kvIndexCapacity = maxPath;
@@ -527,12 +527,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             for (long chunkId = 0; chunkId <= lastChunkId; chunkId++) {
                 final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
                 final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
+                long prevPath = -1;
                 for (int i = 0; i < chunkSize; i++) {
                     long path = VirtualHashChunk.getPathInChunk(i, chunkPath, hashChunkHeight);
                     while (path > getLastLeafPath()) {
-                        // get parent path
-                        path = (path - 1) / 2;
+                        path = com.swirlds.virtualmap.internal.Path.getParentPath(path);
                     }
+                    if (path == prevPath) {
+                        // Multiple paths outside the leaf path range are mapped to the same
+                        // location in the chunk
+                        continue;
+                    }
+                    prevPath = path;
                     final Hash hash;
                     if (path < hashesRamToDiskThreshold) {
                         assert hashStoreRam != null;
