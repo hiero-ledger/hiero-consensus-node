@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -63,7 +62,7 @@ public class NodeCreateHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context, "context must not be null");
         final var txn = context.body();
-        requireNonNull(txn);
+        requireNonNull(txn, "txn must not be null");
         final var op = txn.nodeCreateOrThrow();
         addressBookValidator.validateAccountId(op.accountId());
         validateFalsePreCheck(op.gossipEndpoint().isEmpty(), INVALID_GOSSIP_ENDPOINT);
@@ -80,7 +79,10 @@ public class NodeCreateHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context, "context must not be null");
-        final var op = context.body().nodeCreateOrThrow();
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+        final var op = txn.nodeCreateOrThrow();
+
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
     }
 
@@ -113,11 +115,8 @@ public class NodeCreateHandler implements TransactionHandler {
         }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
-        validateTrue(op.associatedRegisteredNode().size() <= 20, INVALID_NODE_ID);
-        for (final var registeredNodeId : op.associatedRegisteredNode()) {
-            validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
-            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
-        }
+        addressBookValidator.validateAssociatedRegisteredNodes(
+                op.associatedRegisteredNode(), registeredNodeStore, nodeConfig);
 
         final var nodeBuilder = new Node.Builder()
                 .accountId(op.accountId())
