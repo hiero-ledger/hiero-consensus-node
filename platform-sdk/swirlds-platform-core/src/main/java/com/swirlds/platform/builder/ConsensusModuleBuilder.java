@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -26,6 +28,8 @@ import java.util.ServiceLoader;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
@@ -60,6 +64,8 @@ import org.hiero.consensus.transaction.TransactionLimits;
  */
 public class ConsensusModuleBuilder {
 
+    private static final Logger log = LogManager.getLogger(ConsensusModuleBuilder.class);
+
     private ConsensusModuleBuilder() {}
 
     /** Prefix for all module selection config properties. */
@@ -84,13 +90,23 @@ public class ConsensusModuleBuilder {
             @NonNull final Configuration configuration) {
         final String selectedModule = configuration.getValue(moduleConfigFromName(moduleName), String.class, "");
         final List<NamedProvider<T>> providers = ServiceLoader.load(moduleClass).stream()
-                .map(p -> new NamedProvider<>(p.type().getModule().getName(), p))
+                .map(p -> new NamedProvider<>(providerModuleName(p), p))
                 .toList();
         return selectModule(providers, moduleName, selectedModule);
     }
 
     private static String moduleConfigFromName(final String moduleName) {
         return CONFIG_PREFIX + moduleName;
+    }
+
+    /**
+     * Get a stable identifier for a ServiceLoader provider. Uses the JPMS module name when
+     * available; falls back to the provider class's package name for classpath (unnamed module)
+     * environments such as containers.
+     */
+    private static <T> String providerModuleName(@NonNull final ServiceLoader.Provider<T> provider) {
+        final String jpmsName = provider.type().getModule().getName();
+        return jpmsName != null ? jpmsName : provider.type().getPackageName();
     }
 
     /**
