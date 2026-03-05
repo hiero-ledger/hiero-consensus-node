@@ -41,6 +41,13 @@ public interface QueryModule {
         return requireNonNull(context).configuration().getConfigData(HederaConfig.class);
     }
 
+    /**
+     * Provides tinybar values for query-scoped exchange rate conversions.
+     *
+     * @param exchangeRate the current exchange rate
+     * @param denominationConverter the converter for native coin denomination scaling
+     * @return the tinybar values for the query scope
+     */
     @Provides
     @QueryScope
     static TinybarValues provideTinybarValues(

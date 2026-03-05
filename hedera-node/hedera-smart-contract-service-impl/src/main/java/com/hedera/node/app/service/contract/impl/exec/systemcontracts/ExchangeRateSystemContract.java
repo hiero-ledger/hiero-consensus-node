@@ -46,6 +46,12 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
     private long gasRequirement;
     private final DenominationConverter denominationConverter;
 
+    /**
+     * Creates an exchange rate system contract with the given gas calculator and denomination converter.
+     *
+     * @param gasCalculator the gas calculator for this contract
+     * @param denominationConverter the converter for native coin denomination scaling
+     */
     @Inject
     public ExchangeRateSystemContract(
             @NonNull final GasCalculator gasCalculator, @NonNull final DenominationConverter denominationConverter) {

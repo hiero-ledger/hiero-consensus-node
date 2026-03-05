@@ -61,6 +61,12 @@ public final class ExchangeRateManager {
     private ExchangeRateInfo currentExchangeRateInfo;
     private ExchangeRateSet midnightRates;
 
+    /**
+     * Creates an exchange rate manager with the given config provider and denomination converter.
+     *
+     * @param configProvider the provider of configuration data
+     * @param denominationConverter the converter for native coin denomination scaling
+     */
     @Inject
     public ExchangeRateManager(
             @NonNull final ConfigProvider configProvider, @NonNull final DenominationConverter denominationConverter) {
