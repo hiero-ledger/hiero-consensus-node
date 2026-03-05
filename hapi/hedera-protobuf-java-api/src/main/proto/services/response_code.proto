@@ -1965,4 +1965,9 @@ enum ResponseCodeEnum {
      * by a consensus node via their associated registered node list.
      */
     REGISTERED_NODE_STILL_REFERENCED = 533;
+
+    /**
+     * The number of associated registered nodes exceeds the maximum allowed limit.
+     */
+    MAX_REGISTERED_NODES_EXCEEDED = 534;
 }

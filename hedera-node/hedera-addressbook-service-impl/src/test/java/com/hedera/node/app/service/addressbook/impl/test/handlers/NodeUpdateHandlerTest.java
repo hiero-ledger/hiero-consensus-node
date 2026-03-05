@@ -944,7 +944,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         setupMinimalHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED, msg.getStatus());
     }
 
     @Test
@@ -997,6 +997,28 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         final var updatedNode = writableStore.get(1L);
         assertNotNull(updatedNode);
         assertThat(updatedNode.associatedRegisteredNode()).hasSize(20);
+    }
+
+    @Test
+    void handlePreservesAssociatedRegisteredNodesWhenFieldNotSet() {
+        // Set up a node that already has associated registered nodes
+        Node nodeWithAssoc = Node.newBuilder()
+                .nodeId(nodeId.number())
+                .associatedRegisteredNode(List.of(10L, 20L))
+                .build();
+        setupWritableNodeStore(nodeWithAssoc);
+
+        // Update only description, without setting associatedRegisteredNodeList
+        txn = new NodeUpdateBuilder()
+                .withNodeId(nodeId.number())
+                .withDescription("updated-desc")
+                .build();
+        setupMinimalHandle();
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(nodeId.number());
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).containsExactly(10L, 20L);
     }
 
     private void setupWritableNodeStore(final Node node) {

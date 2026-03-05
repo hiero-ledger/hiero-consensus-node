@@ -675,7 +675,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.attributeValidator()).willReturn(validator);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED, msg.getStatus());
     }
 
     @Test

@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
@@ -87,7 +88,7 @@ public class AddressBookValidator {
     }
 
     private boolean containsZeroByte(@NonNull final byte[] bytes) {
-        requireNonNull(bytes);
+        requireNonNull(bytes, "bytes must not be null");
 
         boolean ret = false;
         for (final byte b : bytes) {
@@ -166,10 +167,10 @@ public class AddressBookValidator {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
             @NonNull final ExpiryValidator expiryValidator) {
-        requireNonNull(accountId);
-        requireNonNull(accountStore);
-        requireNonNull(accountNodeRelStore);
-        requireNonNull(expiryValidator);
+        requireNonNull(accountId, "accountId must not be null");
+        requireNonNull(accountStore, "accountStore must not be null");
+        requireNonNull(accountNodeRelStore, "accountNodeRelStore must not be null");
+        requireNonNull(expiryValidator, "expiryValidator must not be null");
 
         final var account = accountStore.getAccountById(accountId);
         validateTrue(account != null, INVALID_NODE_ACCOUNT_ID);
@@ -193,11 +194,13 @@ public class AddressBookValidator {
             @NonNull final List<Long> associatedRegisteredNodeIds,
             @NonNull final ReadableRegisteredNodeStore registeredNodeStore,
             @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(associatedRegisteredNodeIds);
-        requireNonNull(registeredNodeStore);
-        requireNonNull(nodesConfig);
+        requireNonNull(associatedRegisteredNodeIds, "associatedRegisteredNodeIds must not be null");
+        requireNonNull(registeredNodeStore, "registeredNodeStore must not be null");
+        requireNonNull(nodesConfig, "nodesConfig must not be null");
 
-        validateTrue(associatedRegisteredNodeIds.size() <= nodesConfig.maxAssociatedRegisteredNodes(), INVALID_NODE_ID);
+        validateTrue(
+                associatedRegisteredNodeIds.size() <= nodesConfig.maxAssociatedRegisteredNodes(),
+                MAX_REGISTERED_NODES_EXCEEDED);
         for (final var registeredNodeId : associatedRegisteredNodeIds) {
             validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
             validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
@@ -205,7 +208,7 @@ public class AddressBookValidator {
     }
 
     public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(endpoint);
+        requireNonNull(endpoint, "endpoint must not be null");
         requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.port() == 0, INVALID_ENDPOINT);
@@ -224,7 +227,7 @@ public class AddressBookValidator {
      * @param nodesConfig the nodes configuration
      */
     public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(endpoint);
+        requireNonNull(endpoint, "endpoint must not be null");
         requireNonNull(nodesConfig, "nodesConfig must not be null");
 
         validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
@@ -265,7 +268,7 @@ public class AddressBookValidator {
      */
     public void validateRegisteredServiceEndpoints(
             @NonNull final List<RegisteredServiceEndpoint> endpoints, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(endpoints);
+        requireNonNull(endpoints, "endpoints must not be null");
         validateFalse(endpoints.isEmpty(), INVALID_REGISTERED_ENDPOINT);
         validateFalse(
                 endpoints.size() > nodesConfig.maxRegisteredServiceEndpoint(), REGISTERED_ENDPOINTS_EXCEEDED_LIMIT);
@@ -276,7 +279,7 @@ public class AddressBookValidator {
 
     private void validateRegisteredServiceEndpoint(
             @NonNull final RegisteredServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
-        requireNonNull(endpoint);
+        requireNonNull(endpoint, "endpoint must not be null");
 
         final int port = endpoint.port();
         validateTrue(port >= 0 && port <= 65535, INVALID_REGISTERED_ENDPOINT);
