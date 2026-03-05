@@ -30,6 +30,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
@@ -388,7 +389,7 @@ public class UpdateTokenFeeScheduleTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, FRACTION_DIVIDES_BY_ZERO)));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "tokens.maxCustomFeesAllowed")
     @DisplayName("update token fees with more than max allowed fees")
     public Stream<DynamicTest> updateTokenFeesAboveMaxAllowed() {
         return hapiTest(

@@ -30,6 +30,11 @@ public class ContainerConstants {
     public static final String OTTER_LOG_PATH = "output/otter.log";
 
     /**
+     * Path to {@code gc.log} file (GC logging output of the consensus node process)
+     */
+    public static final String GC_LOG_PATH = "output/gc.log";
+
+    /**
      * Path to {@code MainNetStats{nodeId}.csv} file
      */
     public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";

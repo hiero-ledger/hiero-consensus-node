@@ -214,6 +214,16 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 break;
             }
 
+            // If the caller explicitly listed acceptable precheck statuses via
+            // hasAnswerOnlyPrecheckFrom(), and the actual precheck is one of them,
+            // stop immediately – do not let the retry mechanism convert an acceptable
+            // result into an unwanted one (e.g. retrying RECORD_NOT_FOUND until the
+            // record appears and returning OK).
+            if (permissibleAnswerOnlyPrechecks.isPresent()
+                    && permissibleAnswerOnlyPrechecks.get().contains(actualPrecheck)) {
+                break;
+            }
+
             // Automatically retry on transient platform errors (backlog/not active/fee issues)
             // regardless of explicit answerOnlyRetryPrechecks configuration
             final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
@@ -232,7 +242,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
                 try {
                     // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 1000 : 10);
+                    sleep(isTransientPlatformError ? 100 : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
