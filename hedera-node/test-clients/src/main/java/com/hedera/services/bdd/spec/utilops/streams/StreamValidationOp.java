@@ -3,7 +3,7 @@ package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -191,26 +191,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        final var nodeBlockPaths = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
-                .toList();
-        return readBlocksFromNodeBlockPaths(nodeBlockPaths);
-    }
-
-    /**
-     * Reads blocks by resolving each node's block stream path to its parent {@code blockStreams/}
-     * directory, so that {@code Files.walk()} discovers blocks across all {@code block-X.Y.Z}
-     * subdirectories. This is necessary because a node's account ID can change during tests
-     * that rotate nodes, resulting in multiple subdirectories under the same working directory.
-     */
-    static Optional<List<Block>> readBlocksFromNodeBlockPaths(@NonNull final List<Path> nodeBlockPaths) {
         List<Block> blocks = null;
-        final var parentDirs = nodeBlockPaths.stream()
-                .map(Path::getParent)
+        final var blockPaths = spec.getNetworkNodes().stream()
+                .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        for (final var path : parentDirs) {
+        for (final var path : blockPaths) {
             try {
                 log.info("Trying to read blocks from {}", path);
                 blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
@@ -253,11 +240,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                // Use the parent blockStreams directory to find marker files across all
-                // account ID subdirectories (a node may have multiple block-X.Y.Z dirs
-                // if its account ID changed during the test)
-                final var path =
-                        node.getExternalPath(BLOCK_STREAMS_DIR).getParent().toAbsolutePath();
+                final var path = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
                 final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
                 final var nodeId = node.getNodeId();
