@@ -228,6 +228,12 @@ class ChildFeeContextTest {
     }
 
     @Test
+    void delegatesSubunitsPerWholeUnit() {
+        given(feeManager.subunitsPerWholeUnit()).willReturn(1_000_000L);
+        assertEquals(1_000_000L, subject.subunitsPerWholeUnit(), "Should delegate to feeManager");
+    }
+
+    @Test
     void delegatesHighVolumeThrottleUtilization() {
         given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
                 .willReturn(4_321);
