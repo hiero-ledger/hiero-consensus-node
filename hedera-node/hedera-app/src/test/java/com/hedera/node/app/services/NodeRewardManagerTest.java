@@ -255,8 +255,14 @@ class NodeRewardManagerTest {
                 .numRoundsInStakingPeriod(10)
                 .nodeFeesCollected(1000)
                 .nodeActivities(List.of(
-                        NodeActivity.newBuilder().nodeId(0L).numMissedJudgeRounds(2).build(),
-                        NodeActivity.newBuilder().nodeId(1L).numMissedJudgeRounds(5).build()))
+                        NodeActivity.newBuilder()
+                                .nodeId(0L)
+                                .numMissedJudgeRounds(2)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(1L)
+                                .numMissedJudgeRounds(5)
+                                .build()))
                 .build();
         givenSetup(initialRewards, platformStateWithFreezeTime(null), null);
         final var metrics = mock(NodeMetrics.class);
