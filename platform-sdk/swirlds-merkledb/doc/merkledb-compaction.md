@@ -55,6 +55,103 @@ and is available at runtime through `DataFileReader`.
 
 This immutable count serves as the denominator for garbage ratio calculations: it tells us how many items the file started with, regardless of how many have since been superseded.
 
+### File System Layout
+
+MerkleDb has a root storage directory (`<round_dir>/data/state/`). Within it, each store has its own subdirectory:
+
+```
+<storageDir>/
+├── table_metadata.pbj
+├── pathToDiskLocationInternalNodes.ll     # off-heap index (internal hashes → data locations)
+├── pathToDiskLocationLeafNodes.ll         # off-heap index (leaf paths → data locations)
+├── internalHashStoreRam.hl               # RAM hash list (if threshold > 0)
+├── internalHashStoreDisk/                 # HashStoreDisk file collection
+│   ├── myTable_internalhashes_2025-03-04_14-30-00-123__________0.pbj
+│   ├── myTable_internalhashes_2025-03-04_14-30-01-456__________1.pbj
+│   ├── myTable_internalhashes_2025-03-04_14-35-00-789_________10.pbj
+│   └── myTable_internalhashes_metadata.pbj
+├── objectKeyToPath/                       # ObjectKeyToPath file collection
+│   ├── myTable_objectkeytopath_...________0.pbj
+│   └── myTable_objectkeytopath_metadata.pbj
+└── pathToHashKeyValue/                    # PathToKeyValue file collection
+    ├── myTable_pathtohashkeyvalue_...________0.pbj
+    └── myTable_pathtohashkeyvalue_metadata.pbj
+```
+
+All three stores share the same file management model via `DataFileCollection`. Each store's data files and metadata file live in the store's own subdirectory. Compaction output files are written to the **same directory** as the input files — there is no separate staging area. Old files are deleted in place after compaction completes.
+
+#### File Naming
+
+Data files follow the naming convention:
+
+```
+{storeName}_{timestamp}_{index}.pbj
+```
+
+where `storeName` is the table-qualified store name (e.g. `myTable_internalhashes`), `timestamp` is the creation time
+in `yyyy-MM-dd_HH-mm-ss-SSS` format (UTC), and `index` is a zero-padded integer (10 characters wide, right-aligned with underscores).
+For example: `myTable_internalhashes_2025-03-04_14-30-00-123__________0.pbj`.
+
+Each store also has a metadata file (`{storeName}_metadata.pbj`) that persists the valid key range across restarts.
+
+#### File Indexes
+
+Each `DataFileCollection` maintains a monotonically increasing `nextFileIndex` counter (an `AtomicInteger`).
+Every new file — whether created by a flush or by compaction — gets the next index from this counter. Indexes are never reused. This means:
+
+- Flush files and compaction output files share a single index sequence per store.
+- A compaction output file always has a higher index than any of its input files.
+- File indexes are not contiguous — gaps appear when old files are deleted.
+
+The index is used for two purposes: it is part of the file name on disk, and it is packed into data locations in the in-memory index.
+A **data location** is a 64-bit long that encodes both the file index and the byte offset of a data item within that file:
+
+```
+[ 24 bits: file index + 1 ][ 40 bits: byte offset ]
+```
+
+The file index is stored with a +1 offset so that data location `0` can serve as `NON_EXISTENT_DATA_LOCATION` (a sentinel).
+This encoding allows up to 16 million files and 1 TB per file. The in-memory index (`LongList` or `LongListOffHeap`)
+maps data item keys to data locations. When compaction copies a data item to a new file, it atomically updates the
+index entry via `putIfEqual()` to point to the new data location (new file index + new byte offset).
+
+#### What Happens During Compaction
+
+From the file system perspective, a compaction of level N files in a store proceeds as follows:
+
+1. **New file created.** `DataFileCollection.newDataFile()` allocates a new file index from `nextFileIndex`, creates a `.pbj` file in the store directory, and returns a `DataFileWriter`. The file is immediately registered as a reader (via `addNewDataFileReader()`) so it is visible in `getAllCompletedFiles()`, but it is not yet marked as "completed" — it will not be eligible for compaction itself until step 3.
+
+2. **Data items copied.** The compactor iterates the index. For each entry pointing to a file in the compaction set, it reads the data item from the old file and writes it to the new file. The index is atomically updated to the new data location. If a snapshot interrupts compaction, the current output file is finalized, and a second output file is created after the snapshot completes — so a single compaction run may produce multiple output files in the directory.
+
+3. **Output file finalized.** The writer is closed (`DataFileWriter.close()` rewrites the header with the final `itemsCount`, then truncates the file to its exact size). The reader is marked as completed (`setFileCompleted()`), making it eligible for future compactions.
+
+4. **Input files deleted.** If all data items were successfully processed, the old files are removed from the `DataFileCollection`'s in-memory file list (via atomic `getAndUpdate()`) and deleted from disk. If compaction was interrupted (e.g. by shutdown), the old files are **not** deleted — they remain on disk and will be compacted in a future run.
+
+At no point are files moved between directories. All I/O happens within the store's subdirectory.
+
+#### Relationship to State Saving
+
+MerkleDb's working directory resides under the platform's temporary directory `swirlds-tmp`.
+When the platform saves a signed state for a round, data files flow through two stages —
+both using hard links, never byte-level copies:
+
+- **Snapshot**: `DataFileCollection.snapshot()` creates hard links from the store's working directory
+  into a snapshot directory. Index files (off-heap `LongList` structures) are serialized to the snapshot directory since they are in-memory, not file-backed.
+  Compaction is paused for the duration of hard-link creation.
+- **State persistence**: The platform links the snapshot directory into the final `saved-state` location (`<round_dir>/data/state/...`) via `hardLinkTree()`.
+
+Because hard links share the same underlying `inode`, compaction can safely delete old files from the working directory after copying their live
+data — any previously taken snapshot still holds a valid hard link to the original file blocks on disk.
+The data is only physically freed when all hard links (working directory, snapshot, and saved state) are removed.
+On restore, the reverse happens: `hardLinkTree()` links from the `saved-state` directory into a new working directory under `swirlds-tmp`,
+and `MerkleDbDataSource` opens it as a normal database. Compaction then operates on these linked files as usual.
+
+#### Snapshots
+
+Snapshots create hard links from the store directory to a target snapshot directory.
+Because compaction output files live in the same directory as input files, the snapshot simply hard-links all `.pbj` files.
+If compaction is in progress, `pauseCompaction()` ensures the current output file is flushed and closed before hard links are created.
+
 ### Garbage Estimation via Index Scanning
 
 The system needs to know how much garbage each file contains in order to make compaction decisions.
