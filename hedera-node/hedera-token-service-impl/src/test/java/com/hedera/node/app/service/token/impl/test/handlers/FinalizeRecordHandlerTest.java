@@ -1072,14 +1072,15 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                 .build()));
     }
 
-    static Stream<Arguments> denominationDerivationCases() {
+    /* default */ static Stream<Arguments> denominationDerivationCases() {
         return Stream.of(
                 Arguments.of(6, 50_000_000_000L * 1_000_000L), Arguments.of(8, 50_000_000_000L * 100_000_000L));
     }
 
     @ParameterizedTest
     @MethodSource("denominationDerivationCases")
-    void derivesLedgerTotalTinyBarFloatFromDenominationConverter(final int decimals, final long expectedTotalFloat) {
+    /* default */ void derivesLedgerTotalTinyBarFloatFromDenominationConverter(
+            final int decimals, final long expectedTotalFloat) {
         when(configProvider.getConfiguration()).thenReturn(versionedConfig);
         final var treasuryAccountId = AccountID.newBuilder().accountNum(2).build();
         when(entityIdFactory.newAccountId(2L)).thenReturn(treasuryAccountId);

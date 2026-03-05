@@ -417,7 +417,7 @@ class CustomGasChargingTest {
 
     @ParameterizedTest
     @CsvSource({"0, 1", "6, 1000000", "8, 100000000"})
-    void abortedTransactionFeeCapScalesWithDecimals(final int decimals, final long expectedCap) {
+    /* default */ void abortedTransactionFeeCapScalesWithDecimals(final int decimals, final long expectedCap) {
         final var denominationAwareSubject = new CustomGasCharging(gasCalculator, new DenominationConverter(decimals));
         givenExcessiveIntrinsicGasCost(false);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);

@@ -190,7 +190,8 @@ class StakeRewardCalculatorImplTest {
 
     @ParameterizedTest
     @MethodSource("decimalsAndSubunits")
-    void computeRewardFromDetailsScalesWithSubunitsPerWholeUnit(final int decimals, final long subunitsPerWholeUnit) {
+    /* default */ void computeRewardFromDetailsScalesWithSubunitsPerWholeUnit(
+            final int decimals, final long subunitsPerWholeUnit) {
         // Use whole-unit counts that won't overflow long at 18 decimals
         final long wholeUnits = decimals <= 8 ? 100L : 5L;
         final long totalStake = wholeUnits * subunitsPerWholeUnit;
@@ -214,7 +215,8 @@ class StakeRewardCalculatorImplTest {
 
     @ParameterizedTest
     @MethodSource("decimalsAndSubunits")
-    void computeRewardFromDetailsTruncatesFractionalWholeUnits(final int decimals, final long subunitsPerWholeUnit) {
+    /* default */ void computeRewardFromDetailsTruncatesFractionalWholeUnits(
+            final int decimals, final long subunitsPerWholeUnit) {
         // For decimals > 0, fractional whole units are truncated by integer division
         // For decimals == 0, subunitsPerWholeUnit == 1, so there are no fractional units
         if (decimals == 0) {
@@ -242,7 +244,7 @@ class StakeRewardCalculatorImplTest {
 
     @ParameterizedTest
     @MethodSource("decimalsAndSubunits")
-    void computeRewardFromDetailsWithStakeAtStartOfLastRewardedPeriod(
+    /* default */ void computeRewardFromDetailsWithStakeAtStartOfLastRewardedPeriod(
             final int decimals, final long subunitsPerWholeUnit) {
         final long wholeUnits = decimals <= 8 ? 100L : 5L;
         final long priorWholeUnits = decimals <= 8 ? 90L : 4L;
@@ -271,7 +273,7 @@ class StakeRewardCalculatorImplTest {
         assertEquals(expected, reward);
     }
 
-    static Stream<Arguments> decimalsAndSubunits() {
+    /* default */ static Stream<Arguments> decimalsAndSubunits() {
         return Stream.of(
                 Arguments.of(0, 1L), Arguments.of(8, 100_000_000L), Arguments.of(18, 1_000_000_000_000_000_000L));
     }
