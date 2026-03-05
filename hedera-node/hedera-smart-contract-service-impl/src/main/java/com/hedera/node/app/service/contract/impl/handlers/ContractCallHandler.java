@@ -30,6 +30,8 @@ import java.util.Arrays;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -38,6 +40,8 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  */
 @Singleton
 public class ContractCallHandler extends AbstractContractTransactionHandler {
+    private static final Logger logger = LogManager.getLogger(ContractCallHandler.class);
+
     /**
      * Constructs a {@link ContractCallHandler} with the given {@link Provider} and {@link GasCalculator}.
      *
@@ -65,6 +69,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
         outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
+        logger.info("ContractCall result: {} ({})", outcome.status(), outcome.txResult());
         throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
     }
 

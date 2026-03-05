@@ -80,6 +80,7 @@ import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
+import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -96,6 +97,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -163,6 +165,8 @@ public class HandleWorkflow {
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
+
+    private final Map<Integer, Integer> consensusTxByEventIdx = new HashMap<>();
 
     @Nullable
     private Dispatch inFlightDispatch;
@@ -431,9 +435,18 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        final var iter = round.iterator();
-        while (iter.hasNext()) {
-            final var event = iter.next();
+        //        final var iter = round.iterator();
+        //        while (iter.hasNext()) {
+        int eventsCounted = 0;
+        boolean booped = false;
+        boolean postBoop = false;
+        int boopIndex = -1;
+        int postBoopIndex = -1;
+        consensusTxByEventIdx.clear();
+        DispatchUsageManager.LOG_NOW.set(false);
+        for (final var event : round) {
+            //            final var event = iter.next();
+            eventsCounted++;
             if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
                 writeEventHeader(event);
             }
@@ -454,9 +467,15 @@ public class HandleWorkflow {
             logStartEvent(event, creator);
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
+                consensusTxByEventIdx.merge(eventsCounted - 1, 1, Integer::sum);
                 try {
-                    transactionsDispatched |= handlePlatformTransaction(
+                    final boolean postBoopedHere = handlePlatformTransaction(
                             state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
+                    if (booped && postBoopedHere && !postBoop) {
+                        postBoop = true;
+                        postBoopIndex = eventsCounted - 1;
+                    }
+                    transactionsDispatched |= postBoopedHere;
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -468,9 +487,15 @@ public class HandleWorkflow {
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }
-            if (!transactionsDispatched && !iter.hasNext()) {
-                // If the entire round was empty, use the round consensus time as exec time for scheduled transactions
-                transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
+            //            if (!transactionsDispatched && !iter.hasNext()) {
+            if (!transactionsDispatched) {
+                final boolean boopedHere = transactionsDispatched =
+                        executeScheduledTransactions(state, round.getConsensusTimestamp(), creator, true);
+                if (boopedHere) {
+                    booped = true;
+                    boopIndex = eventsCounted - 1;
+                    DispatchUsageManager.LOG_NOW.set(true);
+                }
             }
             recordCache.maybeCommitReceiptsBatch(
                     state,
@@ -486,6 +511,16 @@ public class HandleWorkflow {
                 ((BlockRecordManagerImpl) blockRecordManager).maybeQuiesce(state);
             }
         }
+        if (booped) {
+            logger.info(
+                    "Booped at event index {} of round #{} to time {} with {} total events (post-boop? {})",
+                    boopIndex,
+                    round.getRoundNum(),
+                    round.getConsensusTimestamp(),
+                    eventsCounted,
+                    postBoop);
+        }
+        logger.info("For round #{}: {}", round.getRoundNum(), consensusTxByEventIdx);
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();
         return transactionsDispatched;
@@ -614,7 +649,7 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
-        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo(), false);
 
         return true;
     }
@@ -626,12 +661,14 @@ public class HandleWorkflow {
      * @param state the state to execute scheduled transactions from
      * @param consensusNow the current consensus time
      * @param proximalCreatorInfo the node info of the "closest" event creator
+     * @param usingRoundTimestamp
      * @return whether any scheduled transactions were executed
      */
     private boolean executeScheduledTransactions(
             @NonNull final State state,
             @NonNull final Instant consensusNow,
-            @Nullable final NodeInfo proximalCreatorInfo) {
+            @Nullable final NodeInfo proximalCreatorInfo,
+            boolean usingRoundTimestamp) {
         if (proximalCreatorInfo == null) {
             return false;
         }
@@ -645,7 +682,8 @@ public class HandleWorkflow {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            return executeAsManyScheduled(state, executionStart, consensusNow, proximalCreatorInfo);
+            return executeAsManyScheduled(
+                    state, executionStart, consensusNow, proximalCreatorInfo, usingRoundTimestamp);
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
@@ -676,13 +714,15 @@ public class HandleWorkflow {
      * @param executionStart the start of the interval to execute transactions in
      * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
      * @param creatorInfo the node info of the user transaction creator
+     * @param usingRoundTimestamp
      * @return whether any scheduled transactions were executed
      */
     private boolean executeAsManyScheduled(
             @NonNull final State state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
-            @NonNull final NodeInfo creatorInfo) {
+            @NonNull final NodeInfo creatorInfo,
+            boolean usingRoundTimestamp) {
         boolean transactionsDispatched = false;
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
@@ -735,6 +775,11 @@ public class HandleWorkflow {
             int n = schedulingConfig.maxExecutionsPerUserTxn();
             while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
                 final var executableTxn = iter.next();
+                if (usingRoundTimestamp) {
+                    logger.info(
+                            "Found executable tx of body type {}",
+                            executableTxn.body().data().kind());
+                }
                 if (schedulingConfig.longTermEnabled()) {
                     stakePeriodManager.setCurrentStakePeriodFor(nextTime);
                     if (streamMode != BLOCKS) {

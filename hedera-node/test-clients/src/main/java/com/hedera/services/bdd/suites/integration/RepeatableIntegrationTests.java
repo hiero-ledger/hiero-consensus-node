@@ -175,6 +175,7 @@ public class RepeatableIntegrationTests {
                         .hasPriorityStatus(SUCCESS)
                         .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
                 getTxnRecord("txnId")
+                        .payingWith("civilian")
                         .assertingNothingAboutHashes()
                         .andAnyDuplicates()
                         .hasPriority(recordWith().status(SUCCESS))
