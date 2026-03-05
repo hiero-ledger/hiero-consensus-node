@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * This class intended to be used in unit tests to capture log messages. It is thread-safe.
@@ -20,7 +19,6 @@ import org.hiero.base.constructable.ConstructableIgnored;
  *  After the test, call {@code mockAppender.stop()} to clean up.
  *
  */
-@ConstructableIgnored
 public class MockAppender extends AbstractAppender {
     private final List<String> messages = new CopyOnWriteArrayList<>();
 

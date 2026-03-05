@@ -260,6 +260,10 @@ public interface HederaInjectionComponent {
         @BindsInstance
         Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
+        @BindsInstance
+        Builder wrappedRecordBlockHashMigration(
+                com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration);
+
         HederaInjectionComponent build();
     }
 }

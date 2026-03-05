@@ -4,6 +4,7 @@ module com.swirlds.common {
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common;
     exports com.swirlds.common.config;
+    exports com.swirlds.common.constructable;
     exports com.swirlds.common.context;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
@@ -50,7 +51,6 @@ module com.swirlds.common {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
-    requires java.desktop;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;

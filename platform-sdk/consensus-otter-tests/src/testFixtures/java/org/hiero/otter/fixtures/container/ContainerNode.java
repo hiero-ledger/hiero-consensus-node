@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.GC_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_OTHER;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
@@ -131,6 +132,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The profiler for this node */
     private final ContainerProfiler profiler;
 
+    /** Whether GC logging is enabled for the consensus node process */
+    private final boolean gcLoggingEnabled;
+
+    /** JVM arguments to add when starting up the java process */
+    private final List<String> jvmArgs;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -142,6 +149,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * @param outputDirectory the directory where the node's output will be stored
      * @param networkConfiguration the network configuration for this node
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
+     * @param gcLoggingEnabled {@code true} if GC logging should be enabled for the node process
+     * @param jvmArgs additional JVM arguments to pass to the node process
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -151,7 +160,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
-            @NonNull final ConsensusRoundPool consensusRoundPool) {
+            @NonNull final ConsensusRoundPool consensusRoundPool,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -161,6 +172,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
+        this.gcLoggingEnabled = gcLoggingEnabled;
+        this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
@@ -212,6 +225,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))
+                .setGcLoggingEnabled(gcLoggingEnabled)
+                .addAllJvmArgs(jvmArgs)
                 .build();
         //noinspection ResultOfMethodCallIgnored
         containerControlBlockingStub.init(initRequest);
@@ -533,6 +548,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         copyFileFromContainer(OTTER_LOG_PATH);
         copyFileFromContainer(METRICS_PATH.formatted(selfId.id()));
         copyFileFromContainer(METRICS_OTHER);
+        if (gcLoggingEnabled) {
+            copyFileFromContainer(GC_LOG_PATH);
+        }
     }
 
     private void downloadStateFiles() {
