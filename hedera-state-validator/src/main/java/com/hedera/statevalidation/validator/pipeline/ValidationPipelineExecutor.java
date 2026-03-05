@@ -12,16 +12,11 @@ import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DataStats;
 import com.hedera.statevalidation.validator.model.DiskDataItem;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
-import com.hedera.statevalidation.validator.model.FileReadSegment;
-import com.hedera.statevalidation.validator.model.MemoryHashItem;
-import com.hedera.statevalidation.validator.model.MemoryReadSegment;
-import com.hedera.statevalidation.validator.model.ValidationItem;
+import com.hedera.statevalidation.validator.model.ReadSegment;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.collections.HashList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +32,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 
 /**
  * Orchestrates the parallel validation pipeline for MerkleDB data processing.
@@ -75,8 +69,7 @@ public final class ValidationPipelineExecutor {
     private final Set<ValidationListener> validationListeners;
 
     // Runtime state (initialized in execute())
-    private HashList pathToHashRam;
-    private BlockingQueue<List<ValidationItem>> dataQueue;
+    private BlockingQueue<List<DiskDataItem>> dataQueue;
     private DataStats dataStats;
     private AtomicLong totalBoundarySearchTime;
 
@@ -154,27 +147,26 @@ public final class ValidationPipelineExecutor {
                 final DataFileCollection pathToKeyValueDfc =
                         vds.getKeyValueStore().getFileCollection();
                 //noinspection DataFlowIssue
-                // TODO: hash chunks
-                final DataFileCollection pathToHashDfc = vds.getHashChunkStore().getFileCollection();
+                final DataFileCollection idToHashChunksDfc =
+                        vds.getHashChunkStore().getFileCollection();
                 final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
 
-                // Partition data sources into file and memory read segments
-                final var fileReadSegments = new ArrayList<FileReadSegment>();
-                final var memoryReadSegments = new ArrayList<MemoryReadSegment>();
+                // Partition data sources into read segments
+                final var readSegments = new ArrayList<ReadSegment>();
 
                 if (validators.containsKey(Type.P2KV)) {
-                    fileReadSegments.addAll(partitionIntoFileSegments(pathToKeyValueDfc, Type.P2KV));
+                    readSegments.addAll(partitionIntoSegments(pathToKeyValueDfc, Type.P2KV));
                 }
-                if (validators.containsKey(Type.P2H)) {
-                    fileReadSegments.addAll(partitionIntoFileSegments(pathToHashDfc, Type.P2H));
+                if (validators.containsKey(Type.ID2C)) {
+                    readSegments.addAll(partitionIntoSegments(idToHashChunksDfc, Type.ID2C));
                 }
                 if (validators.containsKey(Type.K2P)) {
-                    fileReadSegments.addAll(partitionIntoFileSegments(keyToPathDfc, Type.K2P));
+                    readSegments.addAll(partitionIntoSegments(keyToPathDfc, Type.K2P));
                 }
-                log.debug("Total file read segments: {}", fileReadSegments.size());
+                log.debug("Total file read segments: {}", readSegments.size());
 
                 // Sort segments: largest segments first (better thread utilization)
-                fileReadSegments.sort((a, b) -> Long.compare(b.endByte() - b.startByte(), a.endByte() - a.startByte()));
+                readSegments.sort((a, b) -> Long.compare(b.endByte() - b.startByte(), a.endByte() - a.startByte()));
 
                 // Initialize data structures for processing
                 dataStats = new DataStats();
@@ -191,13 +183,7 @@ public final class ValidationPipelineExecutor {
                 }
 
                 // Submit read tasks
-                for (final MemoryReadSegment segment : memoryReadSegments) {
-                    ioFutures.add(ioPool.submit(() -> {
-                        readInMemoryHashSegment(segment.startPath(), segment.endPath());
-                        return null;
-                    }));
-                }
-                for (final FileReadSegment segment : fileReadSegments) {
+                for (final ReadSegment segment : readSegments) {
                     ioFutures.add(ioPool.submit(() -> {
                         readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
                         return null;
@@ -253,15 +239,10 @@ public final class ValidationPipelineExecutor {
                             "P2KV (Path -> Key/Value) Data Stats: \n {}",
                             dataStats.getP2kv().toStringContent());
                 }
-                if (validators.containsKey(Type.P2H)) {
+                if (validators.containsKey(Type.ID2C)) {
                     log.info(
-                            "P2H (Path -> Hash) Data Stats: \n {}",
-                            dataStats.getP2h().toStringContent());
-                    if (pathToHashRam != null && dataStats.getP2hMemory().getItemCount() > 0) {
-                        log.info(
-                                "P2H (Path -> Hash) Memory Data Stats: \n  Items: {}",
-                                dataStats.getP2hMemory().getItemCount());
-                    }
+                            "ID2C (Chunk ID -> Chunk) Data Stats: \n {}",
+                            dataStats.getId2c().toStringContent());
                 }
                 if (validators.containsKey(Type.K2P)) {
                     log.info(
@@ -282,8 +263,6 @@ public final class ValidationPipelineExecutor {
         }
     }
 
-    // ==================== Segment Partitioning Methods ====================
-
     /**
      * Partitions a data file collection into read segments for parallel processing.
      * Divides files into segments based on configuration parameters.
@@ -292,10 +271,10 @@ public final class ValidationPipelineExecutor {
      * @param dataType the type of data items in this collection
      * @return list of file read segments
      */
-    private List<FileReadSegment> partitionIntoFileSegments(
+    private List<ReadSegment> partitionIntoSegments(
             @NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
 
-        final List<FileReadSegment> fileReadSegments = new ArrayList<>();
+        final List<ReadSegment> readSegments = new ArrayList<>();
 
         final long collectionTotalSize = dfc.getAllCompletedFiles().stream()
                 .mapToLong(DataFileReader::getSize)
@@ -326,11 +305,11 @@ public final class ValidationPipelineExecutor {
                 final long startByte = i * segmentSize;
                 final long endByte = Math.min(startByte + segmentSize, fileSize);
 
-                fileReadSegments.add(new FileReadSegment(reader, dataType, startByte, endByte));
+                readSegments.add(new ReadSegment(reader, dataType, startByte, endByte));
             }
         }
 
-        return fileReadSegments;
+        return readSegments;
     }
 
     /**
@@ -356,8 +335,6 @@ public final class ValidationPipelineExecutor {
         return (int) Math.ceil((double) fileSize / targetSegmentSize);
     }
 
-    // ==================== Segment Reading Methods ====================
-
     /**
      * Reads a segment of data from a file and puts batches into the queue.
      *
@@ -379,13 +356,14 @@ public final class ValidationPipelineExecutor {
         try (ChunkedFileIterator iterator = new ChunkedFileIterator(
                 reader.getPath(),
                 reader.getMetadata(),
+                vds.getHashChunkHeight(),
                 dataType,
                 startByte,
                 endByte,
                 bufferSizeBytes,
                 totalBoundarySearchTime)) {
 
-            List<ValidationItem> batch = new ArrayList<>(batchSize);
+            List<DiskDataItem> batch = new ArrayList<>(batchSize);
             while (iterator.next()) {
                 final BufferedData originalData = iterator.getDataItemData();
                 final Bytes dataCopy = originalData.getBytes(0, originalData.remaining());
@@ -403,43 +381,6 @@ public final class ValidationPipelineExecutor {
             if (!batch.isEmpty()) {
                 dataQueue.put(batch);
             }
-        }
-    }
-
-    /**
-     * Reads in-memory hashes for a range of paths and puts batches into the queue.
-     *
-     * @param startPath the starting path (inclusive)
-     * @param endPath the ending path (exclusive)
-     * @throws InterruptedException if the thread was interrupted while waiting to put into the queue
-     */
-    private void readInMemoryHashSegment(final long startPath, final long endPath) throws InterruptedException {
-        List<ValidationItem> batch = new ArrayList<>(batchSize);
-
-        for (long path = startPath; path < endPath; path++) {
-            try {
-                final Hash hash = pathToHashRam.get(path);
-                if (hash == null) {
-                    log.error("Hash is null when read from memory at path: {}", path);
-                    dataStats.getP2hMemory().incrementInvalidLocationCount();
-                    continue;
-                }
-
-                final VirtualHashRecord record = new VirtualHashRecord(path, hash);
-                batch.add(new MemoryHashItem(record));
-
-                if (batch.size() >= batchSize) {
-                    dataQueue.put(batch);
-                    batch = new ArrayList<>(batchSize);
-                }
-            } catch (final IOException e) {
-                log.error("Failed to read hash from memory at path {}: {}", path, e.getMessage());
-                dataStats.getP2hMemory().incrementParseErrorCount();
-            }
-        }
-
-        if (!batch.isEmpty()) {
-            dataQueue.put(batch);
         }
     }
 }

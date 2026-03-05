@@ -673,4 +673,17 @@ public final class VirtualHasher {
         md.update((byte) 0x00);
         return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
+
+    /**
+     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
+     *
+     * @param leaf the leaf bytes to hash
+     * @return the computed hash
+     */
+    public static Hash hashLeafRecord(final VirtualLeafBytes<?> leaf) {
+        final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+        leaf.writeToForHashing(wmd);
+        // Calling digest() resets the digest
+        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+    }
 }
