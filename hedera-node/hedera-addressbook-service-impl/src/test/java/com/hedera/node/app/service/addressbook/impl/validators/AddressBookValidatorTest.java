@@ -3,6 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FQDN_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
@@ -14,9 +15,13 @@ import static com.hedera.node.app.service.addressbook.impl.validators.AddressBoo
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.NodesConfig;
@@ -474,6 +479,78 @@ class AddressBookValidatorTest {
                 new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
+    // --- Associated registered node validation tests ---
+
+    @Test
+    void associatedRegisteredNodesAcceptsValidIds() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        given(store.get(1L)).willReturn(RegisteredNode.DEFAULT);
+        given(store.get(2L)).willReturn(RegisteredNode.DEFAULT);
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateAssociatedRegisteredNodes(List.of(1L, 2L), store, newNodesConfig()));
+    }
+
+    @Test
+    void associatedRegisteredNodesAcceptsEmptyList() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateAssociatedRegisteredNodes(List.of(), store, newNodesConfig()));
+    }
+
+    @Test
+    void associatedRegisteredNodesAcceptsExactlyMax() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        final var ids = new ArrayList<Long>();
+        for (long i = 1; i <= 20; i++) {
+            ids.add(i);
+            given(store.get(i)).willReturn(RegisteredNode.DEFAULT);
+        }
+        assertDoesNotThrow(
+                () -> new AddressBookValidator().validateAssociatedRegisteredNodes(ids, store, newNodesConfig()));
+    }
+
+    @Test
+    void associatedRegisteredNodesRejectsExceedingMax() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        final var ids = new ArrayList<Long>();
+        for (long i = 1; i <= 21; i++) {
+            ids.add(i);
+        }
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateAssociatedRegisteredNodes(ids, store, newNodesConfig()));
+        assertEquals(INVALID_NODE_ID, e.getStatus());
+    }
+
+    @Test
+    void associatedRegisteredNodesRejectsNegativeId() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateAssociatedRegisteredNodes(List.of(-1L), store, newNodesConfig()));
+        assertEquals(INVALID_NODE_ID, e.getStatus());
+    }
+
+    @Test
+    void associatedRegisteredNodesRejectsNonExistentId() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        given(store.get(999L)).willReturn(null);
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateAssociatedRegisteredNodes(List.of(999L), store, newNodesConfig()));
+        assertEquals(INVALID_NODE_ID, e.getStatus());
+    }
+
+    @Test
+    void associatedRegisteredNodesRespectsCustomMaxConfig() {
+        final var store = mock(ReadableRegisteredNodeStore.class);
+        given(store.get(1L)).willReturn(RegisteredNode.DEFAULT);
+        given(store.get(2L)).willReturn(RegisteredNode.DEFAULT);
+        given(store.get(3L)).willReturn(RegisteredNode.DEFAULT);
+        // Configure max to 2, then try 3 entries
+        final var config = newNodesConfig(253, 250, 2);
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateAssociatedRegisteredNodes(List.of(1L, 2L, 3L), store, config));
+        assertEquals(INVALID_NODE_ID, e.getStatus());
+    }
+
     private static RegisteredServiceEndpoint blockNodeEndpoint(final byte[] ip) {
         return RegisteredServiceEndpoint.newBuilder()
                 .ipAddress(Bytes.wrap(ip))
@@ -504,6 +581,17 @@ class AddressBookValidatorTest {
                 .withConfigDataType(NodesConfig.class)
                 .withValue("nodes.maxFqdnSize", maxFqdnSize)
                 .withValue("nodes.maxRegisteredFqdnSize", maxRegisteredFqdnSize)
+                .getOrCreateConfig()
+                .getConfigData(NodesConfig.class);
+    }
+
+    private NodesConfig newNodesConfig(
+            final int maxFqdnSize, final int maxRegisteredFqdnSize, final int maxAssociatedRegisteredNodes) {
+        return new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
+                .withValue("nodes.maxFqdnSize", maxFqdnSize)
+                .withValue("nodes.maxRegisteredFqdnSize", maxRegisteredFqdnSize)
+                .withValue("nodes.maxAssociatedRegisteredNodes", maxAssociatedRegisteredNodes)
                 .getOrCreateConfig()
                 .getConfigData(NodesConfig.class);
     }

@@ -163,12 +163,10 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
 
         if (op.hasAssociatedRegisteredNodeList()) {
-            final var associatedNodes = op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode();
-            validateTrue(associatedNodes.size() <= 20, INVALID_NODE_ID);
-            for (final var registeredNodeId : associatedNodes) {
-                validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
-                validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
-            }
+            addressBookValidator.validateAssociatedRegisteredNodes(
+                    op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode(),
+                    registeredNodeStore,
+                    nodeConfig);
         }
 
         final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);

@@ -980,6 +980,25 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         assertThat(updatedNode.associatedRegisteredNode()).isEmpty();
     }
 
+    @Test
+    void handleSucceedsWithExactlyMaxAssociatedRegisteredNodes() {
+        final var ids =
+                List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L);
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(ids)
+                .build();
+        setupMinimalHandle();
+        for (final var id : ids) {
+            given(registeredNodeStore.get(id)).willReturn(RegisteredNode.DEFAULT);
+        }
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).hasSize(20);
+    }
+
     private void setupWritableNodeStore(final Node node) {
         // Create a node with existing proxy endpoint
         final var entityNum = EntityNumber.newBuilder().number(node.nodeId()).build();
