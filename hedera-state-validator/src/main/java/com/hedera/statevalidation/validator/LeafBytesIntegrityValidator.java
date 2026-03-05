@@ -44,7 +44,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicLong pathMismatchCount = new AtomicLong(0);
     private final AtomicLong valueErrorCount = new AtomicLong(0);
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
-    private final AtomicLong nullHashChunkCount = new AtomicLong(0);
 
     // A minor optimization to avoid multiple chunk loads from disk
     private final ThreadLocal<VirtualHashChunk> lastChunk = new ThreadLocal<>();
@@ -119,11 +118,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             } else {
                 final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(hashChunkPath, hashChunkHeight);
                 hashChunk = vds.loadHashChunk(hashChunkId);
-                if (hashChunk == null) {
-                    nullHashChunkCount.incrementAndGet();
-                    log.error("Hash chunk with ID {} is not found for leaf path={}", hashChunkId, p2KvPath);
-                    return;
-                }
                 lastChunk.set(hashChunk);
             }
             final Hash storedHash = hashChunk.calcHash(p2KvPath, firstLeafPath, lastLeafPath);
@@ -157,7 +151,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 && pathMismatchCount.get() == 0
                 && valueErrorCount.get() == 0
                 && hashMismatchCount.get() == 0
-                && nullHashChunkCount.get() == 0
                 && exceptionCount.get() == 0;
         ValidationAssertions.requireTrue(
                 ok,
@@ -165,7 +158,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 ("%s validation failed. "
                                 + "successCount=%d vs expectedCount=%d, "
                                 + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                + "nullHashChunkCount=%d, exceptionCount=%d, successCount=%d")
+                                + "exceptionCount=%d, successCount=%d")
                         .formatted(
                                 getName(),
                                 successCount.get(),
@@ -173,7 +166,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                                 pathMismatchCount.get(),
                                 valueErrorCount.get(),
                                 hashMismatchCount.get(),
-                                nullHashChunkCount.get(),
                                 exceptionCount.get(),
                                 successCount.get()));
     }

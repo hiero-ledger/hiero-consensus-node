@@ -7,7 +7,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +28,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     private final AtomicLong pathMismatchCount = new AtomicLong(0);
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
     private final AtomicLong chunkHeightMismatchCount = new AtomicLong(0);
-    private final AtomicLong nullHashChunkCount = new AtomicLong(0);
 
     private VirtualMap virtualMap;
     private MerkleDbDataSource vds;
@@ -74,11 +72,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     @Override
     public void processHashChunk(@NonNull final VirtualHashChunk hashChunk) {
         try {
-            //noinspection ConstantValue
-            if (hashChunk == null) {
-                nullHashChunkCount.incrementAndGet();
-                return;
-            }
             final long chunkId = hashChunk.getChunkId();
             final long hashChunkPath = hashChunk.path();
 
@@ -121,11 +114,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
 
                 // Load the parent chunk
                 final VirtualHashChunk parentChunk = vds.loadHashChunk(parentChunkId);
-                if (parentChunk == null) {
-                    nullHashChunkCount.incrementAndGet();
-                    log.error("Chunk with ID {} is not found", parentChunkId);
-                    return;
-                }
 
                 // The hashChunkPath is at the parent chunk's last rank, so we can use getHashAtPath
                 final Hash storedHash = parentChunk.getHashAtPath(hashChunkPath);
@@ -142,10 +130,9 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 }
             }
             successCount.incrementAndGet();
-        } catch (IOException e) {
+        } catch (final Exception e) {
             exceptionCount.incrementAndGet();
             log.error("Error processing chunk ID={}", hashChunk.getChunkId(), e);
-
         } finally {
             processedCount.incrementAndGet();
         }
@@ -164,8 +151,7 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 && idMismatchCount.get() == 0
                 && pathMismatchCount.get() == 0
                 && hashMismatchCount.get() == 0
-                && chunkHeightMismatchCount.get() == 0
-                && nullHashChunkCount.get() == 0;
+                && chunkHeightMismatchCount.get() == 0;
 
         ValidationAssertions.requireTrue(
                 ok,
@@ -173,7 +159,7 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 ("%s validation failed. "
                                 + "successCount=%d vs expectedCount=%d, "
                                 + "idMismatchCount=%d, pathMismatchCount=%d, hashMismatchCount=%d, "
-                                + "chunkHeightMismatchCount=%d, exceptionCount=%d, nullHashChunkCount=%d")
+                                + "chunkHeightMismatchCount=%d, exceptionCount=%d")
                         .formatted(
                                 getName(),
                                 successCount.get(),
@@ -182,7 +168,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                                 pathMismatchCount.get(),
                                 hashMismatchCount.get(),
                                 chunkHeightMismatchCount.get(),
-                                exceptionCount.get(),
-                                nullHashChunkCount.get()));
+                                exceptionCount.get()));
     }
 }
