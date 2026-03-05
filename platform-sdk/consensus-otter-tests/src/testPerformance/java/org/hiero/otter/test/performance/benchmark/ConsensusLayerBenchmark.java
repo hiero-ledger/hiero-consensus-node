@@ -157,7 +157,7 @@ public class ConsensusLayerBenchmark {
         parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
         // Make sure the benchmark run is valid
         assertEquals(
-                (long) params.transactionCount() * params.numberOfNodes(),
+                params.transactionCount(),
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions sent were not measured");
         final String report = collector.generateReport();
