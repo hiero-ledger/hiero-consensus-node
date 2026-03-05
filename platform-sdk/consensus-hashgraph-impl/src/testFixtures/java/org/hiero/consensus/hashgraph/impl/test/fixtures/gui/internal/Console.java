@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
