@@ -834,48 +834,48 @@ jobs:
           echo "### Merge Queue Performance Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-  merge-queue-report-to-rootly:
-    name: Report Failures to Rootly
-    runs-on: hl-cn-mqpt-lin-sm
-    needs:
-      - merge-queue-performance-tests-start
-      - merge-queue-test-result
-    if: ${{ ( needs.merge-queue-test-result.outputs.result != 'success' ) &&
-      !cancelled() && always() }}
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Build Rootly Summary
-        id: summary
-        run: |
-          title="The Merge Queue Performance Test Report failed (MQPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
-          echo "title=${title}" >> "${GITHUB_OUTPUT}"
-          {
-            echo 'summary<<EOF'
-            echo "------------------------------------"
-            echo "Status of each jobs:"
-            echo "- NFT Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}"
-            echo "- HCS Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}"
-            echo "- Crypto Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}"
-            echo "- SmartContract Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}"
-            echo "- Reconnect: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}"
-            echo "- Validator: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}"
-
-            echo "------------------------------------"
-            echo "Commit information:"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.merge-queue-performance-tests-start.outputs.commit-sha }}>"
-            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-            echo EOF
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Log Summary
-        run: |
-          echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+#  merge-queue-report-to-rootly:
+#    name: Report Failures to Rootly
+#    runs-on: hl-cn-mqpt-lin-sm
+#    needs:
+#      - merge-queue-performance-tests-start
+#      - merge-queue-test-result
+#    if: ${{ ( needs.merge-queue-test-result.outputs.result != 'success' ) &&
+#      !cancelled() && always() }}
+#    steps:
+#      - name: Harden the runner (Audit all outbound calls)
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Build Rootly Summary
+#        id: summary
+#        run: |
+#          title="The Merge Queue Performance Test Report failed (MQPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+#          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+#          {
+#            echo 'summary<<EOF'
+#            echo "------------------------------------"
+#            echo "Status of each jobs:"
+#            echo "- NFT Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}"
+#            echo "- HCS Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}"
+#            echo "- Crypto Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}"
+#            echo "- SmartContract Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}"
+#            echo "- Reconnect: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}"
+#            echo "- Validator: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}"
+#
+#            echo "------------------------------------"
+#            echo "Commit information:"
+#            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.merge-queue-performance-tests-start.outputs.commit-sha }}>"
+#            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+#            echo EOF
+#          } >> "${GITHUB_OUTPUT}"
+#
+#      - name: Log Summary
+#        run: |
+#          echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
+#          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+#          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
     runs-on: hl-cn-mqpt-lin-sm
