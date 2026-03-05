@@ -114,6 +114,8 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
             return;
         }
         final var newId = lastReceipt.getRegisteredNodeId();
+        spec.registry().saveRegisteredNodeId(name, newId);
+        spec.registry().saveKey(name, adminKey);
         if (verboseLoggingOn) {
             LOG.info("Created registered node {} with ID {}.", name, newId);
         }

@@ -13,25 +13,38 @@ import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RegisteredNodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate> {
+    @Nullable
     private final LongSupplier idSupplier;
+
+    @Nullable
+    private final String registeredNodeName;
 
     private Optional<String> description = Optional.empty();
     private Optional<List<RegisteredServiceEndpoint>> endpoints = Optional.empty();
-    private Optional<com.hederahashgraph.api.proto.java.Key> adminKey = Optional.empty();
+    private Optional<Key> adminKey = Optional.empty();
+    private Optional<String> adminKeyName = Optional.empty();
 
     public HapiRegisteredNodeUpdate(@NonNull final LongSupplier idSupplier) {
         this.idSupplier = requireNonNull(idSupplier);
+        this.registeredNodeName = null;
+    }
+
+    public HapiRegisteredNodeUpdate(@NonNull final String registeredNodeName) {
+        this.registeredNodeName = requireNonNull(registeredNodeName);
+        this.idSupplier = null;
     }
 
     @Override
@@ -49,14 +62,23 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
         return this;
     }
 
-    public HapiRegisteredNodeUpdate adminKey(@NonNull final com.hederahashgraph.api.proto.java.Key adminKey) {
+    public HapiRegisteredNodeUpdate adminKey(@NonNull final Key adminKey) {
         this.adminKey = Optional.of(requireNonNull(adminKey));
+        return this;
+    }
+
+    public HapiRegisteredNodeUpdate adminKey(@NonNull final String keyName) {
+        this.adminKeyName = Optional.of(requireNonNull(keyName));
         return this;
     }
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(@NonNull final HapiSpec spec) {
-        final var opBody = RegisteredNodeUpdateTransactionBody.newBuilder().setRegisteredNodeId(idSupplier.getAsLong());
+        adminKeyName.ifPresent(name -> adminKey = Optional.of(spec.registry().getKey(name)));
+        final long nodeId = registeredNodeName != null
+                ? spec.registry().getRegisteredNodeId(registeredNodeName)
+                : idSupplier.getAsLong();
+        final var opBody = RegisteredNodeUpdateTransactionBody.newBuilder().setRegisteredNodeId(nodeId);
         description.ifPresent(d -> opBody.setDescription(StringValue.of(d)));
         endpoints.ifPresent(eps -> opBody.clearServiceEndpoint().addAllServiceEndpoint(eps));
         adminKey.ifPresent(opBody::setAdminKey);
