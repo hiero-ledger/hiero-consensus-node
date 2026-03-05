@@ -158,6 +158,35 @@ public class RegisteredNodesCommandsTest {
     }
 
     // -------------------------------------------------------------------------
+    // Key type tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a registered node using a SECP256K1 (ECDSA secp256k1) admin key. Verifies that
+     * yahcli correctly loads an ECDSA PEM file and signs the create transaction with it.
+     */
+    @HapiTest
+    final Stream<DynamicTest> createWithSecp256k1AdminKey() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_secp256k1.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.SECP256K1_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080",
+                                        "-d",
+                                        "Block node with SECP256K1 admin key")
+                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+    }
+
+    // -------------------------------------------------------------------------
     // Combination tests
     // -------------------------------------------------------------------------
 

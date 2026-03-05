@@ -35,6 +35,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -87,6 +88,30 @@ public class RegisteredNodeTest {
                 registeredNodeDelete(REGISTERED_NODE)
                         .signedBy(DEFAULT_PAYER, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @DisplayName("create → update (admin key rotation) works with SECP256K1 admin key")
+    final Stream<DynamicTest> crudHappyPathWithSecp256k1AdminKey() {
+        final var createdId = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(RN_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                newKeyNamed(RN_NEW_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                registeredNodeCreate("rn")
+                        .adminKey(RN_ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .via(CREATE_TXN)
+                        .exposingCreatedIdTo(createdId::set)
+                        .hasKnownStatus(SUCCESS),
+                getTxnRecord(CREATE_TXN).logged().hasPriority(recordWith().hasNonZeroRegisteredNodeId()),
+                withOpContext((spec, opLog) -> {
+                    final var update = registeredNodeUpdate(createdId::get)
+                            .description("new-desc")
+                            .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
+                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, update);
+                }));
     }
 
     @HapiTest
