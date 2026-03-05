@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.hedera.containers;
 import com.github.dockerjava.api.command.StartContainerCmd;
 import com.github.dockerjava.api.command.StopContainerCmd;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -14,6 +15,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "disruptor-4.0.0.jar",
             MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar");
     private String containerId;
+    private final Path logPath;
+    private BufferedWriter logWriter;
 
     /**
      * Creates a new block node container with the default image.
@@ -79,6 +83,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
                 // Use HTTP health check on the health port to verify the service is ready
                 .waitingFor(Wait.forHttp("/-/healthy").forPort(HEALTH_PORT).withStartupTimeout(Duration.ofMinutes(2)));
+
+        this.logPath = resolveLogPath(blockNodeId);
+        initializeLogCapture();
     }
 
     private static String pluginsDirInContainer() {
@@ -184,6 +191,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         if (isRunning()) {
             super.stop();
         }
+        closeLogWriter();
     }
 
     /**
@@ -241,5 +249,50 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     @Override
     public String toString() {
         return this.getHost() + ":" + this.getPort();
+    }
+
+    private static Path resolveLogPath(final long blockNodeId) {
+        final var configuredLogDir = System.getProperty("hapi.test.log.dir");
+        final Path logDir = (configuredLogDir == null || configuredLogDir.isBlank())
+                ? Path.of("output")
+                : Path.of(configuredLogDir);
+        return logDir.resolve("block-node-container-" + blockNodeId + ".log").toAbsolutePath();
+    }
+
+    private void initializeLogCapture() {
+        try {
+            Files.createDirectories(logPath.getParent());
+            logWriter = Files.newBufferedWriter(
+                    logPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to create block node container log file at " + logPath, e);
+        }
+        this.withLogConsumer(frame -> appendLog(frame == null ? null : frame.getUtf8String()));
+    }
+
+    private synchronized void appendLog(final String message) {
+        if (message == null || message.isBlank() || logWriter == null) {
+            return;
+        }
+        try {
+            logWriter.write(message);
+            logWriter.flush();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed writing block node container log to " + logPath, e);
+        }
+    }
+
+    private synchronized void closeLogWriter() {
+        if (logWriter == null) {
+            return;
+        }
+        try {
+            logWriter.flush();
+            logWriter.close();
+        } catch (IOException ignore) {
+            // Best effort close.
+        } finally {
+            logWriter = null;
+        }
     }
 }

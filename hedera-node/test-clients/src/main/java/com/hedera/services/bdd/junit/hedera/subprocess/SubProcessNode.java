@@ -110,9 +110,23 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
                     final var lookupAttempt = nominalSoFar
                             ? prometheusClient.statusFromLocalEndpoint(metadata.prometheusPort())
                             : statusFromLog();
+                    final var handle = processHandle;
+                    final var processIsAlive = handle != null && handle.isAlive();
                     var grpcStatus = NA;
                     final var statusNow = lookupAttempt.status();
                     var statusReached = acceptanceSet.contains(statusNow);
+                    if (!processIsAlive) {
+                        final var detail = "Node process is no longer alive"
+                                + (handle == null ? "" : " (pid=" + handle.pid() + ")");
+                        if (nodeStatusObserver != null) {
+                            nodeStatusObserver.accept(new NodeStatus(
+                                    newLogAttempt(statusNow == null ? null : statusNow.name(), detail),
+                                    grpcStatus,
+                                    BindExceptionSeen.NA,
+                                    retryCount.get()));
+                        }
+                        return ConditionStatus.UNREACHABLE;
+                    }
                     if (statusReached && lookupAttempt.status() == ACTIVE) {
                         grpcStatus = grpcPinger.isLive(metadata.grpcPort()) ? UP : DOWN;
                         statusReached = grpcStatus == UP;

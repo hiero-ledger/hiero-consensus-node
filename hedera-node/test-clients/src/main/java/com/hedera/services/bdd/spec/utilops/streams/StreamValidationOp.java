@@ -42,6 +42,7 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -52,6 +53,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -211,12 +213,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 try {
                     final int port = spec.getBlockNodePortById(blockNodeId);
                     log.info("Trying to read blocks from block node {} via subscribe API on localhost:{}", blockNodeId, port);
-                    blocks = subscribeClient.fetchBlocks("localhost", port, freezePendingBlock);
+                    blocks = subscribeClient.fetchBlocks("localhost", port, freezePendingBlock-1);
                     log.info("Read {} blocks from block node {} subscribe API", blocks.size(), blockNodeId);
                 } catch (Exception e) {
                     log.warn("Failed reading blocks via subscribe API from block node {}", blockNodeId, e);
                 }
                 if (blocks != null && !blocks.isEmpty()) {
+                    writeBlocksToOutputDir(spec, blocks);
                     break;
                 }
             }
@@ -240,6 +243,57 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         }
         return Optional.ofNullable(blocks);
+    }
+
+    private static void writeBlocksToOutputDir(@NonNull final HapiSpec spec, @NonNull final List<Block> blocks) {
+        final Path baseOutputDir = configuredLogDir();
+        final Path blockStreamsDir = baseOutputDir.resolve("blockStreams");
+        try {
+            Files.createDirectories(blockStreamsDir);
+            try (final var stream = Files.walk(blockStreamsDir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> {
+                            final var name = path.getFileName().toString();
+                            return name.endsWith(".blk") || name.endsWith(".blk.gz") || name.endsWith(".mf");
+                        })
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Unable to clean stale block stream file " + path, e);
+                            }
+                        });
+            }
+            for (final var block : blocks) {
+                final long blockNumber = block.items().isEmpty()
+                        ? -1
+                        : block.items().getFirst().blockHeaderOrThrow().number();
+                if (blockNumber < 0) {
+                    continue;
+                }
+                final var baseName = String.format("%036d", blockNumber);
+                final var blockPath = blockStreamsDir.resolve(baseName + ".blk.gz");
+                try (final var out = new GZIPOutputStream(Files.newOutputStream(blockPath))) {
+                    out.write(Block.PROTOBUF.toBytes(block).toByteArray());
+                }
+                Files.writeString(blockStreamsDir.resolve(baseName + ".mf"), "");
+            }
+            log.info(
+                    "Persisted {} GRPC-sourced blocks for '{}' under {}",
+                    blocks.size(),
+                    spec.getName(),
+                    blockStreamsDir.toAbsolutePath());
+        } catch (Exception e) {
+            throw new AssertionError("Failed persisting GRPC block streams to " + blockStreamsDir, e);
+        }
+    }
+
+    private static Path configuredLogDir() {
+        final var configured = System.getProperty("hapi.test.log.dir");
+        if (configured != null && !configured.isBlank()) {
+            return Path.of(configured).toAbsolutePath();
+        }
+        return Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output").toAbsolutePath();
     }
 
     private static OptionalLong freezePendingBlockNumber(@NonNull final HapiSpec spec) {

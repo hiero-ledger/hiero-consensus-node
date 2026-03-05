@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="INFO">
+	<Properties>
+		<Property name="hapiTestLogDir">${sys:hapi.test.log.dir:-output}</Property>
+	</Properties>
 	<Appenders>
 		<Console name="Console" target="SYSTEM_OUT">
             <!-- 'hc' -> 'HapiClients' -->
 			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;hc&gt; %-5p  %-4L %c{1} - %m%n"/>
 		</Console>
-		<RollingFile name="RollingFile" fileName="output/hapi-client.log"
-					 filePattern="output/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
+		<RollingFile name="RollingFile" fileName="${hapiTestLogDir}/hapi-client.log"
+					 filePattern="${hapiTestLogDir}/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
 			<PatternLayout>
 				<!-- 'tc' -> 'test-clients' -->
 				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;tc&gt; %-5p %-4L %c{1} - %m%n</pattern>
@@ -19,8 +22,8 @@
 
 		<!-- Transaction state logs -->
 		<RollingFile name="TransactionStateLogs"
-								 fileName="output/transaction-state/state-changes.log"
-								 filePattern="output/transaction-state/state-changes-%d{yyyy-MM-dd--HH-mm-ss}-%i.log">
+								 fileName="${hapiTestLogDir}/transaction-state/state-changes.log"
+								 filePattern="${hapiTestLogDir}/transaction-state/state-changes-%d{yyyy-MM-dd--HH-mm-ss}-%i.log">
 			<PatternLayout>
 				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} - %m{nolookups}%n</pattern>
 			</PatternLayout>

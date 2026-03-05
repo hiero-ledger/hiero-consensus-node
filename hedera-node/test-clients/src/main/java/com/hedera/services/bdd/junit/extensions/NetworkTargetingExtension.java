@@ -42,6 +42,9 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,6 +54,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -65,6 +69,9 @@ import org.junit.jupiter.api.extension.ExtensionContext;
  */
 public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachCallback {
     private static final String SPEC_NAME = "<RESTART>";
+    private static final String PREVIOUS_LOG_DIR_KEY = "previousHapiTestLogDir";
+    private static final ExtensionContext.Namespace EXTENSION_NAMESPACE =
+            ExtensionContext.Namespace.create(NetworkTargetingExtension.class);
     private static final Logger logger = LogManager.getLogger(NetworkTargetingExtension.class);
 
     public static final AtomicReference<HederaNetwork> SHARED_NETWORK = new AtomicReference<>();
@@ -110,6 +117,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else if (isAnnotated(method, HapiBlockNode.class)) {
                 logger.info("HapiBlockNode annotation found on method: " + method.getName());
+                configureHapiBlockNodeLogDir(extensionContext, method.getName());
                 final var annotation = method.getAnnotation(HapiBlockNode.class);
                 final SubProcessNetwork targetNetwork =
                         (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
@@ -199,6 +207,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 } catch (final Exception e) {
                     System.err.println("Error during post-test log and stream validation: " + e.getMessage());
                 } finally {
+                    restorePreviousLogDir(extensionContext);
                     // Ensure network termination even if validation fails
                     SHARED_NETWORK.get().terminate();
                     SHARED_BLOCK_NODE_NETWORK.get().terminate();
@@ -317,5 +326,39 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         final var state = targetNetwork.embeddedHederaOrThrow().state();
         savedStateSpec.accept(state);
         return state;
+    }
+
+    private static void configureHapiBlockNodeLogDir(
+            @NonNull final ExtensionContext extensionContext, @NonNull final String methodName) {
+        final var store = extensionContext.getStore(EXTENSION_NAMESPACE);
+        if (store.get(PREVIOUS_LOG_DIR_KEY) == null) {
+            store.put(PREVIOUS_LOG_DIR_KEY, System.getProperty("hapi.test.log.dir"));
+        }
+        final var className = extensionContext.getRequiredTestClass().getSimpleName();
+        final var scopedName = (className + "." + methodName).replaceAll("[^a-zA-Z0-9._-]", "_");
+        final var logDir = Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output", scopedName)
+                .toAbsolutePath();
+        try {
+            Files.createDirectories(logDir.resolve("transaction-state"));
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to create per-test log directory " + logDir, e);
+        }
+        System.setProperty("hapi.test.log.dir", logDir.toString());
+        System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
+        Configurator.initialize(
+                "test-clients", NetworkTargetingExtension.class.getClassLoader(), "log4j2-test-client.xml");
+    }
+
+    private static void restorePreviousLogDir(@NonNull final ExtensionContext extensionContext) {
+        final var store = extensionContext.getStore(EXTENSION_NAMESPACE);
+        final var previousLogDir = (String) store.remove(PREVIOUS_LOG_DIR_KEY);
+        if (previousLogDir == null || previousLogDir.isBlank()) {
+            System.clearProperty("hapi.test.log.dir");
+        } else {
+            System.setProperty("hapi.test.log.dir", previousLogDir);
+        }
+        System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
+        Configurator.initialize(
+                "test-clients", NetworkTargetingExtension.class.getClassLoader(), "log4j2-test-client.xml");
     }
 }

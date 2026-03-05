@@ -144,6 +144,8 @@ public class BlockNodeSubscribeClient {
                 .servicePort(port)
                 .streamingPort(port)
                 .priority(0)
+                .messageSizeSoftLimitBytes(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES)
+                .messageSizeHardLimitBytes(BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES)
                 .clientHttpConfig(http)
                 .clientGrpcConfig(grpc)
                 .build();

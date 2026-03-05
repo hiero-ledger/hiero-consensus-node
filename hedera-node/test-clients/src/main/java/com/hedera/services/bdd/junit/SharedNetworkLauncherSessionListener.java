@@ -26,6 +26,9 @@ import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +39,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
@@ -74,9 +78,27 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
+        configureTestClientLogDir();
         // Gradle logging issue. Workaround documented here: https://github.com/gradle/gradle/issues/36861
         System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
+        Configurator.initialize("test-clients", SharedNetworkLauncherSessionListener.class.getClassLoader(), "log4j2-test-client.xml");
         session.getLauncher().registerTestExecutionListeners(new SharedNetworkExecutionListener());
+    }
+
+    private static void configureTestClientLogDir() {
+        final var configuredDir = System.getProperty("hapi.test.log.dir");
+        final Path logDir;
+        if (configuredDir != null && !configuredDir.isBlank()) {
+            logDir = Path.of(configuredDir).toAbsolutePath();
+        } else {
+            logDir = Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output").toAbsolutePath();
+        }
+        try {
+            Files.createDirectories(logDir.resolve("transaction-state"));
+            System.setProperty("hapi.test.log.dir", logDir.toString());
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to create test-client log directory " + logDir, e);
+        }
     }
 
     /**
@@ -293,7 +315,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 final long[] sharedBlockNodeIds = new long[] {0L};
                 final long[] equalPriorities = new long[] {0L};
                 for (final var blockNodeId : sharedBlockNodeIds) {
-                    blockNodeNetwork.getBlockNodeModeById().put(blockNodeId, BlockNodeMode.SIMULATOR);
+                    blockNodeNetwork.getBlockNodeModeById().put(blockNodeId, BlockNodeMode.REAL);
                 }
                 network.nodes().forEach(node -> {
                     blockNodeNetwork
@@ -303,7 +325,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 });
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
-                subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
+                subProcessNetwork.setBlockNodeMode(BlockNodeMode.REAL);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);

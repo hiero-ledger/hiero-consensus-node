@@ -136,7 +136,8 @@ public class BlockNodeNetwork {
         // Find an available port
         final int port = findAvailablePort();
         try {
-            final BlockNodeContainer container = new BlockNodeContainer(id, findAvailablePort());
+            logger.info("Starting real block node container {} on host port {}", id, port);
+            final BlockNodeContainer container = new BlockNodeContainer(id, port);
 
             container.start();
             container.waitForHealthy(Duration.ofMinutes(2));
