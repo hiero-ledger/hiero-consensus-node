@@ -948,6 +948,18 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsWhenNegativeAssociatedRegisteredNodeId() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(List.of(-1L))
+                .build();
+        setupMinimalHandle();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
     void handleClearsAssociatedRegisteredNodesWithEmptyList() {
         // Set up a node that already has associated registered nodes
         Node nodeWithAssoc = Node.newBuilder()

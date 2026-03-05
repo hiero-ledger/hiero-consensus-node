@@ -32,6 +32,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
@@ -606,6 +607,98 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
         given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
         given(registeredNodeStore.get(999L)).willReturn(null);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleCreatesNodeWithAssociatedRegisteredNodes() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(10L, 20L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+        given(registeredNodeStore.get(10L)).willReturn(RegisteredNode.DEFAULT);
+        given(registeredNodeStore.get(20L)).willReturn(RegisteredNode.DEFAULT);
+
+        final long expectedNodeId = 0L;
+        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var createdNode = writableStore.get(expectedNodeId);
+        assertNotNull(createdNode);
+        assertThat(createdNode.associatedRegisteredNode()).containsExactly(10L, 20L);
+    }
+
+    @Test
+    void handleFailsWhenTooManyAssociatedRegisteredNodes() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(
+                        1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenNegativeAssociatedRegisteredNodeId() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(-1L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());

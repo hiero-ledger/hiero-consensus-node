@@ -4,6 +4,9 @@ package com.hedera.services.bdd.suites.hip1137;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeUpdate;
@@ -11,6 +14,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -19,9 +23,12 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -30,6 +37,13 @@ public class RegisteredNodeTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String NEW_ADMIN_KEY = "newAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
+
+    private static List<X509Certificate> gossipCertificates;
+
+    @BeforeAll
+    static void beforeAll() {
+        gossipCertificates = generateX509Certificates(1);
+    }
 
     private static final List<RegisteredServiceEndpoint> DEFAULT_ENDPOINTS =
             List.of(RegisteredServiceEndpoint.newBuilder()
@@ -156,5 +170,35 @@ public class RegisteredNodeTest {
                     .hasPrecheck(INVALID_NODE_ID);
             allRunFor(spec, update);
         }));
+    }
+
+    @HapiTest
+    @DisplayName("consensus node create and update with associated registered node")
+    final Stream<DynamicTest> consensusNodeWithAssociatedRegisteredNode() throws CertificateEncodingException {
+        final var registeredNodeId = new AtomicLong();
+        final var nodeAccount = "nodeAccount";
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(nodeAccount),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(registeredNodeId::set)
+                        .hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    final var create = nodeCreate("testNode", nodeAccount)
+                            .adminKey(ADMIN_KEY)
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .associatedRegisteredNode(List.of(registeredNodeId.get()))
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, create);
+                }),
+                withOpContext((spec, opLog) -> {
+                    final var update = nodeUpdate("testNode")
+                            .associatedRegisteredNode(List.of())
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, update);
+                }));
     }
 }
