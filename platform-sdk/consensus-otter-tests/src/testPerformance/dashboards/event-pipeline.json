@@ -1,0 +1,3320 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 99,
+        "panels": [],
+        "title": "Pipeline delay summary",
+        "type": "row",
+        "targets": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 1
+        },
+        "id": 101,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Stage"
+            }
+          ]
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_eventCreation_runtime)",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_2_validation_runtime) - avg(eventDelay_1_eventCreation_runtime)",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_runtime) - avg(eventDelay_2_validation_runtime)",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_runtime) - avg(eventDelay_3_deduplication_runtime)",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_runtime) - avg(eventDelay_4_verification_runtime)",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_runtime) - avg(eventDelay_5_orphanBuffer_runtime)",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_runtime) - avg(eventDelay_6_pces_runtime)",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Runtime events \u2014 Stage Cost Breakdown",
+        "type": "table",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "includeTimeField": false,
+              "mode": "seriesToRows",
+              "reducers": [
+                "mean"
+              ]
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {
+                "Field": 0,
+                "Mean": 1
+              },
+              "renameByName": {
+                "Field": "Stage",
+                "Mean": "Avg Stage Cost (\u00b5s)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 1
+        },
+        "id": 102,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Stage"
+            }
+          ]
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_hashing_gossip)",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_2_validation_gossip) - avg(eventDelay_1_hashing_gossip)",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_gossip) - avg(eventDelay_2_validation_gossip)",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_gossip) - avg(eventDelay_3_deduplication_gossip)",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_gossip) - avg(eventDelay_4_verification_gossip)",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_gossip) - avg(eventDelay_5_orphanBuffer_gossip)",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_gossip) - avg(eventDelay_6_pces_gossip)",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Gossip events \u2014 Stage Cost Breakdown",
+        "type": "table",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "includeTimeField": false,
+              "mode": "seriesToRows",
+              "reducers": [
+                "mean"
+              ]
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {
+                "Field": 0,
+                "Mean": 1
+              },
+              "renameByName": {
+                "Field": "Stage",
+                "Mean": "Avg Stage Cost (\u00b5s)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 11
+        },
+        "id": 100,
+        "panels": [],
+        "title": "All nodes (averaged)",
+        "type": "row",
+        "targets": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "id": 1,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_eventCreation_runtime)",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_2_validation_runtime) - avg(eventDelay_1_eventCreation_runtime)",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_runtime) - avg(eventDelay_2_validation_runtime)",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_runtime) - avg(eventDelay_3_deduplication_runtime)",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_runtime) - avg(eventDelay_4_verification_runtime)",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_runtime) - avg(eventDelay_5_orphanBuffer_runtime)",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_runtime) - avg(eventDelay_6_pces_runtime)",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Runtime events \u2014 Pipeline stage costs (all nodes avg)",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "id": 2,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_hashing_gossip)",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_2_validation_gossip) - avg(eventDelay_1_hashing_gossip)",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_gossip) - avg(eventDelay_2_validation_gossip)",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_gossip) - avg(eventDelay_3_deduplication_gossip)",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_gossip) - avg(eventDelay_4_verification_gossip)",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_gossip) - avg(eventDelay_5_orphanBuffer_gossip)",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_gossip) - avg(eventDelay_6_pces_gossip)",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Gossip events \u2014 Pipeline stage costs (all nodes avg)",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 22
+        },
+        "id": 200,
+        "panels": [],
+        "title": "Per node breakdown",
+        "type": "row",
+        "targets": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 23
+        },
+        "id": 10,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_eventCreation_runtime{node=\"0\"}",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_runtime{node=\"0\"} - eventDelay_1_eventCreation_runtime{node=\"0\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_runtime{node=\"0\"} - eventDelay_2_validation_runtime{node=\"0\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_runtime{node=\"0\"} - eventDelay_3_deduplication_runtime{node=\"0\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_runtime{node=\"0\"} - eventDelay_4_verification_runtime{node=\"0\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_runtime{node=\"0\"} - eventDelay_5_orphanBuffer_runtime{node=\"0\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_runtime{node=\"0\"} - eventDelay_6_pces_runtime{node=\"0\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 0 \u2014 Self",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 23
+        },
+        "id": 20,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_gossip{node=\"0\"}",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_gossip{node=\"0\"} - eventDelay_1_hashing_gossip{node=\"0\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_gossip{node=\"0\"} - eventDelay_2_validation_gossip{node=\"0\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_gossip{node=\"0\"} - eventDelay_3_deduplication_gossip{node=\"0\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_gossip{node=\"0\"} - eventDelay_4_verification_gossip{node=\"0\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_gossip{node=\"0\"} - eventDelay_5_orphanBuffer_gossip{node=\"0\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_gossip{node=\"0\"} - eventDelay_6_pces_gossip{node=\"0\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 0 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 33
+        },
+        "id": 11,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_eventCreation_runtime{node=\"1\"}",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_runtime{node=\"1\"} - eventDelay_1_eventCreation_runtime{node=\"1\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_runtime{node=\"1\"} - eventDelay_2_validation_runtime{node=\"1\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_runtime{node=\"1\"} - eventDelay_3_deduplication_runtime{node=\"1\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_runtime{node=\"1\"} - eventDelay_4_verification_runtime{node=\"1\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_runtime{node=\"1\"} - eventDelay_5_orphanBuffer_runtime{node=\"1\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_runtime{node=\"1\"} - eventDelay_6_pces_runtime{node=\"1\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 1 \u2014 Self",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 33
+        },
+        "id": 21,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_gossip{node=\"1\"}",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_gossip{node=\"1\"} - eventDelay_1_hashing_gossip{node=\"1\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_gossip{node=\"1\"} - eventDelay_2_validation_gossip{node=\"1\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_gossip{node=\"1\"} - eventDelay_3_deduplication_gossip{node=\"1\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_gossip{node=\"1\"} - eventDelay_4_verification_gossip{node=\"1\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_gossip{node=\"1\"} - eventDelay_5_orphanBuffer_gossip{node=\"1\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_gossip{node=\"1\"} - eventDelay_6_pces_gossip{node=\"1\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 1 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 43
+        },
+        "id": 12,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_eventCreation_runtime{node=\"2\"}",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_runtime{node=\"2\"} - eventDelay_1_eventCreation_runtime{node=\"2\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_runtime{node=\"2\"} - eventDelay_2_validation_runtime{node=\"2\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_runtime{node=\"2\"} - eventDelay_3_deduplication_runtime{node=\"2\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_runtime{node=\"2\"} - eventDelay_4_verification_runtime{node=\"2\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_runtime{node=\"2\"} - eventDelay_5_orphanBuffer_runtime{node=\"2\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_runtime{node=\"2\"} - eventDelay_6_pces_runtime{node=\"2\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 2 \u2014 Self",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 43
+        },
+        "id": 22,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_gossip{node=\"2\"}",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_gossip{node=\"2\"} - eventDelay_1_hashing_gossip{node=\"2\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_gossip{node=\"2\"} - eventDelay_2_validation_gossip{node=\"2\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_gossip{node=\"2\"} - eventDelay_3_deduplication_gossip{node=\"2\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_gossip{node=\"2\"} - eventDelay_4_verification_gossip{node=\"2\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_gossip{node=\"2\"} - eventDelay_5_orphanBuffer_gossip{node=\"2\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_gossip{node=\"2\"} - eventDelay_6_pces_gossip{node=\"2\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 2 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "1. Event creation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF9830",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 53
+        },
+        "id": 13,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_eventCreation_runtime{node=\"3\"}",
+            "legendFormat": "1. Event creation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_runtime{node=\"3\"} - eventDelay_1_eventCreation_runtime{node=\"3\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_runtime{node=\"3\"} - eventDelay_2_validation_runtime{node=\"3\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_runtime{node=\"3\"} - eventDelay_3_deduplication_runtime{node=\"3\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_runtime{node=\"3\"} - eventDelay_4_verification_runtime{node=\"3\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_runtime{node=\"3\"} - eventDelay_5_orphanBuffer_runtime{node=\"3\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_runtime{node=\"3\"} - eventDelay_6_pces_runtime{node=\"3\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 3 \u2014 Self",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "2. Hashing"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#5794F2",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "3. Validation"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#73BF69",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "4. Deduplication"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#F2CC0C",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "5. Sig. verification"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#FF6383",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "6. Orphan buffer"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#B877D9",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "7. PCES write"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#36A2EB",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "8. Consensus"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "#4ECDC4",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 53
+        },
+        "id": 23,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_gossip{node=\"3\"}",
+            "legendFormat": "2. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_gossip{node=\"3\"} - eventDelay_1_hashing_gossip{node=\"3\"}",
+            "legendFormat": "3. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_gossip{node=\"3\"} - eventDelay_2_validation_gossip{node=\"3\"}",
+            "legendFormat": "4. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_gossip{node=\"3\"} - eventDelay_3_deduplication_gossip{node=\"3\"}",
+            "legendFormat": "5. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_gossip{node=\"3\"} - eventDelay_4_verification_gossip{node=\"3\"}",
+            "legendFormat": "6. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_gossip{node=\"3\"} - eventDelay_5_orphanBuffer_gossip{node=\"3\"}",
+            "legendFormat": "7. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_gossip{node=\"3\"} - eventDelay_6_pces_gossip{node=\"3\"}",
+            "legendFormat": "8. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 3 \u2014 Received",
+        "type": "timeseries"
+      }
+    ],
+    "preload": false,
+    "schemaVersion": 42,
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-1d",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Event Pipeline Delays",
+    "uid": "event-pipeline",
+    "version": 0,
+    "weekStart": "",
+    "id": null
+  },
+  "overwrite": true
+}

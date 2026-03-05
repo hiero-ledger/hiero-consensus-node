@@ -63,32 +63,40 @@ blocks.
 
 ## Block Node Selection
 
-When the consensus node wants to connect to a block node to start streaming data to, the list of potential block nodes
-will be retrieved by parsing the `block-nodes.json` file. This file contains the list of potential block nodes with their
-assigned priority, along with any additional configuration specific to the block node.
+When the consensus node wants to connect to a block node to start streaming data to, potential block nodes are loaded
+from `block-nodes.json`. Nodes are grouped by configured priority (lower number = higher priority), and each group is
+evaluated in ascending priority order.
 
-With the list of potential block nodes known, the connection manager will begin iterating over each priority group in
-ascending order, starting with group 0. For each block node in the current priority group being handled, a "service"
-connection is established to the block node. Via this service connection, the status of the block node is retrieved - in
-particular the last block available on the block node.
+For each node in a priority group, a service connection is used to retrieve status (`lastAvailableBlock`). For each
+reachable node, the manager derives:
 
-Once the status for each block node in the priority group is retrieved (either successfully or timed out/failed), the
-results are filtered. Any unreachable or timed out node is removed from the set of candidates. If the consensus node has
-no blocks buffered, then any reachable block node will be considered a viable candidate. If the consensus node has one
-or more blocks buffered, then the last block available on the block node is compared to the range of blocks available on
-the consensus node. If the block node's last available block is within the range of the consensus node, then the block
-node is considered a viable candidate. If the block node indicates that it's last available block is -1, then that node
-is considered viable since we interpret -1 as meaning "I will accept whatever you send me" from the block node. If a
-block node's last available block is not -1 and is outside the range of blocks available on the consensus node, then it
-will be excluded from the set of viable block nodes.
+- `wantedBlock = lastAvailableBlock + 1` (or `-1` if the block node reports `-1`)
+- whether the node is in range for immediate streaming based on CN buffer range
 
-Once a set of viable block nodes is found, then one of the nodes will be randomly selected as the block node to connect
-to. If no viable block nodes are found in the priority group, then the connection manager will repeat the same process
-for every subsequent priority group until a viable block node is found.
+Filtering and candidate classification:
 
-If no viable block node is found, then no connection between the consensus node and block node will be established to
-stream blocks. Assuming the block buffer service is active and blocks are being produced, then periodically the buffer
-service will trigger the node selection process again.
+- Unreachable/timed-out nodes are excluded.
+- Nodes with `wantedBlock < earliestAvailableBlock` are excluded (CN no longer has those blocks).
+- If CN has no buffered blocks (`latestAvailableBlock == -1`), all reachable nodes are considered immediately eligible.
+- For CNs with buffered blocks:
+  - **In-range candidate**: `wantedBlock <= latestAvailableBlock`
+  - **Ahead candidate**: `wantedBlock > latestAvailableBlock`
+
+Selection algorithm (cross-priority):
+
+1. Evaluate priority groups in ascending order.
+2. If a group has any **in-range** candidates, select randomly from those in-range candidates and stop.
+3. If a group has only **ahead** candidates, do not select yet; track that group's lowest `wantedBlock` candidates.
+4. Continue evaluating subsequent priority groups.
+5. If no in-range candidates are found in any group, select from the **global lowest `wantedBlock`** across all ahead-only
+   groups.
+6. If multiple nodes are tied at that global lowest `wantedBlock`, select randomly among the tied nodes.
+
+This ensures we prefer immediate streamability first, while still making forward progress by selecting the "oldest"
+ahead node when every group is ahead.
+
+If no viable node is found at all, no connection is established. The selection process is retried later while the
+buffer service remains active.
 
 ## Sequence Diagrams
 
