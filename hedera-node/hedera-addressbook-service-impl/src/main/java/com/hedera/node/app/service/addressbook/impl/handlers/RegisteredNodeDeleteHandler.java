@@ -16,6 +16,7 @@ import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -37,20 +38,24 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeDeleteOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+
+        final var op = txn.registeredNodeDeleteOrThrow();
         validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_NODE_ID);
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().registeredNodeDeleteOrThrow();
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var store = context.createStore(ReadableRegisteredNodeStore.class);
         final var existing = store.get(op.registeredNodeId());
         validateFalsePreCheck(existing == null, INVALID_NODE_ID);
 
+        // FUTURE: check if this requirement is applicable here
         final var payerNum = context.payer().accountNum();
         if (payerNum != accountConfig.treasury()
                 && payerNum != accountConfig.systemAdmin()
@@ -60,31 +65,38 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeDeleteOrThrow();
+    public void handle(@NonNull final HandleContext handleContext) {
+        requireNonNull(handleContext, "handleContext  must not be null");
+        final var txn = handleContext.body();
+        requireNonNull(txn, "txn must not be null");
 
-        final var storeFactory = context.storeFactory();
+        final var op = txn.registeredNodeDeleteOrThrow();
+
+        final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
         final var nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
 
-        final var existing = registeredNodeStore.get(op.registeredNodeId());
-        validateFalse(existing == null, INVALID_NODE_ID);
+        final var registeredNodeId = op.registeredNodeId();
+        final var existingNode = registeredNodeStore.get(registeredNodeId);
+        validateFalse(existingNode == null, INVALID_NODE_ID);
 
+        // FUTURE: check if true, or we should manipulate the state of the consensus node
         // Forbid deletion while referenced by any consensus node.
         for (final var nodeKey : nodeStore.keys()) {
             final var node = nodeStore.get(nodeKey.number());
-            if (node != null && node.associatedRegisteredNode().contains(op.registeredNodeId())) {
-                throw new com.hedera.node.app.spi.workflows.HandleException(ENTITY_NOT_ALLOWED_TO_DELETE);
+            if (node != null && node.associatedRegisteredNode().contains(registeredNodeId)) {
+                // other response code
+                throw new HandleException(ENTITY_NOT_ALLOWED_TO_DELETE);
             }
         }
 
-        registeredNodeStore.remove(op.registeredNodeId());
+        registeredNodeStore.remove(registeredNodeId);
     }
 
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
