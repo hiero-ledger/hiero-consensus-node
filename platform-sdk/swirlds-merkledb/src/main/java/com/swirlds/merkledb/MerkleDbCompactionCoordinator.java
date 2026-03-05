@@ -396,7 +396,7 @@ class MerkleDbCompactionCoordinator {
                 final List<DataFileReader> allFiles = fileCollection.getAllCompletedFiles();
                 final Map<Integer, List<DataFileReader>> candidatesByLevel =
                         GarbageScannerTask.evaluateCompactionCandidates(
-                                scanResult, allFiles, config.minGarbageThreshold(), config.maxGarbageThreshold());
+                                scanResult, allFiles, config.garbageThreshold());
 
                 final List<DataFileReader> filesToCompact = candidatesByLevel.get(sourceLevel);
                 if (filesToCompact == null || filesToCompact.isEmpty()) {

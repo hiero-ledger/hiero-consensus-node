@@ -29,9 +29,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
- * @param minGarbageThreshold
- *      Minimum garbage ratio for a file to be included in compaction.
- * @param maxGarbageThreshold
+ * @param garbageThreshold
  *      Garbage ratio that triggers compaction for a level.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
@@ -78,8 +76,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
-        @ConfigProperty(defaultValue = "0.2") double minGarbageThreshold,
-        @ConfigProperty(defaultValue = "0.4") double maxGarbageThreshold,
+        @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
         @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,

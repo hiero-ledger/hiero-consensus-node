@@ -98,26 +98,21 @@ public class GarbageScannerTask {
 
     /**
      * Evaluates which levels have enough garbage to warrant compaction and returns the files
-     * to compact for each eligible level.
+     * to compact for each level.
      *
-     * <p>A level is eligible if at least one file exceeds {@code maxGarbageThreshold}. If no
-     * file at a level exceeds the max threshold, the level is skipped entirely — even if some
-     * files exceed {@code minGarbageThreshold}. For eligible levels, all files exceeding
-     * {@code minGarbageThreshold} are included in the compaction set.
+     * <p>A file is included in the compaction set if its garbage ratio exceeds {@code garbageThreshold}.
+     * Only levels with at least one such file are included in the result.
      *
-     * @param scanResult          per-file garbage statistics from a recent scan
-     * @param allFiles            current list of completed files in the collection
-     * @param minGarbageThreshold minimum garbage ratio to include a file in compaction
-     * @param maxGarbageThreshold garbage ratio that triggers compaction for a level
+     * @param scanResult       per-file garbage statistics from a recent scan
+     * @param allFiles         current list of completed files in the collection
+     * @param garbageThreshold garbage ratio that triggers compaction for a file
      * @return map from level to list of files to compact; multiple levels may be eligible
      */
     public static Map<Integer, List<DataFileReader>> evaluateCompactionCandidates(
             final Map<Integer, GarbageFileStats> scanResult,
             final List<DataFileReader> allFiles,
-            final double minGarbageThreshold,
-            final double maxGarbageThreshold) {
+            final double garbageThreshold) {
 
-        // Group files by compaction level
         final Map<Integer, List<DataFileReader>> readersByLevel = new HashMap<>();
         for (final DataFileReader reader : allFiles) {
             readersByLevel
@@ -130,20 +125,10 @@ public class GarbageScannerTask {
             final int level = entry.getKey();
             final List<DataFileReader> levelFiles = entry.getValue();
 
-            // A level is only eligible if at least one file exceeds the max threshold
-            final boolean triggered = levelFiles.stream()
-                    .map(file -> scanResult.get(file.getIndex()))
-                    .anyMatch(stats -> stats != null && stats.garbageRatio() > maxGarbageThreshold);
-
-            if (!triggered) {
-                continue;
-            }
-
-            // For an eligible level, include all files above the min threshold
             final List<DataFileReader> filesToCompact = levelFiles.stream()
                     .filter(file -> {
                         final GarbageFileStats stats = scanResult.get(file.getIndex());
-                        return stats != null && stats.garbageRatio() > minGarbageThreshold;
+                        return stats != null && stats.garbageRatio() > garbageThreshold;
                     })
                     .toList();
             if (!filesToCompact.isEmpty()) {
