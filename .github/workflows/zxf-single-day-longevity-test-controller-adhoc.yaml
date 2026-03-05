@@ -3,10 +3,6 @@ name: "ZXF: [CITR] Adhoc - Single Day Longevity Test Controller"
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "The git ref (branch or tag) to checkout"
-        required: false
-        default: ""
       test-asset:
         required: true
         default: "AdHocSD8"
