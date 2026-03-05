@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -16,7 +16,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -55,7 +54,6 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         final var existing = store.get(op.registeredNodeId());
         validateFalsePreCheck(existing == null, INVALID_NODE_ID);
 
-        // FUTURE: check if this requirement is applicable here
         final var payerNum = context.payer().accountNum();
         if (payerNum != accountConfig.treasury()
                 && payerNum != accountConfig.systemAdmin()
@@ -80,15 +78,12 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         final var existingNode = registeredNodeStore.get(registeredNodeId);
         validateFalse(existingNode == null, INVALID_NODE_ID);
 
-        // FUTURE: check if true, or we should manipulate the state of the consensus node
         // Forbid deletion while referenced by any consensus node.
-        for (final var nodeKey : nodeStore.keys()) {
-            final var node = nodeStore.get(nodeKey.number());
-            if (node != null && node.associatedRegisteredNode().contains(registeredNodeId)) {
-                // other response code
-                throw new HandleException(ENTITY_NOT_ALLOWED_TO_DELETE);
-            }
-        }
+        final var isReferenced = nodeStore.keys().stream()
+                .map(key -> nodeStore.get(key.number()))
+                .anyMatch(
+                        node -> node != null && node.associatedRegisteredNode().contains(registeredNodeId));
+        validateFalse(isReferenced, REGISTERED_NODE_STILL_REFERENCED);
 
         registeredNodeStore.remove(registeredNodeId);
     }
