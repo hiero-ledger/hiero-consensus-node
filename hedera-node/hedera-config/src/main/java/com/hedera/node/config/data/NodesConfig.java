@@ -22,6 +22,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param adjustNodeFees Whether node fees can be reduced by the average node fees already collected during that period
  * @param activeRoundsPercent A percentage value relating to active nodes
  * @param maxRegisteredFqdnSize The maximum FQDN size for registered service endpoints
+ * @param maxAssociatedRegisteredNodes The maximum number of associated registered nodes a consensus node may reference
  */
 @ConfigData("nodes")
 public record NodesConfig(
@@ -81,4 +82,7 @@ public record NodesConfig(
         int maxRegisteredServiceEndpoint,
 
         @ConfigProperty(defaultValue = "250") @NetworkProperty
-        int maxRegisteredFqdnSize) {}
+        int maxRegisteredFqdnSize,
+
+        @ConfigProperty(defaultValue = "20") @NetworkProperty
+        int maxAssociatedRegisteredNodes) {}

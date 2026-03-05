@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -113,11 +112,8 @@ public class NodeCreateHandler implements TransactionHandler {
         }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
-        validateTrue(op.associatedRegisteredNode().size() <= 20, INVALID_NODE_ID);
-        for (final var registeredNodeId : op.associatedRegisteredNode()) {
-            validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
-            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
-        }
+        addressBookValidator.validateAssociatedRegisteredNodes(
+                op.associatedRegisteredNode(), registeredNodeStore, nodeConfig);
 
         final var nodeBuilder = new Node.Builder()
                 .accountId(op.accountId())

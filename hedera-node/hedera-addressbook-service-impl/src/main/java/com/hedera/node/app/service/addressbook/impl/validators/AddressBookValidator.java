@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -178,6 +180,28 @@ public class AddressBookValidator {
         validateTrue(accountNodeRelStore.get(accountId) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
 
         return account;
+    }
+
+    /**
+     * Validates the associated registered node list.
+     *
+     * @param associatedRegisteredNodeIds the list of registered node IDs to validate
+     * @param registeredNodeStore the store to check for registered node existence
+     * @param nodesConfig the nodes configuration
+     */
+    public void validateAssociatedRegisteredNodes(
+            @NonNull final List<Long> associatedRegisteredNodeIds,
+            @NonNull final ReadableRegisteredNodeStore registeredNodeStore,
+            @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(associatedRegisteredNodeIds);
+        requireNonNull(registeredNodeStore);
+        requireNonNull(nodesConfig);
+
+        validateTrue(associatedRegisteredNodeIds.size() <= nodesConfig.maxAssociatedRegisteredNodes(), INVALID_NODE_ID);
+        for (final var registeredNodeId : associatedRegisteredNodeIds) {
+            validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
+            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
+        }
     }
 
     public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {

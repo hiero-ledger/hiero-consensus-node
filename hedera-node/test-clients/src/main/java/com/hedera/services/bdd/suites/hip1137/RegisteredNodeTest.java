@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.protobuf.ByteString;
@@ -199,6 +200,87 @@ public class RegisteredNodeTest {
                             .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, update);
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("consensus node create fails with non-existent associated registered node")
+    final Stream<DynamicTest> createWithNonExistentAssociatedRegisteredNodeFails() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
+        return hapiTest(newKeyNamed(ADMIN_KEY), cryptoCreate(nodeAccount), withOpContext((spec, opLog) -> {
+            final var create = nodeCreate("testNode", nodeAccount)
+                    .adminKey(ADMIN_KEY)
+                    .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                    .associatedRegisteredNode(List.of(999_999L))
+                    .hasKnownStatus(INVALID_NODE_ID);
+            allRunFor(spec, create);
+        }));
+    }
+
+    @HapiTest
+    @DisplayName("delete registered node fails when still referenced by consensus node")
+    final Stream<DynamicTest> deleteReferencedRegisteredNodeFails() throws CertificateEncodingException {
+        final var registeredNodeId = new AtomicLong();
+        final var nodeAccount = "nodeAccount";
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(nodeAccount),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(registeredNodeId::set)
+                        .hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    final var create = nodeCreate("testNode", nodeAccount)
+                            .adminKey(ADMIN_KEY)
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .associatedRegisteredNode(List.of(registeredNodeId.get()))
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, create);
+                }),
+                withOpContext((spec, opLog) -> {
+                    final var delete = registeredNodeDelete(registeredNodeId::get)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                            .hasKnownStatus(REGISTERED_NODE_STILL_REFERENCED);
+                    allRunFor(spec, delete);
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("delete registered node succeeds after consensus node clears reference")
+    final Stream<DynamicTest> deleteRegisteredNodeAfterClearingReference() throws CertificateEncodingException {
+        final var registeredNodeId = new AtomicLong();
+        final var nodeAccount = "nodeAccount";
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(nodeAccount),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(registeredNodeId::set)
+                        .hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    final var create = nodeCreate("testNode", nodeAccount)
+                            .adminKey(ADMIN_KEY)
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .associatedRegisteredNode(List.of(registeredNodeId.get()))
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, create);
+                }),
+                withOpContext((spec, opLog) -> {
+                    // Clear the reference
+                    final var update = nodeUpdate("testNode")
+                            .associatedRegisteredNode(List.of())
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, update);
+                }),
+                withOpContext((spec, opLog) -> {
+                    // Now delete should succeed
+                    final var delete = registeredNodeDelete(registeredNodeId::get)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, delete);
                 }));
     }
 }
