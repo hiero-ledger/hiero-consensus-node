@@ -150,8 +150,8 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
-        consensusNodeManager.registerConsensusRoundListener(
-                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
+//        consensusNodeManager.registerConsensusRoundListener(
+//                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
     }
 
     /**

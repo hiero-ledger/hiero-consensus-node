@@ -188,7 +188,7 @@ public class ConsensusNodeManager {
      * @param round the consensus round to notify listeners about, must not be {@code null}
      */
     private void notifyConsensusRoundListeners(@NonNull final ConsensusRound round) {
-        consensusRoundListeners.forEach(listener -> listener.onConsensusRound(round));
+        //consensusRoundListeners.forEach(listener -> listener.onConsensusRound(round));
     }
 
     /**
