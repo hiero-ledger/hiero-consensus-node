@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
-
 import java.text.Normalizer;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
 
 /**
  * Utility class for other operations
@@ -27,31 +21,14 @@ public class CommonUtils {
     }
 
     /**
-     * This is equivalent to sending text to doing both Utilities.tellUserConsole() and writing to a popup window. It is
-     * not used for debugging; it is used for production code for communicating to the user.
+     * Calls {@link CommonUtils.tellUserConsole()} and highlights the message.
      *
-     * @param title the title of the window to pop up
-     * @param msg   the message for the user
+     * @param msg the message for the user
      */
-    public static void tellUserConsolePopup(final String title, final String msg) {
+    public static void tellUserConsoleHighlighted(final String msg) {
         tellUserConsole("\n***** " + msg + " *****\n");
     }
 
-    /**
-     * Convert an int to a byte array, little endian.
-     *
-     * @param value the int to convert
-     * @return the byte array
-     */
-    public static byte[] intToBytes(final int value) {
-        final byte[] dst = new byte[Integer.BYTES];
-
-        for (int i = 0; i < Integer.BYTES; i++) {
-            final int shift = i * 8;
-            dst[i] = (byte) (0xff & (value >> shift));
-        }
-        return dst;
-    }
 
     /**
      * Given a name from the address book, return the corresponding alias to associate with certificates in the trust
@@ -88,62 +65,4 @@ public class CommonUtils {
         return alias;
     }
 
-    /**
-     * Joins multiple lists into a single list
-     *
-     * @param lists the lists to join
-     * @param <T>   the type of element in the list
-     * @return the list containing all elements in the supplied lists
-     */
-    @SafeVarargs
-    public static <T> List<T> joinLists(final List<T>... lists) {
-        return Arrays.stream(lists).flatMap(Collection::stream).toList();
-    }
-
-    /**
-     * Converts a {@code null} string reference to an empty string.
-     *
-     * @param value a possibly {@code null} string reference.
-     * @return the original value if not null or an empty string if null.
-     */
-    public static String nullToBlank(final String value) {
-        return (value == null) ? "" : value;
-    }
-
-    /**
-     * Combine an array of consumers into a single consumer that calls all of them
-     *
-     * @param consumers the consumers to combine
-     * @param <T>       the type being consumed
-     * @return the combined consumer
-     */
-    @SafeVarargs
-    public static <T> Consumer<T> combineConsumers(final Consumer<T>... consumers) {
-        return t -> {
-            for (final Consumer<T> consumer : consumers) {
-                consumer.accept(t);
-            }
-        };
-    }
-
-    /**
-     * Same as {@link #combineConsumers(Consumer[])} but with a list instead of an array
-     */
-    public static <T> Consumer<T> combineConsumers(final List<Consumer<T>> consumers) {
-        return t -> {
-            for (final Consumer<T> consumer : consumers) {
-                consumer.accept(t);
-            }
-        };
-    }
-
-    /**
-     * Returns a string representation of the given byte count in human readable format.
-     *
-     * @param bytes number of bytes
-     * @return human-readable string representation of the given byte count
-     */
-    public static String byteCountToDisplaySize(final long bytes) {
-        return UNIT_BYTES.buildFormatter(bytes).setDecimalPlaces(1).render();
-    }
 }
