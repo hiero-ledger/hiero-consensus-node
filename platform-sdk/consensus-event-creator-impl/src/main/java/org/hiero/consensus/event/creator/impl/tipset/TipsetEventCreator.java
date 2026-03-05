@@ -131,13 +131,13 @@ public class TipsetEventCreator implements EventCreator {
 
         this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
-        //this.signer = Objects.requireNonNull(signer);
-        this.signer = new BytesSigner() {
-            @Override
-            public Bytes sign(final Bytes data) {
-                return Bytes.wrap(new byte[48]);
-            }
-        };
+        this.signer = Objects.requireNonNull(signer);
+//        this.signer = new BytesSigner() {
+//            @Override
+//            public Bytes sign(final Bytes data) {
+//                return Bytes.wrap(new byte[48]);
+//            }
+//        };
         this.selfId = Objects.requireNonNull(selfId);
         this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
         this.roster = Objects.requireNonNull(roster);
