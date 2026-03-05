@@ -36,20 +36,13 @@ import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class DispatchUsageManager {
-    private static final Logger logger = LogManager.getLogger(DispatchUsageManager.class);
-
     public static final Set<HederaFunctionality> CONTRACT_OPERATIONS =
             EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION, HOOK_DISPATCH);
-
-    public static final AtomicBoolean LOG_NOW = new AtomicBoolean(false);
 
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics opWorkflowMetrics;
@@ -81,12 +74,6 @@ public class DispatchUsageManager {
             // reset throttles for every dispatch before we track the usage. This is to ensure that
             // when the user transaction fails, we release the capacity taken at consensus by child transactions.
             throttleServiceManager.resetThrottlesUnconditionally(readableStates);
-            if (LOG_NOW.get()) {
-                logger.info(
-                        "Checking for capacity of {} @ {}",
-                        dispatch.txnInfo().functionality(),
-                        dispatch.consensusNow());
-            }
             final var isThrottled =
                     networkUtilizationManager.trackTxn(dispatch.txnInfo(), dispatch.consensusNow(), dispatch.stack());
             if (networkUtilizationManager.wasLastTxnGasThrottled()) {
