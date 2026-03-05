@@ -65,9 +65,9 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var txn = context.body();
-        requireNonNull(txn);
+        requireNonNull(txn, "txn must not be null");
         final var op = txn.nodeUpdateOrThrow();
         validateFalsePreCheck(op.nodeId() < 0, INVALID_NODE_ID);
         if (op.hasGossipCaCertificate()) {
@@ -85,8 +85,11 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().nodeUpdateOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+        final var op = txn.nodeUpdateOrThrow();
+
         final var nodeStore = context.createStore(ReadableNodeStore.class);
         final var config = context.configuration().getConfigData(NodesConfig.class);
 
@@ -114,7 +117,7 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().nodeUpdateOrThrow();
 
         final var configuration = handleContext.configuration();

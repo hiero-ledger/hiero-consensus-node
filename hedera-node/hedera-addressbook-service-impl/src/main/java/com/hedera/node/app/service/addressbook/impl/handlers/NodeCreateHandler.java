@@ -62,7 +62,7 @@ public class NodeCreateHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context, "context must not be null");
         final var txn = context.body();
-        requireNonNull(txn);
+        requireNonNull(txn, "txn must not be null");
         final var op = txn.nodeCreateOrThrow();
         addressBookValidator.validateAccountId(op.accountId());
         validateFalsePreCheck(op.gossipEndpoint().isEmpty(), INVALID_GOSSIP_ENDPOINT);
@@ -79,7 +79,10 @@ public class NodeCreateHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context, "context must not be null");
-        final var op = context.body().nodeCreateOrThrow();
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+        final var op = txn.nodeCreateOrThrow();
+
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
     }
 

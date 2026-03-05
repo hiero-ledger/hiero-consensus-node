@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase.generateX509Certificates;
@@ -518,7 +519,7 @@ class AddressBookValidatorTest {
         }
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateAssociatedRegisteredNodes(ids, store, newNodesConfig()));
-        assertEquals(INVALID_NODE_ID, e.getStatus());
+        assertEquals(MAX_REGISTERED_NODES_EXCEEDED, e.getStatus());
     }
 
     @Test
@@ -548,7 +549,7 @@ class AddressBookValidatorTest {
         final var config = newNodesConfig(253, 250, 2);
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateAssociatedRegisteredNodes(List.of(1L, 2L, 3L), store, config));
-        assertEquals(INVALID_NODE_ID, e.getStatus());
+        assertEquals(MAX_REGISTERED_NODES_EXCEEDED, e.getStatus());
     }
 
     private static RegisteredServiceEndpoint blockNodeEndpoint(final byte[] ip) {
