@@ -12,7 +12,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  */
 @ConfigData("nativeCoin")
 public record NativeCoinConfig(
-        @ConfigProperty(defaultValue = "8") @Min(0) @Max(MAX_DECIMALS) int decimals) {
+        @ConfigProperty(defaultValue = "8") @Min(0) @Max(MAX_DECIMALS)
+        int decimals) {
     /**
      * Maximum number of decimal places supported. Matches the 18-decimal precision of Ethereum wei.
      */
