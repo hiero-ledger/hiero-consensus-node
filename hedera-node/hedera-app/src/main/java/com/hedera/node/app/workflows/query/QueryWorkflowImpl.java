@@ -60,6 +60,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.List;
@@ -181,7 +182,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             }
             final ResponseType responseType = queryHeader.responseType();
             final var configuration = configProvider.getConfiguration();
-            final var useSimpleFees =
+            final var simpleFeesEnabled =
                     configuration.getConfigData(FeesConfig.class).simpleFeesEnabled();
             logger.debug("Started answering a {} query of type {}", function, responseType);
 
@@ -253,16 +254,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            long queryFees;
-                            if (useSimpleFees) {
-                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                                queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents.totalTinycents(),
-                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                            } else {
-                                queryFees = handler.computeFees(context).totalFee();
-                            }
+                            final long queryFees =
+                                    computeQueryFees(context, handler, function, consensusTime, simpleFeesEnabled);
 
                             // The fee for the crypto transfer that pays the fee
                             final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
@@ -313,16 +306,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    long queryFees;
-                    if (useSimpleFees) {
-                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                        queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents.totalTinycents(),
-                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                    } else {
-                        queryFees = handler.computeFees(context).totalFee();
-                    }
+                    final long queryFees =
+                            computeQueryFees(context, handler, function, consensusTime, simpleFeesEnabled);
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -365,9 +350,39 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final ResponseType responseType,
             @NonNull final HederaFunctionality functionality,
             @NonNull final Configuration configuration) {
-        return configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                ? !feeManager.isFreeQuery(functionality)
-                : handler.requiresNodePayment(responseType);
+        final var requiresPaymentByHandler = handler.requiresNodePayment(responseType);
+        if (!requiresPaymentByHandler) {
+            return false;
+        }
+        if (!configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return true;
+        }
+        return !feeManager.isFreeQuery(functionality);
+    }
+
+    private long computeQueryFees(
+            @NonNull final QueryContext context,
+            @NonNull final QueryHandler handler,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final Instant consensusTime,
+            final boolean simpleFeesEnabled) {
+        if (simpleFeesEnabled) {
+            final var simpleFeeCalculator = feeManager.getSimpleFeeCalculator();
+            if (simpleFeeCalculator != null) {
+                try {
+                    final var queryFeeTinyCents =
+                            simpleFeeCalculator.calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                    return tinycentsToTinybars(
+                            queryFeeTinyCents.totalTinycents(),
+                            fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                } catch (UnsupportedOperationException e) {
+                    logger.debug(
+                            "No simple query fee calculator for {}, using legacy query fee calculation",
+                            functionality);
+                }
+            }
+        }
+        return handler.computeFees(context).totalFee();
     }
 
     private Query parseQuery(Bytes requestBuffer) {

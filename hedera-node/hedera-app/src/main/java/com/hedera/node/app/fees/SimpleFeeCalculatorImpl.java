@@ -293,14 +293,17 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      *
      * @param query The query to calculate fees for
      * @param simpleFeeContext the query context
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
+     * @return the fee result
+     * @throws UnsupportedOperationException if no query fee calculator is registered for the query type
      */
     @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        if (queryFeeCalculator == null) {
+            throw new UnsupportedOperationException("No QueryFeeCalculator registered for " + query.query().kind());
+        }
         queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
         return result;
     }
