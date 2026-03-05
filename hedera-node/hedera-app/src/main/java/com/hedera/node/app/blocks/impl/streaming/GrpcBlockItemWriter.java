@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
  * This writer interfaces with {@link BlockBufferService} to manage block states and coordinates
  * the streaming of block items.
  * @see BlockBufferService
- * @see BlockNodeConnection
+ * @see BlockNodeStreamingConnection
  */
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);

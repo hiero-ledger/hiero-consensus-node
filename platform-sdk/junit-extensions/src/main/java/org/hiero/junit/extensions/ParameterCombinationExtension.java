@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.junit.extensions;
 
-import com.google.common.base.Strings;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -63,9 +62,33 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
             valueLists.add(invokeSourceMethod(context, source.fullyQualifiedClass(), source.method()));
         }
 
-        final List<List<Object>> combinations = com.google.common.collect.Lists.cartesianProduct(valueLists);
+        final List<List<Object>> combinations = cartesianProduct(valueLists);
 
         return combinations.stream().map(combo -> new Context(paramNames, combo));
+    }
+
+    /**
+     * Computes the cartesian product of a list of lists.
+     *
+     * @param lists the input lists
+     * @return a list containing all combinations, where each combination has one element from each input list
+     */
+    private static List<List<Object>> cartesianProduct(final List<List<Object>> lists) {
+        List<List<Object>> result = new ArrayList<>();
+        result.add(new ArrayList<>());
+
+        for (final List<Object> list : lists) {
+            final List<List<Object>> newResult = new ArrayList<>();
+            for (final List<Object> combo : result) {
+                for (final Object element : list) {
+                    final List<Object> newCombo = new ArrayList<>(combo);
+                    newCombo.add(element);
+                    newResult.add(newCombo);
+                }
+            }
+            result = newResult;
+        }
+        return result;
     }
 
     private static ParamSource getParamSource(
@@ -92,8 +115,7 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
             final @NonNull String methodName) {
         final Method testMethod = context.getRequiredTestMethod();
         try {
-            final Class<?> theClazz =
-                    (Strings.isNullOrEmpty(className)) ? testMethod.getDeclaringClass() : Class.forName(className);
+            final Class<?> theClazz = (className.isEmpty()) ? testMethod.getDeclaringClass() : Class.forName(className);
             final Method source = theClazz.getDeclaredMethod(methodName);
             final int staticModifiers = source.getModifiers();
             final boolean isStatic = Modifier.isStatic(staticModifiers);

@@ -20,21 +20,23 @@ import java.util.function.Consumer;
 import org.hiero.base.utility.MemoryUtils;
 
 /**
- * Class for creating and sequentially writing to the file.
- * A data file contains a header containing {@link DataFileMetadata} followed by data items.
- * Each data item can be variable or fixed size and is considered as a black box.
+ * Class for creating and sequentially writing to the file. A data file contains a header
+ * containing {@link DataFileMetadata} followed by data items. Each data item is considered
+ * as a black box.
  *
- * <p>{@link #close()} must be called after done wiring data using {@link #storeDataItem(BufferedData)} any number of times.
- * The implementation doesn't control the file size.
+ * <p>{@link #close()} must be called after done writing data using {@link #storeDataItem(BufferedData)},
+ * or {@link #storeDataItem(Consumer, int)}, or {@link #storeDataItemWithTag(BufferedData)}
+ * any number of times. The implementation doesn't control the file size.
  *
- * <p>Internally, the data items are written to a memory mapped file using {@link MappedByteBuffer} of fixed size, that could be provided in constructor.
- * This buffer is moved to the current file position when needed.
+ * <p>Internally, the data items are written to a memory mapped file using {@link MappedByteBuffer}
+ * of fixed size, that could be provided in constructor. This buffer is moved to the current
+ * file position when needed.
  *
- * <p><b>This is designed to be used from a single thread.</b>
+ * <p><b>This class is NOT thread safe.</b>
  *
  * <p>{@link DataFileReader} or {@link DataFileIterator} can be used to read file back and access data items.
  */
-public final class DataFileWriter implements AutoCloseable {
+public final class DataFileWriter {
 
     /**
      * Default buffer size for writing into the file is 64 Mb
@@ -67,6 +69,10 @@ public final class DataFileWriter implements AutoCloseable {
 
     private final long dataBufferSize;
 
+    /**
+     * Indicates if this file writer has been closed. Only set and accessed on the
+     * writing thread.
+     */
     private boolean closed = false;
 
     /**
@@ -160,7 +166,8 @@ public final class DataFileWriter implements AutoCloseable {
     }
 
     /**
-     * Store data item in file returning location it was stored at.
+     * Store a data item in file returning location it was stored at. The data item is written
+     * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
      *
      * @param dataItem the data item to write
      * @return the data location of written data in bytes
@@ -171,15 +178,15 @@ public final class DataFileWriter implements AutoCloseable {
     }
 
     /**
-     * Store data item in file returning location it was stored at.
+     * Store a data item in file returning location it was stored at. The data item is written
+     * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
      *
      * @param dataItemWriter the data item to write
      * @param dataItemSize the data item size, in bytes
      * @return the data location of written data in bytes
-     * @throws IOException if there was a problem appending data to file
+     * @throws IOException if there was a problem appending data to the file
      */
-    public synchronized long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize)
-            throws IOException {
+    public long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize) throws IOException {
         if (closed) {
             throw new IOException("Data file is already closed");
         }
@@ -193,7 +200,7 @@ public final class DataFileWriter implements AutoCloseable {
         }
 
         // if there is not enough space in the current mapped buffer,
-        // we need to move it to start at current file offset
+        // we need to move it to start at the current file offset
         if (dataBuffer.remaining() < sizeToWrite) {
             moveWritingBuffer(fileOffset);
         }
@@ -212,13 +219,57 @@ public final class DataFileWriter implements AutoCloseable {
     }
 
     /**
+     * Store a data item in file returning location it was stored at. The data item is written
+     * as is, assuming the provided data item buffer already has the {@link
+     * DataFileCommon#FIELD_DATAFILE_ITEMS} tag and the item length.
+     *
+     * <p>This method is very similar to {@link #storeDataItem(Consumer, int)}. They are not
+     * refactored to a single method to avoid lambda / method handle performance overhead.
+     *
+     * @param dataItemWithTag the data item to write
+     * @return the data location of written data in bytes
+     * @throws IOException if there was a problem appending data to the file
+     */
+    public long storeDataItemWithTag(final BufferedData dataItemWithTag) throws IOException {
+        if (closed) {
+            throw new IOException("Data file is already closed");
+        }
+
+        final long fileOffset = getCurrentFilePosition();
+        final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
+
+        if (sizeToWrite > dataBufferSize) {
+            throw new IOException(
+                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
+        }
+
+        // if there is not enough space in the current mapped buffer,
+        // we need to move it to start at the current file offset
+        if (dataBuffer.remaining() < sizeToWrite) {
+            moveWritingBuffer(fileOffset);
+        }
+
+        // write actual data
+        dataBuffer.writeBytes(dataItemWithTag);
+
+        // double check that we wrote the expected number of bytes
+        if (getCurrentFilePosition() != fileOffset + sizeToWrite) {
+            throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
+                    + (getCurrentFilePosition() - fileOffset));
+        }
+
+        // return the offset where we wrote the data
+        return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
+    }
+
+    /**
      * Release all the resources like mapped buffer and file channel.
      */
-    @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
         if (closed) {
             return;
         }
+        closed = true;
 
         // total file size is where the current writing pos is
         final long totalFileSize = bufferPositionInFile + dataBuffer.position();
@@ -230,7 +281,6 @@ public final class DataFileWriter implements AutoCloseable {
         bufferPositionInFile = totalFileSize;
 
         fileChannel.close();
-        closed = true;
     }
 
     private long getCurrentFilePosition() {

@@ -91,7 +91,7 @@ class TctProbeTest {
         given(blockStreamInfoState.get()).willReturn(expectedInfo);
 
         // When
-        final var result = TctProbe.blockStreamInfoFrom(state);
+        final var result = TctProbe.blockStreamInfoFrom(state, false);
 
         // Then
         assertNotNull(result);
@@ -104,7 +104,7 @@ class TctProbeTest {
         given(blockStreamInfoState.get()).willReturn(null);
 
         // When/Then
-        assertThrows(NullPointerException.class, () -> TctProbe.blockStreamInfoFrom(state));
+        assertThrows(NullPointerException.class, () -> TctProbe.blockStreamInfoFrom(state, false));
     }
 
     @Test

@@ -149,6 +149,16 @@ public abstract class OutputWire<OUT> {
     }
 
     /**
+     * Specify a consumer where output data should be forwarded for monitoring purposes. This soldering should not be
+     * used for the main data flow. This solder method does not register any wiring in the model.
+     *
+     * @param consumer the consumer to forward output data to
+     */
+    public void solderForMonitoring(@NonNull final Consumer<OUT> consumer) {
+        addForwardingDestination(consumer);
+    }
+
+    /**
      * Specify a consumer where output data should be forwarded. This method creates a direct task scheduler under the
      * hood and forwards output data to it.
      *

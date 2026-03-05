@@ -6,13 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
 class HeartbeatSchedulerTests {
@@ -27,7 +27,7 @@ class HeartbeatSchedulerTests {
                 model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
-        model.buildHeartbeatWire(100).solderTo(heartbeatBindable);
+        model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindable);
 
         final AtomicLong counter = new AtomicLong(0);
         heartbeatBindable.bindConsumer((time) -> {
@@ -86,7 +86,7 @@ class HeartbeatSchedulerTests {
         final BindableInputWire<Instant, Void> heartbeatBindableB = scheduler.buildInputWire("heartbeatB");
         final BindableInputWire<Instant, Void> heartbeatBindableC = scheduler.buildInputWire("heartbeatC");
 
-        model.buildHeartbeatWire(100).solderTo(heartbeatBindableA);
+        model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindableA);
         model.buildHeartbeatWire(Duration.ofMillis(5)).solderTo(heartbeatBindableB);
         model.buildHeartbeatWire(Duration.ofMillis(50)).solderTo(heartbeatBindableC);
 

@@ -33,11 +33,7 @@ public class V0530TokenSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.onDisk(
-                AIRDROPS_STATE_ID,
-                AIRDROPS_KEY,
-                PendingAirdropId.PROTOBUF,
-                AccountPendingAirdrop.PROTOBUF,
-                MAX_PENDING_AIRDROPS));
+        return Set.of(StateDefinition.keyValue(
+                AIRDROPS_STATE_ID, AIRDROPS_KEY, PendingAirdropId.PROTOBUF, AccountPendingAirdrop.PROTOBUF));
     }
 }

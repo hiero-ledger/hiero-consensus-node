@@ -13,7 +13,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.common.metrics.platform.prometheus.NameConverter;
 import com.swirlds.metrics.api.*;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.*;
@@ -24,6 +23,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.platform.prometheus.NameConverter;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 

@@ -3,7 +3,6 @@ package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -45,22 +44,6 @@ public interface WritableKVState<K, V> extends ReadableKVState<K, V> {
      * @throws NullPointerException if the key or value is null.
      */
     void remove(@NonNull K key);
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>When used on a {@link WritableKVState}, this iterator will include new keys added to the
-     * state but not yet committed, and omit keys that have been removed but not yet committed, and
-     * of course whatever the committed backend state is.
-     *
-     * <p>If an iterator is created, and then a change is made to this state, then the changes will
-     * not be reflected in the iterator. If an iterator is created, and then the state is committed,
-     * further operations on the iterator may succeed, or may throw {@link
-     * java.util.ConcurrentModificationException}, depending on the behavior of the backing store.
-     */
-    @Override
-    @NonNull
-    Iterator<K> keys();
 
     /**
      * Gets a {@link Set} of all keys that have been modified through this {@link WritableKVState}.

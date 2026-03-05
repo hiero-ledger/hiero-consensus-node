@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.health.clock;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.addLine;
+import static com.swirlds.base.formatting.StringFormattingUtils.addLine;
 import static com.swirlds.platform.health.OSHealthCheckUtils.reportHeader;
 
 import com.swirlds.platform.health.OSHealthCheckConfig;

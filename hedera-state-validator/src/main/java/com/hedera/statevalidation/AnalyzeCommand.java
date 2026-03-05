@@ -9,8 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.statevalidation.report.Report;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,17 +47,13 @@ public class AnalyzeCommand implements Runnable {
         parent.initializeStateDir();
 
         final MerkleDbDataSource vds;
-        try {
-            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
-            final MerkleNodeState state =
-                    deserializedSignedState.reservedSignedState().get().getState();
-            final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-            requireNonNull(virtualMap);
-            vds = (MerkleDbDataSource) virtualMap.getDataSource();
-            requireNonNull(vds);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+
+        final VirtualMapState state = StateUtils.getDefaultState();
+        final VirtualMap virtualMap = state.getRoot();
+        requireNonNull(virtualMap);
+        vds = (MerkleDbDataSource) virtualMap.getDataSource();
+        requireNonNull(vds);
+
         final Report report = new Report();
 
         // Check flags to pick the branch to run

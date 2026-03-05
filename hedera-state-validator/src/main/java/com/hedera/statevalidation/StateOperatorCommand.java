@@ -17,6 +17,7 @@ import picocli.CommandLine.Parameters;
             IntrospectCommand.class,
             ExportCommand.class,
             SortedExportCommand.class,
+            DiffCommand.class,
             CompactionCommand.class,
             ApplyBlocksCommand.class
         },
@@ -30,9 +31,7 @@ public class StateOperatorCommand implements Runnable {
 
     // shorthand for subcommands
     void initializeStateDir() {
-        if (stateDir != null) {
-            System.setProperty("state.dir", stateDir.getAbsolutePath());
-        }
+        System.setProperty("state.dir", stateDir.getAbsolutePath());
     }
 
     @Override
@@ -52,5 +51,9 @@ public class StateOperatorCommand implements Runnable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    File getStateDir() {
+        return stateDir;
     }
 }

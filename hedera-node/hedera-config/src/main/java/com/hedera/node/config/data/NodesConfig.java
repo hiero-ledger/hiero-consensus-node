@@ -41,4 +41,6 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean adjustNodeFees,
         @ConfigProperty(defaultValue = "10") @NetworkProperty int activeRoundsPercent,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean preserveMinNodeRewardBalance,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled,
+        /* Fee collection account enabled */
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean feeCollectionAccountEnabled) {}

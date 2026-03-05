@@ -9,7 +9,6 @@ module com.swirlds.logging.log4j.appender {
     requires transitive com.swirlds.logging;
     requires transitive org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 
     provides Provider with
             BaseLoggingProvider;

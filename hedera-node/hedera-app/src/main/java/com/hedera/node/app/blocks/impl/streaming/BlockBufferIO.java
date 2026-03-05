@@ -240,13 +240,19 @@ public class BlockBufferIO {
 
             final Block blk = new Block(items);
             final Instant closedInstant = block.closedTimestamp();
+            final Instant openedInstant = block.openedTimestamp();
 
+            final Timestamp openedTimestamp = Timestamp.newBuilder()
+                    .seconds(openedInstant.getEpochSecond())
+                    .nanos(openedInstant.getNano())
+                    .build();
             final Timestamp closedTimestamp = Timestamp.newBuilder()
                     .seconds(closedInstant.getEpochSecond())
                     .nanos(closedInstant.getNano())
                     .build();
             final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                     .blockNumber(block.blockNumber())
+                    .openedTimestamp(openedTimestamp)
                     .closedTimestamp(closedTimestamp)
                     .isAcknowledged(block.blockNumber() <= latestAcknowledgedBlockNumber)
                     .block(blk)

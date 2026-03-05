@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 /**
  * A utility class with static methods for working with paths in the virtual tree. A path in the virtual tree
  * is efficiently represented as a single long. This works because internal nodes on the virtual tree always
@@ -229,26 +225,6 @@ public final class Path {
         }
         final long pathToCheckParent = getGrandParentPath(pathToCheck, pathToCheckRank - parentPathRank);
         return parentPath == pathToCheckParent;
-    }
-
-    /**
-     * Computes the {@link com.swirlds.common.merkle.route.MerkleRoute} by iterating over
-     * every node from the root of the Virtual Tree up to the {@code targetPath}, and
-     * determining if the path is left or right (0 or 1).
-     *
-     * @param targetPath
-     * 			path for which we want its route
-     * @return list of integers representing the {@link com.swirlds.common.merkle.route.MerkleRoute} of this path.
-     */
-    public static List<Integer> getRouteStepsFromRoot(long targetPath) {
-        final List<Integer> routes = new ArrayList<>();
-        while (targetPath > 0) {
-            routes.add(isLeft(targetPath) ? 0 : 1);
-            targetPath = getParentPath(targetPath);
-        }
-
-        Collections.reverse(routes);
-        return routes;
     }
 
     /**

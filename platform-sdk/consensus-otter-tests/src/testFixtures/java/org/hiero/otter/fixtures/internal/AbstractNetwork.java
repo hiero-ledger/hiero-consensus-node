@@ -14,12 +14,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -43,12 +39,16 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -59,6 +59,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -66,12 +67,15 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.Connection;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -85,7 +89,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -125,9 +128,9 @@ public abstract class AbstractNetwork implements Network {
     private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
     private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
-    private final Topology topology;
     private final boolean useRandomNodeIds;
 
+    private Topology currentTopology;
     protected final NetworkConfiguration networkConfiguration;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
@@ -143,8 +146,10 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
-        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
         this.useRandomNodeIds = useRandomNodeIds;
+        // Initialize with default GeoMeshTopology
+        this.currentTopology = new GeoMeshTopologyImpl(
+                GeoMeshTopologyConfiguration.DEFAULT, random, this::createNodes, this::createInstrumentedNode);
         this.networkConfiguration = new NetworkConfiguration();
     }
 
@@ -154,7 +159,36 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Topology topology() {
-        return topology;
+        return currentTopology;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network topology(@NonNull final TopologyConfiguration configuration) {
+        // Only allow topology configuration during network initialization
+        throwIfNotInLifecycle(Lifecycle.INIT, "Topology can only be configured during network initialization.");
+
+        requireNonNull(configuration);
+
+        // Prevent reconfiguration if nodes already added
+        if (!topology().nodes().isEmpty()) {
+            throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
+        }
+
+        // Dispatch to appropriate implementation based on configuration type
+        this.currentTopology = switch (configuration) {
+            case MeshTopologyConfiguration meshConfig ->
+                new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+            case GeoMeshTopologyConfiguration geoConfig ->
+                new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+            default ->
+                throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
+        };
+
+        return this;
     }
 
     /**
@@ -205,7 +239,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     @Override
-    public @NotNull Roster roster() {
+    public @NonNull Roster roster() {
         if (lifecycle == Lifecycle.INIT) {
             throw new IllegalStateException("The roster is not available before the network is started.");
         }
@@ -229,7 +263,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
+            return CryptoStatic.generateKeysAndCerts(nodeIds).entrySet().stream()
                     .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
@@ -255,7 +289,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
-                    CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
+                    CryptoStatic.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
             return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
@@ -372,8 +406,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Connection connection(@NonNull final Node node1, @NonNull final Node node2) {
-        return new ConnectionImpl(directionalConnection(node1, node2), directionalConnection(node2, node1));
+    public BidirectionalConnection bidirectionalConnection(@NonNull final Node node1, @NonNull final Node node2) {
+        return new BidirectionalConnectionImpl(
+                unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
     }
 
     /**
@@ -381,8 +416,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public DirectionalConnection directionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
-        return new DirectionalConnectionImpl(sender, receiver);
+    public UnidirectionalConnection unidirectionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
+        return new UnidirectionalConnectionImpl(sender, receiver);
     }
 
     /**
@@ -593,6 +628,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
+        connected.clear();
         latencyOverrides.clear();
         bandwidthOverrides.clear();
         updateConnections();
@@ -696,7 +732,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
+    public @NonNull Network withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
@@ -938,7 +974,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public boolean nodesAreBehindByNodeCount(
             @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
-        final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<Node> maybeBehindNodes = Utils.toSet(maybeBehindNode, otherMaybeBehindNodes);
         final Set<Node> peerNodes =
                 nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 
@@ -1133,22 +1169,22 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Implementation of the DirectionalConnection interface.
+     * Implementation of the UnidirectionalConnection interface.
      */
-    private class DirectionalConnectionImpl implements DirectionalConnection {
+    private class UnidirectionalConnectionImpl implements UnidirectionalConnection {
 
         private final Node sender;
         private final Node receiver;
         private final ConnectionKey connectionKey;
 
         /**
-         * Constructs a DirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
+         * Constructs a UnidirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
          *
          * @param sender         the starting node of the connection
          * @param receiver           the ending node of the connection
          * @throws NullPointerException if any of the parameters are null
          */
-        public DirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
+        public UnidirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
             this.sender = requireNonNull(sender);
             this.receiver = requireNonNull(receiver);
             this.connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
@@ -1177,7 +1213,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void disconnect() {
+            log.info("Disconnecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, false);
+            updateConnections();
         }
 
         /**
@@ -1185,7 +1223,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void connect() {
+            log.info("Connecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, true);
+            updateConnections();
         }
 
         /**
@@ -1201,6 +1241,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreConnectivity() {
+            log.info("Restoring connectivity from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.remove(connectionKey);
             restoreLatency();
             restoreBandwidthLimit();
@@ -1221,7 +1262,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void latency(@NonNull final Duration latency) {
             requireNonNull(latency);
+            log.info("Setting latency from node {} to node {} to {}", sender.selfId(), receiver.selfId(), latency);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency, jitter()));
+            updateConnections();
         }
 
         /**
@@ -1239,7 +1282,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void jitter(@NonNull final Percentage jitter) {
             requireNonNull(jitter);
+            log.info("Setting jitter from node {} to node {} to {}", sender.selfId(), receiver.selfId(), jitter);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency(), jitter));
+            updateConnections();
         }
 
         /**
@@ -1247,7 +1292,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreLatency() {
+            log.info("Restoring latency from node {} to node {}", sender.selfId(), receiver.selfId());
             latencyOverrides.remove(connectionKey);
+            updateConnections();
         }
 
         /**
@@ -1265,7 +1312,13 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
             requireNonNull(bandwidthLimit);
+            log.info(
+                    "Setting bandwidth limit from node {} to node {} to {}",
+                    sender.selfId(),
+                    receiver.selfId(),
+                    bandwidthLimit);
             bandwidthOverrides.put(connectionKey, bandwidthLimit);
+            updateConnections();
         }
 
         /**
@@ -1273,9 +1326,12 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreBandwidthLimit() {
+            log.info("Restoring bandwidth limit from node {} to node {}", sender.selfId(), receiver.selfId());
             bandwidthOverrides.remove(connectionKey);
+            updateConnections();
         }
     }
 
-    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
+    private record LatencyOverride(
+            @NonNull Duration latency, @NonNull Percentage jitter) {}
 }

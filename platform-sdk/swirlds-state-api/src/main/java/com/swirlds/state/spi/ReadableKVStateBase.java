@@ -50,6 +50,7 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      * @param readCache A map that is used to init the cache.
      */
     // This constructor is used by some consumers of the API that are outside of this repository.
+    @SuppressWarnings("unused")
     protected ReadableKVStateBase(final int stateId, final String label, @NonNull ConcurrentMap<K, V> readCache) {
         this.stateId = stateId;
         this.readCache = Objects.requireNonNull(readCache);
@@ -87,13 +88,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
         return unmodifiableReadKeys;
     }
 
-    /** {@inheritDoc} */
-    @NonNull
-    @Override
-    public Iterator<K> keys() {
-        return iterateFromDataSource();
-    }
-
     /** Clears all cached data, including the set of all read keys. */
     /*@OverrideMustCallSuper*/
     public void reset() {
@@ -108,14 +102,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      * @return The value read from the underlying data source. May be null.
      */
     protected abstract V readFromDataSource(@NonNull K key);
-
-    /**
-     * Gets an iterator from the data source that iterates over all keys.
-     *
-     * @return An iterator over all keys in the data source.
-     */
-    @NonNull
-    protected abstract Iterator<K> iterateFromDataSource();
 
     /**
      * Records the given key and associated value were read.

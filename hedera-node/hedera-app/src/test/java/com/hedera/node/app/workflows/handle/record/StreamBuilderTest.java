@@ -66,6 +66,7 @@ public class StreamBuilderTest {
     public static final long TOPIC_SEQUENCE_NUMBER = 928782L;
     public static final long TOPIC_RUNNING_HASH_VERSION = 153513L;
     public static final long NEW_TOTAL_SUPPLY = 34134546L;
+    public static final long HIGH_VOLUME_PRICING_MULTIPLIER = 4L;
     public static final String MEMO = "Yo Memo";
     private static final Bytes FAKE_BODY_BYTES = Bytes.wrap("body-bytes");
     private static final SignatureMap FAKE_SIG_MAP = SignatureMap.newBuilder()
@@ -166,7 +167,8 @@ public class StreamBuilderTest {
                 .serialNumbers(serialNumbers)
                 .contractStateChanges(List.of(new AbstractMap.SimpleEntry<>(contractStateChanges, false)))
                 .addContractActions(contractActions, false)
-                .addContractBytecode(contractBytecode, false);
+                .addContractBytecode(contractBytecode, false)
+                .highVolumePricingMultiplier(HIGH_VOLUME_PRICING_MULTIPLIER);
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             singleTransactionRecordBuilder.entropyBytes(prngBytes);
@@ -224,6 +226,9 @@ public class StreamBuilderTest {
         assertEquals(
                 paidStakingRewards, singleTransactionRecord.transactionRecord().paidStakingRewards());
         assertEquals(evmAddress, singleTransactionRecord.transactionRecord().evmAddress());
+        assertEquals(
+                HIGH_VOLUME_PRICING_MULTIPLIER,
+                singleTransactionRecord.transactionRecord().highVolumePricingMultiplier());
 
         assertTransactionReceiptProps(
                 singleTransactionRecord.transactionRecord().receipt(), serialNumbers);

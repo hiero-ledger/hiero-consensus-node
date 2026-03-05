@@ -18,6 +18,8 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,13 +30,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,9 +49,14 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 @DisplayName("SignedStateMetadata Tests")
 class SavedStateMetadataTests {
@@ -200,13 +204,10 @@ class SavedStateMetadataTests {
 
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(state.getHash()).thenReturn(randomHash(random));
-        when(platformStateFacade.legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
-        when(platformStateFacade.consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
         final Roster roster = mock(Roster.class);
         RosterServiceStateMock.setup(state, roster);
@@ -216,10 +217,14 @@ class SavedStateMetadataTests {
         when(sigSet.getSigningNodes())
                 .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        final SavedStateMetadata metadata =
-                SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now(), platformStateFacade);
+        try (final MockedStatic<PlatformStateUtils> facadeMock = Mockito.mockStatic(PlatformStateUtils.class)) {
+            facadeMock.when(() -> legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
+            facadeMock.when(() -> consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
-        assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+            final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now());
+
+            assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+        }
     }
 
     @Test

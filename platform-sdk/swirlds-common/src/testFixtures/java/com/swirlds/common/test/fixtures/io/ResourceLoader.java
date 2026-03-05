@@ -13,6 +13,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.consensus.exceptions.ResourceNotFoundException;
 
 /**
  * Contains utilities for loading files and other resources from disk.

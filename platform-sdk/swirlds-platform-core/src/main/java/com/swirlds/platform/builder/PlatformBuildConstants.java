@@ -12,11 +12,6 @@ public final class PlatformBuildConstants {
     public static final String LOG4J_FILE_NAME = "log4j2.xml";
 
     /**
-     * The name of the default configuration file (i.e. where the initial address book can be specified).
-     */
-    public static final String DEFAULT_CONFIG_FILE_NAME = "config.txt";
-
-    /**
      * The name of the default settings file (i.e. where configuration comes from... we know this is confusing, API is a
      * work in progress).
      */

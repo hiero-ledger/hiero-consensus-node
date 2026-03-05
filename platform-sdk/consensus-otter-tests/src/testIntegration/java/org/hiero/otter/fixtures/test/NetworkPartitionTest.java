@@ -5,14 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -22,8 +21,6 @@ import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Tests for the network partition functionality in the Network interface.
@@ -31,12 +28,27 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NetworkPartitionTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
+     * Test creating and removing a partition with multiple nodes (Turtle environment).
      *
-     * @return a stream of {@link TestEnvironment} instances
+     * <p>Setting up environments other than Turtle is quite expensive. Therefore, this test covers the full lifecycle
+     * of a partition, including creation, verification, and removal. It ensures that the partitioning logic works
+     * correctly and that nodes respond appropriately to changes in network topology.
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @Test
+    void testCreateAndRemovePartitionTurtle() {
+        testCreateAndRemovePartition(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test creating and removing a partition with multiple nodes (Container environment).
+     *
+     * <p>Setting up environments other than Turtle is quite expensive. Therefore, this test covers the full lifecycle
+     * of a partition, including creation, verification, and removal. It ensures that the partitioning logic works
+     * correctly and that nodes respond appropriately to changes in network topology.
+     */
+    @Test
+    void testCreateAndRemovePartitionContainer() {
+        testCreateAndRemovePartition(new ContainerTestEnvironment());
     }
 
     /**
@@ -49,9 +61,7 @@ class NetworkPartitionTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
+    private void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

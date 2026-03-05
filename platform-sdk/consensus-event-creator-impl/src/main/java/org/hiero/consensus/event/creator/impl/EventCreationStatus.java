@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
-import org.hiero.consensus.event.creator.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 
 /**
  * Describes various status that the event creator may be in.

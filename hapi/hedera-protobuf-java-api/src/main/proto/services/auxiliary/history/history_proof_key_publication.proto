@@ -13,19 +13,41 @@ syntax = "proto3";
 package com.hedera.hapi.services.auxiliary.history;
 
 // SPDX-License-Identifier: Apache-2.0
+import "services/state/history/history_types.proto";
+
+// SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hedera.hapi.services.auxiliary.history.legacy";
 // <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.history">>> This comment is special code for setting PBJ Compiler java package
 
 option java_multiple_files = true;
 
 /**
- * A transaction body to publish a node's history proof key.
+ * A transaction body to publish a node's history proof key and
+ * WRAPS messages.
  */
 message HistoryProofKeyPublicationTransactionBody {
+  oneof data {
+    /**
+     * The proof key the submitting node intends to use when
+     * contributing WRAPS messages for use in proving history
+     * belongs to the chain of trust for the ledger id.
+     */
+    bytes proof_key = 1;
+
+    /**
+     * A WRAPS message from the submitting node.
+     */
+    bytes wraps_message = 2;
+  }
+
   /**
-   * The proof key the submitting node intends to use when
-   * contributing signatures for use in proving history
-   * belongs to the chain of trust for the ledger id.
+   * The id of the proof construction this publication is for.
    */
-  bytes proof_key = 1;
+  uint64 construction_id = 3;
+
+  /**
+   * The phase of the proof construction this key is being
+   * published for.
+   */
+  com.hedera.hapi.node.state.history.WrapsPhase phase = 4;
 }

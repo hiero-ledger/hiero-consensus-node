@@ -7,7 +7,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.LongSupplier;
-import org.hiero.consensus.event.creator.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 
 /**

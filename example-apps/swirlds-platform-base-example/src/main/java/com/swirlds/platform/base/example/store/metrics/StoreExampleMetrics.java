@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.base.example.store.metrics;
 
-import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.base.example.store.persistence.InventoryDao;
@@ -10,6 +8,8 @@ import com.swirlds.platform.base.example.store.persistence.ItemDao;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import org.hiero.consensus.metrics.DurationGauge;
+import org.hiero.consensus.metrics.FunctionGauge;
 
 /**
  * All application

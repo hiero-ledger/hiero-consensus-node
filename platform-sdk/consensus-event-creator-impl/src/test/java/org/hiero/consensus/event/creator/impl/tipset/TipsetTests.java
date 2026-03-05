@@ -3,17 +3,17 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.creator.impl.util.CollectionsUtilities.permutations;
 
-import com.google.common.collect.Collections2;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -71,7 +71,7 @@ class TipsetTests {
         final Tipset biggerTipset = new Tipset(roster);
         final Tipset smallerTipset = new Tipset(roster);
 
-        for (var entry : roster.rosterEntries()) {
+        for (final RosterEntry entry : roster.rosterEntries()) {
             maxTipset.advance(NodeId.of(entry.nodeId()), Long.MAX_VALUE);
             final long generation = random.nextLong(1, Long.MAX_VALUE - 1);
             biggerTipset.advance(NodeId.of(entry.nodeId()), generation + 1);
@@ -109,24 +109,23 @@ class TipsetTests {
 
         // verify that tipsets being merged to a list of tiptsets returns the biggest in the list regardless of
         // the position the tipset being merged to occupies in the list
-        for (var listOfTipsets : Collections2.permutations(List.of(randomTipset, biggerTipset, smallerTipset))) {
+        for (final var listOfTipsets : permutations(List.of(randomTipset, biggerTipset, smallerTipset))) {
             assertThat(emptyTipset.merge(listOfTipsets)).isEqualTo(biggerTipset);
         }
 
-        for (var listOfTipsets :
-                Collections2.permutations(List.of(randomTipset, maxTipset, biggerTipset, smallerTipset))) {
+        for (final var listOfTipsets : permutations(List.of(randomTipset, maxTipset, biggerTipset, smallerTipset))) {
             assertThat(emptyTipset.merge(listOfTipsets)).isEqualTo(maxTipset);
         }
 
-        for (var listOfTipsets : Collections2.permutations(List.of(emptyTipset, biggerTipset, randomTipset))) {
+        for (final var listOfTipsets : permutations(List.of(emptyTipset, biggerTipset, randomTipset))) {
             assertThat(smallerTipset.merge(listOfTipsets)).isEqualTo(biggerTipset);
         }
 
         // verify that tipsets being merged to a list of tiptsets containing itself still produces the expected result
         // regardless of the position the tipset being merged to occupies in the list
         final List<Tipset> exaustiveList = List.of(emptyTipset, biggerTipset, randomTipset, smallerTipset);
-        for (var selected : exaustiveList) {
-            for (var listOfTipsets : Collections2.permutations(exaustiveList)) {
+        for (final var selected : exaustiveList) {
+            for (final var listOfTipsets : permutations(exaustiveList)) {
                 assertThat(selected.merge(listOfTipsets)).isEqualTo(biggerTipset);
             }
         }

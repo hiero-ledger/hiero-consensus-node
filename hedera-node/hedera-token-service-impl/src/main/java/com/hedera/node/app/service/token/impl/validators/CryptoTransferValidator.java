@@ -17,8 +17,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_HOOK_INVOCATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHookExecutions;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -35,6 +37,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HooksConfig;
@@ -94,13 +97,15 @@ public class CryptoTransferValidator {
      * @param accountsConfig the accounts config
      * @param hooksConfig the hooks config
      * @param category the transaction category
+     * @param payer the payer account ID
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final AccountsConfig accountsConfig,
             @NonNull final HooksConfig hooksConfig,
-            final HandleContext.TransactionCategory category) {
+            final HandleContext.TransactionCategory category,
+            @NonNull final AccountID payer) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
         // validate hooks are enabled if hooks are present in the transaction
         if (hasHookExecutions(op)) {
@@ -108,23 +113,28 @@ public class CryptoTransferValidator {
             validateTrue(
                     category.equals(HandleContext.TransactionCategory.USER),
                     HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER);
-            validateHookGasLimit(op, hooksConfig);
+            validateHookGasLimitAndInvocations(op, hooksConfig);
         }
 
         // Validate that there aren't too many hbar transfers
         final var hbarTransfers = transfers.accountAmounts();
-
-        // If the payer is node rewards account, we are dispatching synthetic node rewards. So skip checking the limits.
+        // If the debit account is node rewards account or fee collection account, we are dispatching synthetic
+        // node rewards or node fee distributions. So skip checking the limits.
         if (hbarTransfers.size() > ledgerConfig.transfersMaxLen()) {
-            final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
-            validateTrue(
-                    hbarTransfers.stream()
-                            .filter(aa -> aa.amount() < 0)
-                            .anyMatch(aa -> nodeRewardAccountId.equals(aa.accountID())),
-                    TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+            // One special case allowing the system admin to distribute a large number of fee payments or rewards
+            if (entityIdFactory.newAccountId(accountsConfig.systemAdmin()).equals(payer)) {
+                final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
+                final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+                validateTrue(
+                        hbarTransfers.stream()
+                                .filter(aa -> aa.amount() < 0)
+                                .anyMatch(aa -> (nodeRewardAccountId.equals(aa.accountID())
+                                        || feeCollectionAccountId.equals(aa.accountID()))),
+                        TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+            } else {
+                throw new HandleException(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+            }
         }
-
-        // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
         final var tokenTransfers = op.tokenTransfers();
@@ -145,26 +155,54 @@ public class CryptoTransferValidator {
                     TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
+            final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+            //  Verify that no credits are going to the fee collection account.
+            //  We validate hbar transfers in AdjustHbarChangesStep
+            validateNoCreditsToFeeCollectionAccount(tokenTransfer, feeCollectionAccount);
         }
     }
 
-    private void validateHookGasLimit(final CryptoTransferTransactionBody op, final HooksConfig hooksConfig) {
-        final var gasLimit = hooksConfig.lambdaIntrinsicGasCost();
+    /**
+     * Verify that no credits are going to the fee collection account
+     *
+     * @param transferList token transfer list
+     * @param feeCollectionAccount fee collection account
+     */
+    private void validateNoCreditsToFeeCollectionAccount(
+            final TokenTransferList transferList, final AccountID feeCollectionAccount) {
+        validateTrue(
+                transferList.transfers().stream()
+                        .noneMatch(aa -> (aa.amount() > 0 && aa.accountID().equals(feeCollectionAccount))),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+        validateTrue(
+                transferList.nftTransfers().stream()
+                        .noneMatch(
+                                nftTransfer -> nftTransfer.receiverAccountID().equals(feeCollectionAccount)),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+    }
+
+    private void validateHookGasLimitAndInvocations(
+            final CryptoTransferTransactionBody op, final HooksConfig hooksConfig) {
+        final var gasLimit = hooksConfig.evmHookIntrinsicGasCost();
+        var numHookInvocations = 0;
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
-            validateFungibleTransferHooks(aa, gasLimit);
+            numHookInvocations += validateFungibleTransferHooks(aa, gasLimit);
         }
         for (final var tokenTransfer : op.tokenTransfers()) {
             for (final var aa : tokenTransfer.transfers()) {
-                validateFungibleTransferHooks(aa, gasLimit);
+                numHookInvocations += validateFungibleTransferHooks(aa, gasLimit);
             }
             for (final var nftTransfer : tokenTransfer.nftTransfers()) {
-                validateNftTransferHooks(nftTransfer, gasLimit);
+                numHookInvocations += validateNftTransferHooks(nftTransfer, gasLimit);
             }
         }
+        validateTrue(numHookInvocations <= hooksConfig.maxHookInvocationsPerTransaction(), TOO_MANY_HOOK_INVOCATIONS);
     }
 
-    private void validateNftTransferHooks(final NftTransfer nftTransfer, final int gasLimit) {
+    private int validateNftTransferHooks(final NftTransfer nftTransfer, final int gasLimit) {
+        int numInvocations = 0;
         if (nftTransfer.hasPreTxSenderAllowanceHook()) {
+            numInvocations++;
             validateTrue(nftTransfer.preTxSenderAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(
                     nftTransfer
@@ -175,6 +213,7 @@ public class CryptoTransferValidator {
                     INSUFFICIENT_GAS);
         }
         if (nftTransfer.hasPrePostTxSenderAllowanceHook()) {
+            numInvocations += 2;
             validateTrue(nftTransfer.prePostTxSenderAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(
                     nftTransfer
@@ -185,6 +224,7 @@ public class CryptoTransferValidator {
                     INSUFFICIENT_GAS);
         }
         if (nftTransfer.hasPreTxReceiverAllowanceHook()) {
+            numInvocations++;
             validateTrue(nftTransfer.preTxReceiverAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(
                     nftTransfer
@@ -195,6 +235,7 @@ public class CryptoTransferValidator {
                     INSUFFICIENT_GAS);
         }
         if (nftTransfer.hasPrePostTxReceiverAllowanceHook()) {
+            numInvocations += 2;
             validateTrue(nftTransfer.prePostTxReceiverAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(
                     nftTransfer
@@ -204,18 +245,23 @@ public class CryptoTransferValidator {
                             > gasLimit,
                     INSUFFICIENT_GAS);
         }
+        return numInvocations;
     }
 
-    private static void validateFungibleTransferHooks(final AccountAmount aa, final int gasLimit) {
+    private static int validateFungibleTransferHooks(final AccountAmount aa, final int gasLimit) {
+        int numInvocations = 0;
         if (aa.hasPreTxAllowanceHook()) {
+            numInvocations++;
             validateTrue(aa.preTxAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit() > gasLimit, INSUFFICIENT_GAS);
         }
         if (aa.hasPrePostTxAllowanceHook()) {
+            numInvocations += 2;
             validateTrue(aa.prePostTxAllowanceHookOrThrow().hasEvmHookCall(), BAD_HOOK_REQUEST);
             validateTrue(
                     aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit() > gasLimit, INSUFFICIENT_GAS);
         }
+        return numInvocations;
     }
 
     public static void validateTokenTransfers(

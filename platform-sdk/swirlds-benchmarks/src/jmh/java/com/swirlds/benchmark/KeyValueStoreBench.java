@@ -34,7 +34,6 @@ public class KeyValueStoreBench extends BaseBench {
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
-        final BenchmarkRecordSerializer serializer = new BenchmarkRecordSerializer();
         final var store = new MemoryIndexDiskKeyValueStore(
                 dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
         final DataFileCompactor compactor = new DataFileCompactor(
@@ -71,7 +70,8 @@ public class KeyValueStoreBench extends BaseBench {
                         throw new RuntimeException("Missing value");
                     }
                 } else {
-                    BenchmarkRecord dataItem = serializer.deserialize(dataItemBytes);
+                    BenchmarkRecord dataItem = new BenchmarkRecord();
+                    dataItem.deserialize(dataItemBytes);
                     if (!dataItem.equals(map[key])) {
                         throw new RuntimeException("Bad value");
                     }

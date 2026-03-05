@@ -9,8 +9,7 @@ state between nodes.
 The state of the system is, ultimately, stored in a Merkle tree using an API defined by the hashgraph platform. However,
 this implementation reality is not a detail that any of the service implementations need to be aware of! Instead, all
 state stored in the system can ultimately be broken down into simple singleton or key/value data structures. Indeed,
-the hashgraph platform makes this easy with an API for in-memory k/v storage (MerkleMap) and on-disk k/v storage
-(VirtualMap).
+the hashgraph platform makes this easy with an API for k/v storage (VirtualMap).
 
 The `com.hedera.node.app.spi.state` package contains APIs for a service module to interact with state. It was our
 objective to eliminate the need for a service module to interact directly with the merkle tree. This was done for four
@@ -87,9 +86,7 @@ or mutable and immutable states. It is simply given, by the application, the `Re
 
 There are two "state" interfaces for k/v maps: `ReadableKVState` and `WritableKVState`. `WritableKVState` extends from
 `ReadableKVState`, so a `WritableKVState` is read/write. The application module implements these interfaces on top of
-`MerkleMap`s or `VirtualMap`s, depending on whether the application's `Schema` declares the state to be in-memory
-or on-disk (more on this later). The service module only declares whether the state should be in-memory or on-disk,
-it does not ever get exposed to either the `MerkleMap` or `VirtualMap` directly.
+a `VirtualMap`. The service module does not ever get exposed to `VirtualMap` directly.
 
 Each state is scoped to a particular service implementation. They are never shared across service implementations.
 In fact, the state of a service **MUST NOT** be exposed as public API by any service API. The state of a service

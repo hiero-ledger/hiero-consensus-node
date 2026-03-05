@@ -10,7 +10,6 @@ module com.hedera.node.app.spi {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.apache.logging.log4j;
-    requires org.hiero.base.utility;
     requires static transitive com.github.spotbugs.annotations;
 
     // for test assertions that use reflection
@@ -32,4 +31,5 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi.metrics;
     exports com.hedera.node.app.spi.info;
     exports com.hedera.node.app.spi.migrate;
+    exports com.hedera.node.app.spi.fees.util;
 }

@@ -56,4 +56,9 @@ message BufferedBlock {
    * The block data.
    */
   com.hedera.hapi.block.stream.Block block = 5;
+
+  /**
+   * The timestamp this block's header was added to the Block.
+   */
+  proto.Timestamp opened_timestamp = 6;
 }

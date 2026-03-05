@@ -56,7 +56,7 @@ class ExchangeRateManagerTest {
         final var state = new FakeState();
         final var midnightRates = new AtomicReference<>(validRatesObj);
         state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, midnightRates));
-        subject.init(state, validRateBytes);
+        subject.init(state, validRateBytes, validRatesObj);
     }
 
     @Test

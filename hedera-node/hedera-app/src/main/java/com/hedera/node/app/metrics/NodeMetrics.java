@@ -4,7 +4,6 @@ package com.hedera.node.app.metrics;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 @Singleton
 public class NodeMetrics {

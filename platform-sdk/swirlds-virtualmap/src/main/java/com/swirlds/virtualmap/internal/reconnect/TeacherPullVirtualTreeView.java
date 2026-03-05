@@ -2,31 +2,24 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
@@ -39,7 +32,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
  * learner side.
  */
-public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
+public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
 
@@ -48,23 +41,11 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor records;
-
-    /**
-     * This latch counts down when the view is fully initialized and ready for use.
-     */
-    private final CountDownLatch readyLatch = new CountDownLatch(1);
-
-    /**
-     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
-     */
-    private final AtomicBoolean ready = new AtomicBoolean(false);
+    private final RecordAccessor records;
 
     /**
      * Create a new {@link TeacherPullVirtualTreeView}.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
      * @param map
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
@@ -73,7 +54,6 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * 		The pipeline managing the virtual map.
      */
     public TeacherPullVirtualTreeView(
-            final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
             final VirtualMap map,
             final VirtualMapMetadata state,
@@ -81,19 +61,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
         // There is no distinction between originalState and reconnectState in this implementation
         super(map, state, state);
         this.reconnectConfig = reconnectConfig;
-        new ThreadConfiguration(threadManager)
-                .setRunnable(() -> {
-                    try {
-                        records = pipeline.pausePipelineAndRun("copy", map::detach);
-                        ready.set(true);
-                    } finally {
-                        readyLatch.countDown();
-                    }
-                })
-                .setComponent("virtualmap")
-                .setThreadName("detacher")
-                .build()
-                .start();
+        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
     }
 
     @Override
@@ -101,75 +69,40 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<TeacherSubtree> subtrees) {
-        final AsyncOutputStream<PullVirtualTreeResponse> out =
-                teachingSynchronizer.buildOutputStream(workGroup, outputStream);
-        out.start();
-
-        final TeacherPullVirtualTreeReceiveTask teacherReceiveTask =
-                new TeacherPullVirtualTreeReceiveTask(time, reconnectConfig, workGroup, inputStream, out, this);
-        teacherReceiveTask.exec();
-    }
-
-    private boolean isLeaf(final long path) {
-        return (path >= reconnectState.getFirstLeafPath()) && (path <= reconnectState.getLastLeafPath());
-    }
-
-    /**
-     * Writes the virtual node identified by a given path to the output stream.
-     *
-     * <p>For the root node (path 0), reconnect state information is written: the first leaf path (long)
-     * and the last leaf path (long). Other internal nodes are not written at all.
-     *
-     * <p>For dirty leaf nodes, the corresponding leaf records are written. Clean leaf nodes aren't
-     * written at all.
-     *
-     * @param out the output stream
-     * @param path the virtual path
-     * @param isClean indicates if the virtual node on the learner side matches what's on the teacher
-     * @throws IOException if an I/O error occurs
-     */
-    public void writeNode(final SerializableDataOutputStream out, final long path, final boolean isClean)
-            throws IOException {
-        checkValidNode(path, reconnectState);
-        if (path == 0) {
-            out.writeLong(reconnectState.getFirstLeafPath());
-            out.writeLong(reconnectState.getLastLeafPath());
-        }
-        if (!isClean && isLeaf(path) && (reconnectState.getFirstLeafPath() > 0)) {
-            VirtualReconnectUtils.writeLeafRecord(out, records.findLeafRecord(path));
+            final AsyncInputStream in,
+            final AsyncOutputStream out) {
+        // FUTURE work: pool size config
+        for (int i = 0; i < 16; i++) {
+            final TeacherPullVirtualTreeReceiveTask teacherReceiveTask =
+                    new TeacherPullVirtualTreeReceiveTask(time, reconnectConfig, workGroup, in, out, this);
+            teacherReceiveTask.exec();
         }
     }
 
+    public boolean isLeaf(final long path) {
+        return (path >= reconnectState.getFirstLeafPath())
+                && (path <= reconnectState.getLastLeafPath())
+                && (reconnectState.getFirstLeafPath() > 0);
+    }
+
     /**
-     * Read the virtual node hash identified by a given path.
+     * Read the virtual hash identified by a given path.
      *
      * @param path the virtual path
-     * @return the virtual node hash
+     * @return the node hash
      */
     public Hash loadHash(final long path) {
         return records.findHash(path);
     }
 
     /**
-     * {@inheritDoc}
+     * Read the virtual leaf identified by a given path.
+     *
+     * @param path the virtual path
+     * @return the leaf
      */
-    @Override
-    public void waitUntilReady() throws InterruptedException {
-        readyLatch.await();
-        if (!ready.get()) {
-            throw new RuntimeException("Failed to wait until teacher view is ready");
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getRoot() {
-        return ROOT_PATH;
+    public VirtualLeafBytes<?> loadLeaf(final long path) {
+        return records.findLeafRecord(path);
     }
 
     /**
@@ -261,23 +194,11 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public boolean isCustomReconnectRoot(final Long node) {
-        return node == ROOT_PATH;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         try {
-            waitUntilReady();
             records.close();
         } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Failed to close data source properly", e);
-            Thread.currentThread().interrupt();
+            logger.error(EXCEPTION.getMarker(), "Interrupted while attempting to close data source");
         }
     }
 }

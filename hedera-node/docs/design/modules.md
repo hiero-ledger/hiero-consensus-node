@@ -51,7 +51,6 @@ for unit tests. Other test sets can be added by applying additional feature plug
 
 - `id("org.hiero.gradle.feature.test-hammer")`
 - `id("org.hiero.gradle.feature.test-integration")`
-- `id("org.hiero.gradle.feature.test-time-consuming")`
 - `id("org.hiero.gradle.feature.test-timing-sensitive")`
 
 Next to this, the test fixtures functionality of Gradle is supported.

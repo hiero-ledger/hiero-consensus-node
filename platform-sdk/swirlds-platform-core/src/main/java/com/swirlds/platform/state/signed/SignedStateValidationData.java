@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -28,15 +33,17 @@ public record SignedStateValidationData(
         @Nullable Hash rosterHash,
         @NonNull Hash consensusEventsRunningHash) {
 
-    public SignedStateValidationData(
-            @NonNull final State that,
-            @Nullable final Roster roster,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+    public SignedStateValidationData {
+        requireNonNull(consensusTimestamp);
+        requireNonNull(consensusEventsRunningHash);
+    }
+
+    public SignedStateValidationData(@NonNull final State that, @Nullable final Roster roster) {
         this(
-                platformStateFacade.roundOf(that),
-                platformStateFacade.consensusTimestampOf(that),
+                roundOf(that),
+                Optional.ofNullable(consensusTimestampOf(that)).orElse(Instant.EPOCH),
                 roster == null ? null : RosterUtils.hash(roster),
-                platformStateFacade.legacyRunningEventHashOf(that));
+                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash()));
     }
 
     /**

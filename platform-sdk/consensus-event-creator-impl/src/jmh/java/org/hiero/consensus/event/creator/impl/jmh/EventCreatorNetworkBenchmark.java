@@ -5,16 +5,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -25,13 +19,21 @@ import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningImplementation;
-import org.hiero.consensus.event.creator.EventCreationConfig;
-import org.hiero.consensus.event.creator.EventCreationConfig_;
-import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig_;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -47,7 +49,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Benchmark for measuring event creation throughput of {@link DefaultEventCreator} instances. This benchmark runs
+ * Benchmark for measuring event creation throughput of {@link DefaultEventCreationManager} instances. This benchmark runs
  * multiple event creators in a single thread. Although this is not a completely accurate benchmark of a single event
  * creator, it should be a good approximation of throughput. The reason for using multiple event creators is that it
  * is not trivial to use just one, since it has to build on top of events created by other nodes.
@@ -70,7 +72,7 @@ public class EventCreatorNetworkBenchmark {
     public SigningImplementation signingType;
 
     /** The event creators for each node in the network. */
-    private List<DefaultEventCreator> eventCreators;
+    private List<DefaultEventCreationManager> eventCreators;
 
     /** The roster defining the network. */
     private Roster roster;
@@ -119,16 +121,17 @@ public class EventCreatorNetworkBenchmark {
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
+            final EventCreator eventCreator =
+                    new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of);
 
-            final DefaultEventCreator eventCreator = new DefaultEventCreator();
-            eventCreator.initialize(
-                    configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of, () -> false);
+            final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
+                    configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
 
             // Set platform status to ACTIVE so events can be created
-            eventCreator.updatePlatformStatus(PlatformStatus.ACTIVE);
-            eventCreator.setEventWindow(eventWindow);
+            eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
+            eventCreationManager.setEventWindow(eventWindow);
 
-            eventCreators.add(eventCreator);
+            eventCreators.add(eventCreationManager);
         }
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
 
@@ -167,7 +170,7 @@ public class EventCreatorNetworkBenchmark {
         EventCreatorNetworkBenchmark.networkEventCreation           8       0     ED25519_SUN  thrpt    2   2153.820          ops/s
         */
         PlatformEvent newEvent = null;
-        for (final DefaultEventCreator creator : eventCreators) {
+        for (final DefaultEventCreationManager creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();
             if (event != null) {
                 newEvent = event;
@@ -184,7 +187,7 @@ public class EventCreatorNetworkBenchmark {
         }
 
         // Share newly created events with all nodes (simulating gossip)
-        for (final DefaultEventCreator creator : eventCreators) {
+        for (final DefaultEventCreationManager creator : eventCreators) {
             creator.registerEvent(newEvent);
         }
 
@@ -198,7 +201,7 @@ public class EventCreatorNetworkBenchmark {
                     Math.max(1, eventWindow.latestConsensusRound() - 25),
                     Math.max(1, eventWindow.latestConsensusRound() - 25));
 
-            for (final DefaultEventCreator creator : eventCreators) {
+            for (final DefaultEventCreationManager creator : eventCreators) {
                 creator.setEventWindow(eventWindow);
             }
             eventsCreatedInIteration = 0;

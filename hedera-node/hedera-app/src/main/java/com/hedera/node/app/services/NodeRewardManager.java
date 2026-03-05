@@ -6,10 +6,10 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toMap;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -33,7 +33,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,12 +41,14 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
@@ -120,8 +121,7 @@ public class NodeRewardManager {
         roundsThisStakingPeriod++;
         // Track missing judges in this round
         missingJudgesInLastRoundOf(state)
-                .forEach(nodeId ->
-                        missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? roundsThisStakingPeriod : v + 1));
+                .forEach(nodeId -> missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? 1 : v + 1));
     }
 
     /**
@@ -280,7 +280,7 @@ public class NodeRewardManager {
     private @NonNull NodeRewards nodeRewardInfoFrom(@NonNull final State state) {
         final var nodeRewardInfoState =
                 state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
-        return requireNonNull(nodeRewardInfoState.get());
+        return Optional.ofNullable(nodeRewardInfoState.get()).orElse(NodeRewards.DEFAULT);
     }
 
     /**

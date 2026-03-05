@@ -2,12 +2,12 @@
 package com.swirlds.common.test.fixtures;
 
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import org.hiero.consensus.io.RecycleBin;
 
 /**
  * An implementation of a {@link RecycleBin} that immediately deletes recycled files. Technically speaking this

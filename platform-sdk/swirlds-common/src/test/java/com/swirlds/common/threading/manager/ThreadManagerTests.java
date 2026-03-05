@@ -2,7 +2,7 @@
 package com.swirlds.common.threading.manager;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -10,6 +10,8 @@ import com.swirlds.base.state.LifecycleException;
 import java.time.Duration;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.concurrent.manager.StandardThreadManager;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

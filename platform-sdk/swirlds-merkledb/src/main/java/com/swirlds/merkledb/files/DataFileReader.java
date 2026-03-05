@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * }
  * </pre>
  */
-public final class DataFileReader implements AutoCloseable, Comparable<DataFileReader>, IndexedObject {
+public final class DataFileReader implements Comparable<DataFileReader>, IndexedObject {
 
     private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = new ThreadLocal<>();
     private static final ThreadLocal<BufferedData> BUFFEREDDATA_CACHE = new ThreadLocal<>();
@@ -200,7 +200,8 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
     }
 
     /**
-     * Read data item from file at dataLocation.
+     * Read a data item from the file at a given data location. Only data item data is included
+     * in the result buffer.
      *
      * @param dataLocation data item location, which combines data file index and offset in the file
      * @return deserialized data item
@@ -209,7 +210,21 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      */
     public BufferedData readDataItem(final long dataLocation) throws IOException {
         final long byteOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
-        return read(byteOffset);
+        return read(byteOffset, false);
+    }
+
+    /**
+     * Read a data item from the file at a given data location. The result buffer includes data item
+     * tag and data item length, followed by data file data.
+     *
+     * @param dataLocation data item location, which combines data file index and offset in the file
+     * @return deserialized data item
+     * @throws IOException If there was a problem reading from data file
+     * @throws ClosedChannelException if the data file was closed
+     */
+    public BufferedData readDataItemWithTag(final long dataLocation) throws IOException {
+        final long byteOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
+        return read(byteOffset, true);
     }
 
     /**
@@ -278,7 +293,6 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
         return open.get();
     }
 
-    @Override
     public void close() throws IOException {
         if (!open.compareAndSet(true, false)) {
             return;
@@ -378,12 +392,14 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * number of bytes read and be less than bytesToRead.
      *
      * @param byteOffsetInFile Offset to start reading at
+     * @param includeTag Indicates whether the returned data should include FIELD_DATAFILE_ITEMS tag
+     *                   and data item length, or it should be just data item data
      * @return ByteBuffer containing read data. This is a reused per thread buffer, so you can use
      *     it till your thread calls read again.
      * @throws IOException if there was a problem reading
      * @throws ClosedChannelException if the file was closed
      */
-    private BufferedData read(final long byteOffsetInFile) throws IOException {
+    private BufferedData read(final long byteOffsetInFile, final boolean includeTag) throws IOException {
         // Buffer size to read data item tag and size. If the whole item is small and
         // fits into this buffer, there is no need to make an extra file read
         final int PRE_READ_BUF_SIZE = 2048;
@@ -427,30 +443,30 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
                 final int sizeOfTag = ProtoWriterTools.sizeOfUnsignedVarInt32(tag);
                 final int size = readBuf.getVarInt(sizeOfTag, false);
                 final int sizeOfSize = ProtoWriterTools.sizeOfUnsignedVarInt32(size);
+                final int totalSize = sizeOfTag + sizeOfSize + size;
                 // Check if the whole data item is already read in the header
-                if (bytesRead >= sizeOfTag + sizeOfSize + size) {
-                    readBuf.position(sizeOfTag + sizeOfSize);
+                if (bytesRead >= totalSize) {
+                    readBuf.position(includeTag ? 0 : sizeOfTag + sizeOfSize);
                     readBuf.limit(sizeOfTag + sizeOfSize + size);
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= size) {
-                    readBB = ByteBuffer.allocate(size);
+                if (readBB.capacity() <= totalSize) {
+                    readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);
                     BUFFEREDDATA_CACHE.set(readBuf);
                 } else {
                     readBB.position(0);
-                    readBB.limit(size);
+                    readBB.limit(totalSize);
                 }
-                bytesRead = MerkleDbFileUtils.completelyRead(
-                        fileChannel, readBB, byteOffsetInFile + sizeOfTag + sizeOfSize);
-                if (bytesRead != size) {
-                    throw new IOException("Failed to read all bytes: toread=" + size + " read=" + bytesRead + " file="
-                            + getIndex() + " off=" + byteOffsetInFile);
+                bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
+                if (bytesRead != totalSize) {
+                    throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead
+                            + " file=" + getIndex() + " off=" + byteOffsetInFile);
                 }
-                readBuf.position(0);
-                readBuf.limit(bytesRead);
+                readBuf.position(includeTag ? 0 : sizeOfTag + sizeOfSize);
+                readBuf.limit(totalSize);
                 return readBuf;
             } catch (final ClosedByInterruptException e) {
                 // If the thread and the channel are interrupted, propagate it to the callers

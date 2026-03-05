@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.token.batch;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.NoFungibleTransfers.changingNoFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.NoNftTransfers.changingNoNftOwners;
@@ -61,7 +61,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TokenTransactSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@Tag(TOKEN)
+@Tag(ATOMIC_BATCH)
 @Tag(MATS)
 class AtomicTokenTransactSpecs {
 

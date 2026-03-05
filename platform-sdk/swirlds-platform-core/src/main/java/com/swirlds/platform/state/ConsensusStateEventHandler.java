@@ -3,16 +3,14 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
@@ -21,7 +19,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * meant to be created once at the start of the application and then used for the lifetime of the application.
  *
  */
-public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
+public interface ConsensusStateEventHandler {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.
@@ -32,7 +30,7 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
      */
     void onPreHandle(
             @NonNull Event event,
-            @NonNull T state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback);
 
     /**
@@ -44,7 +42,7 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
      */
     void onHandleConsensusRound(
             @NonNull Round round,
-            @NonNull T state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback);
 
     /**
@@ -53,7 +51,7 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
      * @return true if sealing this round completes a block, in effect signaling if it is safe to
      * sign this round's state
      */
-    boolean onSealConsensusRound(@NonNull Round round, @NonNull T state);
+    boolean onSealConsensusRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Called when the platform is initializing the network state.
@@ -64,25 +62,15 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
      * @param previousVersion if non-null, the network version that was previously in use
      */
     void onStateInitialized(
-            @NonNull T state,
+            @NonNull State state,
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
             @Nullable SemanticVersion previousVersion);
-
-    /**
-     * Called exclusively by platform test apps to update the weight of the address book. Should be removed
-     * as these apps are refactored to stop using {@link com.swirlds.platform.Browser}.
-     * @param state the working state of the network
-     * @param configAddressBook the address book used to configure the network
-     * @param context the current platform context
-     */
-    @Deprecated(forRemoval = true)
-    void onUpdateWeight(@NonNull T state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context);
 
     /**
      * Called when event stream recovery finishes.
      *
      * @param recoveredState the recovered state after reapplying all events
      */
-    void onNewRecoveredState(@NonNull T recoveredState);
+    void onNewRecoveredState(@NonNull State recoveredState);
 }

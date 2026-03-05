@@ -2,34 +2,32 @@
 package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
-import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This workflow applies a set of blocks to a given state and creates a new snapshot once the state
@@ -37,17 +35,17 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final MerkleNodeState state;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
 
     public BlockStreamRecoveryWorkflow(
-            @NonNull final MerkleNodeState state,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedRootHash) {
-        this.state = state;
+        this.stateLifecycleManager = stateLifecycleManager;
         this.targetRound = targetRound;
         this.outputPath = outputPath;
         this.expectedRootHash = expectedRootHash;
@@ -60,18 +58,18 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final DeserializedSignedState deserializedSignedState;
-        try {
-            deserializedSignedState = StateUtils.getDeserializedSignedState();
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        getPlatformContext().getMetrics(),
+                        getPlatformContext().getTime(),
+                        getPlatformContext().getConfiguration());
+
+        stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
-                new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
-        workflow.applyBlocks(blocks, selfId, PlatformContextHelper.getPlatformContext());
+                new BlockStreamRecoveryWorkflow(stateLifecycleManager, targetRound, outputPath, expectedHash);
+        workflow.applyBlocks(blocks, selfId, getPlatformContext());
     }
 
     public void applyBlocks(
@@ -79,7 +77,8 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext) {
         AtomicBoolean foundStartingRound = new AtomicBoolean();
-        final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
+        final long initRound = roundOf(state);
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
 
@@ -133,39 +132,32 @@ public class BlockStreamRecoveryWorkflow {
         }
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
-        state.copy();
-        state.getRoot().getHash();
+        stateLifecycleManager.copyMutableState();
+        state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
-
-        if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
-            throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
-                    .formatted(expectedRootHash, rootHash));
-        }
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 state,
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
                 false,
-                false,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                false);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                vm -> new HederaVirtualMapState(vm, platformContext.getMetrics(), platformContext.getTime()));
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    outputPath,
-                    signedState,
-                    DEFAULT_PLATFORM_STATE_FACADE,
-                    stateLifecycleManager);
+                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+        if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
+            throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
+                    .formatted(expectedRootHash, rootHash));
         }
     }
 
@@ -184,6 +176,7 @@ public class BlockStreamRecoveryWorkflow {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
             }
             final var serviceName = stateName.substring(0, delimIndex);
+            final var state = stateLifecycleManager.getMutableState();
             final var writableStates = state.getWritableStates(serviceName);
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");

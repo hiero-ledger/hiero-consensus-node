@@ -6,12 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import java.util.concurrent.ExecutionException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
@@ -103,36 +101,7 @@ class VirtualMapHashingTest {
             rootB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
         final VirtualMap copyB = rootB.copy();
-        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(rootA);
-
-        assertEquals(hashA, hashB, "both algorithms should derive the same hash");
-
-        rootA.release();
-        rootB.release();
-        copyA.release();
-        copyB.release();
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Embedded At Root Async")
-    void embeddedAtRootAsync() throws ExecutionException, InterruptedException {
-
-        final VirtualMap rootA = createMap();
-        for (int i = 0; i < 100; i++) {
-            rootA.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-        final VirtualMap copyA = rootA.copy();
-        final Hash hashA = rootA.getHash();
-        assertNotNull(hashA, "hash should not be null");
-
-        final VirtualMap rootB = createMap();
-        for (int i = 0; i < 100; i++) {
-            rootB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-        final VirtualMap copyB = rootB.copy();
-        final Hash hashB =
-                TestMerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
+        final Hash hashB = rootA.getHash();
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
 

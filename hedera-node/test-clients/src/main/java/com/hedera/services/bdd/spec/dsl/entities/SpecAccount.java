@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.atMostOnce;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static java.util.Objects.requireNonNull;
@@ -17,6 +18,7 @@ import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.OwningEntity;
 import com.hedera.services.bdd.spec.dsl.EvmAddressableEntity;
+import com.hedera.services.bdd.spec.dsl.annotations.Hook;
 import com.hedera.services.bdd.spec.dsl.operations.queries.GetAccountInfoOperation;
 import com.hedera.services.bdd.spec.dsl.operations.queries.GetBalanceOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.AirdropOperation;
@@ -42,11 +44,18 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
 
     private final Account.Builder builder = Account.newBuilder();
 
+    private final Hook[] hooks;
+
     private long centBalance = UNSPECIFIED_CENT_BALANCE;
     private com.hederahashgraph.api.proto.java.Key keyProto;
 
     public SpecAccount(@NonNull final String name) {
+        this(name, new Hook[0]);
+    }
+
+    public SpecAccount(@NonNull final String name, @NonNull final Hook[] hooks) {
         super(name);
+        this.hooks = hooks;
     }
 
     /**
@@ -328,6 +337,11 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
         }
         if (model.hasStakedNodeId()) {
             op.stakedNodeId(model.stakedNodeIdOrThrow());
+        }
+        for (final var hook : hooks) {
+            switch (hook.extensionPoint()) {
+                case ACCOUNT_ALLOWANCE_HOOK -> op.withHook(accountAllowanceHook(hook.hookId(), hook.contract()));
+            }
         }
         return new Creation<>(op, model);
     }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
@@ -21,6 +21,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -58,11 +59,11 @@ public class CryptoBench extends VirtualMapBench {
     }
 
     private void initializeFixedAccounts(VirtualMap virtualMap) {
-        fixedKey1 = BenchmarkKey.longToKey(FIXED_KEY_ID1);
+        fixedKey1 = longToKey(FIXED_KEY_ID1);
         if (virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey1, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
-        fixedKey2 = BenchmarkKey.longToKey(FIXED_KEY_ID2);
+        fixedKey2 = longToKey(FIXED_KEY_ID2);
         if (virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey2, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
@@ -141,8 +142,8 @@ public class CryptoBench extends VirtualMapBench {
             for (int j = 0; j < numRecords; ++j) {
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = BenchmarkKey.longToKey(keyId1);
-                Bytes key2 = BenchmarkKey.longToKey(keyId2);
+                Bytes key1 = longToKey(keyId1);
+                Bytes key2 = longToKey(keyId2);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -244,8 +245,8 @@ public class CryptoBench extends VirtualMapBench {
                 final int key = j;
                 prefetchPool.execute(() -> {
                     try {
-                        currentMap.warm(BenchmarkKey.longToKey(keys[key]));
-                        currentMap.warm(BenchmarkKey.longToKey(keys[key + 1]));
+                        currentMap.warm(longToKey(keys[key]));
+                        currentMap.warm(longToKey(keys[key + 1]));
                     } catch (final Exception e) {
                         logger.error("Warmup exception", e);
                     }
@@ -256,8 +257,8 @@ public class CryptoBench extends VirtualMapBench {
             for (int j = 0; j < numRecords; ++j) {
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = BenchmarkKey.longToKey(keyId1);
-                Bytes key2 = BenchmarkKey.longToKey(keyId2);
+                Bytes key1 = longToKey(keyId1);
+                Bytes key2 = longToKey(keyId2);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -371,9 +372,9 @@ public class CryptoBench extends VirtualMapBench {
                         final BlockingQueue<Optional<BenchmarkValue>> queue = queues.get(idx);
                         for (int j = idx * KEYS_PER_RECORD; j < keys.length; j += numThreads * KEYS_PER_RECORD) {
                             queue.put(Optional.ofNullable(
-                                    currentMap.get(BenchmarkKey.longToKey(keys[j]), BenchmarkValueCodec.INSTANCE)));
+                                    currentMap.get(longToKey(keys[j]), BenchmarkValueCodec.INSTANCE)));
                             queue.put(Optional.ofNullable(
-                                    currentMap.get(BenchmarkKey.longToKey(keys[j + 1]), BenchmarkValueCodec.INSTANCE)));
+                                    currentMap.get(longToKey(keys[j + 1]), BenchmarkValueCodec.INSTANCE)));
                         }
                     } catch (InterruptedException ex) {
                         ex.printStackTrace();
@@ -396,8 +397,8 @@ public class CryptoBench extends VirtualMapBench {
                 value2 = value2.copyBuilder().update(l -> l - amount).build();
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                currentMap.put(BenchmarkKey.longToKey(keyId1), value1, BenchmarkValueCodec.INSTANCE);
-                currentMap.put(BenchmarkKey.longToKey(keyId2), value2, BenchmarkValueCodec.INSTANCE);
+                currentMap.put(longToKey(keyId1), value1, BenchmarkValueCodec.INSTANCE);
+                currentMap.put(longToKey(keyId2), value2, BenchmarkValueCodec.INSTANCE);
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
@@ -440,9 +441,11 @@ public class CryptoBench extends VirtualMapBench {
     public static void main(String[] args) throws Exception {
         final CryptoBench bench = new CryptoBench();
         bench.setup();
+        bench.createLocal();
         bench.beforeTest();
         bench.transferPrefetch();
         bench.afterTest();
+        bench.destroyLocal();
         bench.destroy();
     }
 }

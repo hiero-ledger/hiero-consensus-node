@@ -3,9 +3,9 @@ package com.swirlds.platform.state.signer;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This component is responsible for signing states and producing {@link StateSignatureTransaction}s.

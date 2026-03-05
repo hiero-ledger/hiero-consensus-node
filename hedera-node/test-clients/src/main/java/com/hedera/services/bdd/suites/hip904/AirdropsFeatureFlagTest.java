@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -18,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -26,7 +28,7 @@ import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProvi
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -41,7 +43,8 @@ import org.junit.jupiter.api.DynamicTest;
  * from off to on for <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
  */
 public class AirdropsFeatureFlagTest {
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = PROPERTY_OVERRIDES,
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
@@ -69,8 +72,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
 
                     final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferHBARSToHollowAccountTxn)
@@ -104,8 +107,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
 
                     // Verify new hollow account is created and has no associations
@@ -131,7 +134,8 @@ public class AirdropsFeatureFlagTest {
                 }));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = PROPERTY_OVERRIDES,
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaFtTransferAndCompleteIt() {
@@ -165,8 +169,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferFtToHollowAccountTxn);
 
                     final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferFtToHollowAccountTxn)
@@ -201,8 +205,8 @@ public class AirdropsFeatureFlagTest {
                                     .setToken(fungibleTokenId.get())
                                     .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
                                     .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferFtToHollowAccountTxn);
 
                     // Verify new hollow account is created and has an association

@@ -26,6 +26,7 @@ public class AdapterUtils {
                 .setConstant(FEE_MATRICES_CONST)
                 .setRbh(usage.getServiceRbh())
                 .setTv(usage.getServiceTv())
+                .setGas(usage.getServiceGas())
                 .setSbh(usage.getServiceSbh());
         return usages.setNetworkdata(network)
                 .setNodedata(node)

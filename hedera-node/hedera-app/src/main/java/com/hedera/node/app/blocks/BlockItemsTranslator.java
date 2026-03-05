@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -143,10 +144,18 @@ public class BlockItemsTranslator {
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION -> {
-                if (function == CONTRACT_CALL) {
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION -> {
+                if (function == CONTRACT_CALL || function == HOOK_DISPATCH) {
                     recordBuilder.contractCallResult(outputValueIfPresent(
                             TransactionOutput::hasContractCall,
                             translatingExtractor(CONTRACT_CALL_EXTRACTOR, context, logs),

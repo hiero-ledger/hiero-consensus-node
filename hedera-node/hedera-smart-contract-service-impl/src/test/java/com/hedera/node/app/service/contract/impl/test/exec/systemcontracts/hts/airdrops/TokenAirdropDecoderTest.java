@@ -32,7 +32,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.airdrops.TokenAirdropDecoder;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,9 +51,6 @@ public class TokenAirdropDecoderTest {
 
     @Mock
     private Configuration configuration;
-
-    @Mock
-    private TokensConfig tokensConfig;
 
     @Mock
     private LedgerConfig ledgerConfig;

@@ -5,6 +5,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
@@ -15,6 +16,7 @@ import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import dagger.Binds;
 import dagger.Module;
@@ -62,18 +64,27 @@ public abstract class BlockRecordInjectionModule {
     @Provides
     @Singleton
     public static BlockRecordManager provideBlockRecordManager(
+            @NonNull final InitTrigger initTrigger,
             @NonNull final ConfigProvider configProvider,
             @NonNull final WorkingStateAccessor state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform) {
+            @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
         }
         return new BlockRecordManagerImpl(
-                configProvider, merkleState, streamFileProducer, quiescenceController, quiescedHeartbeat, platform);
+                configProvider,
+                merkleState,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                initTrigger);
     }
 
     @Provides

@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.utils.SchedulingUtility;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
@@ -50,6 +51,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
 
     private final OutputFn outputFn;
     private final FailureCustomizer failureCustomizer;
+    private final SuccessProcessor successProcessor;
     private final VerificationStrategy verificationStrategy;
     private final DispatchGasCalculator dispatchGasCalculator;
 
@@ -76,6 +78,29 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 @NonNull TransactionBody syntheticBody,
                 @NonNull ResponseCodeEnum code,
                 @NonNull HederaWorldUpdater.Enhancement enhancement);
+    }
+
+    /**
+     * A processor that can be used to apply additional logic after success status of a dispatch.
+     */
+    @FunctionalInterface
+    public interface SuccessProcessor {
+        /**
+         * A no-op customizer that simply returns the original failure code.
+         */
+        SuccessProcessor NOOP_PROCESSOR = (recordBuilder, accountStore, frame) -> {};
+
+        /**
+         * Apply additional logic after success status of a dispatch.
+         *
+         * @param recordBuilder stream builder, the result of the dispatch
+         * @param accountStore the readable account store
+         * @param frame the message frame
+         */
+        void apply(
+                @NonNull ContractCallStreamBuilder recordBuilder,
+                @NonNull ReadableAccountStore accountStore,
+                @NonNull MessageFrame frame);
     }
 
     /**
@@ -108,6 +133,32 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 STANDARD_FAILURE_CUSTOMIZER,
+                SuccessProcessor.NOOP_PROCESSOR,
+                STANDARD_OUTPUT_FN);
+    }
+
+    /**
+     * Convenience overload that eases construction with a failure status customizer.
+     *
+     * @param attempt the attempt to translate to a dispatching
+     * @param syntheticBody the synthetic body to dispatch
+     * @param dispatchGasCalculator the dispatch gas calculator to use
+     * @param successProcessor the success processor to use
+     */
+    public DispatchForResponseCodeHtsCall(
+            @NonNull final HtsCallAttempt attempt,
+            @Nullable final TransactionBody syntheticBody,
+            @NonNull final DispatchGasCalculator dispatchGasCalculator,
+            @NonNull final SuccessProcessor successProcessor) {
+        this(
+                attempt.enhancement(),
+                attempt.systemContractGasCalculator(),
+                attempt.addressIdConverter().convertSender(attempt.senderAddress()),
+                syntheticBody,
+                attempt.defaultVerificationStrategy(),
+                dispatchGasCalculator,
+                STANDARD_FAILURE_CUSTOMIZER,
+                successProcessor,
                 STANDARD_OUTPUT_FN);
     }
 
@@ -132,6 +183,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 failureCustomizer,
+                SuccessProcessor.NOOP_PROCESSOR,
                 STANDARD_OUTPUT_FN);
     }
 
@@ -156,6 +208,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 STANDARD_FAILURE_CUSTOMIZER,
+                SuccessProcessor.NOOP_PROCESSOR,
                 outputFn);
     }
 
@@ -181,6 +234,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
             @NonNull final VerificationStrategy verificationStrategy,
             @NonNull final DispatchGasCalculator dispatchGasCalculator,
             @NonNull final FailureCustomizer failureCustomizer,
+            @NonNull final SuccessProcessor successProcessor,
             @NonNull final OutputFn outputFn) {
         super(gasCalculator, enhancement, false);
         this.senderId = Objects.requireNonNull(senderId);
@@ -189,6 +243,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         this.verificationStrategy = Objects.requireNonNull(verificationStrategy);
         this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
         this.failureCustomizer = Objects.requireNonNull(failureCustomizer);
+        this.successProcessor = Objects.requireNonNull(successProcessor);
     }
 
     @Override
@@ -209,6 +264,8 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         if (status != SUCCESS) {
             status = failureCustomizer.customize(syntheticBody, status, enhancement);
             recordBuilder.status(status);
+        } else {
+            successProcessor.apply(recordBuilder, readableAccountStore(), frame);
         }
         return completionWith(gasRequirement, recordBuilder, outputFn.apply(recordBuilder));
     }

@@ -23,8 +23,11 @@ blocks.
 <dt>BlockNodeConnectionManager</dt>
 <dd>The class responsible for managing and tracking all active block node connections, including creation, teardown, and error recovery.</dd>
 
-<dt>BlockNodeConnection</dt>
-<dd>A representation of a single connection to block node, managed by the connection manager.</dd>
+<dt>BlockNodeStreamingConnection</dt>
+<dd>A single connection to a block node that is used to stream blocks, managed by the connection manager.</dd>
+
+<dt>BlockNodeServiceConnection</dt>
+<dd>A single connection to a block node that is used to retrieve information about the node, managed by the connection manager.</dd>
 
 <dt>BlockBufferService</dt>
 <dd>The component responsible for maintaining a buffer of blocks produced by the consensus node.</dd>
@@ -58,6 +61,43 @@ blocks.
 - Calls `BlockBufferService` to get the blocks/requests to send and to also notify the buffer when blocks are acknowledged.
 - Updates connection state and retry schedule based on feedback from connections.
 
+## Block Node Selection
+
+When the consensus node wants to connect to a block node to start streaming data to, potential block nodes are loaded
+from `block-nodes.json`. Nodes are grouped by configured priority (lower number = higher priority), and each group is
+evaluated in ascending priority order.
+
+For each node in a priority group, a service connection is used to retrieve status (`lastAvailableBlock`). For each
+reachable node, the manager derives:
+
+- `wantedBlock = lastAvailableBlock + 1` (or `-1` if the block node reports `-1`)
+- whether the node is in range for immediate streaming based on CN buffer range
+
+Filtering and candidate classification:
+
+- Unreachable/timed-out nodes are excluded.
+- Nodes with `wantedBlock < earliestAvailableBlock` are excluded (CN no longer has those blocks).
+- If CN has no buffered blocks (`latestAvailableBlock == -1`), all reachable nodes are considered immediately eligible.
+- For CNs with buffered blocks:
+  - **In-range candidate**: `wantedBlock <= latestAvailableBlock`
+  - **Ahead candidate**: `wantedBlock > latestAvailableBlock`
+
+Selection algorithm (cross-priority):
+
+1. Evaluate priority groups in ascending order.
+2. If a group has any **in-range** candidates, select randomly from those in-range candidates and stop.
+3. If a group has only **ahead** candidates, do not select yet; track that group's lowest `wantedBlock` candidates.
+4. Continue evaluating subsequent priority groups.
+5. If no in-range candidates are found in any group, select from the **global lowest `wantedBlock`** across all ahead-only
+   groups.
+6. If multiple nodes are tied at that global lowest `wantedBlock`, select randomly among the tied nodes.
+
+This ensures we prefer immediate streamability first, while still making forward progress by selecting the "oldest"
+ahead node when every group is ahead.
+
+If no viable node is found at all, no connection is established. The selection process is retried later while the
+buffer service remains active.
+
 ## Sequence Diagrams
 
 ### Connection Establishment
@@ -66,7 +106,7 @@ blocks.
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Task as BlockNodeConnectionTask
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
 
     Manager->>Manager: Select next priority block node
     Manager->>Conn: Create connection with new gRPC client
@@ -77,7 +117,7 @@ sequenceDiagram
     alt connection task execution
       Task->>Task: Check if can promote based on priority
       Task->>Conn: Create request pipeline and establish gRPC stream
-      Conn->>Conn: Transition to PENDING state
+      Conn->>Conn: Transition to READY state
 
       alt promotion successful
         Task->>Conn: Promote to ACTIVE state
@@ -93,7 +133,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
     participant Manager as BlockNodeConnectionManager
 
     Conn->>Conn: Transition to CLOSING state
@@ -115,7 +155,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
 
     alt shutdown
       Manager -> Manager: Stop configuration watcher

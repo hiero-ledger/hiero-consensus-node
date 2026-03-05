@@ -11,7 +11,6 @@ module com.swirlds.config.impl {
     requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 
     uses ConfigurationExtension;
 

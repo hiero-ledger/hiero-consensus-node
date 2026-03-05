@@ -14,6 +14,7 @@ import java.util.Random;
 import org.hiero.base.crypto.KeyType;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -31,10 +32,10 @@ class KeysAndCertsTest {
         final Signature signature = signer.sign(DATA_ARRAY);
 
         assertTrue(
-                CryptoStatic.verifySignature(DATA_BYTES, signature.getBytes(), publicKey),
+                ConsensusCryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), publicKey),
                 "verify should be true when using the correct public key");
         assertFalse(
-                CryptoStatic.verifySignature(DATA_BYTES, signature.getBytes(), WRONG_KEY),
+                ConsensusCryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), WRONG_KEY),
                 "verify should be false when using the incorrect public key");
     }
 
@@ -47,7 +48,7 @@ class KeysAndCertsTest {
      * 		keys and certificates to use for testing
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void basicTest(@NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts) {
         Objects.requireNonNull(roster, "roster must not be null");
         Objects.requireNonNull(keysAndCerts, "keysAndCerts must not be null");

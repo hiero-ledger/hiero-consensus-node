@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_MICROSECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_MICROSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 
 import com.hedera.hapi.node.state.roster.Roster;

@@ -315,6 +315,23 @@ class ConcurrentArrayTest {
         assertEquals("Element 6", sorted.get(5), "Wrong value");
     }
 
+    @Test
+    void estimatedMemoryOverheadTest() {
+        final int CAPACITY = 10;
+        final ConcurrentArray<String> arr = new ConcurrentArray<>(CAPACITY);
+        assertEquals(CAPACITY * Long.BYTES, arr.estimatedStorageMemoryOverhead());
+        arr.add("Element");
+        assertEquals(CAPACITY * Long.BYTES, arr.estimatedStorageMemoryOverhead());
+        for (int i = 0; i < CAPACITY; i++) {
+            arr.add("Element " + i);
+        }
+        assertEquals(CAPACITY * 2 * Long.BYTES, arr.estimatedStorageMemoryOverhead());
+        for (int i = 0; i < CAPACITY; i++) {
+            arr.add("Element " + (CAPACITY + i));
+        }
+        assertEquals(CAPACITY * 3 * Long.BYTES, arr.estimatedStorageMemoryOverhead());
+    }
+
     /**
      * Other tests indirectly validate this claim, but I thought it worth testing this explicitly.
      */

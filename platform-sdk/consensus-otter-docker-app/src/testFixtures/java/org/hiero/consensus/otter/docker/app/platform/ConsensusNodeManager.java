@@ -1,52 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**
@@ -84,60 +85,56 @@ public class ConsensusNodeManager {
      * @param activeRoster the roster of nodes in the network, must not be {@code null}
      * @param version the semantic version of the platform, must not be {@code null}
      * @param keysAndCerts the keys and certificates for this node, must not
-     * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
      */
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final Configuration platformConfig,
             @NonNull final Roster activeRoster,
             @NonNull final SemanticVersion version,
-            @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Executor backgroundExecutor) {
+            @NonNull final KeysAndCerts keysAndCerts) {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
-
-        // Immediately initialize the cryptography and merkle cryptography factories
-        // to avoid using default behavior instead of that defined in platformConfig
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
-        final RecycleBin recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final RecycleBin recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
+                new ToFilePrometheusExporter(selfId, platformConfig)::handleSnapshots);
 
-        final PlatformContext platformContext = PlatformContext.create(
-                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final PlatformContext platformContext =
+                PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
+        final StateLifecycleManager stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(
-                        platformConfig, metrics, time, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
-                platformStateFacade,
                 platformContext,
-                virtualMap -> new OtterAppState(virtualMap, metrics, time));
+                stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final VirtualMapState state = initialState.get().getState();
+        if (initialState.get().isGenesisState()) {
+            initGenesisState(state, activeRoster, version, otterApp.allServices());
+        }
 
         // Set active the roster
         final ReadablePlatformStateStore store =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
@@ -148,8 +145,7 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        platformStateFacade,
-                        virtualMap -> new OtterAppState(virtualMap, metrics, time))
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -162,8 +158,8 @@ public class ConsensusNodeManager {
         // Wiring: Forward consensus rounds to registered listeners
         final PlatformComponents platformComponents = blocks.platformComponents();
         platformComponents
-                .consensusEngineWiring()
-                .consensusRoundsOutputWire()
+                .hashgraphModule()
+                .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
@@ -189,10 +185,10 @@ public class ConsensusNodeManager {
     /**
      * Notifies registered listeners about new consensus rounds.
      *
-     * @param rounds the list of consensus rounds to notify listeners about, must not be {@code null}
+     * @param round the consensus round to notify listeners about, must not be {@code null}
      */
-    private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
-        consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
+    private void notifyConsensusRoundListeners(@NonNull final ConsensusRound round) {
+        consensusRoundListeners.forEach(listener -> listener.onConsensusRound(round));
     }
 
     /**

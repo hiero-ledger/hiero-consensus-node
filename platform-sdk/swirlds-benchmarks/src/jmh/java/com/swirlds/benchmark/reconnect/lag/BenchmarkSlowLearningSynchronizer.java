@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.io.SelfSerializable;
+import java.util.function.Supplier;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link LearningSynchronizer} with simulated delay.
@@ -29,29 +27,21 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
 
     /**
      * Create a new learning synchronizer with simulated latency.
-     * @param metrics a Metrics instance for ReconnectMapStats
      */
     public BenchmarkSlowLearningSynchronizer(
-            final MerkleDataInputStream in,
-            final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final SerializableDataInputStream in,
+            final SerializableDataOutputStream out,
+            final VirtualMap newRoot,
+            final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig,
-            @NonNull final Metrics metrics) {
-        super(
-                getStaticThreadManager(),
-                in,
-                out,
-                root,
-                breakConnection,
-                TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig,
-                metrics);
+            final ReconnectConfig reconnectConfig) {
+
+        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
@@ -64,11 +54,15 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      * {@inheritDoc}
      */
     @Override
-    public <T extends SelfSerializable> AsyncOutputStream<T> buildOutputStream(
-            final StandardWorkGroup workGroup, final SerializableDataOutputStream out) {
-        return new BenchmarkSlowAsyncOutputStream<>(
+    protected AsyncOutputStream buildOutputStream(
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final SerializableDataOutputStream out,
+            @NonNull final Supplier<Boolean> alive,
+            @NonNull final ReconnectConfig reconnectConfig) {
+        return new BenchmarkSlowAsyncOutputStream(
                 out,
                 workGroup,
+                alive,
                 randomSeed,
                 delayStorageMicroseconds,
                 delayStorageFuzzRangePercent,

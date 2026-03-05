@@ -5,9 +5,14 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.hapi.node.state.token.NodePayment;
+import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.node.app.metrics.StoreMetricsImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -19,10 +24,10 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -174,5 +179,66 @@ class BoundaryStateChangeListenerTest {
                         .getCount()
                         .get(),
                 ENTITY_COUNTS.numTopics());
+    }
+
+    @Test
+    void testSingletonUpdateChangeForNodePayments() {
+        final var nodePayments = NodePayments.newBuilder()
+                .payments(List.of(
+                        NodePayment.newBuilder()
+                                .nodeAccountId(
+                                        AccountID.newBuilder().accountNum(3).build())
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(
+                                        AccountID.newBuilder().accountNum(4).build())
+                                .fees(200L)
+                                .build()))
+                .lastNodeFeeDistributionTime(
+                        Timestamp.newBuilder().seconds(1000L).build())
+                .build();
+        final int nodePaymentsStateId = 55; // STATE_ID_NODE_PAYMENTS
+
+        listener.singletonUpdateChange(nodePaymentsStateId, nodePayments);
+
+        StateChange stateChange = listener.allStateChanges().getFirst();
+        assertEquals(SINGLETON_UPDATE, stateChange.changeOperation().kind());
+        assertEquals(nodePaymentsStateId, stateChange.stateId());
+        assertEquals(nodePayments, stateChange.singletonUpdate().nodePaymentsValue());
+    }
+
+    @Test
+    void testSingletonUpdateChangeValueForNodePayments() {
+        final var nodePayments = NodePayments.newBuilder()
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(AccountID.newBuilder().accountNum(5).build())
+                        .fees(500L)
+                        .build()))
+                .build();
+
+        final var result = BoundaryStateChangeListener.singletonUpdateChangeValueFor(nodePayments);
+
+        assertEquals(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, result.kind());
+        assertEquals(nodePayments, result.value());
+    }
+
+    @Test
+    void testResetCollectedNodeFees() {
+        listener.trackCollectedNodeFees(100);
+        assertEquals(100, listener.nodeFeesCollected());
+
+        listener.resetCollectedNodeFees();
+
+        assertEquals(0, listener.nodeFeesCollected());
+    }
+
+    @Test
+    void testTrackCollectedNodeFeesAccumulates() {
+        listener.trackCollectedNodeFees(100);
+        listener.trackCollectedNodeFees(50);
+        listener.trackCollectedNodeFees(25);
+
+        assertEquals(175, listener.nodeFeesCollected());
     }
 }

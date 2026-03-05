@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
+import static java.util.Objects.requireNonNull;
+
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -8,7 +12,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * crypto-service, token-service etc.,
  */
 public interface Service {
-
     /**
      * A sort value for the service, used to determine the order in which service
      * schemas are migrated.
@@ -41,4 +44,18 @@ public interface Service {
      * @param registry the registry to register the schemas with
      */
     void registerSchemas(@NonNull SchemaRegistry registry);
+
+    /**
+     * Does any state initialization (typically setting default singleton values) that is required at genesis.
+     *
+     * @param writableStates the writable states to initialize
+     * @param configuration the configuration to use
+     * @return whether any initialization was done
+     */
+    default boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        return false;
+    }
 }

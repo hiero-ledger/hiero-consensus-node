@@ -160,7 +160,7 @@ public class FileGetContentsHandler extends FileQueryBase {
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
                 filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
-                filesConfig.exchangeRates(), genesisSchema::genesisExchangeRates,
+                filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
                 filesConfig.hapiPermissions(), genesisSchema::genesisHapiPermissions,
                 filesConfig.throttleDefinitions(), genesisSchema::genesisThrottleDefinitions);

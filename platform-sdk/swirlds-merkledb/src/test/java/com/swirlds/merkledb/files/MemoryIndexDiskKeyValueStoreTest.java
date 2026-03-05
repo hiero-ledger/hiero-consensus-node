@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.common.util.concurrent.AtomicDouble;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.collections.LongListOffHeap;
@@ -22,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
@@ -170,8 +170,8 @@ class MemoryIndexDiskKeyValueStoreTest {
         final Path tempDir = testDirectory.resolve("DataFileTest");
         final LongListOffHeap index = new LongListOffHeap(1024, 1_000_000, 256);
         final AtomicLong timeSpent = new AtomicLong(0);
-        final AtomicDouble savedSpace = new AtomicDouble(0.0);
-        String storeName = "MemoryIndexDiskKeyValueStoreTest";
+        final AtomicReference<Double> savedSpace = new AtomicReference<>(0.0);
+        final String storeName = "MemoryIndexDiskKeyValueStoreTest";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MemoryIndexDiskKeyValueStore store =
                 new MemoryIndexDiskKeyValueStore(dbConfig, tempDir, storeName, null, null, index);

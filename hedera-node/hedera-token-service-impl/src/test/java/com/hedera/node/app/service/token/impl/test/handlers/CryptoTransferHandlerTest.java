@@ -62,6 +62,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -69,7 +70,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -114,13 +115,13 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void warmTestAllAccountsTransferList() {
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         ReadableAccountStore readableAccountStore = mock(ReadableAccountStore.class);
 
         TransactionBody txn = newCryptoTransfer(ACCT_3333_MINUS_10, ACCT_4444_PLUS_10);
 
         WarmupContext warmupContext = new CacheWarmer.WarmupContextImpl(txn, storeFactory);
-        when(storeFactory.getStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
+        when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
 
         subject.warm(warmupContext);
 
@@ -130,7 +131,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void warmTokenDataTransferList() {
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         ReadableAccountStore readableAccountStore = mock(ReadableAccountStore.class);
         ReadableTokenStore readableTokenStore = mock(ReadableTokenStore.class);
         ReadableNftStore readableNftStore = mock(ReadableNftStore.class);
@@ -147,10 +148,10 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
                 .build());
 
         WarmupContext warmupContext = new CacheWarmer.WarmupContextImpl(txn, storeFactory);
-        when(storeFactory.getStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
-        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
-        when(storeFactory.getStore(ReadableNftStore.class)).thenReturn(readableNftStore);
-        when(storeFactory.getStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelationStore);
+        when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.readableStore(ReadableNftStore.class)).thenReturn(readableNftStore);
+        when(storeFactory.readableStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelationStore);
         when(readableNftStore.get(TOKEN_2468, 1L)).thenReturn(nft);
         when(readableAccountStore.getAliasedAccountById(any(AccountID.class))).thenReturn(account);
 

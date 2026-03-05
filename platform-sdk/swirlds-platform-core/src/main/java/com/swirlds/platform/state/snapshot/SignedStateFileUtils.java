@@ -8,7 +8,9 @@ import java.util.Set;
  */
 public final class SignedStateFileUtils {
 
-    public static final String SIGNATURE_SET_FILE_NAME = "signatureSet.bin";
+    public static final String SIGNATURE_SET_FILE_NAME = "signatureSet.pbj";
+
+    public static final String SIGNATURE_SET_BIN_FILE_NAME = "signatureSet.bin";
 
     public static final String HASH_INFO_FILE_NAME = "hashInfo.txt";
 

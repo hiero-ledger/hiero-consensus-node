@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
@@ -41,6 +40,7 @@ import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
 import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -245,22 +245,22 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             value = hash32(value, i);
         }
 
-        assertUnprocessedTasksValueIs(taskScheduler, 100L);
+        assertUnprocessedTaskCountIs(taskScheduler, 100L);
 
         handler.executionControl().unblock();
         handler.executionControl().await(50, AWAIT_MAX_DURATION);
 
-        assertUnprocessedTasksValueIs(taskScheduler, 50L);
+        assertUnprocessedTaskCountIs(taskScheduler, 50L);
 
         gate50.open();
         handler.executionControl().await(48, AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(taskScheduler, 2L);
+        assertUnprocessedTaskCountIs(taskScheduler, 2L);
 
         gate98.open();
         handler.executionControl().await(2, AWAIT_MAX_DURATION);
 
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -343,7 +343,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
         assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
 
         model.stop();
@@ -374,7 +374,9 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                0,
+                taskScheduler.getUnprocessedTaskCount()); // initial value so not need of assertUnprocessedTaskCountIs
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -390,7 +392,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         });
         producer.start();
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(taskScheduler, capacity);
+        assertUnprocessedTaskCountIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the handler.
@@ -410,7 +412,10 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         assertDoesNotThrow(producerThread::interrupt);
         assertFalse(allWorkAdded.get());
 
-        assertTrue((capacity + 1) >= taskScheduler.getUnprocessedTaskCount());
+        assertTrue((capacity + 1)
+                >= taskScheduler
+                        .getUnprocessedTaskCount()); // already asserted that is at least capacity, this check should
+        // not fail
         // Interrupting the thread should have no effect.
         producerThread.interrupt();
 
@@ -420,7 +425,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
         assertEventuallyEquals(State.TERMINATED, producerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
@@ -445,7 +450,9 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                -1,
+                taskScheduler.getUnprocessedTaskCount()); // initial value so not need of assertUnprocessedTaskCountIs
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -513,7 +520,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         // negative values are values that have been passed around the loop
         // Don't pass them on again, or else we will get an infinite loop
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             if (x3 > 0) {
                 countA.set(hash32(x3, countA.get()));
                 return x3;
@@ -525,17 +532,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             }
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(x2, countB.get()));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(x1, countC.get()));
             return x1;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unblocked(x -> {
             countD.set(hash32(x, countD.get()));
             if (x % 7 == 0) {
                 return -x;
@@ -625,7 +632,9 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final BindableInputWire<String, Void> stringChannel = taskScheduler.buildInputWire("stringChannel");
         stringChannel.bindConsumer(stringHandler);
 
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                -1,
+                taskScheduler.getUnprocessedTaskCount()); // initial value so not need of assertUnprocessedTaskCountIs
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -684,7 +693,8 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final BindableInputWire<Integer, Void> channel2 = taskScheduler.buildInputWire("channel2");
         channel2.bindConsumer(handler2);
 
-        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                0, taskScheduler.getUnprocessedTaskCount()); // initial value thus not need of assertUnprocessedTask
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -698,7 +708,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         producer.start();
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(taskScheduler, capacity);
+        assertUnprocessedTaskCountIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
@@ -714,7 +724,11 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // An unblocked wire would have processed all the work added to it really fast.
         // as soon as the thread is blocked the fmw should reflect the unprocessed task count
         assertEventuallyEquals(State.TIMED_WAITING, secondProducerThread::getState, "Producer thread was not blocked");
-        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                capacity,
+                taskScheduler
+                        .getUnprocessedTaskCount()); // testing that it remains the same that was rechead before, should
+        // not fail
         assertFalse(allWorkAdded.get());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
@@ -736,7 +750,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertTrue(unprocessedArguments.isEmpty(), "Wire did not process all work:" + unprocessedArguments);
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
         assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
@@ -753,7 +767,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger wireValueA = new AtomicInteger();
         final AtomicInteger wireValueB = new AtomicInteger();
 
-        final int capacity = 11;
+        final long capacity = 11;
         final ObjectCounter backpressure = new BackpressureObjectCounter("test", capacity, Duration.ofMillis(1));
 
         final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("testA")
@@ -772,7 +786,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final BindableInputWire<Integer, Void> channelB = taskSchedulerB.buildInputWire("channelB");
         taskSchedulerA.getOutputWire().solderTo(channelB);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             wireValueA.set(hash32(wireValueA.get(), -x1));
             return x1;
         });
@@ -783,7 +797,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         channelA.bind(handlerA);
         channelB.bindConsumer(handlerB);
 
-        assertEquals(0, backpressure.getCount());
+        assertEquals(0, backpressure.getCount()); // this is an initial value so no need for async change check
         assertEquals("testA", taskSchedulerA.getName());
         assertEquals("testB", taskSchedulerB.getName());
 
@@ -809,7 +823,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // unable to add anything until we release the gate.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
         final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
-            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+            for (int i = (int) capacity; i < DEFAULT_OPERATIONS; i++) {
                 channelA.put(i);
                 valueA.set(hash32(valueA.get(), -i));
                 valueB.set(hash32(valueB.get(), i));
@@ -822,7 +836,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // wire would have processed all the work added to it.
         sleep(50);
         assertFalse(allWorkAdded.get());
-        assertEquals(capacity, backpressure.getCount());
+        assertEventuallyEquals(capacity, backpressure::getCount, "the counter should eventually get to:" + capacity);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
         final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
@@ -843,7 +857,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handlerA.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEventuallyEquals(0L, backpressure::getCount, "Wire unprocessed task count did not match expected value");
+        assertEventuallyEquals(0L, backpressure::getCount, "backpressure count did not match expected value");
         assertEquals(valueA.get(), wireValueA.get(), "Wire sum did not match expected sum");
         assertEquals(valueB.get(), wireValueB.get(), "Wire sum did not match expected sum");
         model.stop();
@@ -873,7 +887,9 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                0,
+                taskScheduler.getUnprocessedTaskCount()); // initial value so not need of assertUnprocessedTaskCountIs
         assertEquals("test", taskScheduler.getName());
 
         final AtomicInteger value = new AtomicInteger();
@@ -894,7 +910,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         });
         producer.start();
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(taskScheduler, capacity);
+        assertUnprocessedTaskCountIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
@@ -922,7 +938,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         sleep(50);
         assertFalse(allWorkAdded.get());
         assertFalse(flushed.get());
-        assertUnprocessedTasksValueIs(taskScheduler, capacity);
+        assertUnprocessedTaskCountIs(taskScheduler, capacity);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
         final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
@@ -943,7 +959,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         assertTrue(flushed.get(), "unable to flush wire");
         handler.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -997,7 +1013,9 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(
+                -1,
+                taskScheduler.getUnprocessedTaskCount()); // initial value so not need of assertUnprocessedTaskCountIs
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -1185,17 +1203,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1265,17 +1283,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger lambdaSum = new AtomicInteger();
         taskSchedulerB.getOutputWire().solderTo("lambda", "lambda input", lambdaSum::getAndAdd);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1355,32 +1373,32 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         final AtomicInteger countA = new AtomicInteger();
         final AtomicBoolean invertA = new AtomicBoolean();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x4 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x4 -> {
             final int possiblyInvertedValue1 = x4 * (invertA.get() ? -1 : 1);
             countA.set(hash32(countA.get(), possiblyInvertedValue1));
             return possiblyInvertedValue1;
         });
 
         final FunctionWithExecutionControl<Boolean, Integer> handlerInvertA =
-                FunctionWithExecutionControl.unBlocked(x3 -> {
+                FunctionWithExecutionControl.unblocked(x3 -> {
                     invertA.set(x3);
                     return null;
                 });
 
         final AtomicInteger countX = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unblocked(x2 -> {
             countX.set(hash32(countX.get(), x2));
             return x2;
         });
 
         final AtomicInteger countY = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unblocked(x1 -> {
             countY.set(hash32(countY.get(), x1));
             return x1;
         });
 
         final AtomicInteger countZ = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unblocked(x -> {
             countZ.set(hash32(countZ.get(), x));
             return x;
         });
@@ -1472,13 +1490,13 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         taskSchedulerB.getOutputWire().solderTo(inC, SolderType.INJECT); // ignores capacity
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x2 -> {
             countA.set(hash32(countA.get(), x2));
             return x2;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x1 -> {
             countB.set(hash32(countB.get(), x1));
             return x1;
         });
@@ -1505,7 +1523,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handlerB.executionControl().await(partialWork, AWAIT_MAX_DURATION);
 
         // Eventually, C should have 10 things that have not yet been fully processed.
-        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2);
+        assertUnprocessedTaskCountIs(taskSchedulerC, partialWork * 2);
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
 
@@ -1523,7 +1541,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // If we wait some time, the task from B should have increased C's count to 11, but the task from A
         // should have been unable to increase C's count. We need to do greater equals than since a failed
         // insertion may briefly push the count up to 12 (although it should always fall immediately after).
-        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 1);
+        assertUnprocessedTaskCountIs(taskSchedulerC, partialWork * 2 + 1);
         // Push some more data into A and B. A will be unable to process it because it's still
         // stuck pushing the previous value.
         inA.put(6);
@@ -1537,7 +1555,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // Even if we wait, (A) should not have been able to process the task.
         sleep(50);
         assertEquals(expectedCount, countA.get());
-        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 2);
+        assertUnprocessedTaskCountIs(taskSchedulerC, partialWork * 2 + 2);
 
         // Releasing the signal should allow data to flow through C.
         handlerC.executionControl().unblock();
@@ -1581,7 +1599,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             if (x3 % 3 == 0) {
                 return null;
@@ -1589,7 +1607,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             if (x2 % 5 == 0) {
                 return null;
@@ -1597,7 +1615,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             if (x1 % 7 == 0) {
                 return null;
@@ -1702,17 +1720,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1769,7 +1787,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         aOutBoolean.solderTo(bInBoolean);
         aOutString.solderTo(bInString);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             if (x1 % 2 == 0) {
                 aOutBoolean.forward(x1 % 3 == 0);
             }
@@ -1896,12 +1914,12 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final Thread producerThread = producer.start();
         expectedCount = hash32(expectedCount, 10);
 
-        assertEquals(10, counter.getCount());
+        assertEventuallyEquals(10L, counter::getCount, "counter should eventually get to 10");
 
         // Work is currently stuck at A. No matter how much time passes, no new work should be added.
         sleep(50);
         assertFalse(moreWorkInserted.get());
-        assertEquals(10, counter.getCount());
+        assertEquals(10L, counter.getCount(), "Counter should remain at 10");
         assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
 
         // Unblock A. Work will flow forward and get blocked at B. No matter how much time passes, no new work should
@@ -1910,7 +1928,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
         sleep(50);
         assertFalse(moreWorkInserted.get());
-        assertEquals(10, counter.getCount());
+        assertEventuallyEquals(10L, counter::getCount, "counter should eventually get to 10");
 
         // Unblock B. Work will flow forward and get blocked at (C). No matter how much time passes, no new work should
         // be added.
@@ -2014,20 +2032,19 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // Work is currently stuck at A. No matter how much time passes, we should not be able to exceed A's capacity.
         assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
         assertFalse(allWorkInserted.get());
-        assertTrue(5 >= counter.getCount());
+        assertEventuallyEquals(5L, counter::getCount, "Counter should not exceed A capacity");
 
         // Unblock (A). Work will flow forward and get blocked at B. A can fit 5 items, B can fit another 5.
         handlerA.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
-        assertEquals(10, counter.getCount()); // This one failed
-
+        assertEventuallyEquals(10L, counter::getCount, "Tasks should get to 10"); // This one failed
         // Unblock (B). Work will flow forward and get blocked at C. We shouldn't be able to add additional items
         // since that would violate the global capacity.
         handlerB.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
-        assertEquals(10, counter.getCount());
+        assertEventuallyEquals(10L, counter::getCount, "Tasks should remain at 10");
 
         // Unblock (C). The entire pipeline is now unblocked, and new things will be added.
         handlerC.executionControl().unblock();
@@ -2072,7 +2089,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         schedulerA.getOutputWire().solderTo(inputB, SolderType.OFFER);
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             countA.set(hash32(countA.get(), x1));
             return x1;
         });
@@ -2103,16 +2120,16 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
         // Wait until A has handled all of its tasks.
-        assertUnprocessedTasksValueIs(schedulerA, 0L);
+        assertUnprocessedTaskCountIs(schedulerA, 0L);
         assertEquals(expectedCountA, countA.get());
         // B should not have processed any tasks.
-        assertUnprocessedTasksValueIs(schedulerB, 10L);
+        assertUnprocessedTaskCountIs(schedulerB, 10L);
         assertEquals(0, countB.get());
 
         // Release the signal and allow B to process tasks.
         handlerB.executionControl().unblock();
         handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(schedulerB, 0L);
+        assertUnprocessedTaskCountIs(schedulerB, 0L);
         assertEquals(expectedCountB, countB.get());
 
         // Now, add some more data to A. That data should flow to B as well.
@@ -2124,8 +2141,8 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(schedulerA, 0L);
-        assertUnprocessedTasksValueIs(schedulerB, 0L);
+        assertUnprocessedTaskCountIs(schedulerA, 0L);
+        assertUnprocessedTaskCountIs(schedulerB, 0L);
 
         assertEquals(expectedCountA, countA.get());
         assertEquals(expectedCountB, countB.get());
@@ -2180,7 +2197,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         producer.waitIsFinished(AWAIT_MAX_DURATION);
         taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         // check there are no unprocessed tasks, according to the framework
-        assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
         // check there are no unprocessed tasks, according to the test counter
         assertEquals(0L, unprocessedTasks.get());
 
@@ -2201,7 +2218,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         // flush causes the unprocessedTaskCount to return to 0.
         taskScheduler.flush();
-        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertUnprocessedTaskCountIs(taskScheduler, 0L);
 
         // Remove all permissions to start tasks.
         taskHandler.executionControl().block();
@@ -2211,11 +2228,11 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         unprocessedTasks.set(totalTasks);
         producer.run();
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        assertUnprocessedTasksValueIs(taskScheduler, unprocessedTasks.get());
+        assertUnprocessedTaskCountIs(taskScheduler, unprocessedTasks.get());
         taskHandler.executionControl().unblock();
         taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         assertEquals(0, unprocessedTasks.get());
-        assertUnprocessedTasksValueIs(taskScheduler, 0);
+        assertUnprocessedTaskCountIs(taskScheduler, 0);
 
         model.stop();
     }
@@ -2245,7 +2262,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
      *
      * @see AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
      */
-    private static void assertUnprocessedTasksValueIs(
+    private static void assertUnprocessedTaskCountIs(
             final @NonNull TaskScheduler<?> taskScheduler, final long expected) {
         assertEventuallyEquals(
                 expected,

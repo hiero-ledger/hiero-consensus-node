@@ -11,17 +11,11 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -32,6 +26,8 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -41,6 +37,9 @@ import org.hiero.consensus.model.sequence.set.SequenceSet;
 import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * A default implementation of the {@link IssDetector}.
@@ -96,25 +95,20 @@ public class DefaultIssDetector implements IssDetector {
     private final IssMetrics issMetrics;
 
     /**
-     * Writes marker files to disk.
-     */
-    private final MarkerFileWriter markerFileWriter;
-
-    /**
-     * The last round that was frozen. This is used to ignore signatures from previous software versions.
-     * If null, then no signatures are ignored.
+     * The last round that was frozen. This is used to ignore signatures from previous software versions. If null, then
+     * no signatures are ignored.
      */
     private final long latestFreezeRound;
 
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
-     * @param platformContext              the platform context
-     * @param roster                       the current roster
+     * @param platformContext the platform context
+     * @param roster the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
-     *                                     validate them like normal.
-     * @param ignoredRound                 a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if
-     *                                     all rounds should be validated.
+     * validate them like normal.
+     * @param ignoredRound a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if all rounds
+     * should be validated.
      */
     public DefaultIssDetector(
             @NonNull final PlatformContext platformContext,
@@ -123,7 +117,6 @@ public class DefaultIssDetector implements IssDetector {
             final long ignoredRound,
             final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
-        markerFileWriter = new MarkerFileWriter(platformContext);
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
@@ -166,7 +159,7 @@ public class DefaultIssDetector implements IssDetector {
      * Create an ISS notification if the round shouldn't be ignored
      *
      * @param roundNumber the round number of the ISS
-     * @param issType     the type of the ISS
+     * @param issType the type of the ISS
      * @return an ISS notification, or null if the round of the ISS should be ignored
      */
     @Nullable
@@ -174,7 +167,6 @@ public class DefaultIssDetector implements IssDetector {
         if (roundNumber == ignoredRound) {
             return null;
         }
-        markerFileWriter.writeMarkerFile(issType.toString());
         return new IssNotification(roundNumber, issType);
     }
 
@@ -406,7 +398,7 @@ public class DefaultIssDetector implements IssDetector {
      * Checks the validity of the self state hash for a round.
      *
      * @param round the round of the state
-     * @param hash  the hash of the state
+     * @param hash the hash of the state
      * @return an ISS notification, or null if no ISS occurred
      */
     @Nullable

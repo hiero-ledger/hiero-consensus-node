@@ -17,7 +17,7 @@ public interface TransactionPrehandler {
      *
      * @param event the event to prehandle
      */
-    @InputWireLabel("PlatformEvent")
+    @InputWireLabel("preconsensus event")
     Queue<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
             @NonNull PlatformEvent event);
 }

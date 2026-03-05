@@ -12,19 +12,12 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
+import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -33,68 +26,59 @@ import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.components.ConsensusWiring;
-import com.swirlds.platform.wiring.components.GossipWiring;
-import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
  */
 public record PlatformComponents(
         WiringModel model,
-        ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
-        ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
-        ComponentWiring<IssHandler, Void> issHandlerWiring,
-        ComponentWiring<LatestCompleteStateNotifier, CompleteStateNotificationWithCleanup>
-                latestCompleteStateNotifierWiring,
-        ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
-        ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
-        ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
-        ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
-        ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
-        PcesReplayerWiring pcesReplayerWiring,
-        GossipWiring gossipWiring,
-        ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
-        ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring,
-        ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
-        ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
-        ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
-        ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
-        ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
-        ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
+        EventCreatorModule eventCreatorModule,
+        EventIntakeModule eventIntakeModule,
+        PcesModule pcesModule,
+        HashgraphModule hashgraphModule,
+        GossipModule gossipModule,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
-        ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
+        ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
+        ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
+        ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
-        ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring,
-        ComponentWiring<HashLogger, Void> hashLoggerWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
+        ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
+        ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring,
+        ComponentWiring<IssHandler, Void> issHandlerWiring,
+        ComponentWiring<HashLogger, Void> hashLoggerWiring,
+        ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
+        ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
+        ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
+        ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
+        ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
         ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
@@ -103,7 +87,6 @@ public record PlatformComponents(
      * Bind components to the wiring.
      *
      * @param builder                   builds platform components that need to be bound to wires
-     * @param pcesReplayer              the PCES replayer to bind
      * @param stateSignatureCollector   the signed state manager to bind
      * @param eventWindowManager        the event window manager to bind
      * @param latestImmutableStateNexus the latest immutable state nexus to bind
@@ -113,30 +96,15 @@ public record PlatformComponents(
      */
     public void bind(
             @NonNull final PlatformComponentBuilder builder,
-            @NonNull final PcesReplayer pcesReplayer,
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
-            @Nullable final InlinePcesWriter inlinePcesWriter,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        eventHasherWiring.bind(builder::buildEventHasher);
-        internalEventValidatorWiring.bind(builder::buildInternalEventValidator);
-        eventDeduplicatorWiring.bind(builder::buildEventDeduplicator);
-        eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
-        orphanBufferWiring.bind(builder::buildOrphanBuffer);
-        consensusEngineWiring.bind(builder::buildConsensusEngine);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
-        pcesReplayerWiring.bind(pcesReplayer);
-        if (inlinePcesWriter != null) {
-            pcesInlineWriterWiring.bind(inlinePcesWriter);
-        } else {
-            pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
-        }
-        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -145,7 +113,6 @@ public record PlatformComponents(
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
         savedStateControllerWiring.bind(savedStateController);
@@ -154,7 +121,6 @@ public record PlatformComponents(
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
-        gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);
     }
@@ -166,7 +132,13 @@ public record PlatformComponents(
      * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final WiringModel model,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final PcesModule pcesModule,
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final GossipModule gossipModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -174,126 +146,41 @@ public record PlatformComponents(
         final PlatformSchedulersConfig config =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
-        final ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring =
-                new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
-
-        final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring =
-                new ComponentWiring<>(model, InternalEventValidator.class, config.internalEventValidator());
-        final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring =
-                new ComponentWiring<>(model, EventDeduplicator.class, config.eventDeduplicator());
-        final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring =
-                new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator());
-        final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring =
-                new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
-        final ConsensusWiring consensusEngineWiring = ConsensusWiring.create(model, config.consensusEngine());
-
-        final ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring =
-                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager());
-
-        final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-                applicationTransactionPrehandlerWiring = new ComponentWiring<>(
-                        model, TransactionPrehandler.class, config.applicationTransactionPrehandler());
-        final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring =
-                new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector());
-        final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring =
-                new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager());
-        final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring =
-                new ComponentWiring<>(model, StateSigner.class, config.stateSigner());
-        final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring =
+        return new PlatformComponents(
+                model,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule,
+                new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
+                new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
+                new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
+                new ComponentWiring<>(model, StateSigner.class, config.stateSigner()),
                 new ComponentWiring<>(
                         model,
                         TransactionHandler.class,
                         config.transactionHandler(),
-                        data -> data instanceof final ConsensusRound consensusRound
-                                ? Math.max(consensusRound.getNumAppTransactions(), 1)
-                                : 1);
-        final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring =
-                new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream());
-        final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
-                RunningEventHashOverrideWiring.create(model);
-
-        final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring = new ComponentWiring<>(
-                model,
-                StateHasher.class,
-                config.stateHasher(),
-                data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1);
-
-        final GossipWiring gossipWiring = new GossipWiring(platformContext, model);
-
-        final PcesReplayerWiring pcesReplayerWiring = PcesReplayerWiring.create(model);
-
-        final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring =
-                new ComponentWiring<>(model, InlinePcesWriter.class, config.pcesInlineWriter());
-
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
-
-        final ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring =
-                new ComponentWiring<>(model, IssDetector.class, config.issDetector());
-        final ComponentWiring<IssHandler, Void> issHandlerWiring =
-                new ComponentWiring<>(model, IssHandler.class, config.issHandler());
-        final ComponentWiring<HashLogger, Void> hashLoggerWiring =
-                new ComponentWiring<>(model, HashLogger.class, config.hashLogger());
-
-        final ComponentWiring<LatestCompleteStateNotifier, CompleteStateNotificationWithCleanup>
-                latestCompleteStateNotifierWiring = new ComponentWiring<>(
-                        model, LatestCompleteStateNotifier.class, config.latestCompleteStateNotifier());
-
-        final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring =
-                new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring =
-                new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring =
-                new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
-
-        final ComponentWiring<AppNotifier, Void> notifierWiring =
-                new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-
-        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring =
-                new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
-        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
-                new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
-
-        final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring =
-                new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
-        final ComponentWiring<BranchReporter, Void> branchReporterWiring =
-                new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
-
-        return new PlatformComponents(
-                model,
-                stateSignerWiring,
-                consensusEventStreamWiring,
-                issHandlerWiring,
-                latestCompleteStateNotifierWiring,
-                latestImmutableStateNexusWiring,
-                latestCompleteStateNexusWiring,
-                savedStateControllerWiring,
-                stateGarbageCollectorWiring,
-                signedStateSentinelWiring,
-                pcesReplayerWiring,
-                gossipWiring,
-                stateSnapshotManagerWiring,
-                eventHasherWiring,
-                internalEventValidatorWiring,
-                eventDeduplicatorWiring,
-                eventSignatureValidatorWiring,
-                orphanBufferWiring,
-                consensusEngineWiring,
-                eventCreationManagerWiring,
-                pcesInlineWriterWiring,
-                applicationTransactionPrehandlerWiring,
-                stateSignatureCollectorWiring,
-                eventWindowManagerWiring,
-                transactionHandlerWiring,
-                runningEventHashOverrideWiring,
-                issDetectorWiring,
-                hashLoggerWiring,
-                stateHasherWiring,
-                notifierWiring,
-                platformMonitorWiring,
-                branchDetectorWiring,
-                branchReporterWiring);
+                        TransactionHandlerDataCounter.create(config.transactionHandler())),
+                new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
+                RunningEventHashOverrideWiring.create(model),
+                new ComponentWiring<>(
+                        model,
+                        StateHasher.class,
+                        config.stateHasher(),
+                        data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1),
+                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
+                new ComponentWiring<>(model, IssDetector.class, config.issDetector()),
+                new ComponentWiring<>(model, IssHandler.class, config.issHandler()),
+                new ComponentWiring<>(model, HashLogger.class, config.hashLogger()),
+                new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
+                new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
+                new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION),
+                new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
+                new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
+                new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel()),
+                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()),
+                new ComponentWiring<>(model, BranchDetector.class, config.branchDetector()),
+                new ComponentWiring<>(model, BranchReporter.class, config.branchReporter()));
     }
 }

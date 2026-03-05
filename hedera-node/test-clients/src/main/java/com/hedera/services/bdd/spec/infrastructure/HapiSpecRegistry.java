@@ -43,17 +43,17 @@ import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 public class HapiSpecRegistry {
-    private final Map<String, Object> registry = new HashMap<>();
+    private final Map<String, Object> registry = new ConcurrentHashMap<>();
     private final HapiSpecSetup setup;
-    private final Map<Class, List<RegistryChangeListener>> listenersByType = new HashMap<>();
+    private final Map<Class, List<RegistryChangeListener>> listenersByType = new ConcurrentHashMap<>();
 
     private static final Integer ZERO = 0;
 
@@ -152,7 +152,9 @@ public class HapiSpecRegistry {
 
     public void register(RegistryChangeListener<?> listener) {
         Class<?> type = listener.forType();
-        listenersByType.computeIfAbsent(type, ignore -> new ArrayList<>()).add(listener);
+        listenersByType
+                .computeIfAbsent(type, ignore -> new CopyOnWriteArrayList<>())
+                .add(listener);
     }
 
     public void saveContractChoice(String name, SupportedContract choice) {

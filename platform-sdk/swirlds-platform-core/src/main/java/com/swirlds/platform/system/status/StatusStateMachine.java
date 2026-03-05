@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.status;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_MILLISECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
 
+import com.swirlds.base.formatting.UnitFormatter;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.formatting.UnitFormatter;
 import com.swirlds.logging.legacy.payload.PlatformStatusPayload;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import com.swirlds.platform.system.status.logic.PlatformStatusLogic;
@@ -29,6 +26,9 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 
 /**
  * A state machine that processes {@link PlatformStatusAction}s
