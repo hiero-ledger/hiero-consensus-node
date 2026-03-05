@@ -72,6 +72,10 @@ public class OtterExecutionLayer implements ExecutionLayer {
         return transactionPool.submitApplicationTransaction(Bytes.wrap(transaction));
     }
 
+    /**
+     * Generates a new transaction and submits it to the transaction pool.
+     * @return true if the transaction was successfully submitted, false otherwise
+     */
     public boolean generateTransaction(){
         final Instant now = time.now();
         final OtterTransaction t = OtterTransaction.newBuilder()

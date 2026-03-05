@@ -119,6 +119,9 @@ public interface Node {
      */
     void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
+    /**
+     * Generates a transaction on the node.
+     */
     void generateTransaction();
 
     /**

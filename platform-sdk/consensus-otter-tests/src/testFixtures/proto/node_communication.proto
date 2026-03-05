@@ -210,6 +210,8 @@ service NodeCommunicationService {
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
+  // RPC to trigger the generation of a transaction in the platform.
+  // Returns a boolean indicating whether the transaction was successfully generated.
   rpc GenerateTransaction(google.protobuf.Empty) returns (google.protobuf.BoolValue);
 
   // RPC to change the synthetic bottleneck of the handle thread.

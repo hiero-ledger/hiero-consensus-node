@@ -204,6 +204,11 @@ public class ConsensusNodeManager {
         return executionCallback.submitApplicationTransaction(transaction);
     }
 
+    /**
+     * Instructs the Otter application to generate and submit a transaction.
+     *
+     * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
+     */
     public boolean generateTransaction(){
         return executionCallback.generateTransaction();
     }

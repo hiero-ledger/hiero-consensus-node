@@ -376,6 +376,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void generateTransaction() {
         throwIfInLifecycle(INIT, "Node has not been started yet.");
