@@ -184,9 +184,6 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() <= 0) {
-                dataStats.getP2kv().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(log, "data.location() was invalid for P2KV entry", data.location());
             } else {
                 // Add to wasted items/space
                 dataStats.getP2kv().addObsoleteSpaceSize(data.bytes().length());
@@ -230,9 +227,6 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() <= 0) {
-                dataStats.getId2c().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(log, "data.location() was invalid for ID2C entry", data.location());
             } else {
                 // Add to wasted items/space
                 dataStats.getId2c().addObsoleteSpaceSize(data.bytes().length());
@@ -276,10 +270,6 @@ public class ProcessorTask implements Callable<Void> {
                                     validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                         }
                     });
-                } else if (data.location() <= 0) {
-                    dataStats.getK2p().incrementInvalidLocationCount();
-                    LogUtils.printFileDataLocationError(
-                            log, "data.location() was invalid for K2P entry", data.location());
                 } else {
                     // Add to wasted items/space
                     dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());

@@ -66,7 +66,6 @@ public final class DataStats {
         private final AtomicLong obsoleteSpaceSize = new AtomicLong();
         private final AtomicLong obsoleteItemCount = new AtomicLong();
         private final AtomicLong parseErrorCount = new AtomicLong();
-        private final AtomicLong invalidLocationCount = new AtomicLong();
 
         public void addSpaceSize(long bytes) {
             spaceSize.addAndGet(bytes);
@@ -86,10 +85,6 @@ public final class DataStats {
 
         public void incrementParseErrorCount() {
             parseErrorCount.incrementAndGet();
-        }
-
-        public void incrementInvalidLocationCount() {
-            invalidLocationCount.incrementAndGet();
         }
 
         public long getSpaceSize() {
@@ -112,12 +107,8 @@ public final class DataStats {
             return parseErrorCount.get();
         }
 
-        public long getInvalidLocationCount() {
-            return invalidLocationCount.get();
-        }
-
         public boolean hasErrors() {
-            return parseErrorCount.get() > 0 || invalidLocationCount.get() > 0;
+            return parseErrorCount.get() > 0;
         }
 
         // Helper for the parent toString
@@ -128,14 +119,12 @@ public final class DataStats {
                       Total space: %,d bytes
                       Obsolete items: %,d
                       Obsolete space: %,d bytes
-                      Parse errors: %,d
-                      Invalid locations: %,d""",
+                      Parse errors: %,d""",
                     getItemCount(),
                     getSpaceSize(),
                     getObsoleteItemCount(),
                     getObsoleteSpaceSize(),
-                    getParseErrorCount(),
-                    getInvalidLocationCount());
+                    getParseErrorCount());
         }
     }
 }
