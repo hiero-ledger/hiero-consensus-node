@@ -121,7 +121,7 @@ public class Hip1313EnabledTest {
     private static final int SCHEDULE_CREATE_HV_TPS = 1300;
     private static final int TOPIC_CREATE_HV_TPS = 800;
     private static final double TOPIC_CREATE_BASE_FEE = 0.01;
-    private static final double MULTIPLIER_TOLERANCE = 0.20;
+    private static final double MULTIPLIER_TOLERANCE = 0.05;
     private static final long ONE_X_MULTIPLIER = 1000L;
     private static final long FOUR_X_MULTIPLIER = 4000L;
 
@@ -371,10 +371,12 @@ public class Hip1313EnabledTest {
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
+                        final var observedRawMultiplier =
+                                entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
                         assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                observedMultiplier,
+                                observedRawMultiplier,
                                 utilizationBasisPointsBefore,
                                 utilizationBasisPointsAfter,
                                 "crypto create",
