@@ -23,7 +23,17 @@ import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
  */
 @SuppressWarnings("NewClassNamingConvention")
 @OtterSpecs(randomNodeIds = false)
-@ContainerSpecs(proxyEnabled = false)
+@ContainerSpecs(
+        proxyEnabled = false,
+        gcLogging = true,
+        jvmArgs = {
+            "-XX:+UseZGC",
+            "-XX:+ZGenerational",
+            "-XX:+AlwaysPreTouch",
+            "-XX:ConcGCThreads=4",
+            "-Xms16g",
+            "-Xmx16g"
+        })
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
@@ -37,10 +47,11 @@ public class CombinedOptimizationsExperiment {
         log.info("=== Combined Experiment: All Optimizations ===");
         runBenchmark(env, "combinedAllOptimizations", DEFAULTS, network -> {
             // Apply all config optimizations
-            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes());
-            network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
-            network.withConfigValue("event.creation.maxCreationRate", 0);
-            network.withConfigValue("event.creation.creationAttemptRate", 1000);
+            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
+                    .withConfigValue("event.creation.antiSelfishnessFactor", 8)
+                    .withConfigValue("event.creation.maxCreationRate", 0)
+                    .withConfigValue("event.creation.period", "400us")
+                    .withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;

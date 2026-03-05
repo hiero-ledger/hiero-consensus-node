@@ -1,0 +1,472 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller"
+on:
+  workflow_dispatch:
+    inputs:
+      test-asset:
+        required: true
+        default: "Dallas_n10"
+        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        type: choice
+        options:
+          - Dallas_n10
+          - Dallas_n11
+          - Dallas_n12
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "60"
+          - "180"
+          - "330"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special MQPT settings. Newline is "\n"'
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  run-merge-queue-test:
+    name: MQ Performance Test
+    uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
+    with:
+      test-asset: "${{ inputs.test-asset }}"
+      ref: "${{ github.ref }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      run_NLGDparams: "${{ inputs.run_NLGDparams }}"
+      add-settings: "${{ inputs.add-settings }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+
+  get-commit-info:
+    name: Get Commit Information
+    runs-on: hl-cn-mqpt-lin-sm
+    if: ${{ inputs.disable-notifications != true }}
+    outputs:
+      commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
+      commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
+      slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          BUILD_TAG: ${{ github.ref }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+        run: |
+          # Extract the commit and user information from the build tag
+          COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
+          EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+
+  report-success:
+    name: Report MQPT execution success
+    runs-on: hl-cn-mqpt-lin-sm
+    needs:
+      - run-merge-queue-test
+      - get-commit-info
+    if: ${{ (needs.run-merge-queue-test.outputs.result == 'success' &&
+      needs.get-commit-info.result == 'success') &&
+      inputs.disable-notifications != true && !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#00FF00",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":tada: MQPT - Merge Queue Performance Test (${{ github.ref }}) Passed",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*MQPT Job Succeeded. Test panel status below*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Run Merge Queue Performance Test"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.run-merge-queue-test.outputs.result  }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow and Commit Information*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Tag*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
+  report-failure:
+    name: Report MQPT execution failure
+    runs-on: hl-cn-mqpt-lin-sm
+    needs:
+      - run-merge-queue-test
+      - get-commit-info
+      - report-success
+    if: ${{ (needs.run-merge-queue-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
+      inputs.disable-notifications != true && !cancelled() && always() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Set Create-Alert Flag
+        id: set-alert-flag
+        run: |
+          CREATE_ALERT="false"
+          if [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            CREATE_ALERT="true"
+          fi
+          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The Addoc MQPT Job Failed"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Run Merge Queue Performance Test: ${{ needs.run-merge-queue-test.outputs.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "Medium"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":grey_exclamation: MQPT - Merge Queue Performance Test (${{ github.ref }}) Failed",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MQPT Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Run MQPT Test"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.run-merge-queue-test.outputs.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Get Commit Information"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.get-commit-info.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Tag*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
