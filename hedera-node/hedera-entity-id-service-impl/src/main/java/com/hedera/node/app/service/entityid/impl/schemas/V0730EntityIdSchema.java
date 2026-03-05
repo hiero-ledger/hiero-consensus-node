@@ -17,7 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
- * Minor schema v0.72.0 that introduces a singleton to track the highest node ID ever used.
+ * Minor schema v0.73.0 that introduces a singleton to track the highest node ID ever used.
  */
 public class V0730EntityIdSchema extends Schema<SemanticVersion> {
 
