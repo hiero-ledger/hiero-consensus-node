@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -197,7 +198,8 @@ public class FileServiceSimpleFeesTest {
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
-                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF));
+                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF),
+                validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
     @HapiTest
@@ -207,7 +209,8 @@ public class FileServiceSimpleFeesTest {
                 fileCreate("ntb").key(CIVILIAN).contents(bytesWithLength(1500)),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
-                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF));
+                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF),
+                validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
     @HapiTest
@@ -217,7 +220,8 @@ public class FileServiceSimpleFeesTest {
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
-                validateChargedUsdForQueries("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, QUERY_ALLOWED_PERCENT_DIFF));
+                validateChargedUsdForQueries("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, QUERY_ALLOWED_PERCENT_DIFF),
+                validateNonZeroNodePaymentForQuery("getFileInfoBasic"));
     }
 
     private static byte[] bytesWithLength(final int length) {
