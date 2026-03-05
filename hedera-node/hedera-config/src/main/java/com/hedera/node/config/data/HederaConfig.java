@@ -16,40 +16,65 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("hedera")
 public record HederaConfig(
-        @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
+        @ConfigProperty(defaultValue = "1001") @NetworkProperty
+        long firstUserEntity,
+
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
-        @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
+
+        @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty
+        int configVersion,
         // 32MB limit for node txs to permit voting on uncompressed Nova proofs for TSS WRAPS proofs
         @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "33554432") @NetworkProperty
-                int nodeTransactionMaxBytes,
+        int nodeTransactionMaxBytes,
+
         @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "33554432") @NetworkProperty
-                int maxTransactionBytesPerEvent,
+        int maxTransactionBytesPerEvent,
         // 6KB limit for user txs
-        @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
+        @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty
+        int transactionMaxBytes,
+
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
-                int transactionMaxMemoUtf8Bytes,
+        int transactionMaxMemoUtf8Bytes,
+
         @ConfigProperty(value = "transaction.maxValidDuration", defaultValue = "180") @NetworkProperty
-                long transactionMaxValidDuration,
+        long transactionMaxValidDuration,
+
         @ConfigProperty(value = "transaction.minValidDuration", defaultValue = "15") @NetworkProperty
-                long transactionMinValidDuration,
+        long transactionMinValidDuration,
+
         @ConfigProperty(value = "transaction.minValidityBufferSecs", defaultValue = "10") @NetworkProperty
-                int transactionMinValidityBufferSecs,
+        int transactionMinValidityBufferSecs,
+
         @ConfigProperty(value = "allowances.maxTransactionLimit", defaultValue = "20") @NetworkProperty
-                int allowancesMaxTransactionLimit,
+        int allowancesMaxTransactionLimit,
+
         @ConfigProperty(value = "allowances.maxAccountLimit", defaultValue = "100") @NetworkProperty
-                int allowancesMaxAccountLimit,
-        @ConfigProperty(defaultValue = "data/onboard/exportedAccount.txt") @NodeProperty String accountsExportPath,
+        int allowancesMaxAccountLimit,
+
+        @ConfigProperty(defaultValue = "data/onboard/exportedAccount.txt") @NodeProperty
+        String accountsExportPath,
+
         @ConfigProperty(value = "prefetch.queueCapacity", defaultValue = "70000") @NodeProperty
-                int prefetchQueueCapacity,
-        @ConfigProperty(value = "prefetch.threadPoolSize", defaultValue = "4") @NodeProperty int prefetchThreadPoolSize,
+        int prefetchQueueCapacity,
+
+        @ConfigProperty(value = "prefetch.threadPoolSize", defaultValue = "4") @NodeProperty
+        int prefetchThreadPoolSize,
+
         @ConfigProperty(value = "prefetch.codeCacheTtlSecs", defaultValue = "600") @NodeProperty
-                int prefetchCodeCacheTtlSecs,
-        @ConfigProperty(value = "profiles.active", defaultValue = "PROD") @NodeProperty Profile activeProfile,
+        int prefetchCodeCacheTtlSecs,
+
+        @ConfigProperty(value = "profiles.active", defaultValue = "PROD") @NodeProperty
+        Profile activeProfile,
+
         @ConfigProperty(value = "workflow.verificationTimeoutMS", defaultValue = "20000") @NetworkProperty
-                long workflowVerificationTimeoutMS,
+        long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
-                boolean ingestThrottleEnabled,
+        boolean ingestThrottleEnabled,
+
         @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
-                int throttleTransactionQueueSize) {}
+        int throttleTransactionQueueSize,
+
+        @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
+        long maximumPermissibleUnhealthySeconds) {}

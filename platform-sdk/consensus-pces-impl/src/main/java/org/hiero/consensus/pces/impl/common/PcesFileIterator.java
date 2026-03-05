@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -62,7 +63,8 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
             try {
                 final PlatformEvent candidate =
                         switch (fileVersion) {
-                            case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
+                            case PROTOBUF_EVENTS ->
+                                new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF), EventOrigin.STORAGE);
                         };
                 if (candidate.getBirthRound() >= lowerBound) {
                     next = candidate;
