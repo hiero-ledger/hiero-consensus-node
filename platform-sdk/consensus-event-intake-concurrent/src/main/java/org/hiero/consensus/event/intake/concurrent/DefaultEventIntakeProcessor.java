@@ -257,8 +257,7 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
         // computeIfAbsent on both levels is atomic — only one thread creates each bucket/set.
         final ConcurrentHashMap<EventDescriptorWrapper, Set<Bytes>> bucket =
                 observedEvents.computeIfAbsent(event.getBirthRound(), k -> new ConcurrentHashMap<>());
-        final Set<Bytes> signatures =
-                bucket.computeIfAbsent(event.getDescriptor(), k -> ConcurrentHashMap.newKeySet());
+        final Set<Bytes> signatures = bucket.computeIfAbsent(event.getDescriptor(), k -> ConcurrentHashMap.newKeySet());
 
         // thread-safe
         if (signatures.add(event.getSignature())) {
@@ -347,7 +346,7 @@ public class DefaultEventIntakeProcessor implements EventIntakeProcessor {
 
         final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
 
-        if (cert ==null || cert.getPublicKey() == null) {
+        if (cert == null || cert.getPublicKey() == null) {
             rateLimitedLogger.error(EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", nodeId);
             return null;
         }

@@ -33,5 +33,4 @@ public class InstrumentationExperiment {
             network.withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent");
         });
     }
-
 }
