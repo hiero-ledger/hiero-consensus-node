@@ -3,6 +3,7 @@ package com.swirlds.platform.builder;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -14,7 +15,6 @@ import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
@@ -69,34 +70,104 @@ public class ConsensusModuleBuilder {
     private ConsensusModuleBuilder() {}
 
     /** Prefix for all module selection config properties. */
-    static final String CONFIG_PREFIX = "modules.";
+    private static final String CONFIG_PREFIX = "modules.";
+
+    /** Suffix that is stripped from the interface name to derive the config property name. */
+    private static final String MODULE_SUFFIX = "Module";
+
+    /**
+     * Create a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
+     * enforcing determinism when multiple providers are available.
+     *
+     * <p>The config property name is derived from the interface's simple name by stripping the
+     * {@code "Module"} suffix and lowercasing the first letter (e.g. {@code EventCreatorModule}
+     * becomes config key {@code "modules.eventCreator"}).
+     *
+     * @param <T>            the module interface type
+     * @param moduleClass    the module interface class (must end with {@code "Module"})
+     * @param configuration  the configuration to read the selected module from
+     * @return the selected module instance
+     * @throws IllegalStateException if no provider is found, multiple providers exist without explicit selection,
+     *                               or the class name does not follow the naming convention
+     */
+    public static <T> T createModule(@NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
+        return loadModule(moduleClass, deriveModuleName(moduleClass), configuration);
+    }
+
+    /**
+     * Derive the config property name from the module interface class name.
+     * Strips the {@code "Module"} suffix and lowercases the first letter.
+     */
+    @VisibleForTesting
+    static String deriveModuleName(@NonNull final Class<?> moduleClass) {
+        final String simpleName = moduleClass.getSimpleName();
+        if (!simpleName.endsWith(MODULE_SUFFIX)) {
+            throw new IllegalStateException("Module class name must end with '" + MODULE_SUFFIX + "': " + simpleName);
+        }
+        final String stripped = simpleName.substring(0, simpleName.length() - MODULE_SUFFIX.length());
+        return Character.toLowerCase(stripped.charAt(0)) + stripped.substring(1);
+    }
 
     /**
      * Load a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
      * enforcing determinism when multiple providers are available.
-     *
-     * <p>The config key is derived from the{@code moduleName} parameter.
-     *
-     * @param <T>            the module interface type
-     * @param moduleClass    the module interface class
-     * @param moduleName     the module name that will be matched against the config property name (e.g. "eventCreator" -> "modules.eventCreator")
-     * @param configuration  the configuration to read the selected module from
-     * @return the selected module instance
-     * @throws IllegalStateException if no provider is found, or multiple providers exist without explicit selection
      */
     private static <T> T loadModule(
             @NonNull final Class<T> moduleClass,
             @NonNull final String moduleName,
             @NonNull final Configuration configuration) {
-        final String selectedModule = configuration.getValue(moduleConfigFromName(moduleName), String.class, "");
-        final List<NamedProvider<T>> providers = ServiceLoader.load(moduleClass).stream()
-                .map(p -> new NamedProvider<>(providerModuleName(p), p))
-                .toList();
-        return selectModule(providers, moduleName, selectedModule);
+        final String configKey = CONFIG_PREFIX + moduleName;
+        final String selectedModule = configuration.getValue(configKey, String.class, "");
+        final List<ServiceLoader.Provider<T>> providers = loadProviders(moduleClass);
+
+        if (providers.isEmpty()) {
+            throw new IllegalStateException("No " + moduleName + " implementation found!");
+        }
+
+        final T module;
+        if (Strings.isEmpty(selectedModule)) {
+            if (providers.size() > 1) {
+                final String available = providers.stream()
+                        .map(ConsensusModuleBuilder::providerModuleName)
+                        .collect(Collectors.joining(", "));
+                throw new IllegalStateException("Multiple " + moduleName + " providers found ["
+                        + available + "] but no explicit selection has been configured. "
+                        + "Explicit selection is required to guarantee determinism.");
+            }
+            module = providers.getFirst().get();
+        } else {
+            module = providers.stream()
+                    .filter(p -> selectedModule.equals(providerModuleName(p)))
+                    .findFirst()
+                    .map(ServiceLoader.Provider::get)
+                    .orElseThrow(() -> {
+                        final String available = providers.stream()
+                                .map(ConsensusModuleBuilder::providerModuleName)
+                                .sorted()
+                                .collect(Collectors.joining(", "));
+                        return new IllegalStateException("No " + moduleName + " found in module '" + selectedModule
+                                + "'. Available: [" + available + "]");
+                    });
+        }
+
+        log.info(
+                DEMO_INFO.getMarker(),
+                "Loaded {} module: {} (from {})",
+                moduleName,
+                module.getClass().getSimpleName(),
+                providerModuleName(providers.stream()
+                        .filter(p -> p.type().isInstance(module))
+                        .findFirst()
+                        .orElse(providers.getFirst())));
+        return module;
     }
 
-    private static String moduleConfigFromName(final String moduleName) {
-        return CONFIG_PREFIX + moduleName;
+    /**
+     * Load all {@link ServiceLoader} providers for the given module interface.
+     */
+    @VisibleForTesting
+    static <T> List<ServiceLoader.Provider<T>> loadProviders(@NonNull final Class<T> moduleClass) {
+        return ServiceLoader.load(moduleClass).stream().toList();
     }
 
     /**
@@ -107,74 +178,6 @@ public class ConsensusModuleBuilder {
     private static <T> String providerModuleName(@NonNull final ServiceLoader.Provider<T> provider) {
         final String jpmsName = provider.type().getModule().getName();
         return jpmsName != null ? jpmsName : provider.type().getPackageName();
-    }
-
-    /**
-     * A named module provider: pairs a JPMS module name with a lazy instance supplier.
-     *
-     * @param <T>        the module interface type
-     * @param moduleName the JPMS module name that identifies this provider
-     * @param factory    a supplier that creates the module instance
-     */
-    record NamedProvider<T>(
-            @NonNull String moduleName, @NonNull Supplier<T> factory) {}
-
-    /**
-     * Select a module implementation from a list of named providers, applying config selection
-     *
-     * <p>@visibleForTesting: This method is package-private to allow direct testing of the selection without requiring actual ServiceLoader discovery.
-     *
-     * @param <T>            the module interface type
-     * @param providers      the list of available providers
-     * @param moduleName     the name of the module (e.g. "eventCreator")
-     * @param selectedModule the JPMS module name to select, or empty for default
-     * @return the selected module instance
-     * @throws IllegalStateException if no provider is found, or multiple providers exist without explicit selection
-     */
-    static <T> T selectModule(
-            @NonNull final List<NamedProvider<T>> providers,
-            @NonNull final String moduleName,
-            @NonNull final String selectedModule) {
-        if (providers.isEmpty()) {
-            throw new IllegalStateException("No " + moduleName + " implementation found!");
-        }
-
-        if (selectedModule.isEmpty()) {
-            if (providers.size() > 1) {
-                final String available = providers.stream()
-                        .map(NamedProvider::moduleName)
-                        .sorted()
-                        .collect(Collectors.joining(", "));
-                throw new IllegalStateException("Multiple " + moduleName + " providers found ["
-                        + available + "] but no explicit selection has been configured. "
-                        + "Explicit selection is required to guarantee determinism.");
-            }
-            return providers.getFirst().factory().get();
-        }
-
-        return providers.stream()
-                .filter(p -> selectedModule.equals(p.moduleName()))
-                .findFirst()
-                .map(p -> p.factory().get())
-                .orElseThrow(() -> {
-                    final String available = providers.stream()
-                            .map(NamedProvider::moduleName)
-                            .sorted()
-                            .collect(Collectors.joining(", "));
-                    return new IllegalStateException("No " + moduleName + " found in module '" + selectedModule
-                            + "'. Available: [" + available + "]");
-                });
-    }
-
-    /**
-     * Create an instance of the {@link EventCreatorModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code EventCreatorModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    public static EventCreatorModule createEventCreatorModule(@NonNull final Configuration configuration) {
-        return loadModule(EventCreatorModule.class, EventCreatorModule.NAME, configuration);
     }
 
     /**
@@ -199,21 +202,10 @@ public class ConsensusModuleBuilder {
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
 
-        final EventCreatorModule eventCreatorModule = createEventCreatorModule(configuration);
+        final EventCreatorModule eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         eventCreatorModule.initialize(
                 model, configuration, metrics, time, random, keysAndCerts, roster, selfId, List::of, () -> false);
         return eventCreatorModule;
-    }
-
-    /**
-     * Create an instance of the {@link EventIntakeModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code EventIntakeModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    public static EventIntakeModule createEventIntakeModule(@NonNull final Configuration configuration) {
-        return loadModule(EventIntakeModule.class, EventIntakeModule.NAME, configuration);
     }
 
     /**
@@ -236,7 +228,7 @@ public class ConsensusModuleBuilder {
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
         final EventPipelineTracker eventPipelineTracker = null;
 
-        final EventIntakeModule eventIntakeModule = createEventIntakeModule(configuration);
+        final EventIntakeModule eventIntakeModule = createModule(EventIntakeModule.class, configuration);
         eventIntakeModule.initialize(
                 model,
                 configuration,
@@ -247,18 +239,6 @@ public class ConsensusModuleBuilder {
                 transactionLimits,
                 eventPipelineTracker);
         return eventIntakeModule;
-    }
-
-    /**
-     * Create an instance of the {@link PcesModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code PcesModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    @NonNull
-    public static PcesModule createPcesModule(@NonNull final Configuration configuration) {
-        return loadModule(PcesModule.class, PcesModule.NAME, configuration);
     }
 
     /**
@@ -284,7 +264,7 @@ public class ConsensusModuleBuilder {
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
-        final PcesModule pcesModule = createPcesModule(configuration);
+        final PcesModule pcesModule = createModule(PcesModule.class, configuration);
         pcesModule.initialize(
                 model,
                 configuration,
@@ -304,17 +284,6 @@ public class ConsensusModuleBuilder {
     }
 
     /**
-     * Create an instance of the {@link HashgraphModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code HashgraphModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    public static HashgraphModule createHashgraphModule(@NonNull final Configuration configuration) {
-        return loadModule(HashgraphModule.class, HashgraphModule.NAME, configuration);
-    }
-
-    /**
      * Create and initialize a no-op instance of the {@link HashgraphModule}.
      *
      * @param model the wiring model
@@ -328,23 +297,11 @@ public class ConsensusModuleBuilder {
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
-        final HashgraphModule hashgraphModule = createHashgraphModule(configuration);
+        final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
                 model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
         return hashgraphModule;
-    }
-
-    /**
-     * Create an instance of the {@link GossipModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code GossipModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    @NonNull
-    public static GossipModule createGossipModule(@NonNull final Configuration configuration) {
-        return loadModule(GossipModule.class, GossipModule.NAME, configuration);
     }
 
     /**
@@ -379,7 +336,7 @@ public class ConsensusModuleBuilder {
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration);
-        final GossipModule gossipModule = createGossipModule(configuration);
+        final GossipModule gossipModule = createModule(GossipModule.class, configuration);
         gossipModule.initialize(
                 model,
                 configuration,
@@ -395,17 +352,5 @@ public class ConsensusModuleBuilder {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
-    }
-
-    /**
-     * Create an instance of the {@link ReconnectModule} using {@link ServiceLoader}.
-     *
-     * @param configuration the configuration containing module selection properties
-     * @return an instance of {@code ReconnectModule}
-     * @throws IllegalStateException if no implementation is found or selection is ambiguous
-     */
-    @NonNull
-    public static ReconnectModule createReconnectModule(@NonNull final Configuration configuration) {
-        return loadModule(ReconnectModule.class, ReconnectModule.NAME, configuration);
     }
 }

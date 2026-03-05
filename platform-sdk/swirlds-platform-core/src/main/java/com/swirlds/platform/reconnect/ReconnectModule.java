@@ -25,9 +25,6 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
  */
 public interface ReconnectModule {
 
-    /** The config property name used for module selection in {@code ModulesConfig}. */
-    String NAME = "reconnect";
-
     /**
      * Initializes the module.
      *

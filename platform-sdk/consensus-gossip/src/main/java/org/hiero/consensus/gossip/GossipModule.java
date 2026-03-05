@@ -33,9 +33,6 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  */
 public interface GossipModule {
 
-    /** The config property name used for module selection in {@code ModulesConfig}. */
-    String NAME = "gossip";
-
     /**
      * Initialize the gossip module.
      *

@@ -4,11 +4,7 @@ package com.swirlds.platform.builder;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createGossipModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createPcesModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
@@ -449,7 +445,7 @@ public final class PlatformBuilder {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule(configuration);
+            this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
         gossipModule.initialize(
@@ -552,17 +548,17 @@ public final class PlatformBuilder {
                 new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
 
         if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createEventCreatorModule(configuration);
+            this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         }
         if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createEventIntakeModule(configuration);
+            this.eventIntakeModule = createModule(EventIntakeModule.class, configuration);
         }
-        this.pcesModule = createPcesModule(configuration);
+        this.pcesModule = createModule(PcesModule.class, configuration);
         if (this.hashgraphModule == null) {
-            this.hashgraphModule = createHashgraphModule(configuration);
+            this.hashgraphModule = createModule(HashgraphModule.class, configuration);
         }
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule(configuration);
+            this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
         final PlatformComponents platformComponents = PlatformComponents.create(

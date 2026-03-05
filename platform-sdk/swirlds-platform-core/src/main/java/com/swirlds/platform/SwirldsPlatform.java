@@ -199,7 +199,8 @@ public class SwirldsPlatform implements Platform {
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
-        final ReconnectModule reconnectModule = ConsensusModuleBuilder.createReconnectModule(configuration);
+        final ReconnectModule reconnectModule =
+                ConsensusModuleBuilder.createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
                 configuration,
                 platformContext.getTime(),

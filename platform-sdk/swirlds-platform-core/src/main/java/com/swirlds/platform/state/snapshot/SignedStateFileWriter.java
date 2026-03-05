@@ -153,7 +153,8 @@ public final class SignedStateFileWriter {
         if (selfId != null) {
             // This is a temporary measure that allows us to move this functionality into the consensus module
             // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-            final PcesModule pcesModule = ConsensusModuleBuilder.createPcesModule(platformContext.getConfiguration());
+            final PcesModule pcesModule =
+                    ConsensusModuleBuilder.createModule(PcesModule.class, platformContext.getConfiguration());
             pcesModule.copyPcesFilesRetryOnFailure(
                     platformContext.getConfiguration(),
                     selfId,
