@@ -220,9 +220,16 @@ REMOTE_EOF
 echo "Downloading results to $LOCAL_TAR ..."
 scp -o BatchMode=yes "$SSH_DEST:$REMOTE_TAR" "$LOCAL_TAR"
 
-# Clean up remote temp files
+# Clean up remote temp files and stop Gradle daemons
 echo "Cleaning up remote temporary files..."
 ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'"
+echo "Stopping Gradle daemons on remote..."
+ssh -o BatchMode=yes "$SSH_DEST" bash <<'STOP_EOF'
+for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
+    [[ -f "$f" ]] && source "$f" 2>/dev/null || true
+done
+cd hedera-services && ./gradlew --stop 2>/dev/null || true
+STOP_EOF
 
 echo ""
 echo -e "${GREEN}######################################################################${NC}"
