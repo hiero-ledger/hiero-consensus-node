@@ -67,6 +67,46 @@ public class BlockNodeSubscribeClient {
         return fetchBlocks(host, port, endBlockNumber, DEFAULT_TIMEOUT);
     }
 
+    /**
+     * Fetches all currently available blocks from block #0 through the block node reported tip.
+     *
+     * @param host block node host
+     * @param port block node port
+     * @return blocks in ascending order
+     */
+    public @NonNull List<Block> fetchAllAvailableBlocks(@NonNull final String host, final int port) {
+        return fetchAllAvailableBlocks(host, port, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * Fetches all currently available blocks from block #0 through the block node reported tip.
+     *
+     * @param host block node host
+     * @param port block node port
+     * @param timeout client timeout
+     * @return blocks in ascending order
+     */
+    public @NonNull List<Block> fetchAllAvailableBlocks(
+            @NonNull final String host, final int port, @NonNull final Duration timeout) {
+        requireNonNull(host);
+        requireNonNull(timeout);
+        final var config = blockNodeConfig(host, port);
+        final var factory = new BlockNodeClientFactory();
+        try (final BlockNodeServiceClient serviceClient = factory.createServiceClient(config, timeout);
+                final BlockStreamSubscribeServiceClient subscribeClient = factory.createSubscribeClient(config, timeout)) {
+            final var status = serviceClient.serverStatus(new ServerStatusRequest());
+            final var endBlockNumber = status.lastAvailableBlock();
+            if (endBlockNumber < 0) {
+                return List.of();
+            }
+            final var request = SubscribeStreamRequest.newBuilder()
+                    .startBlockNumber(0)
+                    .endBlockNumber(endBlockNumber)
+                    .build();
+            return invokeSubscribe(subscribeClient, request);
+        }
+    }
+
     private @NonNull List<Block> invokeSubscribe(
             @NonNull final BlockStreamSubscribeServiceClient client, @NonNull final SubscribeStreamRequest request) {
         requireNonNull(client);
