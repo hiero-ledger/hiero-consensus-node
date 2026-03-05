@@ -107,7 +107,8 @@ class EthTxDataTest {
     void effectiveValueIsNominalWhenReasonable() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         final var nominal = subject.value().divide(WEIBARS_PER_TINYBAR).longValueExact();
-        assertEquals(nominal, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR));
+        assertEquals(
+                nominal, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR), "Effective value should match nominal");
     }
 
     @Test
@@ -116,7 +117,10 @@ class EthTxDataTest {
         final var nominal = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
                 .divide(WEIBARS_PER_TINYBAR)
                 .longValueExact();
-        assertEquals(nominal, subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE, WEIBARS_PER_TINYBAR));
+        assertEquals(
+                nominal,
+                subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE, WEIBARS_PER_TINYBAR),
+                "Effective gas price should match nominal");
     }
 
     @Test
@@ -125,7 +129,7 @@ class EthTxDataTest {
                 .replaceValue(
                         BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(WEIBARS_PER_TINYBAR));
         final var expected = Long.MAX_VALUE;
-        assertEquals(expected, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR));
+        assertEquals(expected, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR), "Should cap at Long.MAX_VALUE");
     }
 
     @Test

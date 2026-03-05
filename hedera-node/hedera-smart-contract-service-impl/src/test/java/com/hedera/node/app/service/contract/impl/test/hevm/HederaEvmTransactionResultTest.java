@@ -197,7 +197,10 @@ class HederaEvmTransactionResultTest {
                 Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
                 WEIBARS_PER_TINYBAR);
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.gasLimit(), protoResult.gas());
-        assertEquals(ETH_DATA_WITH_TO_ADDRESS.getAmount(WEIBARS_PER_TINYBAR), protoResult.amount());
+        assertEquals(
+                ETH_DATA_WITH_TO_ADDRESS.getAmount(WEIBARS_PER_TINYBAR),
+                protoResult.amount(),
+                "Proto result amount should match ETH data amount");
         assertArrayEquals(
                 ETH_DATA_WITH_TO_ADDRESS.callData(),
                 protoResult.functionParameters().toByteArray());

@@ -21,7 +21,7 @@ class DenominationConverterTest {
 
     @ParameterizedTest
     @CsvSource({"0, 1", "1, 10", "8, 100000000", "17, 100000000000000000", "18, 1000000000000000000"})
-    void subunitsPerWholeUnitAtBoundaryDecimals(final int decimals, final long expected) {
+    /* default */ void subunitsPerWholeUnitAtBoundaryDecimals(final int decimals, final long expected) {
         final var converter = new DenominationConverter(decimals);
         assertThat(converter.subunitsPerWholeUnit()).isEqualTo(expected);
     }
@@ -45,7 +45,7 @@ class DenominationConverterTest {
 
     @ParameterizedTest
     @CsvSource({"0, 1000000000000000000", "6, 1000000000000", "8, 10000000000", "18, 1"})
-    void weibarsPerSubunitAtVariousDecimals(final int decimals, final String expectedStr) {
+    /* default */ void weibarsPerSubunitAtVariousDecimals(final int decimals, final String expectedStr) {
         final var converter = new DenominationConverter(decimals);
         assertThat(converter.weibarsPerSubunit()).isEqualTo(new BigInteger(expectedStr));
     }

@@ -181,6 +181,12 @@ public record EthTxData(
         return value.divide(weibarsInATinybar).longValueExact();
     }
 
+    /**
+     * Returns the maximum gas as a {@link BigInteger}, applying a multiplier for deterministic deployer transactions.
+     *
+     * @param tinybarGasPrice the gas price in tinybars used as multiplier for legacy deterministic deployer txns
+     * @return the maximum gas as a BigInteger
+     */
     public BigInteger getMaxGasAsBigInteger(final long tinybarGasPrice) {
         long multiple = 1L;
         if (type == EthTransactionType.LEGACY_ETHEREUM && Arrays.equals(rawTx, DETERMINISTIC_DEPLOYER_TRANSACTION)) {

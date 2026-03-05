@@ -206,12 +206,13 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
         assertThat(copyStakingInfo.pendingRewards()).isEqualTo(MAX_PENDING_REWARDS);
         assertThat(writableRewardsStore.get().pendingRewards()).isEqualTo(MAX_PENDING_REWARDS);
 
+        final var overflowAmount = "9223372036854775807";
         assertThat(logCaptor.errorLogs())
                 .contains(
-                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807, capping at "
-                                + MAX_PENDING_REWARDS,
-                        "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807 for node 0, capping at "
-                                + MAX_PENDING_REWARDS);
+                        "Pending rewards increased by " + overflowAmount + " to an un-payable " + overflowAmount
+                                + ", capping at " + MAX_PENDING_REWARDS,
+                        "Pending rewards increased by " + overflowAmount + " to an un-payable " + overflowAmount
+                                + " for node 0, capping at " + MAX_PENDING_REWARDS);
     }
 
     @Test
