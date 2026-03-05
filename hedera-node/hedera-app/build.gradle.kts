@@ -126,6 +126,7 @@ val copyNodeData =
         from(layout.projectDirectory.file("../config.txt"))
         from(layout.projectDirectory.file("../log4j2.xml"))
         from(layout.projectDirectory.file("../configuration/small-memory/settings.txt"))
+        from(layout.projectDirectory.file("../docker/start-small-memory.sh"))
     }
 
 tasks.assemble {

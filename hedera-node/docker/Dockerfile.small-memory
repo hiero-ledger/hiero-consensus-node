@@ -9,7 +9,6 @@ ENV MALLOC_ARENA_MAX=2
 WORKDIR /opt/hedera/services
 
 COPY . .
-COPY start-small-memory.sh .
 
 RUN chmod +x start-small-memory.sh && \
     mkdir -p output
