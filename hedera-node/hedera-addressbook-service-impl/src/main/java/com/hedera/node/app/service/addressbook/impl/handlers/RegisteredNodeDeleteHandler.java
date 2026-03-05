@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -37,14 +37,17 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeDeleteOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+
+        final var op = txn.registeredNodeDeleteOrThrow();
         validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_NODE_ID);
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().registeredNodeDeleteOrThrow();
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var store = context.createStore(ReadableRegisteredNodeStore.class);
@@ -60,31 +63,36 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeDeleteOrThrow();
+    public void handle(@NonNull final HandleContext handleContext) {
+        requireNonNull(handleContext, "handleContext  must not be null");
+        final var txn = handleContext.body();
+        requireNonNull(txn, "txn must not be null");
 
-        final var storeFactory = context.storeFactory();
+        final var op = txn.registeredNodeDeleteOrThrow();
+
+        final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
         final var nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
 
-        final var existing = registeredNodeStore.get(op.registeredNodeId());
-        validateFalse(existing == null, INVALID_NODE_ID);
+        final var registeredNodeId = op.registeredNodeId();
+        final var existingNode = registeredNodeStore.get(registeredNodeId);
+        validateFalse(existingNode == null, INVALID_NODE_ID);
 
         // Forbid deletion while referenced by any consensus node.
-        for (final var nodeKey : nodeStore.keys()) {
-            final var node = nodeStore.get(nodeKey.number());
-            if (node != null && node.associatedRegisteredNode().contains(op.registeredNodeId())) {
-                throw new com.hedera.node.app.spi.workflows.HandleException(ENTITY_NOT_ALLOWED_TO_DELETE);
-            }
-        }
+        final var isReferenced = nodeStore.keys().stream()
+                .map(key -> nodeStore.get(key.number()))
+                .anyMatch(node -> node != null
+                        && !node.deleted()
+                        && node.associatedRegisteredNode().contains(registeredNodeId));
+        validateFalse(isReferenced, REGISTERED_NODE_STILL_REFERENCED);
 
-        registeredNodeStore.remove(op.registeredNodeId());
+        registeredNodeStore.remove(registeredNodeId);
     }
 
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));

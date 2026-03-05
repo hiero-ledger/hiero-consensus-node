@@ -35,13 +35,16 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
 
     @Inject
     public RegisteredNodeUpdateHandler(@NonNull final AddressBookValidator addressBookValidator) {
-        this.addressBookValidator = requireNonNull(addressBookValidator);
+        this.addressBookValidator = requireNonNull(addressBookValidator, "addressBookValidator must not be null");
     }
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().registeredNodeUpdateOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+
+        final var op = txn.registeredNodeUpdateOrThrow();
         validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_NODE_ID);
         if (op.hasAdminKey()) {
             addressBookValidator.validateAdminKey(op.adminKey());
@@ -50,7 +53,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var op = context.body().registeredNodeUpdateOrThrow();
         final var store = context.createStore(ReadableRegisteredNodeStore.class);
         final var existing = store.get(op.registeredNodeId());
@@ -64,7 +67,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().registeredNodeUpdateOrThrow();
         final var nodesConfig = handleContext.configuration().getConfigData(NodesConfig.class);
 
@@ -105,6 +108,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext, "feeContext must not be null");
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
