@@ -35,9 +35,9 @@ blockNode:
   config:
     BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "1000"
     JAVA_OPTS: '-Xms16G -Xmx16G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
-
   persistence:
     archive:
+      create: false
       # name of the volume within the statefulset
       volumeName: "archive-storage"
       # Name of the subPath in the volume to mount to mountPath in the container
@@ -50,6 +50,7 @@ blockNode:
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "archive-storage-block-node-%NODE_ID%-0"
     logging:
+      create: false
       # name of the volume within the statefulset
       volumeName: "logging-storage"
       mountPath: "/opt/hiero/block-node/logs"
@@ -59,6 +60,7 @@ blockNode:
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "logging-storage-block-node-%NODE_ID%-0"
     live:
+      create: false
       # name of the volume within the statefulset
       volumeName: "live-storage"
       # Name of the subPath in the volume to mount to mountPath in the container
@@ -71,6 +73,7 @@ blockNode:
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "live-storage-block-node-%NODE_ID%-0"
     verification:
+      create: false
       # name of the volume within the statefulset
       volumeName: "verification-storage"
       # should match VERIFICATION_ALL_BLOCKS_HASHER_FILE_PATH parent directory
@@ -81,6 +84,7 @@ blockNode:
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "verification-storage-block-node-%NODE_ID%-0"
     plugins:
+      create: false
       # name of the volume within the statefulset
       volumeName: "plugins-storage"
       size: 1Gi
