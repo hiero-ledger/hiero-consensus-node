@@ -5,8 +5,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.pbj.runtime.ParseException;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
@@ -17,11 +21,31 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * for forensics purposes.
  */
 public record TransactionParts(
-        @NonNull Transaction wrapper, @NonNull TransactionBody body, @NonNull HederaFunctionality function) {
+        @NonNull Transaction wrapper,
+        @NonNull TransactionBody body,
+        @NonNull HederaFunctionality function) {
     public TransactionParts {
         requireNonNull(wrapper);
         requireNonNull(body);
         requireNonNull(function);
+    }
+
+    public static TransactionParts from(@NonNull final BlockItem item) {
+        try {
+            final var serializedSignedTx = item.signedTransactionOrThrow();
+            final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+            final var body = TransactionBody.parseFrom(signedTx.bodyBytes().toByteArray());
+            return new TransactionParts(
+                    Transaction.newBuilder()
+                            .setSignedTransactionBytes(ByteString.copyFrom(serializedSignedTx.toByteArray()))
+                            .build(),
+                    body,
+                    functionOf(body));
+        } catch (UnknownHederaFunctionality | ParseException | InvalidProtocolBufferException e) {
+            // Fail immediately with invalid transactions that should not be
+            // in any production record stream
+            throw new IllegalArgumentException(e);
+        }
     }
 
     public static TransactionParts from(@NonNull final Transaction txn) {
