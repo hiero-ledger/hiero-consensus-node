@@ -239,7 +239,7 @@ class StakeRewardCalculatorImplTest {
         // Integer division truncates the half unit → same as wholeUnits * 5
         final long reward = StakeRewardCalculatorImpl.computeRewardFromDetails(acct, info, 10, 8, subunitsPerWholeUnit);
 
-        assertEquals(wholeUnits * 5, reward);
+        assertEquals(wholeUnits * 5, reward, "Fractional whole units should be truncated");
     }
 
     @ParameterizedTest
