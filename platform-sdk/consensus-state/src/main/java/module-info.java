@@ -26,7 +26,6 @@ module org.hiero.consensus.state {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires com.github.spotbugs.annotations;
-    requires java.desktop;
     requires java.management;
     requires java.scripting;
     requires jdk.management;
