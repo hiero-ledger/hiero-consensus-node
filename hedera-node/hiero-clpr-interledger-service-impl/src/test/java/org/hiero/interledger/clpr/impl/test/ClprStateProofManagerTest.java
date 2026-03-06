@@ -240,9 +240,10 @@ class ClprStateProofManagerTest extends ClprTestBase {
     void getLatestConsensusRoundReturnsRoundFromState() {
         final long expectedRound = 42L;
         final var stateWithPlatform = buildMerkleStateWithPlatformRound(expectedRound);
-        final var lifecycleManager = mock(StateLifecycleManager.class);
-        when(lifecycleManager.getLatestImmutableState()).thenReturn(stateWithPlatform);
-        final var accessor = new BlockProvenStateAccessor(lifecycleManager);
+        final var accessor = mock(BlockProvenStateAccessor.class);
+        given(accessor.latestSnapshot())
+                .willReturn(Optional.of(new BlockProvenStateAccessor.BlockSignedSnapshot(
+                        stateWithPlatform, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH)));
         final var managerWithPlatform = new ClprStateProofManager(accessor, devModeConfig);
 
         assertEquals(expectedRound, managerWithPlatform.getLatestConsensusRound());
@@ -364,9 +365,10 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final long expectedSeconds = 1_700_000_000L;
         final int expectedNanos = 123_456_789;
         final var stateWithPlatform = buildMerkleStateWithPlatformTimestamp(expectedSeconds, expectedNanos);
-        final var lifecycleManager = mock(StateLifecycleManager.class);
-        when(lifecycleManager.getLatestImmutableState()).thenReturn(stateWithPlatform);
-        final var accessor = new BlockProvenStateAccessor(lifecycleManager);
+        final var accessor = mock(BlockProvenStateAccessor.class);
+        given(accessor.latestSnapshot())
+                .willReturn(Optional.of(new BlockProvenStateAccessor.BlockSignedSnapshot(
+                        stateWithPlatform, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH)));
         final var managerWithPlatform = new ClprStateProofManager(accessor, devModeConfig);
 
         final var timestamp = managerWithPlatform.getLatestConsensusTimestamp();
