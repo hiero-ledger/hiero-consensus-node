@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
 
-class GarbageScannerTaskTest {
+class GarbageScannerTest {
 
     @Test
     void scanTracksAliveItemsAcrossMultipleFiles() {
@@ -31,10 +31,10 @@ class GarbageScannerTaskTest {
         indexEntries.put(4L, dataLocation(1, 2));
         indexEntries.put(5L, dataLocation(1, 3));
 
-        final GarbageScannerTask task =
+        final GarbageScanner task =
                 createTask(new TestIndex(indexEntries), List.of(file1, file2, file3), new KeyRange(0, 10));
 
-        final Map<Integer, GarbageScannerTask.GarbageFileStats> result = task.scan();
+        final Map<Integer, GarbageScanner.GarbageFileStats> result = task.scan();
 
         assertEquals(3, result.size());
         assertEquals(3, result.get(1).aliveItems());
@@ -47,10 +47,10 @@ class GarbageScannerTaskTest {
         final DataFileReader file1 = mockFileReader(1, 0, 5);
         final DataFileReader file2 = mockFileReader(2, 1, 9);
 
-        final GarbageScannerTask task =
+        final GarbageScanner task =
                 createTask(new TestIndex(new LinkedHashMap<>()), List.of(file1, file2), new KeyRange(0, 10));
 
-        final Map<Integer, GarbageScannerTask.GarbageFileStats> result = task.scan();
+        final Map<Integer, GarbageScanner.GarbageFileStats> result = task.scan();
 
         assertEquals(2, result.size());
         assertEquals(0, result.get(1).aliveItems());
@@ -68,10 +68,10 @@ class GarbageScannerTaskTest {
             indexEntries.put(key, dataLocation(2, key + 1));
         }
 
-        final GarbageScannerTask task =
+        final GarbageScanner task =
                 createTask(new TestIndex(indexEntries), List.of(file1, file2, file3), new KeyRange(0, 10));
 
-        final Map<Integer, GarbageScannerTask.GarbageFileStats> result = task.scan();
+        final Map<Integer, GarbageScanner.GarbageFileStats> result = task.scan();
 
         assertEquals(0, result.get(1).aliveItems());
         assertEquals(8, result.get(2).aliveItems());
@@ -89,10 +89,9 @@ class GarbageScannerTaskTest {
         indexEntries.put(2L, dataLocation(99, 2));
         indexEntries.put(3L, dataLocation(1, 2));
 
-        final GarbageScannerTask task =
-                createTask(new TestIndex(indexEntries), List.of(file1, file2), new KeyRange(0, 10));
+        final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2), new KeyRange(0, 10));
 
-        final Map<Integer, GarbageScannerTask.GarbageFileStats> result = task.scan();
+        final Map<Integer, GarbageScanner.GarbageFileStats> result = task.scan();
 
         assertEquals(2, result.size());
         assertNotNull(result.get(1));
@@ -101,12 +100,12 @@ class GarbageScannerTaskTest {
         assertEquals(0, result.get(2).aliveItems());
     }
 
-    private static GarbageScannerTask createTask(
+    private static GarbageScanner createTask(
             final CASableLongIndex index, final List<DataFileReader> files, final KeyRange keyRange) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
         when(fileCollection.getValidKeyRange()).thenReturn(keyRange);
-        return new GarbageScannerTask(index, fileCollection, "test-store");
+        return new GarbageScanner(index, fileCollection, "test-store");
     }
 
     private static DataFileReader mockFileReader(final int fileIndex, final int level, final long totalItems) {

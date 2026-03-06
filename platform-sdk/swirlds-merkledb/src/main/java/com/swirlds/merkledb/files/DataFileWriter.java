@@ -217,8 +217,8 @@ public final class DataFileWriter {
                     + (getCurrentFilePosition() - fileOffset));
         }
 
-        // return the offset where we wrote the data
         itemsCount++;
+        // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
 
@@ -262,8 +262,8 @@ public final class DataFileWriter {
                     + (getCurrentFilePosition() - fileOffset));
         }
 
-        // return the offset where we wrote the data
         itemsCount++;
+        // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
 

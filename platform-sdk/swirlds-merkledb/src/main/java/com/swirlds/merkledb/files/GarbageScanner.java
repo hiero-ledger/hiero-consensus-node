@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,15 +29,15 @@ import org.apache.logging.log4j.Logger;
  * bucket can contain stale entries internally), which is a safe direction for compaction
  * decisions.
  */
-public class GarbageScannerTask {
+public class GarbageScanner {
 
-    private static final Logger logger = LogManager.getLogger(GarbageScannerTask.class);
+    private static final Logger logger = LogManager.getLogger(GarbageScanner.class);
 
     private final CASableLongIndex index;
     private final DataFileCollection dataFileCollection;
     private final String storeName;
 
-    public GarbageScannerTask(
+    public GarbageScanner(
             final CASableLongIndex index, final DataFileCollection dataFileCollection, final String storeName) {
         this.index = index;
         this.dataFileCollection = dataFileCollection;
@@ -54,27 +55,15 @@ public class GarbageScannerTask {
     public Map<Integer, GarbageFileStats> scan() {
         final long start = System.currentTimeMillis();
 
-        final List<DataFileReader> allFiles = dataFileCollection.getAllCompletedFiles();
-        final Map<Integer, GarbageFileStats> statsByFileIndex = new HashMap<>(allFiles.size());
-        long totalItems = 0;
-        for (final DataFileReader file : allFiles) {
-            final DataFileMetadata metadata = file.getMetadata();
-            final GarbageFileStats stats =
-                    new GarbageFileStats(file.getIndex(), metadata.getCompactionLevel(), metadata.getItemsCount());
-            statsByFileIndex.put(stats.fileIndex(), stats);
-            totalItems += stats.totalItems();
-        }
+        final Map<Integer, GarbageFileStats> statsByFileIndex = createStatsByFileIndexMap();
 
-        final long[] aliveTotal = {0};
         try {
             index.forEach(
                     (key, dataLocation) -> {
                         final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
                         final GarbageFileStats fileStats = statsByFileIndex.get(fileIndex);
-                        if (fileStats != null) {
-                            fileStats.incrementAliveItems();
-                            aliveTotal[0]++;
-                        }
+                        assert fileStats != null;
+                        fileStats.incrementAliveItems();
                     },
                     null);
         } catch (final InterruptedException e) {
@@ -83,16 +72,51 @@ public class GarbageScannerTask {
             return Map.of();
         }
 
-        final long tookMillis = System.currentTimeMillis() - start;
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "[{}] Garbage scan finished in {} ms, files={}, totalItems={}, aliveItems={}",
-                storeName,
-                tookMillis,
-                statsByFileIndex.size(),
-                totalItems,
-                aliveTotal[0]);
+        logLevelStats(statsByFileIndex);
 
+        final long tookMillis = System.currentTimeMillis() - start;
+        logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
+
+        return statsByFileIndex;
+    }
+
+    private void logLevelStats(Map<Integer, GarbageFileStats> statsByFileIndex) {
+        final Map<Integer, long[]> totalsByLevel = new TreeMap<>();
+        for (final GarbageFileStats stats : statsByFileIndex.values()) {
+            final long[] levelTotals = totalsByLevel.computeIfAbsent(stats.compactionLevel(), level -> new long[3]);
+            levelTotals[0]++;
+            levelTotals[1] += stats.totalItems();
+            levelTotals[2] += stats.aliveItems();
+        }
+
+        totalsByLevel.forEach((level, totals) -> {
+            final long levelFilesCount = totals[0];
+            final long levelTotalItems = totals[1];
+            final long levelAliveItems = totals[2];
+            final double levelGarbageRatio =
+                    levelTotalItems == 0 ? 1.0 : 1.0 - ((double) levelAliveItems / levelTotalItems);
+
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Garbage scan level {}: files={}, totalItems={}, aliveItems={}, garbageRatio={}",
+                    storeName,
+                    level,
+                    levelFilesCount,
+                    levelTotalItems,
+                    levelAliveItems,
+                    levelGarbageRatio);
+        });
+    }
+
+    private Map<Integer, GarbageFileStats> createStatsByFileIndexMap() {
+        final List<DataFileReader> allFiles = dataFileCollection.getAllCompletedFiles();
+        final Map<Integer, GarbageFileStats> statsByFileIndex = new HashMap<>(allFiles.size());
+        for (final DataFileReader file : allFiles) {
+            final DataFileMetadata metadata = file.getMetadata();
+            final GarbageFileStats stats =
+                    new GarbageFileStats(file.getIndex(), metadata.getCompactionLevel(), metadata.getItemsCount());
+            statsByFileIndex.put(stats.fileIndex(), stats);
+        }
         return statsByFileIndex;
     }
 
@@ -193,12 +217,14 @@ public class GarbageScannerTask {
 
         /**
          * Returns the fraction of items in this file that are no longer referenced by the index.
-         * Returns 0.0 for empty files (totalItems == 0) to avoid division by zero and to
-         * prevent empty files from triggering compaction.
+         *
+         * Returns 1.0 for empty files (totalItems == 0). This value may be in two cases:
+         * 1) the file is truly empty, in which case the compaction task will be no-op which is acceptable, or
+         * 2) the file metadata is of the previous version which didn't support the item count. In this case we need to do the full compaction.
          */
         public double garbageRatio() {
             if (totalItems == 0) {
-                return 0.0;
+                return 1.0;
             }
             return 1.0 - ((double) aliveItems / totalItems);
         }

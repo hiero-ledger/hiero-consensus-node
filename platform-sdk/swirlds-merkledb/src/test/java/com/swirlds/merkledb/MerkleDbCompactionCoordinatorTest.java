@@ -21,8 +21,8 @@ import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScannerTask;
-import com.swirlds.merkledb.files.GarbageScannerTask.GarbageFileStats;
+import com.swirlds.merkledb.files.GarbageScanner;
+import com.swirlds.merkledb.files.GarbageScanner.GarbageFileStats;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -67,7 +67,7 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testSubmitScanIfNotRunningDoesNotSubmitDuplicates() throws InterruptedException {
-        final GarbageScannerTask scanner = mock(GarbageScannerTask.class);
+        final GarbageScanner scanner = mock(GarbageScanner.class);
         final CountDownLatch scanStarted = new CountDownLatch(1);
         final CountDownLatch releaseScan = new CountDownLatch(1);
         when(scanner.scan()).thenAnswer(invocation -> {
@@ -242,7 +242,7 @@ class MerkleDbCompactionCoordinatorTest {
     // ========================================================================
 
     @Test
-    void testPauseCompactionPausesAllActiveCompactorsAcrossLevels() throws IOException, InterruptedException {
+    void testPauseCompactionAndRunPausesAllActiveCompactorsAcrossLevels() throws IOException, InterruptedException {
         final DataFileReader level0File = mockFileReader(1, 0);
         final DataFileReader level2File = mockFileReader(2, 2);
 
@@ -276,10 +276,12 @@ class MerkleDbCompactionCoordinatorTest {
                 HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         assertTrue(tasksStarted.await(1, TimeUnit.SECONDS), "Compaction tasks didn't start");
 
-        coordinator.pauseCompaction();
+        coordinator.pauseCompactionAndRun(() -> {});
 
         verify(taskCompactor1).pauseCompaction();
         verify(taskCompactor2).pauseCompaction();
+        verify(taskCompactor1).resumeCompaction();
+        verify(taskCompactor2).resumeCompaction();
 
         releaseTasks.countDown();
     }
@@ -311,7 +313,7 @@ class MerkleDbCompactionCoordinatorTest {
     // ========================================================================
 
     private void publishScanResult(final String storeName, final Map<Integer, GarbageFileStats> result) {
-        final GarbageScannerTask scanner = mock(GarbageScannerTask.class);
+        final GarbageScanner scanner = mock(GarbageScanner.class);
         when(scanner.scan()).thenReturn(result);
         coordinator.submitScanIfNotRunning(storeName, scanner);
         assertEventuallyDoesNotThrow(

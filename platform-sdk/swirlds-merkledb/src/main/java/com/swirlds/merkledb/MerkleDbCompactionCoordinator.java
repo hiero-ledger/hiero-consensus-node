@@ -7,12 +7,13 @@ import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.swirlds.common.io.utility.IORunnable;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScannerTask;
-import com.swirlds.merkledb.files.GarbageScannerTask.GarbageFileStats;
+import com.swirlds.merkledb.files.GarbageScanner;
+import com.swirlds.merkledb.files.GarbageScanner.GarbageFileStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -27,7 +28,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -97,24 +97,26 @@ class MerkleDbCompactionCoordinator {
     // Synchronized on this
     private boolean compactionEnabled = false;
 
-    // Active compactors by task key (e.g. "HashStoreDisk_compact_0"). Synchronized on this.
-    // Only populated when a compaction task has evaluated scan results, decided to compact,
-    // and created a DataFileCompactor. Used for pause/resume during snapshots and interrupt
-    // during shutdown.
+    /**
+     * Active compactors by task key (e.g. "HashStoreDisk_compact_0"). Synchronized on this.
+     * Only populated when a compaction task has evaluated scan results, decided to compact,
+     * and created a DataFileCompactor. Used for pause/resume during snapshots and interrupt
+     * during shutdown.
+     * */
     final Map<String, DataFileCompactor> compactorsByName = new HashMap<>(16);
 
-    // Submitted compaction task keys (both queued and running). Synchronized on this.
-    // Used to prevent duplicate per-level task submissions. A superset of the keys in
-    // compactorsByName — a task is in this set from submission until its finally block.
-    private final Set<String> submittedCompactionTasks = new HashSet<>(16);
+    /**
+     * Submitted compaction task keys (both queued and running) and  active scanner tasks. Synchronized on this.
+     * Used to prevent duplicate task submissions. A superset of the keys in
+     * compactorsByName — a task is in this set from submission until its finally block.
+     * Tasks of two types can be safely combined in one set as their names are unique.
+     */
+    private final Set<String> tasks = new HashSet<>(20);
 
-    // Active scanner task keys. Synchronized on this.
-    private final Set<String> runningScanners = new HashSet<>(4);
-
-    // Latest scan results per store name. Written by scanner tasks, read by compaction tasks
-    // when they evaluate candidates at execution time. Keys are store names (e.g. "HashStoreDisk").
-    private final Map<String, AtomicReference<Map<Integer, GarbageFileStats>>> scanResultsByStore =
-            new ConcurrentHashMap<>(4);
+    /** Latest scan results per store name. Written by scanner tasks, read by compaction tasks
+     * when they evaluate candidates at execution time. Keys are store names (e.g. "HashStoreDisk").
+     */
+    private final Map<String, Map<Integer, GarbageFileStats>> scanResultsByStore = new ConcurrentHashMap<>(4);
 
     @NonNull
     private final MerkleDbConfig merkleDbConfig;
@@ -139,30 +141,29 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Pauses compaction of all active data file compactors. It may not stop compaction
-     * immediately, but as soon as the compaction process needs to update data source state
-     * (which is critical for snapshots, e.g. update an index), it will be stopped until
-     * {@link #resumeCompaction()} is called.
+     * Pauses compaction of all active data file compactors while running the provided action.
+     * Compaction may not stop immediately, but as soon as the compaction process needs to update
+     * data source state (which is critical for snapshots, e.g. update an index), it will be
+     * blocked until the action completes.
      *
-     * <p>Scanner tasks are not paused because they are read-only. Compaction tasks that
-     * have been submitted but have not yet created a compactor (still evaluating or queued)
-     * are also unaffected — they will encounter the lock when they start writing.
+     * <p>Scanner tasks are not paused because they are read-only. Compaction tasks that have been
+     * submitted but have not yet created a compactor (still evaluating or queued) are also
+     * unaffected — they will encounter the lock when they start writing.
+     *
+     * @param action action to run while compaction is paused
      */
-    synchronized void pauseCompaction() throws IOException {
+    synchronized void pauseCompactionAndRun(IORunnable action) throws IOException {
         for (final DataFileCompactor compactor : compactorsByName.values()) {
             compactor.pauseCompaction();
         }
-    }
-
-    /**
-     * Resumes previously stopped data file collection compaction.
-     */
-    synchronized void resumeCompaction() throws IOException {
-        for (final DataFileCompactor compactor : compactorsByName.values()) {
-            compactor.resumeCompaction();
+        try {
+            action.run();
+        } finally {
+            for (final DataFileCompactor compactor : compactorsByName.values()) {
+                compactor.resumeCompaction();
+            }
         }
     }
-
     /**
      * Stops all compactions in progress and disables background compaction. All subsequent calls
      * to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is called.
@@ -180,7 +181,7 @@ class MerkleDbCompactionCoordinator {
         }
         awaitForCurrentCompactionsToComplete(SHUTDOWN_TIMEOUT_MILLIS);
         // If some tasks are still running, there is nothing else to do than to log it
-        if (!submittedCompactionTasks.isEmpty()) {
+        if (!tasks.isEmpty()) {
             logger.warn(MERKLE_DB.getMarker(), "Timed out waiting to stop all compactions tasks");
         }
     }
@@ -194,7 +195,7 @@ class MerkleDbCompactionCoordinator {
      */
     synchronized void awaitForCurrentCompactionsToComplete(long timeoutMillis) {
         final long deadline = timeoutMillis > 0 ? System.currentTimeMillis() + timeoutMillis : Long.MAX_VALUE;
-        while (!submittedCompactionTasks.isEmpty()) {
+        while (!tasks.isEmpty()) {
             final long remaining = deadline - System.currentTimeMillis();
             if (remaining <= 0) break;
 
@@ -215,18 +216,17 @@ class MerkleDbCompactionCoordinator {
      * @param storeName store name (e.g. {@link DataFileCompactor#HASH_STORE_DISK})
      * @param scanner   the scanner task to run
      */
-    synchronized void submitScanIfNotRunning(final String storeName, final GarbageScannerTask scanner) {
+    synchronized void submitScanIfNotRunning(final String storeName, final GarbageScanner scanner) {
         if (!compactionEnabled) {
             return;
         }
 
         final String scanTaskKey = scanTaskKey(storeName);
-        if (runningScanners.contains(scanTaskKey)) {
+        if (tasks.contains(scanTaskKey)) {
             return;
         }
 
-        runningScanners.add(scanTaskKey);
-        scanResultsByStore.computeIfAbsent(storeName, ignored -> new AtomicReference<>());
+        tasks.add(scanTaskKey);
         getCompactionExecutor(merkleDbConfig).submit(new ScannerTask(scanTaskKey, storeName, scanner));
     }
 
@@ -261,12 +261,12 @@ class MerkleDbCompactionCoordinator {
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
         for (final int level : levels) {
             final String taskKey = compactionTaskKey(storeName, level);
-            if (submittedCompactionTasks.contains(taskKey)) {
+            if (tasks.contains(taskKey)) {
                 // A task for this store and level is already queued or running
                 continue;
             }
 
-            submittedCompactionTasks.add(taskKey);
+            tasks.add(taskKey);
             executor.submit(new CompactionTask(taskKey, storeName, level, fileCollection, compactorFactory, config));
         }
     }
@@ -281,7 +281,7 @@ class MerkleDbCompactionCoordinator {
      */
     synchronized boolean isCompactionRunning(final String storeName) {
         final String prefix = storeName + "_compact_";
-        for (final String key : submittedCompactionTasks) {
+        for (final String key : tasks) {
             if (key.startsWith(prefix)) {
                 return true;
             }
@@ -309,9 +309,9 @@ class MerkleDbCompactionCoordinator {
 
         private final String taskKey;
         private final String storeName;
-        private final GarbageScannerTask scanner;
+        private final GarbageScanner scanner;
 
-        ScannerTask(final String taskKey, final String storeName, final GarbageScannerTask scanner) {
+        ScannerTask(final String taskKey, final String storeName, final GarbageScanner scanner) {
             this.taskKey = taskKey;
             this.storeName = storeName;
             this.scanner = scanner;
@@ -321,15 +321,13 @@ class MerkleDbCompactionCoordinator {
         public Map<Integer, GarbageFileStats> call() {
             try {
                 final Map<Integer, GarbageFileStats> result = scanner.scan();
-                scanResultsByStore
-                        .computeIfAbsent(storeName, ignored -> new AtomicReference<>())
-                        .set(result);
+                scanResultsByStore.put(storeName, result);
                 return result;
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Garbage scan failed", taskKey, e);
             } finally {
                 synchronized (MerkleDbCompactionCoordinator.this) {
-                    runningScanners.remove(taskKey);
+                    tasks.remove(taskKey);
                     MerkleDbCompactionCoordinator.this.notifyAll();
                 }
             }
@@ -374,29 +372,21 @@ class MerkleDbCompactionCoordinator {
         public Boolean call() {
             try {
                 // Exit early if compaction was disabled while this task was queued
-                synchronized (MerkleDbCompactionCoordinator.this) {
-                    if (!compactionEnabled) {
-                        return false;
-                    }
+                if (!isCompactionEnabled()) {
+                    return false;
                 }
 
                 // Read cached scan results
-                final AtomicReference<Map<Integer, GarbageFileStats>> scanResultRef = scanResultsByStore.get(storeName);
-                if (scanResultRef == null) {
-                    return false;
-                }
-                final Map<Integer, GarbageFileStats> scanResult = scanResultRef.get();
+                final Map<Integer, GarbageFileStats> scanResult = scanResultsByStore.get(storeName);
                 if (scanResult == null) {
                     // No scan results available yet — scanner hasn't completed. This is
                     // normal during early startup. The next flush will submit a new task.
                     return false;
                 }
-
                 // Evaluate candidates for this level using fresh file list
                 final List<DataFileReader> allFiles = fileCollection.getAllCompletedFiles();
                 final Map<Integer, List<DataFileReader>> candidatesByLevel =
-                        GarbageScannerTask.evaluateCompactionCandidates(
-                                scanResult, allFiles, config.garbageThreshold());
+                        GarbageScanner.evaluateCompactionCandidates(scanResult, allFiles, config.garbageThreshold());
 
                 final List<DataFileReader> filesToCompact = candidatesByLevel.get(sourceLevel);
                 if (filesToCompact == null || filesToCompact.isEmpty()) {
@@ -407,7 +397,7 @@ class MerkleDbCompactionCoordinator {
                 // Create a compactor and register it for pause/resume/interrupt
                 final DataFileCompactor compactor = compactorFactory.get();
                 synchronized (MerkleDbCompactionCoordinator.this) {
-                    if (!compactionEnabled) {
+                    if (!isCompactionEnabled()) {
                         return false;
                     }
                     compactorsByName.put(taskKey, compactor);
@@ -425,7 +415,7 @@ class MerkleDbCompactionCoordinator {
             } finally {
                 synchronized (MerkleDbCompactionCoordinator.this) {
                     compactorsByName.remove(taskKey);
-                    submittedCompactionTasks.remove(taskKey);
+                    tasks.remove(taskKey);
                     MerkleDbCompactionCoordinator.this.notifyAll();
                 }
             }

@@ -120,12 +120,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     private void snapshotDataSource(final MerkleDbDataSource dataSource, final Path dir) {
         try {
-            try {
-                dataSource.pauseCompaction();
-                dataSource.snapshot(dir);
-            } finally {
-                dataSource.resumeCompaction();
-            }
+            dataSource.pauseCompactionAndRun(() -> dataSource.snapshot(dir));
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }

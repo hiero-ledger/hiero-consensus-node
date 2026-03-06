@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.common.io.utility.IORunnable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashList;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
@@ -29,7 +30,7 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScannerTask;
+import com.swirlds.merkledb.files.GarbageScanner;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
@@ -480,18 +481,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
-     * Pauses compaction of all data file collections used by this data source. It may not stop compaction
-     * immediately, but as soon as compaction process needs to update data source state, which is
-     * critical for snapshots (e.g. update an index), it will be stopped until {@link
-     * #resumeCompaction()}} is called.
+     * Pauses compaction of all data file collections used by this data source while running the
+     * provided action. Compaction may not stop immediately, but as soon as the compaction process
+     * needs to update data source state (which is critical for snapshots, e.g. update an index),
+     * it is blocked until the action completes.
+     *
+     * @param action action to run while compaction is paused
      */
-    void pauseCompaction() throws IOException {
-        compactionCoordinator.pauseCompaction();
-    }
-
-    /** Resumes previously stopped data file collection merging. */
-    void resumeCompaction() throws IOException {
-        compactionCoordinator.resumeCompaction();
+    void pauseCompactionAndRun(IORunnable action) throws IOException {
+        compactionCoordinator.pauseCompactionAndRun(action);
     }
 
     /**
@@ -1331,8 +1329,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     public void runHashStoreCompaction() {
         if (hashStoreDisk == null) return;
         final String storeName = DataFileCompactor.HASH_STORE_DISK;
-        final GarbageScannerTask scanner =
-                new GarbageScannerTask(pathToDiskLocationInternalNodes, hashStoreDisk.getFileCollection(), storeName);
+        final GarbageScanner scanner =
+                new GarbageScanner(pathToDiskLocationInternalNodes, hashStoreDisk.getFileCollection(), storeName);
         compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
         compactionCoordinator.submitCompactionTasks(
                 storeName, hashStoreDisk.getFileCollection(), this::newHashStoreDiskCompactor, merkleDbConfig);
@@ -1340,8 +1338,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     public void runPathToKeyStoreCompaction() {
         final String storeName = DataFileCompactor.PATH_TO_KEY_VALUE;
-        final GarbageScannerTask scanner =
-                new GarbageScannerTask(pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), storeName);
+        final GarbageScanner scanner =
+                new GarbageScanner(pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), storeName);
         compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
         compactionCoordinator.submitCompactionTasks(
                 storeName, pathToKeyValue.getFileCollection(), this::newPathToKeyValueCompactor, merkleDbConfig);
@@ -1349,7 +1347,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     public void runKeyToPathStoreCompaction() {
         final String storeName = DataFileCompactor.OBJECT_KEY_TO_PATH;
-        final GarbageScannerTask scanner = new GarbageScannerTask(
+        final GarbageScanner scanner = new GarbageScanner(
                 keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), storeName);
         compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
         compactionCoordinator.submitCompactionTasks(

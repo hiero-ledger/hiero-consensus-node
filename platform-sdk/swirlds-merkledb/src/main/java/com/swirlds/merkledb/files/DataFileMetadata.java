@@ -38,7 +38,6 @@ public final class DataFileMetadata {
     private static final FieldDefinition FIELD_ITEMS_COUNT =
             new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
 
-    @Deprecated
     private static final FieldDefinition FIELD_ITEM_VERSION =
             new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
 

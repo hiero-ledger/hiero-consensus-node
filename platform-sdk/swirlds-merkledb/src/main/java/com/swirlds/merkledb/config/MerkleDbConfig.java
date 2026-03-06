@@ -30,7 +30,8 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
  * @param garbageThreshold
- *      Garbage ratio that triggers compaction for a level.
+ *      Garbage ratio that triggers compaction for a level. 0.0 means every file is eligible for compaction,
+ *      while 1.0 means only files where all items are no longer referenced from the index are eligible for compaction.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled

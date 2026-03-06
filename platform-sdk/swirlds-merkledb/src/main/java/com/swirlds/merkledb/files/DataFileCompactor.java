@@ -271,7 +271,7 @@ public class DataFileCompactor {
             final int targetCompactionLevel)
             throws IOException, InterruptedException {
         if (filesToCompact.isEmpty()) {
-            logger.debug(MERKLE_DB.getMarker(), "No files were available for merging [{}]", storeName);
+            logger.debug(MERKLE_DB.getMarker(), "No files were available for compaction [{}]", storeName);
             return Collections.emptyList();
         }
 
