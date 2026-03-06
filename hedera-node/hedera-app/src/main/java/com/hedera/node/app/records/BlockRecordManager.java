@@ -142,14 +142,19 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void markMigrationRecordsStreamed();
 
     /**
-     * Hook to append wrapped record-file block hashes for the current in-progress record block
-     * (if the feature is enabled and sufficient in-memory inputs exist).
+     * Hook to compute wrapped record-file block data for the current in-progress record block
+     * prior to a freeze. In such an event, this method has one of two possible responsibilities:
+     * <ol>
+     *   <li>If live wrapped record hash computation is enabled, it must persist the current wrapped
+     *   block's hash to state.</li>
+     *   <li>If live wrapped record hash computation is disabled, but writing wrapped record block
+     *   hashes to disk is enabled, it must write the current wrapped record's component hashes to
+     *   the wrapped hashes file on disk.</li>
+     * </ol>
+     * Note that the 'live' check is intentionally preferred over the 'disk' check, because if live
+     * computation is enabled, there's no need to write data to the disk file.
      *
-     * <p>When {@code state} is non-null and live mode is enabled, the updated wrapped hash state
-     * is persisted to BlockInfo so it survives restart. When {@code state} is null (e.g. called
-     * from {@code FREEZE_COMPLETE}), only the disk path fires.
-     *
-     * @param state the state to persist BlockInfo to, or {@code null} if state is no longer writable
+     * @param state the state to persist BlockInfo to, or {@code null} to skip the state update
      */
     void writeFreezeBlockWrappedRecordFileBlockHashes(@Nullable State state);
 }
