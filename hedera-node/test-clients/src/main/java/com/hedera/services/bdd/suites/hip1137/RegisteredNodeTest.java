@@ -32,7 +32,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGIST
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -53,6 +53,10 @@ public class RegisteredNodeTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String NEW_ADMIN_KEY = "newAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
+    private static final String NODE_ACCOUNT = "nodeAccount";
+    private static final String TEST_NODE = "testNode";
+    private static final String PAYER = "payer";
+    private static final long NON_EXISTENT_ID = 999_999L;
 
     private static List<X509Certificate> gossipCertificates;
 
@@ -150,7 +154,7 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> updateNonExistentNodeFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeUpdate(() -> 999_999L)
+                registeredNodeUpdate(() -> NON_EXISTENT_ID)
                         .description("ghost")
                         .signedBy(DEFAULT_PAYER)
                         .hasPrecheck(INVALID_NODE_ID));
@@ -159,23 +163,22 @@ public class RegisteredNodeTest {
     @HapiTest
     @DisplayName("consensus node create and update with associated registered node")
     final Stream<DynamicTest> consensusNodeWithAssociatedRegisteredNode() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate(nodeAccount),
+                cryptoCreate(NODE_ACCOUNT),
                 registeredNodeCreate("rn")
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
-                    final var create = nodeCreate("testNode", nodeAccount)
+                    final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                             .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, create);
                 }),
-                nodeUpdate("testNode")
+                nodeUpdate(TEST_NODE)
                         .associatedRegisteredNode(List.of())
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
@@ -184,30 +187,28 @@ public class RegisteredNodeTest {
     @HapiTest
     @DisplayName("consensus node create fails with non-existent associated registered node")
     final Stream<DynamicTest> createWithNonExistentAssociatedRegisteredNodeFails() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate(nodeAccount),
-                nodeCreate("testNode", nodeAccount)
+                cryptoCreate(NODE_ACCOUNT),
+                nodeCreate(TEST_NODE, NODE_ACCOUNT)
                         .adminKey(ADMIN_KEY)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                        .associatedRegisteredNode(List.of(999_999L))
+                        .associatedRegisteredNode(List.of(NON_EXISTENT_ID))
                         .hasKnownStatus(INVALID_NODE_ID));
     }
 
     @HapiTest
     @DisplayName("delete registered node fails when still referenced by consensus node")
     final Stream<DynamicTest> deleteReferencedRegisteredNodeFails() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate(nodeAccount),
+                cryptoCreate(NODE_ACCOUNT),
                 registeredNodeCreate("rn")
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
-                    final var create = nodeCreate("testNode", nodeAccount)
+                    final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                             .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
@@ -216,22 +217,21 @@ public class RegisteredNodeTest {
                 }),
                 registeredNodeDelete("rn")
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
-                        .hasKnownStatus(REGISTERED_NODE_STILL_REFERENCED));
+                        .hasKnownStatus(REGISTERED_NODE_STILL_ASSOCIATED));
     }
 
     @HapiTest
     @DisplayName("delete registered node succeeds after consensus node clears reference")
     final Stream<DynamicTest> deleteRegisteredNodeAfterClearingReference() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate(nodeAccount),
+                cryptoCreate(NODE_ACCOUNT),
                 registeredNodeCreate("rn")
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
-                    final var create = nodeCreate("testNode", nodeAccount)
+                    final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                             .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
@@ -239,7 +239,7 @@ public class RegisteredNodeTest {
                     allRunFor(spec, create);
                 }),
                 // Clear the reference
-                nodeUpdate("testNode")
+                nodeUpdate(TEST_NODE)
                         .associatedRegisteredNode(List.of())
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(SUCCESS),
@@ -305,7 +305,7 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> deleteNonExistentRegisteredNodeFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeDelete(() -> 999_999L).signedBy(DEFAULT_PAYER).hasPrecheck(INVALID_NODE_ID));
+                registeredNodeDelete(() -> NON_EXISTENT_ID).signedBy(DEFAULT_PAYER).hasPrecheck(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -313,11 +313,12 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> deleteWithMissingAdminKeySigFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
+                cryptoCreate(PAYER),
                 registeredNodeCreate("rn")
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeDelete("rn").signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE));
+                registeredNodeDelete("rn").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(INVALID_SIGNATURE));
     }
 
     // ─── Endpoint validation negatives ────────────────────────────
@@ -443,11 +444,10 @@ public class RegisteredNodeTest {
     @LeakyHapiTest(overrides = {"nodes.maxAssociatedRegisteredNodes"})
     @DisplayName("consensus node create fails when exceeding associated registered node limit")
     final Stream<DynamicTest> consensusNodeExceedsAssociatedRegisteredNodeLimit() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 overriding("nodes.maxAssociatedRegisteredNodes", "1"),
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate(nodeAccount),
+                cryptoCreate(NODE_ACCOUNT),
                 registeredNodeCreate("rn1")
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
@@ -458,7 +458,7 @@ public class RegisteredNodeTest {
                         .hasKnownStatus(SUCCESS),
                 // Try to associate 2 registered nodes when limit is 1
                 withOpContext((spec, opLog) -> {
-                    final var create = nodeCreate("testNode", nodeAccount)
+                    final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                             .associatedRegisteredNode(List.of(

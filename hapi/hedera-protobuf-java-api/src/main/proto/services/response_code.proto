@@ -1961,10 +1961,10 @@ enum ResponseCodeEnum {
     INVALID_REGISTERED_ENDPOINT_TYPE = 532;
 
     /**
-     * A registered node cannot be deleted because it is still referenced
-     * by a consensus node via their associated registered node list.
+     * A registered node cannot be deleted because it is still associated
+     * with a consensus node via their associated registered node list.
      */
-    REGISTERED_NODE_STILL_REFERENCED = 533;
+    REGISTERED_NODE_STILL_ASSOCIATED = 533;
 
     /**
      * The number of associated registered nodes exceeds the maximum allowed limit.
