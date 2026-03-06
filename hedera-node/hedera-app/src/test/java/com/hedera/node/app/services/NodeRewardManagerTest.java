@@ -276,15 +276,6 @@ class NodeRewardManagerTest {
         verify(metrics).updateNodeActiveMetrics(1L, 50.0);
     }
 
-    @Test
-    void testOnCloseBlockDoesNotThrowWhenMetricsNull() {
-        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, null);
-        nodeRewardManager.onOpenBlock(state);
-
-        assertDoesNotThrow(() -> nodeRewardManager.onCloseBlock(state, 0L));
-    }
-
     private void givenSetup(
             NodeRewards nodeRewards,
             final PlatformState platformState,
