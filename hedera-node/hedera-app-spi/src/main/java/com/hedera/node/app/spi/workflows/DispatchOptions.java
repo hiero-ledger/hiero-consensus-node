@@ -143,13 +143,15 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch, if any
+     * @param consensusThrottling the consensus throttling for the dispatch
      * @return the options for the setup dispatch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> setupDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @Nullable final FeeCharging customFeeCharging) {
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -158,7 +160,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 PREAUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.PRECEDING,
-                ConsensusThrottling.ON,
+                consensusThrottling,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,

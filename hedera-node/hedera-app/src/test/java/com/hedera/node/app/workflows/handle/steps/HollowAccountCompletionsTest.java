@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
@@ -48,6 +49,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -181,6 +183,44 @@ public class HollowAccountCompletionsTest {
         verify(handleContext, times(2)).dispatch(any());
         verify(recordBuilder, times(2))
                 .accountID(AccountID.newBuilder().accountNum(1).build());
+    }
+
+    @Test
+    void completeHollowAccountsIgnoresFailedCompletionDispatch() {
+        final var hollowAccount = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1).build())
+                .key(IMMUTABILITY_SENTINEL_KEY)
+                .alias(Bytes.wrap(new byte[] {1, 2, 3}))
+                .build();
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
+        SignatureVerification verification =
+                new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
+        when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
+        when(recordBuilder.status()).thenReturn(INVALID_ACCOUNT_AMOUNTS);
+
+        final var finalizations = hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+
+        assertNull(finalizations);
+        verify(handleContext).dispatch(any());
+        verify(recordBuilder).accountID(AccountID.newBuilder().accountNum(1).build());
+        verify(recordBuilder).status();
+    }
+
+    @Test
+    void replayIgnoresFailedCompletionDispatch() {
+        final var accountId = AccountID.newBuilder().accountNum(1).build();
+        final var details = new HollowAccountCompletions.Details(
+                payerId, List.of(new HollowAccountCompletions.Detail(accountId, txBody)));
+        when(recordBuilder.status()).thenReturn(INVALID_ACCOUNT_AMOUNTS);
+
+        details.replay(handleContext::dispatch);
+
+        verify(handleContext).dispatch(any());
+        verify(recordBuilder).accountID(accountId);
+        verify(recordBuilder).status();
     }
 
     @Test

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
@@ -21,6 +22,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.config.data.HederaConfig;
@@ -135,8 +137,8 @@ public class HollowAccountCompletions {
             if (!parentTxn.stack().rootHasPrecedingCapacity()) {
                 break;
             }
-
-            if (hollowAccount.accountIdOrElse(AccountID.DEFAULT).equals(AccountID.DEFAULT)) {
+            final var hollowAccountId = hollowAccount.accountIdOrElse(AccountID.DEFAULT);
+            if (hollowAccountId.equals(AccountID.DEFAULT)) {
                 // The CryptoCreateHandler uses a "hack" to validate that a CryptoCreate with
                 // an EVM address has signed with that alias's ECDSA key; that is, it adds a
                 // dummy "hollow account" with the EVM address as an alias. But we don't want
@@ -166,9 +168,18 @@ public class HollowAccountCompletions {
                         context.payer(),
                         syntheticUpdateTxn,
                         CryptoUpdateStreamBuilder.class,
-                        UNIVERSAL_NOOP_FEE_CHARGING));
+                        UNIVERSAL_NOOP_FEE_CHARGING,
+                        ConsensusThrottling.OFF));
                 streamBuilder.accountID(hollowAccount.accountIdOrThrow());
-                replayableFinalizations.add(new Detail(hollowAccount.accountIdOrThrow(), syntheticUpdateTxn));
+                if (streamBuilder.status() != SUCCESS) {
+                    logger.warn(
+                            "{} - failed to finalize hollow account {} via {}",
+                            streamBuilder.status(),
+                            hollowAccountId,
+                            syntheticUpdateTxn);
+                } else {
+                    replayableFinalizations.add(new Detail(hollowAccount.accountIdOrThrow(), syntheticUpdateTxn));
+                }
             }
         }
         return replayableFinalizations.isEmpty() ? null : new Details(context.payer(), replayableFinalizations);
@@ -177,14 +188,13 @@ public class HollowAccountCompletions {
     /**
      * The information needed to replay hollow account completion dispatches after rollback.
      * @param payerId the payer id to use for replayed setup dispatches
-     * @param finalizations the synthetic update transactions and target account ids
+     * @param details the synthetic update transactions and target account ids
      */
     public record Details(
-            @NonNull AccountID payerId, @NonNull List<Detail> finalizations) {
+            @NonNull AccountID payerId, @NonNull List<Detail> details) {
         public Details {
             requireNonNull(payerId);
-            requireNonNull(finalizations);
-            finalizations = List.copyOf(finalizations);
+            requireNonNull(details);
         }
 
         /**
@@ -193,13 +203,21 @@ public class HollowAccountCompletions {
          */
         public void replay(@NonNull final HandleException.ChildDispatch childDispatch) {
             requireNonNull(childDispatch);
-            for (final var finalization : finalizations) {
+            for (final var finalization : details) {
                 final var streamBuilder = childDispatch.dispatch(setupDispatch(
                         payerId,
                         finalization.syntheticUpdateTxn(),
                         CryptoUpdateStreamBuilder.class,
-                        UNIVERSAL_NOOP_FEE_CHARGING));
+                        UNIVERSAL_NOOP_FEE_CHARGING,
+                        ConsensusThrottling.OFF));
                 streamBuilder.accountID(finalization.accountId());
+                if (streamBuilder.status() != SUCCESS) {
+                    logger.warn(
+                            "{} - failed to replay hollow account finalization for {} via {}",
+                            streamBuilder.status(),
+                            finalization.accountId(),
+                            finalization.syntheticUpdateTxn());
+                }
             }
         }
     }

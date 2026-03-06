@@ -678,7 +678,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
-                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING))));
+                            ALICE.accountID(),
+                            txBody,
+                            StreamBuilder.class,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
+                            HandleContext.ConsensusThrottling.ON))));
         }
 
         @ParameterizedTest
@@ -704,8 +708,12 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
             Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
 
-            context.dispatch(
-                    setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING));
+            context.dispatch(setupDispatch(
+                    ALICE.accountID(),
+                    txBody,
+                    StreamBuilder.class,
+                    UNIVERSAL_NOOP_FEE_CHARGING,
+                    HandleContext.ConsensusThrottling.ON));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
             verify(stack, never()).commitFullStack();
