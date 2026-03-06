@@ -3,7 +3,7 @@ package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -193,8 +193,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         List<Block> blocks = null;
         final var blockPaths = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
+                .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
+                .distinct()
                 .toList();
         for (final var path : blockPaths) {
             try {
@@ -239,8 +240,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                // Get all marker file numbers
-                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                final var path = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
                 final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
                 final var nodeId = node.getNodeId();
