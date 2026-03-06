@@ -727,9 +727,11 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 41600000,
+          "baseFee": 9000000,
           "extras": [
-            { "name": "GAS", "includedCount": 50000 }
+            {
+              "name": "GAS", "includedCount": 0
+            }
           ]
         },
         {
