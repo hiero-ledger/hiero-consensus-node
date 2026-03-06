@@ -51,6 +51,9 @@ import org.junit.jupiter.api.DynamicTest;
 public class RegisteredNodeTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String NEW_ADMIN_KEY = "newAdminKey";
+    // Distinct key names for the SECP256K1 test to avoid name collision with concurrent tests
+    private static final String RN_ADMIN_KEY = "rnAdminKey";
+    private static final String RN_NEW_ADMIN_KEY = "rnNewAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
     private static final String NODE_ACCOUNT = "nodeAccount";
     private static final String REGISTERED_NODE = "registeredNode";

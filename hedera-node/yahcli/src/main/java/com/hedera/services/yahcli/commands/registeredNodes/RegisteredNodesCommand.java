@@ -8,7 +8,7 @@ import picocli.CommandLine.ParentCommand;
 
 @CommandLine.Command(
         name = "registeredNodes",
-        subcommands = {CreateRegisteredNodeCommand.class},
+        subcommands = {CreateRegisteredNodeCommand.class, UpdateRegisteredNodeCommand.class},
         description = "Performs DAB registered-nodes operations")
 public class RegisteredNodesCommand implements Callable<Integer> {
     @ParentCommand
