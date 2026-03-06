@@ -4,7 +4,6 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
-import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
 
@@ -27,7 +26,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -56,12 +54,12 @@ public final class StartupStateUtils {
      * @param currentSoftwareVersion   the current software version
      * @param platformContext          the platform context
      * @param stateLifecycleManager    state lifecycle manager
-     * @return a reserved signed state (wrapped state will be null if no state could be loaded)
+     * @return a deserialized signed state (with original hash), or a null-reservation if no state could be loaded
      * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
      *                                     delete malformed states
      */
     @NonNull
-    public static ReservedSignedState loadStateFile(
+    public static DeserializedSignedState loadStateFile(
             @NonNull final RecycleBin recycleBin,
             @NonNull final NodeId selfId,
             @NonNull final String mainClassName,
@@ -81,39 +79,11 @@ public final class StartupStateUtils {
 
         if (savedStateFiles.isEmpty()) {
             // No states were found on disk.
-            return createNullReservation();
+            return new DeserializedSignedState(createNullReservation(), null);
         }
 
         return loadLatestState(
                 recycleBin, currentSoftwareVersion, savedStateFiles, platformContext, stateLifecycleManager);
-    }
-
-    /**
-     * Create a copy of the initial signed state. There are currently data structures that become immutable after being
-     * hashed, and we need to make a copy to force it to become mutable again.
-     *
-     * @param initialSignedState the initial signed state
-     * @return a copy of the initial signed state
-     */
-    public static @NonNull HashedReservedSignedState copyInitialSignedState(
-            @NonNull final SignedState initialSignedState, @NonNull final PlatformContext platformContext) {
-        requireNonNull(platformContext);
-        requireNonNull(platformContext.getConfiguration());
-        requireNonNull(initialSignedState);
-
-        final VirtualMapState stateCopy = initialSignedState.getState().copy();
-        final SignedState signedStateCopy = new SignedState(
-                platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
-                stateCopy,
-                "StartupStateUtils: copy initial state",
-                false,
-                false,
-                false);
-        signedStateCopy.setSigSet(initialSignedState.getSigSet());
-
-        final Hash hash = initialSignedState.getState().getHash();
-        return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
     /**
@@ -142,9 +112,9 @@ public final class StartupStateUtils {
      * @param savedStateList        the saved states to try
      * @param platformContext       the platform context
      * @param stateLifecycleManager state lifecycle manager
-     * @return the loaded state
+     * @return the loaded deserialized state (with original hash), or a null-reservation if none found
      */
-    public static ReservedSignedState loadLatestState(
+    public static DeserializedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
@@ -155,7 +125,7 @@ public final class StartupStateUtils {
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
 
         for (final SavedStateInfo savedStateInfo : savedStateList) {
-            final ReservedSignedState state = loadStateFile(
+            final DeserializedSignedState state = loadStateFile(
                     recycleBin, currentSoftwareVersion, savedStateInfo, platformContext, stateLifecycleManager);
             if (state != null) {
                 return state;
@@ -163,7 +133,7 @@ public final class StartupStateUtils {
         }
 
         logger.warn(STARTUP.getMarker(), "No valid saved states were found on disk. Starting from genesis.");
-        return createNullReservation();
+        return new DeserializedSignedState(createNullReservation(), null);
     }
 
     /**
@@ -173,10 +143,10 @@ public final class StartupStateUtils {
      * @param savedStateInfo         the state to load
      * @param platformContext        the platform context
      * @param stateLifecycleManager  state lifecycle manager
-     * @return the loaded state, or null if the state could not be loaded. Will be fully hashed if non-null.
+     * @return the loaded deserialized state (with original hash), or null if the state could not be loaded
      */
     @Nullable
-    private static ReservedSignedState loadStateFile(
+    private static DeserializedSignedState loadStateFile(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
@@ -232,7 +202,7 @@ public final class StartupStateUtils {
                     currentSoftwareVersion);
         }
 
-        return deserializedSignedState.reservedSignedState();
+        return deserializedSignedState;
     }
 
     /**
@@ -253,49 +223,69 @@ public final class StartupStateUtils {
     /**
      * Get the initial state to be used by a node. May return a state loaded from disk, or may return a genesis state
      * if no valid state is found on disk.
-     *
+     * <br>
+     * The {@link StateLifecycleManager} is used to load the state: for the restart path, it loads the snapshot from
+     * disk and initializes itself; for the genesis path, it already holds a genesis state created eagerly in its
+     * constructor. In both cases the state is wrapped in a {@link SignedState} and returned as a
+     * {@link HashedReservedSignedState}.
      * @param recycleBin          the recycle bin to use
      * @param softwareVersion     the software version of the app
-     * @param stateRootSupplier   a supplier that can build a genesis state
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node
      * @param platformContext     the platform context
+     * @param stateLifecycleManager the state lifecycle manager
      * @return the initial state to be used by this node
      */
     @NonNull
     public static HashedReservedSignedState loadInitialState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<VirtualMapState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
-        final var loadedState = loadStateFile(
+        final DeserializedSignedState deserializedState = loadStateFile(
                 recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
-        try (loadedState) {
+        try (final ReservedSignedState loadedState = deserializedState.reservedSignedState()) {
             if (loadedState.isNotNull()) {
                 logger.info(
                         STARTUP.getMarker(),
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-                return copyInitialSignedState(loadedState.get(), platformContext);
+                // The loaded state may have immutable internal structures after hashing, so ask the
+                // StateLifecycleManager to create the mutable copy used for startup migrations.
+                final VirtualMapState stateCopy = stateLifecycleManager.copyMutableState();
+                final SignedState signedStateCopy = new SignedState(
+                        platformContext.getConfiguration(),
+                        ConsensusCryptoUtils::verifySignature,
+                        stateCopy,
+                        "StartupStateUtils: copy loaded initial state",
+                        false,
+                        false,
+                        false);
+                signedStateCopy.setSigSet(loadedState.get().getSigSet());
+                final Hash originalHash = deserializedState.originalHash();
+                return new HashedReservedSignedState(
+                        signedStateCopy.reserve("loadInitialState: copied loaded state"), originalHash);
             }
         }
-        final var stateRoot = stateRootSupplier.get();
-        final var signedState = new SignedState(
+
+        // Genesis path: the manager already holds a genesis state created eagerly in its constructor.
+        // However, we need to create a copy because the immutable state will be hashed
+        final VirtualMapState genesisState = stateLifecycleManager.copyMutableState();
+        final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
-                stateRoot,
+                genesisState,
                 "genesis state",
                 false,
                 false,
                 false);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
-        try (reservedSignedState) {
-            return copyInitialSignedState(reservedSignedState.get(), platformContext);
-        }
+        return new HashedReservedSignedState(
+                reservedSignedState,
+                stateLifecycleManager.getLatestImmutableState().getHash());
     }
 }

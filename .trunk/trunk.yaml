@@ -36,5 +36,20 @@ merge:
     - "MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
 
     # XTS Required Checks
+    - "Merge Queue XTS Required Tests / XTS Timing Sensitive Tests / Timing Sensitive Tests"
+    - "Merge Queue XTS Required Tests / XTS Hammer Tests / Hammer Tests"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Time Consuming)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Misc)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Misc Records)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Crypto)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Simple Fees)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Token)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Smart Contracts)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (BN Comms)"
+    - "Merge Queue XTS Required Tests / XTS HAPI Tests / HAPI Tests (Atomic Batch)"
+    - "Merge Queue XTS Required Tests / XTS Otter Tests / Full Otter Tests"
+    - "Merge Queue XTS Required Tests / XTS Chaos Otter Tests / Chaos Otter Tests"
+    - "Merge Queue XTS Required Tests / Hedera Node JRS Panel / Merge Queue XTS: Abbrev Update Test"
+    - "Merge Queue XTS Required Tests / SDK TCK Regression Panel / Merge Queue XTS: SDK TCK Regression"
 
     # Merge Queue Checks

@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_2;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.State;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
@@ -34,7 +33,7 @@ class StateMetrics {
     }
 
     /**
-     * Records the time it takes {@link State#copy()} to finish (in microseconds)
+     * Records the time it takes {@link VirtualMapStateLifecycleManager#copyMutableState()} to finish (in microseconds)
      *
      * @param micros
      * 		the amount of time in microseconds

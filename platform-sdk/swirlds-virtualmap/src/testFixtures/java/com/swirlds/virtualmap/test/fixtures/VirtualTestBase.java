@@ -5,6 +5,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -13,7 +14,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -108,13 +109,10 @@ public class VirtualTestBase {
     private VirtualLeafBytes<TestValue> lastGLeaf;
 
     @BeforeAll
-    static void globalSetup() throws Exception {
+    static void globalSetup() throws ConstructableRegistryException {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     @BeforeEach

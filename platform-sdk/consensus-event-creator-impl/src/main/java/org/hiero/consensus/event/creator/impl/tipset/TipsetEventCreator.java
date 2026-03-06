@@ -31,6 +31,7 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -255,7 +256,10 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
+        final PlatformEvent platformEvent =
+                new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        platformEvent.setTimeReceived(time.now());
+        return platformEvent;
     }
 
     /**
@@ -545,7 +549,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        allParents.stream().map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(p -> p == selfParent ? p.getTimeCreated() : p.getTimeReceived()),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams

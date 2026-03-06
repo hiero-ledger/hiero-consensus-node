@@ -160,7 +160,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), trigger, version);
-        hedera.init(fakePlatform(), defaultNodeId);
         fakePlatform().start();
         fakePlatform().notifyListeners(ACTIVE_NOTIFICATION);
         hedera.newPlatformStatus(ACTIVE_NOTIFICATION.getNewStatus());
@@ -287,8 +286,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 PLATFORM_CONFIG,
                 metrics,
-                new FakeTime(),
-                () -> this.state);
+                new FakeTime());
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
     }

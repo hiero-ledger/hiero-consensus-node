@@ -3,8 +3,14 @@ package com.swirlds.virtualmap;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -14,6 +20,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -100,5 +107,40 @@ class VirtualMapRehashTest extends VirtualTestBase {
         assertNotNull(dataSource.loadHash(0), "Root hash should be computed");
 
         vm.release();
+    }
+
+    @Test
+    @DisplayName("Test rehash fails with TimeoutException")
+    void testRehashTimeout() throws IOException {
+        // Prepare data in a data source with a wrong hash
+        VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
+        byte[] wrongHashBytes = new byte[48];
+        wrongHashBytes[0] = 1;
+        Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
+
+        dataSource.saveRecords(
+                1, 1, Stream.of(new VirtualHashRecord(1, wrongHash)), Stream.of(leaf1), Stream.empty(), false);
+
+        // Configuration with 0ms timeout to ensure it times out
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withConfigDataType(VirtualMapConfig.class)
+                .withValue("virtualMap.fullRehashTimeoutMs", "0")
+                .build();
+
+        VirtualMap vm = new VirtualMap(builder, configuration);
+        VirtualMapMetadata metadata = vm.getMetadata();
+        metadata.setLastLeafPath(1);
+        metadata.setFirstLeafPath(1);
+
+        // This should throw MerkleSynchronizationException caused by TimeoutException
+        final MerkleSynchronizationException exception =
+                assertThrows(MerkleSynchronizationException.class, vm::fullLeafRehashIfNecessary);
+        assertInstanceOf(
+                TimeoutException.class,
+                exception.getCause(),
+                "Cause should be TimeoutException, but was: "
+                        + (exception.getCause() == null
+                                ? "null"
+                                : exception.getCause().getClass().getName()));
     }
 }

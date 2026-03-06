@@ -64,6 +64,7 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
@@ -127,9 +128,9 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -314,6 +315,13 @@ public final class Hedera
     private final TransactionPoolNexus transactionPool;
 
     /**
+     * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
+     * SystemTransactions (state write) via Dagger.
+     */
+    private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
+            new WrappedRecordBlockHashMigration();
+
+    /**
      * The Hashgraph Platform. This is set during state initialization.
      */
     private Platform platform;
@@ -356,11 +364,6 @@ public final class Hedera
      * because the exact order of mutations---not just the final values---determines the Merkle root hash.
      */
     private final ImmediateStateChangeListener immediateStateChangeListener = new ImmediateStateChangeListener();
-
-    /**
-     * The state root supplier to use for creating a new state root.
-     */
-    private final Supplier<VirtualMapState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
@@ -444,7 +447,6 @@ public final class Hedera
      * @param configuration the configuration to use for the node
      * @param metrics the metrics object to use for reporting
      * @param time the time source to use for measuring time
-     * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -457,8 +459,7 @@ public final class Hedera
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final Supplier<VirtualMapState> baseSupplier) {
+            @NonNull final Time time) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -536,6 +537,8 @@ public final class Hedera
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
+                java.time.Duration.ofSeconds(
+                        bootstrapConfig.getConfigData(HederaConfig.class).maximumPermissibleUnhealthySeconds()),
                 metrics,
                 instantSource);
 
@@ -562,10 +565,8 @@ public final class Hedera
                         platformStateService)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
-        stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), configuration);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
     }
 
     /**
@@ -577,24 +578,18 @@ public final class Hedera
         return version;
     }
 
+    /**
+     * Returns the shared {@link WrappedRecordBlockHashMigration} instance.
+     */
+    public WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration() {
+        return wrappedRecordBlockHashMigration;
+    }
+
     /*==================================================================================================================
     *
     * Initialization Step 1: Create a new state (either genesis or restart, once per node).
     *
     =================================================================================================================*/
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Called by the platform to build a genesis state.
-     *
-     * @return a Services state object
-     */
-    @Override
-    @NonNull
-    public VirtualMapState newStateRoot() {
-        return stateRootSupplier.get();
-    }
 
     /**
      * {@inheritDoc}
@@ -716,6 +711,8 @@ public final class Hedera
                 deserializedVersion == null ? "<NONE>" : deserializedVersion);
         if (trigger != GENESIS) {
             requireNonNull(deserializedVersion, "Deserialized version cannot be null for trigger " + trigger);
+        }
+        if (isBlockStreamEnabled()) {
             withListeners(state);
         }
         if (SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) < 0) {
@@ -741,8 +738,7 @@ public final class Hedera
     }
 
     /**
-     * Invoked by the platform when the state should be initialized. This happens <b>BEFORE</b>
-     * {@link SwirldMain#init(Platform, NodeId)} and after {@link SwirldMain#newStateRoot()}.
+     * Invoked by the platform when the state should be initialized.
      */
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
@@ -759,7 +755,8 @@ public final class Hedera
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
-        if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
+        //  Reconnect states are constructed from raw VirtualMap and need schema metadata initialization.
+        if (trigger == InitTrigger.RECONNECT) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it
@@ -782,6 +779,12 @@ public final class Hedera
                 System.exit(1);
             }
         }
+
+        NodeId selfId = platform.getSelfId();
+        assertEnvSanityChecks(selfId);
+        logger.info("Initializing Hedera app with HederaNode#{}", selfId);
+        Locale.setDefault(Locale.US);
+        logger.info("Locale to set to US en");
     }
 
     /**
@@ -841,34 +844,9 @@ public final class Hedera
         logger.info("Migration complete");
     }
 
-    /*==================================================================================================================
-    *
-    * Initialization Step 3: Initialize the app. Happens once at startup.
-    *
-    =================================================================================================================*/
-
     /**
      * {@inheritDoc}
-     *
-     * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link SwirldMain#newStateRoot()} or an instance of {@link VirtualMapState} created by the platform and
-     * loaded from the saved state).
-     *
-     * <p>(FUTURE) Consider moving this initialization into {@code onStateInitialized()} instead, as there is no
-     * special significance to having it here instead.
      */
-    @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
-    @Override
-    public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
-        if (this.platform != platform) {
-            throw new IllegalArgumentException("Platform must be the same instance");
-        }
-        assertEnvSanityChecks(nodeId);
-        logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
-        Locale.setDefault(Locale.US);
-        logger.info("Locale to set to US en");
-    }
-
     @Override
     public void submit(@NonNull final TransactionBody body) {
         requireNonNull(body);
@@ -1309,6 +1287,7 @@ public final class Hedera
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
+                .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
