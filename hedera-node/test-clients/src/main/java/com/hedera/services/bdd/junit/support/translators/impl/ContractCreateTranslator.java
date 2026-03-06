@@ -156,11 +156,13 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 }
                             }
                         }
-                        // If we reach here, we didn't find the created contract in the remaining state changes
-                        // so it must have been an existing hollow account finalized as a contract
-                        final var op = parts.body().contractCreateInstanceOrThrow();
-                        final var selfAdminId = op.adminKeyOrThrow().contractIDOrThrow();
-                        receiptBuilder.contractID(selfAdminId);
+                        // If we reach here, we didn't find the created contract in the remaining
+                        // state changes; use the authoritative contractID from the EVM result
+                        receiptBuilder.contractID(ContractID.newBuilder()
+                                .shardNum(baseTranslator.getShard())
+                                .realmNum(baseTranslator.getRealm())
+                                .contractNum(contractNum)
+                                .build());
                     }
                 },
                 remainingStateChanges,
