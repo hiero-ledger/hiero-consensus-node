@@ -20,6 +20,7 @@ on:
 permissions:
   id-token: write
   actions: write
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -310,6 +311,21 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - xts-execution
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/report-flaky-tests.yaml
+    permissions:
+      issues: write
+      contents: read
+      pull-requests: write
+    with:
+      workflow-context: main-scheduled
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hl-cn-default-lin-sm
@@ -380,6 +396,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
       needs.xts-execution.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
@@ -393,36 +410,15 @@ jobs:
           checkout-fetch-depth: "1"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: Download Test Report Artifacts
-        id: download-test-reports
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        continue-on-error: true
-        with:
-          pattern: "*Test*Report*"
-          path: test-reports/
-
-      - name: Collect Flaky Tests
-        id: collect-flaky-tests
-        if: ${{ steps.download-test-reports.outcome == 'success' }}
-        run: |
-          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
-            "test-reports" \
-            "flaky-tests.txt"
-          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
-          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
-          if [[ "${FLAKY_COUNT}" -gt 0 ]]; then
-            {
-              echo "flaky-tests<<EOF"
-              cat flaky-tests.txt
-              echo "EOF"
-            } >> "${GITHUB_OUTPUT}"
-          fi
-
       - name: Build Rootly Summary
         id: rootly-summary
-        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
         run: |
           title="XTS Flaky Test Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})"
+
+          FLAKY_LIST=$(echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"')
 
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
@@ -430,7 +426,7 @@ jobs:
             echo "------------------------------------"
             echo "XTS tests passed but flaky tests were detected."
             echo "Flaky Test(s):"
-            cat flaky-tests.txt
+            echo "${FLAKY_LIST}"
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
@@ -440,7 +436,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
-        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
         run: |
           echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -448,7 +444,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
-        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -464,17 +460,29 @@ jobs:
           environments: "CITR"
 
       - name: Build Slack Payload Message
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           FLAKY_SECTION=""
-          if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
             COLOR="#FFA500"
             HEADER=":warning: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed with Flaky Tests"
             DESCRIPTION="*XTS Job Succeeded but flaky tests were detected. Test panel status below*"
 
             FLAKY_LIST=""
-            while IFS= read -r test; do
-              FLAKY_LIST="${FLAKY_LIST}• \`${test}\`\n"
-            done < flaky-tests.txt
+            while IFS= read -r line; do
+              class=$(echo "${line}" | jq -r '.class')
+              method=$(echo "${line}" | jq -r '.method')
+              issue_url=$(echo "${line}" | jq -r '.issue_url')
+              issue_number=$(echo "${line}" | jq -r '.issue_number')
+              is_new=$(echo "${line}" | jq -r '.is_new')
+              status=""
+              if [[ "${is_new}" == "true" ]]; then
+                status=" (New)"
+              fi
+              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
 
             FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
           else
@@ -602,6 +610,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
       needs.xts-execution.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
@@ -639,24 +648,6 @@ jobs:
         continue-on-error: true
         with:
           path: run.log
-
-      - name: Download Test Report Artifacts
-        id: download-test-reports
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        continue-on-error: true
-        with:
-          pattern: "*Test*Report*"
-          path: test-reports/
-
-      - name: Collect Flaky Tests
-        id: collect-flaky-tests
-        if: ${{ steps.download-test-reports.outcome == 'success' }}
-        run: |
-          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
-            "test-reports" \
-            "flaky-tests.txt"
-          FLAKY_COUNT=$(wc -l < flaky-tests.txt | tr -d ' ')
-          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -700,6 +691,8 @@ jobs:
         id: rootly-summary
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
 
@@ -717,9 +710,9 @@ jobs:
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
               echo "------------------------------------"
             fi
-            if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+            if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
               echo "Flaky Test(s) (failed initially but passed on retry):"
-              cat flaky-tests.txt
+              echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"'
               echo "------------------------------------"
             fi
             echo "Commit information:"
@@ -758,13 +751,25 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           FLAKY_SECTION=""
-          if [[ "${{ steps.collect-flaky-tests.outputs.flaky-count }}" -gt 0 ]]; then
+          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
             FLAKY_LIST=""
-            while IFS= read -r test; do
-              FLAKY_LIST="${FLAKY_LIST}• \`${test}\`\n"
-            done < flaky-tests.txt
+            while IFS= read -r line; do
+              class=$(echo "${line}" | jq -r '.class')
+              method=$(echo "${line}" | jq -r '.method')
+              issue_url=$(echo "${line}" | jq -r '.issue_url')
+              issue_number=$(echo "${line}" | jq -r '.issue_number')
+              is_new=$(echo "${line}" | jq -r '.is_new')
+              status=""
+              if [[ "${is_new}" == "true" ]]; then
+                status=" (New)"
+              fi
+              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
 
             FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
           fi

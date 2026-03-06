@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Maps test categories to the manager(s) responsible for flaky tests.
+# `artifact-pattern` is a glob matched against the downloaded artifact directory name.
+# Use GitHub usernames (without @).
+categories:
+  unit-tests:
+    artifact-pattern: "Unit Test Report"
+    managers: [alice, bob]
+  integration-tests:
+    artifact-pattern: "Integration Test Report"
+    managers: [charlie]
+  hapi-tests:
+    artifact-pattern: "HAPI Test*"
+    managers: [dave]
+  otter-tests:
+    artifact-pattern: "Otter Tests*"
+    managers: [eve]
+  timing-sensitive-tests:
+    artifact-pattern: "*Timing Sensitive*"
+    managers: [frank]
+  hammer-tests:
+    artifact-pattern: "Hammer Test*"
+    managers: [grace]
+  chaos-otter-tests:
+    artifact-pattern: "Chaos Otter*"
+    managers: [eve]
