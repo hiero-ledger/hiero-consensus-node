@@ -3,95 +3,17 @@ package com.swirlds.common.utility;
 
 import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 
-import java.awt.Dialog;
-import java.awt.GraphicsEnvironment;
-import java.awt.Window;
-import java.awt.event.HierarchyEvent;
-import java.awt.event.HierarchyListener;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
-import javax.sound.midi.MidiChannel;
-import javax.sound.midi.MidiSystem;
-import javax.sound.midi.Synthesizer;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.SwingUtilities;
 
 /**
  * Utility class for other operations
  */
 public class CommonUtils {
-
-    /** used by beep() */
-    private static Synthesizer synthesizer;
-
-    /** used by click(). It is opened and never closed. */
-    private static Clip clip = null;
-
-    /** used by click() */
-    private static byte[] data = null;
-
-    /** used by click() */
-    private static AudioFormat format = null;
-
-    /**
-     * Play a beep sound. It is middle C, half volume, 20 milliseconds.
-     */
-    public static void beep() {
-        beep(60, 64, 20);
-    }
-
-    /**
-     * Make a beep sound.
-     *
-     * @param pitch    the pitch, from 0 to 127, where 60 is middle C, 61 is C#, etc.
-     * @param velocity the "velocity" (volume, or speed with which the note is played). 0 is silent, 127 is max.
-     * @param duration the number of milliseconds the sound will play
-     */
-    public static void beep(final int pitch, final int velocity, final int duration) {
-        try {
-            if (synthesizer == null) {
-                synthesizer = MidiSystem.getSynthesizer();
-                synthesizer.open();
-            }
-
-            final MidiChannel[] channels = synthesizer.getChannels();
-
-            channels[0].noteOn(pitch, velocity);
-            Thread.sleep(duration);
-            channels[0].noteOff(60);
-        } catch (final Exception e) {
-        }
-    }
-
-    /**
-     * Make a click sound.
-     */
-    public static void click() {
-        try {
-            if (data == null) {
-                data = new byte[] {0, 127};
-                format = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100.0f, 16, 1, 2, 44100.0f, false);
-                clip = AudioSystem.getClip();
-                clip.open(format, data, 0, data.length);
-            }
-            clip.start(); // play the waveform in data
-            while (clip.getFramePosition() < clip.getFrameLength()) {
-                Thread.yield(); // busy wait, but it's only for a short time, and at least it yields
-            }
-            clip.stop(); // it should have already stopped
-            clip.setFramePosition(0); // for next time, start over
-        } catch (final Exception e) {
-        }
-    }
 
     /**
      * This is equivalent to System.out.println(), but is not used for debugging; it is used for production code for
@@ -113,34 +35,6 @@ public class CommonUtils {
      */
     public static void tellUserConsolePopup(final String title, final String msg) {
         tellUserConsole("\n***** " + msg + " *****\n");
-        if (!GraphicsEnvironment.isHeadless()) {
-            final String[] ss = msg.split("\n");
-            int w = 0;
-            for (final String str : ss) {
-                w = Math.max(w, str.length());
-            }
-            final JTextArea ta = new JTextArea(ss.length + 1, (int) (w * 0.65));
-            ta.setText(msg);
-            ta.setWrapStyleWord(true);
-            ta.setLineWrap(true);
-            ta.setCaretPosition(0);
-            ta.setEditable(false);
-            ta.addHierarchyListener(
-                    new HierarchyListener() { // make ta resizable
-                        @Override
-                        public void hierarchyChanged(final HierarchyEvent e) {
-                            final Window window = SwingUtilities.getWindowAncestor(ta);
-                            if (window instanceof Dialog) {
-                                final Dialog dialog = (Dialog) window;
-                                if (!dialog.isResizable()) {
-                                    dialog.setResizable(true);
-                                }
-                            }
-                        }
-                    });
-            final JScrollPane sp = new JScrollPane(ta);
-            JOptionPane.showMessageDialog(null, sp, title, JOptionPane.PLAIN_MESSAGE);
-        }
     }
 
     /**
