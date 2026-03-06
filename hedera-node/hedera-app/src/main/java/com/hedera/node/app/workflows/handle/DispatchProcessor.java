@@ -34,6 +34,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions.Details;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
@@ -157,8 +158,9 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final Details hollowAccountCompletionsDetails) {
+            @Nullable final HollowAccountCompletions.Details details) {
         final var functionality = dispatch.txnInfo().functionality();
+        boolean success = false;
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
@@ -171,22 +173,23 @@ public class DispatchProcessor {
                 }
             }
             handleSystemUpdates(dispatch);
+            success = true;
         } catch (HandleException e) {
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
-            if (hollowAccountCompletionsDetails != null) {
-                hollowAccountCompletionsDetails.replay(dispatch.handleContext()::dispatch);
-            }
             e.maybeReplay(dispatch, dispatch.handleContext()::dispatch);
-        } catch (final ThrottleException e) {
+        } catch (ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
-        } catch (final Exception e) {
+        } catch (Exception e) {
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+        }
+        if (!success && details != null) {
+            details.replay(dispatch.handleContext()::dispatch);
         }
     }
 
