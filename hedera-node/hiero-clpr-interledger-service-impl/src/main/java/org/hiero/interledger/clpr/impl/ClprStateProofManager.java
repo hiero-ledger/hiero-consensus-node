@@ -31,6 +31,8 @@ import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -248,10 +250,28 @@ public class ClprStateProofManager {
             throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
         }
 
+        final var tssSigBytes = snapshot.tssSignature();
+        if (tssSigBytes == null || Objects.equals(tssSigBytes, Bytes.EMPTY)) {
+            throw new IllegalStateException("TSS signature is missing or invalid");
+        }
+
+        final var blockTimestamp = snapshot.blockTimestamp();
+        if (blockTimestamp == null || Objects.equals(blockTimestamp, Timestamp.DEFAULT)) {
+            throw new IllegalStateException("Block timestamp is missing or invalid");
+        }
+
+        final var path = snapshot.path();
+        if (path == null || Objects.equals(path, MerklePath.DEFAULT) || !path.hasHash()) {
+            throw new IllegalStateException("Merkle path is missing or invalid");
+        }
+
         return buildMerkleStateProof(
                 virtualMapState,
                 V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
-                ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                ClprLedgerId.PROTOBUF.toBytes(ledgerId),
+                tssSigBytes,
+                blockTimestamp,
+                path);
     }
 
     /**
@@ -413,5 +433,47 @@ public class ClprStateProofManager {
 
     public boolean clprEnabled() {
         return clprConfig.clprEnabled();
+    }
+
+    /**
+     * Returns the latest consensus round number from the platform state.
+     *
+     * <p>The round number is agreed upon by all consensus nodes and can be used as a
+     * deterministic, synchronized counter for distributed coordination (e.g., round-robin
+     * node assignment for remote ledger communication).</p>
+     *
+     * @return the latest consensus round, or {@code 0L} if the state snapshot is unavailable
+     */
+    public long getLatestConsensusRound() {
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return 0L;
+        }
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(PlatformStateService.NAME);
+        final var platformStateStore = new ReadablePlatformStateStore(readableStates);
+        return platformStateStore.getRound();
+    }
+
+    /**
+     * Returns the latest consensus timestamp from the platform state.
+     *
+     * <p>The consensus timestamp is agreed upon by all consensus nodes and advances at
+     * wall-clock rate, making it ideal for time-based rotation cycles. Unlike the consensus
+     * round (whose advancement rate is unpredictable), the timestamp provides a stable,
+     * predictable period that aligns naturally with scheduler frequencies.</p>
+     *
+     * @return the latest consensus timestamp, or {@code null} if the state snapshot is unavailable
+     */
+    @Nullable
+    public java.time.Instant getLatestConsensusTimestamp() {
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(PlatformStateService.NAME);
+        final var platformStateStore = new ReadablePlatformStateStore(readableStates);
+        return platformStateStore.getConsensusTimestamp();
     }
 }

@@ -26,10 +26,12 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ContractID;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -47,6 +49,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -55,8 +58,9 @@ import org.junit.jupiter.api.Tag;
  * <p>For the full human-readable staged specification of the test flow, see the comment block at the
  * start of {@link #twoNetworkMessagesExchange(SubProcessNetwork, SubProcessNetwork)}.
  */
+@OrderedInIsolation
 @Tag(TestTags.MULTINETWORK)
-public class ClprMessagesSuite {
+public class ClprMessagesSuite implements LifecycleTest {
 
     private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(1);
@@ -124,6 +128,7 @@ public class ClprMessagesSuite {
                         })
             })
     @DisplayName("Two-network middleware/system-contract round-trip")
+    @Order(1)
     Stream<DynamicTest> twoNetworkMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         /*
          * Specification: Two ledgers exchange one request/response pair twice through the full CLPR pipeline.
@@ -584,7 +589,7 @@ public class ClprMessagesSuite {
         return builder.asDynamicTests();
     }
 
-    private static HederaNode getFirstNode(final HapiSpec spec) {
+    static HederaNode getFirstNode(final HapiSpec spec) {
         return spec.getNetworkNodes().getFirst();
     }
 
@@ -630,7 +635,7 @@ public class ClprMessagesSuite {
         return (byte[]) typed[0];
     }
 
-    private static ClprLedgerConfiguration awaitLocalLedgerConfiguration(final List<HederaNode> nodes) {
+    static ClprLedgerConfiguration awaitLocalLedgerConfiguration(final List<HederaNode> nodes) {
         final var deadline = Instant.now().plus(AWAIT_TIMEOUT);
         do {
             for (final var node : nodes) {
@@ -644,7 +649,7 @@ public class ClprMessagesSuite {
         throw new IllegalStateException("Timed out waiting for local CLPR ledger configuration");
     }
 
-    private static void awaitMessageQueueMetadataAvailable(
+    static void awaitMessageQueueMetadataAvailable(
             final Logger log, final List<HederaNode> nodes, final ClprLedgerConfiguration remoteConfiguration) {
         final var deadline = Instant.now().plus(AWAIT_TIMEOUT);
         do {
@@ -726,7 +731,7 @@ public class ClprMessagesSuite {
         }
     }
 
-    private static void submitConfiguration(
+    static void submitConfiguration(
             final HapiSpec spec, final HederaNode node, final ClprLedgerConfiguration configuration) {
         final var payer = toPbj(asAccount(spec, 2));
         final var proof = buildLocalClprStateProofWrapper(configuration);
@@ -772,7 +777,7 @@ public class ClprMessagesSuite {
         return com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress(address);
     }
 
-    private static void sleepQuietly(final Duration duration) {
+    static void sleepQuietly(final Duration duration) {
         try {
             Thread.sleep(duration.toMillis());
         } catch (InterruptedException e) {
