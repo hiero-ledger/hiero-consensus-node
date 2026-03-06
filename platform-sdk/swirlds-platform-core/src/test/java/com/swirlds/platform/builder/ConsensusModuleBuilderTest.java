@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.deriveModuleName;
 import static com.swirlds.platform.builder.ConsensusModuleBuilderTest.MockHelper.FAKE_PROVIDER_IMPLEMENTATION_A;
 import static com.swirlds.platform.builder.ConsensusModuleBuilderTest.MockHelper.FAKE_PROVIDER_IMPLEMENTATION_B;
 import static com.swirlds.platform.builder.ConsensusModuleBuilderTest.MockHelper.FAKE_PROVIDER_IMPLEMENTATION_C;
@@ -20,6 +19,7 @@ import static org.mockito.Mockito.when;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.reconnect.ReconnectModule;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.stream.Stream;
@@ -39,8 +39,9 @@ import org.mockito.MockedStatic;
  */
 class ConsensusModuleBuilderTest {
 
-    private static final String CONFIG_PREFIX = "modules.";
     private static final Configuration DEFAULT_CONFIG = new TestConfigBuilder().getOrCreateConfig();
+    /** Prefix for all module selection config properties. */
+    private static final String MODULE_SUFFIX = "Module";
 
     /**
      * Single argument source for all module types. Each entry provides:
@@ -60,6 +61,19 @@ class ConsensusModuleBuilderTest {
                 Arguments.of(ReconnectModule.class, "org.hiero.consensus.reconnect.impl"));
     }
 
+    /**
+     * Derive the config property name from the module interface class name.
+     * Strips the {@code "Module"} suffix and lowercases the first letter.
+     */
+    private static String configPropertyName(@NonNull final Class<?> moduleClass) {
+        final String simpleName = moduleClass.getSimpleName();
+        if (!simpleName.endsWith(MODULE_SUFFIX)) {
+            throw new IllegalStateException("Module class name must end with '" + MODULE_SUFFIX + "': " + simpleName);
+        }
+        final String stripped = simpleName.substring(0, simpleName.length() - MODULE_SUFFIX.length());
+        return MODULE_SUFFIX.toLowerCase() + "s." + Character.toLowerCase(stripped.charAt(0)) + stripped.substring(1);
+    }
+
     @ParameterizedTest(name = "{1}")
     @MethodSource("allModules")
     @DisplayName("Default config loads module")
@@ -72,7 +86,7 @@ class ConsensusModuleBuilderTest {
     @DisplayName("Explicit JPMS module name selects the correct provider")
     void explicitModuleSelection(final Class<?> moduleClass, final String jpmsModuleName) {
         final Configuration config = new TestConfigBuilder()
-                .withValue(CONFIG_PREFIX + deriveModuleName(moduleClass), jpmsModuleName)
+                .withValue(configPropertyName(moduleClass), jpmsModuleName)
                 .getOrCreateConfig();
 
         assertNotNull(ConsensusModuleBuilder.createModule(moduleClass, config));
@@ -83,7 +97,7 @@ class ConsensusModuleBuilderTest {
     @DisplayName("Non-existent JPMS module name throws IllegalStateException")
     void nonExistentModuleThrows(final Class<?> moduleClass) {
         final Configuration config = new TestConfigBuilder()
-                .withValue(CONFIG_PREFIX + deriveModuleName(moduleClass), "nonexistent.module")
+                .withValue(configPropertyName(moduleClass), "nonexistent.module")
                 .getOrCreateConfig();
 
         assertThrows(IllegalStateException.class, () -> ConsensusModuleBuilder.createModule(moduleClass, config));
@@ -108,7 +122,7 @@ class ConsensusModuleBuilderTest {
     void multipleProvidersExplicitSelectionPicksCorrect(final Class<?> moduleClass) {
         final Object facade = mock(moduleClass);
         final Configuration config = new TestConfigBuilder()
-                .withValue(CONFIG_PREFIX + deriveModuleName(moduleClass), MODULE_B)
+                .withValue(configPropertyName(moduleClass), MODULE_B)
                 .getOrCreateConfig();
 
         withProviders(
@@ -123,7 +137,7 @@ class ConsensusModuleBuilderTest {
     @DisplayName("Multiple providers with non-matching selection throws")
     void multipleProvidersNonMatchingSelectionThrows(final Class<?> moduleClass) {
         final Configuration config = new TestConfigBuilder()
-                .withValue(CONFIG_PREFIX + deriveModuleName(moduleClass), "nonexistent.module")
+                .withValue(configPropertyName(moduleClass), "nonexistent.module")
                 .getOrCreateConfig();
 
         withProviders(
@@ -140,7 +154,7 @@ class ConsensusModuleBuilderTest {
     void threeProvidersExplicitSelection(final Class<?> moduleClass) {
         final Object facade = mock(moduleClass);
         final Configuration config = new TestConfigBuilder()
-                .withValue(CONFIG_PREFIX + deriveModuleName(moduleClass), MODULE_B)
+                .withValue(configPropertyName(moduleClass), MODULE_B)
                 .getOrCreateConfig();
 
         withProviders(

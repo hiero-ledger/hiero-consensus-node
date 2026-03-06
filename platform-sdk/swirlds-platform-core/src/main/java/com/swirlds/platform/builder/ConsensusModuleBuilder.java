@@ -5,12 +5,19 @@ import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.pces.PcesModule;
 
 /**
  * A builder for consensus modules using the ServiceLoader mechanism.
@@ -26,12 +33,6 @@ public class ConsensusModuleBuilder {
     private static final Logger log = LogManager.getLogger(ConsensusModuleBuilder.class);
 
     private ConsensusModuleBuilder() {}
-
-    /** Prefix for all module selection config properties. */
-    private static final String CONFIG_PREFIX = "modules.";
-
-    /** Suffix that is stripped from the interface name to derive the config property name. */
-    private static final String MODULE_SUFFIX = "Module";
 
     /**
      * Create a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
@@ -51,22 +52,19 @@ public class ConsensusModuleBuilder {
     public static <T> T createModule(@NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
         try {
 
-            final String moduleName = deriveModuleName(moduleClass);
-            final String configKey = CONFIG_PREFIX + moduleName;
-            final String selectedModule = configuration.getValue(configKey, String.class, "");
-
-            final List<ServiceLoader.Provider<T>> providers = loadProviders(moduleClass);
+            final List<Provider<T>> providers = loadProviders(moduleClass);
 
             if (providers.isEmpty()) {
-                throw new IllegalStateException("No " + moduleName + " implementation found!");
+                throw new IllegalStateException("No " + moduleClass.getSimpleName() + " implementation found!");
             }
-            final ServiceLoader.Provider<T> provider;
+            final String selectedModule = getSelectedModule(moduleClass, configuration);
+            final Provider<T> provider;
             if ("".equals(selectedModule)) {
                 if (providers.size() > 1) {
                     final String available = providers.stream()
                             .map(ConsensusModuleBuilder::providerModuleName)
                             .collect(Collectors.joining(", "));
-                    throw new IllegalStateException("Multiple " + moduleName + " providers found ["
+                    throw new IllegalStateException("Multiple " + moduleClass.getSimpleName() + " providers found ["
                             + available + "] but no explicit selection has been configured. "
                             + "Explicit selection is required to guarantee determinism.");
                 }
@@ -80,8 +78,9 @@ public class ConsensusModuleBuilder {
                                     .map(ConsensusModuleBuilder::providerModuleName)
                                     .sorted()
                                     .collect(Collectors.joining(", "));
-                            return new IllegalStateException("No " + moduleName + " found in module '" + selectedModule
-                                    + "'. Available: [" + available + "]");
+                            return new IllegalStateException(
+                                    "No " + moduleClass.getSimpleName() + " provider found in requested module '"
+                                            + selectedModule + "'. Available: [" + available + "]");
                         });
             }
             final T module = provider.get();
@@ -89,7 +88,7 @@ public class ConsensusModuleBuilder {
             log.info(
                     STARTUP.getMarker(),
                     "Loaded {} module: {} (from {})",
-                    moduleName,
+                    moduleClass.getSimpleName(),
                     module.getClass().getSimpleName(),
                     providerModuleName(provider));
             return module;
@@ -100,23 +99,24 @@ public class ConsensusModuleBuilder {
         }
     }
 
-    /**
-     * Derive the config property name from the module interface class name.
-     * Strips the {@code "Module"} suffix and lowercases the first letter.
-     */
-    static String deriveModuleName(@NonNull final Class<?> moduleClass) {
-        final String simpleName = moduleClass.getSimpleName();
-        if (!simpleName.endsWith(MODULE_SUFFIX)) {
-            throw new IllegalStateException("Module class name must end with '" + MODULE_SUFFIX + "': " + simpleName);
-        }
-        final String stripped = simpleName.substring(0, simpleName.length() - MODULE_SUFFIX.length());
-        return Character.toLowerCase(stripped.charAt(0)) + stripped.substring(1);
+    private static <T> String getSelectedModule(
+            @NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
+        final ModulesConfig modulesConfig = configuration.getConfigData(ModulesConfig.class);
+
+        if (moduleClass.equals(EventCreatorModule.class)) return modulesConfig.eventCreator();
+        if (moduleClass.equals(EventIntakeModule.class)) return modulesConfig.eventIntake();
+        if (moduleClass.equals(GossipModule.class)) return modulesConfig.gossip();
+        if (moduleClass.equals(HashgraphModule.class)) return modulesConfig.hashgraph();
+        if (moduleClass.equals(ReconnectModule.class)) return modulesConfig.reconnect();
+        if (moduleClass.equals(PcesModule.class)) return modulesConfig.pces();
+
+        throw new IllegalStateException("Module:" + moduleClass.getSimpleName() + " not recognized");
     }
 
     /**
      * Load all {@link ServiceLoader} providers for the given module interface.
      */
-    static <T> List<ServiceLoader.Provider<T>> loadProviders(@NonNull final Class<T> moduleClass) {
+    static <T> List<Provider<T>> loadProviders(@NonNull final Class<T> moduleClass) {
         return ServiceLoader.load(moduleClass).stream().toList();
     }
 
@@ -125,7 +125,7 @@ public class ConsensusModuleBuilder {
      * available; falls back to the provider class's package name for classpath (unnamed module)
      * environments such as containers.
      */
-    private static <T> String providerModuleName(@NonNull final ServiceLoader.Provider<T> provider) {
+    private static <T> String providerModuleName(@NonNull final Provider<T> provider) {
         final String jpmsName = provider.type().getModule().getName();
         return jpmsName != null ? jpmsName : provider.type().getPackageName();
     }
