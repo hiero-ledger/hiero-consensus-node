@@ -17,6 +17,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.EntityType.FILE;
 import static com.hedera.node.app.hapi.utils.EntityType.NODE;
+import static com.hedera.node.app.hapi.utils.EntityType.REGISTERED_NODE;
 import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
@@ -1002,6 +1003,11 @@ public class BaseTranslator {
                         nextCreatedNums
                                 .computeIfAbsent(NODE, ignore -> new LinkedList<>())
                                 .add(nodeId);
+                    } else if (value.hasRegisteredNodeValue()) {
+                        final long registeredNodeId = key.entityNumberKeyOrThrow();
+                        nextCreatedNums
+                                .computeIfAbsent(REGISTERED_NODE, ignore -> new LinkedList<>())
+                                .add(registeredNodeId);
                     }
                 } else if (key.hasNftIdKey()) {
                     final var nftId = key.nftIdKeyOrThrow();
