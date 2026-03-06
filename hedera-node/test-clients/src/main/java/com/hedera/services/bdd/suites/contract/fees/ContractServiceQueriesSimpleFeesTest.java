@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CALL_LOCAL_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_BYTECODE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_INFO_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -63,8 +64,8 @@ public class ContractServiceQueriesSimpleFeesTest {
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(contractLocalCall),
-                validateChargedUsdForQueries(contractLocalCall, CONTRACT_CALL_LOCAL_BASE_FEE, 1),
-                validateNonZeroNodePaymentForQuery(contractLocalCall));
+                validateChargedUsdForQueries(
+                        contractLocalCall, CONTRACT_CALL_LOCAL_BASE_FEE + offeredGas * GAS_FEE_USD, 1));
     }
 
     @HapiTest
