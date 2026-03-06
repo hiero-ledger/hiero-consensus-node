@@ -100,7 +100,7 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * Sets the expected WRAPS proving key hash.
      * @param hash the hash
      */
-    void setExpectedWrapsProvingKeyHash(@NonNull Bytes hash);
+    void setWrapsProvingKeyHash(@NonNull Bytes hash);
 
     /**
      * Hands off from the active construction to the next construction if appropriate.

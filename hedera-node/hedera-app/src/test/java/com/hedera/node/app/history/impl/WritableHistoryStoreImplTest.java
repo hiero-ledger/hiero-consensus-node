@@ -138,12 +138,12 @@ class WritableHistoryStoreImplTest {
 
     @Test
     void expectedWrapsProvingKeyHashIsNullUntilSet() {
-        assertNull(subject.getExpectedWrapsProvingKeyHash());
+        assertNull(subject.getWrapsProvingKeyHash());
 
         final var hash = Bytes.wrap("proving-key-hash");
-        subject.setExpectedWrapsProvingKeyHash(hash);
+        subject.setWrapsProvingKeyHash(hash);
 
-        assertEquals(hash, subject.getExpectedWrapsProvingKeyHash());
+        assertEquals(hash, subject.getWrapsProvingKeyHash());
     }
 
     @Test

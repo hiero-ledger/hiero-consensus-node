@@ -169,20 +169,6 @@ class HistoryServiceImplTest {
     }
 
     @Test
-    void pendingHashStartsAsEmpty() {
-        withLiveSubject();
-        assertEquals(Bytes.EMPTY, subject.pendingExpectedWrapsProvingKeyHash());
-    }
-
-    @Test
-    void setPendingHashUpdatesPendingHash() {
-        withLiveSubject();
-        final var hash = Bytes.wrap("test-hash");
-        subject.setPendingExpectedWrapsProvingKeyHash(hash);
-        assertEquals(hash, subject.pendingExpectedWrapsProvingKeyHash());
-    }
-
-    @Test
     void wrapsWrapsKeyForProofVerification() {
         withMockSubject();
         final var mockKey = "ABCDEFGH".getBytes(UTF_8);

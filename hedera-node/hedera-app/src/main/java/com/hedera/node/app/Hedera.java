@@ -58,7 +58,8 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.WrapsProvingKeyHashVerifier;
+import com.hedera.node.app.history.S3WrapsProvingKeyDownloader;
+import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -321,6 +322,12 @@ public final class Hedera
      */
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
             new WrappedRecordBlockHashMigration();
+
+    /**
+     * The WRAPS proving key verification instance, shared between Hedera (verify) and
+     * SystemTransactions (persist) via Dagger.
+     */
+    private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -763,8 +770,13 @@ public final class Hedera
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
-        // Verify the WRAPS proving key hash if configured
-        verifyWrapsProvingKeyHash(state);
+        // Verify the WRAPS proving key hash (if configured)
+        if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
+            logger.fatal("matt: wraps enabled, verifying proving key hash...");
+            verifyWrapsProvingKeyHash(state);
+        } else {
+            logger.fatal("matt: wraps NOT enabled...");
+        }
 
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
@@ -792,23 +804,10 @@ public final class Hedera
     }
 
     /**
-     * Verifies the WRAPS proving key file hash against the configured bootstrap hash, if any.
+     * Verifies the WRAPS proving key file hash against the configured hash (if any).
      */
     private void verifyWrapsProvingKeyHash(@NonNull final State state) {
-        final var tssConfig =
-                bootstrapConfigProvider.getConfiguration().getConfigData(TssConfig.class);
-        final var bootstrapHash = tssConfig.bootstrapWrapsProvingKeyHash();
-        if (bootstrapHash.isBlank()) {
-            return;
-        }
-        final var historyStates = state.getReadableStates(HistoryService.NAME);
-        final var store = new ReadableHistoryStoreImpl(historyStates);
-        final var existingHash = store.getExpectedWrapsProvingKeyHash();
-        final var provingKeyPath = java.nio.file.Paths.get(tssConfig.wrapsProvingKeyPath());
-        final var verifier = new WrapsProvingKeyHashVerifier(
-                provingKeyPath, bootstrapHash, historyService, existingHash, (path, hash) -> logger.warn(
-                        "WRAPS proving key download not yet implemented (path={}, hash={})", path, hash));
-        verifier.verifyAndSetPendingHash();
+        wrapsProvingKeyVerification.verify(state, configProvider.getConfiguration(), new S3WrapsProvingKeyDownloader());
     }
 
     /**
@@ -1312,6 +1311,7 @@ public final class Hedera
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
+                .wrapsProvingKeyVerification(wrapsProvingKeyVerification)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

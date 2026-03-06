@@ -9,7 +9,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_C
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V072HistorySchema.EXPECTED_WRAPS_PROVING_KEY_HASH_STATE_ID;
+import static com.hedera.node.app.history.schemas.V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
@@ -49,7 +49,7 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     public ReadableHistoryStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
-        this.expectedWrapsProvingKeyHash = states.getSingleton(EXPECTED_WRAPS_PROVING_KEY_HASH_STATE_ID);
+        this.expectedWrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -64,7 +64,7 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     }
 
     @Override
-    public @Nullable Bytes getExpectedWrapsProvingKeyHash() {
+    public @Nullable Bytes getWrapsProvingKeyHash() {
         final var maybeHash = requireNonNull(expectedWrapsProvingKeyHash.get()).value();
         return Bytes.EMPTY.equals(maybeHash) ? null : maybeHash;
     }

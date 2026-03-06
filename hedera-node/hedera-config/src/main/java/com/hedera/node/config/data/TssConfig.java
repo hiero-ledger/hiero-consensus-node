@@ -64,8 +64,9 @@ public record TssConfig(
 
         @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
 
-        @ConfigProperty(defaultValue = "") @NodeProperty
+        @ConfigProperty(defaultValue = "/opt/hgcapp/wraps-v0.2.0") @NodeProperty
         String wrapsProvingKeyPath,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty
-        String bootstrapWrapsProvingKeyHash) {}
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl) {}

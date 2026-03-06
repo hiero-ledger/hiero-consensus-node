@@ -38,6 +38,7 @@ module com.hedera.node.app {
     requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
+    requires transitive java.net.http;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -67,6 +68,7 @@ module com.hedera.node.app {
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
+    requires java.xml;
     requires org.apache.commons.lang3;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;

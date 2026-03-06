@@ -56,6 +56,7 @@ import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -79,8 +80,6 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordSource;
-import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -110,7 +109,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -181,7 +179,7 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
-    private final HistoryService historyService;
+    private final WrapsProvingKeyVerification wrapsProvingKeyVerification;
 
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private int nextDispatchNonce = 1;
@@ -215,8 +213,7 @@ public class SystemTransactions {
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
-            @NonNull final HistoryService historyService) {
+            @NonNull final WrapsProvingKeyVerification wrapsProvingKeyVerification) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -236,7 +233,7 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
-        this.historyService = requireNonNull(historyService);
+        this.wrapsProvingKeyVerification = requireNonNull(wrapsProvingKeyVerification);
         this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
     }
 
@@ -524,15 +521,12 @@ public class SystemTransactions {
             log.info("Applied wrapped record block hash migration result to state");
         }
 
-        // Persist any pending expected WRAPS proving key hash to state
-        final var pendingHash = historyService.pendingExpectedWrapsProvingKeyHash();
-        if (!pendingHash.equals(Bytes.EMPTY)) {
-            final var historyStates = state.getWritableStates(HistoryService.NAME);
-            final var historyStore = new WritableHistoryStoreImpl(historyStates);
-            historyStore.setExpectedWrapsProvingKeyHash(pendingHash);
-            ((CommittableWritableStates) historyStates).commit();
-            log.info("Persisted expected WRAPS proving key hash to state");
-        }
+        // If appropriate, persist a valid pending WRAPS proving key hash to state
+        log.fatal(
+                "matt: about to call maybePersistPendingHash, pendingHash={}",
+                wrapsProvingKeyVerification.pendingHash());
+        wrapsProvingKeyVerification.maybePersistPendingHash(state, configProvider.getConfiguration());
+        log.fatal("matt: maybePersistPendingHash returned");
     }
 
     /**

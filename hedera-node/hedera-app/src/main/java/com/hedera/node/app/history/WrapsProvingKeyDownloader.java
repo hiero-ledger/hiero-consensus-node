@@ -2,16 +2,20 @@
 package com.hedera.node.app.history;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Stub interface for downloading the WRAPS proving key file.
+ * Downloads the WRAPS proving key file from a URL to a local path.
  */
+@FunctionalInterface
 public interface WrapsProvingKeyDownloader {
     /**
-     * Initiates a download of the WRAPS proving key to the given path, expected to have the given hash.
-     * @param path the path to download to
-     * @param expectedHash the expected hex-encoded SHA-384 hash of the file
+     * Synchronously downloads the WRAPS proving key from the given URL to the target path.
+     *
+     * @param downloadUrl the URL to download from
+     * @param targetPath the local path to write the downloaded file to
+     * @throws IOException if the download fails
      */
-    void initiateDownload(@NonNull Path path, @NonNull String expectedHash);
+    void download(@NonNull String downloadUrl, @NonNull Path targetPath) throws IOException;
 }
