@@ -149,14 +149,16 @@ public class SimpleSmartContractServiceFeesTest {
                     final var highRecord = getTxnRecord(highGasQuery);
                     allRunFor(spec, lowRecord, highRecord);
                     final var nodeId = spec.setup().defaultNode();
-                    final var lowNodePayment = lowRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
-                            .filter(aa -> aa.getAccountID().equals(nodeId))
-                            .mapToLong(aa -> aa.getAmount())
-                            .sum();
-                    final var highNodePayment = highRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
-                            .filter(aa -> aa.getAccountID().equals(nodeId))
-                            .mapToLong(aa -> aa.getAmount())
-                            .sum();
+                    final var lowNodePayment =
+                            lowRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
+                    final var highNodePayment =
+                            highRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
                     assertTrue(
                             highNodePayment > lowNodePayment,
                             "Expected higher node payment for higher gas, but got low="
