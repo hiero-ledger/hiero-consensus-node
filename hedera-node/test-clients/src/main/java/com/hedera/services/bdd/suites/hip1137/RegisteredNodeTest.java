@@ -44,6 +44,7 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -54,6 +55,7 @@ public class RegisteredNodeTest {
     private static final String NEW_ADMIN_KEY = "newAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
     private static final String NODE_ACCOUNT = "nodeAccount";
+    private static final String REGISTERED_NODE = "registeredNode";
     private static final String TEST_NODE = "testNode";
     private static final String PAYER = "payer";
     private static final long NON_EXISTENT_ID = 999_999L;
@@ -74,18 +76,18 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(NEW_ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .via(CREATE_TXN)
                         .hasKnownStatus(SUCCESS),
                 getTxnRecord(CREATE_TXN).logged().hasPriority(recordWith().hasNonZeroRegisteredNodeId()),
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .description("new-desc")
                         .adminKey(NEW_ADMIN_KEY)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeDelete("rn")
+                registeredNodeDelete(REGISTERED_NODE)
                         .signedBy(DEFAULT_PAYER, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
     }
@@ -95,11 +97,11 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> descriptionOnlyUpdate() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .description("updated-desc")
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
@@ -112,11 +114,11 @@ public class RegisteredNodeTest {
                 new byte[] {10, 0, 0, 1}, 9090, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH));
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .serviceEndpoints(replacementEndpoints)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
@@ -128,22 +130,22 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(NEW_ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
                 // Update without admin key sig → INVALID_SIGNATURE
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .description("unauthorized")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Rotation signed only by old key → INVALID_SIGNATURE
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .adminKey(NEW_ADMIN_KEY)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Rotation signed by both old and new keys → SUCCESS
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .adminKey(NEW_ADMIN_KEY)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
@@ -166,7 +168,7 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(NODE_ACCOUNT),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
@@ -174,7 +176,7 @@ public class RegisteredNodeTest {
                     final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
+                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId(REGISTERED_NODE)))
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, create);
                 }),
@@ -203,7 +205,7 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(NODE_ACCOUNT),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
@@ -211,11 +213,11 @@ public class RegisteredNodeTest {
                     final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
+                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId(REGISTERED_NODE)))
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, create);
                 }),
-                registeredNodeDelete("rn")
+                registeredNodeDelete(REGISTERED_NODE)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(REGISTERED_NODE_STILL_ASSOCIATED));
     }
@@ -226,7 +228,7 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(NODE_ACCOUNT),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
@@ -234,7 +236,7 @@ public class RegisteredNodeTest {
                     final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
                             .adminKey(ADMIN_KEY)
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId("rn")))
+                            .associatedRegisteredNode(List.of(spec.registry().getRegisteredNodeId(REGISTERED_NODE)))
                             .hasKnownStatus(SUCCESS);
                     allRunFor(spec, create);
                 }),
@@ -244,7 +246,9 @@ public class RegisteredNodeTest {
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(SUCCESS),
                 // Now delete should succeed
-                registeredNodeDelete("rn").signedBy(DEFAULT_PAYER, ADMIN_KEY).hasKnownStatus(SUCCESS));
+                registeredNodeDelete(REGISTERED_NODE)
+                        .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                        .hasKnownStatus(SUCCESS));
     }
 
     // ─── Create negatives ──────────────────────────────────────────
@@ -254,7 +258,7 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> createWithMissingAdminKeySigFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .signedBy(DEFAULT_PAYER)
@@ -271,7 +275,7 @@ public class RegisteredNodeTest {
                 .build());
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(endpointMissingType)
                         .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_TYPE));
@@ -288,11 +292,11 @@ public class RegisteredNodeTest {
                 .build());
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
                         .serviceEndpoints(endpointMissingType)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_TYPE));
@@ -305,7 +309,9 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> deleteNonExistentRegisteredNodeFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeDelete(() -> NON_EXISTENT_ID).signedBy(DEFAULT_PAYER).hasPrecheck(INVALID_NODE_ID));
+                registeredNodeDelete(() -> NON_EXISTENT_ID)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -314,11 +320,14 @@ public class RegisteredNodeTest {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(PAYER),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
-                registeredNodeDelete("rn").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(INVALID_SIGNATURE));
+                registeredNodeDelete(REGISTERED_NODE)
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     // ─── Endpoint validation negatives ────────────────────────────
@@ -328,10 +337,10 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> createWithEmptyEndpointsFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(List.of())
-                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+                        .hasPrecheck(INVALID_REGISTERED_ENDPOINT));
     }
 
     @HapiTest
@@ -342,7 +351,7 @@ public class RegisteredNodeTest {
                 new byte[] {10, 0, 1}, 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(badIpEndpoint)
                         .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_ADDRESS));
@@ -356,7 +365,7 @@ public class RegisteredNodeTest {
                 "-invalid.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(badFqdnEndpoint)
                         .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_ADDRESS));
@@ -378,7 +387,7 @@ public class RegisteredNodeTest {
         return hapiTest(
                 overriding("nodes.maxRegisteredServiceEndpoint", "2"),
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(threeEndpoints)
                         .hasKnownStatus(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT));
@@ -391,7 +400,7 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> createWithMirrorNodeEndpoint() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(List.of(mirrorNodeEndpoint("mirror.example.com", 443)))
                         .hasKnownStatus(SUCCESS));
@@ -402,7 +411,7 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> createWithRpcRelayEndpoint() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(List.of(rpcRelayEndpoint("relay.example.com", 443)))
                         .hasKnownStatus(SUCCESS));
@@ -418,7 +427,7 @@ public class RegisteredNodeTest {
                 rpcRelayEndpoint("relay.example.com", 443));
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(mixedEndpoints)
                         .hasKnownStatus(SUCCESS));
@@ -431,12 +440,15 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> privilegedDeleteWithoutAdminKeySig() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .hasKnownStatus(SUCCESS),
                 // GENESIS (treasury) is a privileged payer — no admin key sig required
-                registeredNodeDelete("rn").payingWith(GENESIS).signedBy(GENESIS).hasKnownStatus(SUCCESS));
+                registeredNodeDelete(REGISTERED_NODE)
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(SUCCESS));
     }
 
     // ─── Associated registered node limit ─────────────────────────
@@ -480,7 +492,7 @@ public class RegisteredNodeTest {
                 cryptoCreate(batchOperator).balance(ONE_MILLION_HBARS),
                 newKeyNamed(ADMIN_KEY),
                 // Batch 1: create
-                atomicBatch(registeredNodeCreate("rn")
+                atomicBatch(registeredNodeCreate(REGISTERED_NODE)
                                 .adminKey(ADMIN_KEY)
                                 .serviceEndpoints(DEFAULT_ENDPOINTS)
                                 .exposingCreatedIdTo(createdId::set)
@@ -508,60 +520,70 @@ public class RegisteredNodeTest {
     @HapiTest
     @DisplayName("create, update, and delete registered node via scheduled transactions")
     final Stream<DynamicTest> registeredNodeViaScheduleTransactions() {
-        final var createdId = new AtomicLong();
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 // Schedule a create and verify execution
                 scheduleCreate(
-                                "schedCreate",
-                                registeredNodeCreate("rn")
+                                "scheduleCreate",
+                                registeredNodeCreate(REGISTERED_NODE)
                                         .adminKey(ADMIN_KEY)
-                                        .serviceEndpoints(DEFAULT_ENDPOINTS)
-                                        .exposingCreatedIdTo(createdId::set))
+                                        .serviceEndpoints(DEFAULT_ENDPOINTS))
+                        .alsoSigningWith(ADMIN_KEY)
+                        .via("scheduleCreateTxn")
+                        .hasKnownStatus(SUCCESS),
+                getScheduleInfo("scheduleCreate").isExecuted(),
+                // Extract the created registered node ID from the scheduled execution record
+                // and manually save it to the registry (scheduleCreate doesn't call updateStateOf)
+                withOpContext((spec, opLog) -> {
+                    final var scheduledRecord =
+                            getTxnRecord("scheduleCreateTxn").scheduled();
+                    allRunFor(spec, scheduledRecord);
+                    final var registeredNodeId =
+                            scheduledRecord.getResponseRecord().getReceipt().getRegisteredNodeId();
+                    spec.registry().saveRegisteredNodeId(REGISTERED_NODE, registeredNodeId);
+                }),
+                // Schedule an update and verify execution
+                scheduleCreate(
+                                "scheduleUpdate",
+                                registeredNodeUpdate(REGISTERED_NODE).description("scheduled-desc"))
                         .alsoSigningWith(ADMIN_KEY)
                         .hasKnownStatus(SUCCESS),
-                getScheduleInfo("schedCreate").isExecuted(),
-                // Schedule an update and verify execution
-                withOpContext((spec, opLog) -> {
-                    final var sched = scheduleCreate(
-                                    "schedUpdate",
-                                    registeredNodeUpdate(createdId::get).description("scheduled-desc"))
-                            .alsoSigningWith(ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, sched);
-                }),
-                getScheduleInfo("schedUpdate").isExecuted(),
+                getScheduleInfo("scheduleUpdate").isExecuted(),
                 // Schedule a delete and verify execution
-                withOpContext((spec, opLog) -> {
-                    final var sched = scheduleCreate("schedDelete", registeredNodeDelete(createdId::get))
-                            .alsoSigningWith(ADMIN_KEY)
-                            .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, sched);
-                }),
-                getScheduleInfo("schedDelete").isExecuted());
+                scheduleCreate("scheduleDelete", registeredNodeDelete(REGISTERED_NODE))
+                        .alsoSigningWith(ADMIN_KEY)
+                        .hasKnownStatus(SUCCESS),
+                getScheduleInfo("scheduleDelete").isExecuted());
     }
 
     // ─── GovernanceTransactions ────────────────────────────────────
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"hedera.transaction.maxMemoUtf8Bytes"})
     @DisplayName("create, update, and delete registered node via governance account")
     final Stream<DynamicTest> registeredNodeViaGovernanceAccount() {
+        final int OVERSIZED_TXN_SIZE = 130 * 1024; // ~130KB
+        final int LARGE_TXN_SIZE = 90 * 1024; // ~90KB
+        final String LARGE_SIZE_MEMO = StringUtils.repeat("a", LARGE_TXN_SIZE);
         return hapiTest(
+                overriding("hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + ""),
                 newKeyNamed(ADMIN_KEY),
                 // Governance create
-                registeredNodeCreate("rn")
+                registeredNodeCreate(REGISTERED_NODE)
+                        .memo(LARGE_SIZE_MEMO)
                         .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
                 // Governance update
-                registeredNodeUpdate("rn")
+                registeredNodeUpdate(REGISTERED_NODE)
+                        .memo(LARGE_SIZE_MEMO)
                         .description("gov-update")
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
                 // Governance delete
-                registeredNodeDelete("rn")
+                registeredNodeDelete(REGISTERED_NODE)
+                        .memo(LARGE_SIZE_MEMO)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS));
