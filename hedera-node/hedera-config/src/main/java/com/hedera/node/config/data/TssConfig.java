@@ -64,6 +64,10 @@ public record TssConfig(
 
         @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
 
+        // Whether to double-check aggregate hinTS signature during block signing
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean validateBlockSignatures,
+
         @ConfigProperty(defaultValue = "/opt/hgcapp/wraps-v0.2.0") @NodeProperty
         String wrapsProvingKeyPath,
 
