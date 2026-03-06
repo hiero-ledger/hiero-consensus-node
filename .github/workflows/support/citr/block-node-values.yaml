@@ -80,3 +80,11 @@ blockNode:
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "verification-storage-block-node-%NODE_ID%-0"
+    plugins:
+      # name of the volume within the statefulset
+      volumeName: "plugins-storage"
+      size: 1Gi
+      # Optionally add a storage class name if needed
+      # storageClass: "your-storage-class"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
