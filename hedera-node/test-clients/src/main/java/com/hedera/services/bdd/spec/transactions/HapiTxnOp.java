@@ -552,6 +552,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     // to the non-default node in embedded mode, bypassing ingest; we retry until the default
                     // node caches the receipt at consensus
                     continue;
+                } else if (lookupStatus == PLATFORM_NOT_ACTIVE
+                        || lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
+                        || lookupStatus == BUSY) {
+                    // Retry transient platform errors from the receipt query precheck, consistent
+                    // with how the transaction submission loop and query submission loop handle them
+                    continue;
                 } else {
                     return statusNow;
                 }
