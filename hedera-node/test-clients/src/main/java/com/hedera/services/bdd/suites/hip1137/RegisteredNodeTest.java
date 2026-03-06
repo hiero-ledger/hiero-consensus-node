@@ -13,10 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeC
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.node.RegisteredEndpointUtils.blockNodeEndpoint;
-import static com.hedera.services.bdd.spec.transactions.node.RegisteredEndpointUtils.blockNodeEndpointIp;
-import static com.hedera.services.bdd.spec.transactions.node.RegisteredEndpointUtils.mirrorNodeEndpoint;
-import static com.hedera.services.bdd.spec.transactions.node.RegisteredEndpointUtils.rpcRelayEndpoint;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -35,6 +31,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_END
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -587,5 +584,45 @@ public class RegisteredNodeTest {
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS));
+    }
+
+    // ─── Endpoint factory helpers ──────────────────────────────────
+
+    private static RegisteredServiceEndpoint blockNodeEndpoint(
+            final String domain, final int port, final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi api) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setDomainName(domain)
+                .setPort(port)
+                .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .setEndpointApi(api)
+                        .build())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint blockNodeEndpointIp(
+            final byte[] ip, final int port, final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi api) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setIpAddress(ByteString.copyFrom(ip))
+                .setPort(port)
+                .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .setEndpointApi(api)
+                        .build())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint mirrorNodeEndpoint(final String domain, final int port) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setDomainName(domain)
+                .setPort(port)
+                .setMirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.getDefaultInstance())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint rpcRelayEndpoint(final String domain, final int port) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setDomainName(domain)
+                .setPort(port)
+                .setRpcRelay(RegisteredServiceEndpoint.RpcRelayEndpoint.getDefaultInstance())
+                .build();
     }
 }

@@ -78,6 +78,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.fees.FeeScheduleConverter;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.grouping.SysFileLookups;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
@@ -175,11 +176,10 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
-    final Stream<DynamicTest> syntheticFeeSchedulesUpdateHappensAtUpgradeBoundary()
-            throws InvalidProtocolBufferException {
+    final Stream<DynamicTest> syntheticFeeSchedulesUpdateHappensAtUpgradeBoundary() {
         final var feeSchedulesJson = resourceAsString("scheduled-contract-fees.json");
         final var upgradeFeeSchedules =
-                CurrentAndNextFeeSchedule.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
+                FeeScheduleConverter.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
@@ -427,9 +427,8 @@ public class SystemFileExportsTest {
                         "First user entity num doesn't match config")));
     }
 
-    private static CurrentAndNextFeeSchedule parseFeeSchedule(final byte[] bytes)
-            throws InvalidProtocolBufferException {
-        return CurrentAndNextFeeSchedule.parseFrom(bytes);
+    private static CurrentAndNextFeeSchedule parseFeeSchedule(final byte[] bytes) {
+        return FeeScheduleConverter.parseFrom(bytes);
     }
 
     private static ThrottleDefinitions parseThrottleDefs(final byte[] bytes) throws InvalidProtocolBufferException {
