@@ -716,7 +716,11 @@
         {
           "name": "ContractCallLocal",
           "baseFee": 9000000,
-          "extras": []
+          "extras": [
+            {
+              "name": "GAS", "includedCount": 0
+            }
+          ]
         },
         {
           "name": "ContractGetBytecode",

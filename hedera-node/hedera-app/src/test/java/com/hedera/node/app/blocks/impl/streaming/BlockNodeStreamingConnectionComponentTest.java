@@ -428,14 +428,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         block.addItem(item);
 
-        // Set up latch to wait for connection closure after error
+        // Wait for the final close-side metric in the close() path; this avoids racing the async worker thread.
         final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
                     connectionClosedLatch.countDown();
                     return null;
                 })
                 .when(metrics)
-                .recordConnectionClosed();
+                .recordActiveConnectionIp(-1L);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
