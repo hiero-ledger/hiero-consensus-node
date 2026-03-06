@@ -6,22 +6,25 @@
 categories:
   unit-tests:
     artifact-pattern: "Unit Test Report"
-    managers: [alice, bob]
+    managers: [akdev, Ferparishuertas, Jeffrey-morgan34]
   integration-tests:
     artifact-pattern: "Integration Test Report"
-    managers: [charlie]
+    managers: [Jeffrey-morgan34]
+  smart-contract-hapi-tests:
+    artifact-pattern: "HAPI Test (Smart Contract) Report"
+    managers: [Ferparishuertas]
   hapi-tests:
     artifact-pattern: "HAPI Test*"
-    managers: [dave]
+    managers: [akdev]
   otter-tests:
     artifact-pattern: "Otter Tests*"
-    managers: [eve]
-  timing-sensitive-tests:
-    artifact-pattern: "*Timing Sensitive*"
-    managers: [frank]
-  hammer-tests:
-    artifact-pattern: "Hammer Test*"
-    managers: [grace]
+    managers: [Jeffrey-morgan34]
   chaos-otter-tests:
     artifact-pattern: "Chaos Otter*"
-    managers: [eve]
+    managers: [Jeffrey-morgan34]
+  timing-sensitive-tests:
+    artifact-pattern: "*Timing Sensitive*"
+    managers: [Jeffrey-morgan34]
+  hammer-tests:
+    artifact-pattern: "Hammer Test*"
+    managers: [Jeffrey-morgan34]
