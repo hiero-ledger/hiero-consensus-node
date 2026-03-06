@@ -151,6 +151,11 @@ tasks.register<JavaExec>("run") {
             "-server",
             "-Djava.awt.headless=true",
             "-Djava.util.concurrent.ForkJoinPool.common.parallelism=2",
+            "--limit-modules=java.base,java.compiler,java.desktop,java.logging,java.management," +
+                    "java.naming,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss," +
+                    "java.security.sasl,java.sql,java.transaction.xa,java.xml,java.xml.crypto," +
+                    "jdk.crypto.cryptoki,jdk.crypto.ec,jdk.httpserver,jdk.jfr,jdk.management,jdk.management.jfr," +
+                    "jdk.naming.dns,jdk.net,jdk.unsupported,jdk.zipfs",
             "-XX:+UseSerialGC",
             //"-XX:+UseParallelGC",
             "-Xms196M",
