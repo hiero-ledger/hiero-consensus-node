@@ -13,6 +13,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdF
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CALL_LOCAL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_BYTECODE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_INFO_BASE_FEE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -33,9 +36,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class ContractServiceQueriesSimpleFeesTest {
-    private static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
-    private static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
-    private static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
@@ -56,10 +56,10 @@ public class ContractServiceQueriesSimpleFeesTest {
     @DisplayName("Call a local smart contract local and assure proper fee charged")
     final Stream<DynamicTest> contractLocalCallBaseUSDFee() {
         final var contractLocalCall = "contractLocalCall";
+        final var offeredGas = 21500;
         return hapiTest(
                 contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
-                        .gas(21500)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .gas(offeredGas)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(contractLocalCall),
