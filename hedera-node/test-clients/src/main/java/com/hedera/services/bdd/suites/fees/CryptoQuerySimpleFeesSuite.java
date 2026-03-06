@@ -39,7 +39,7 @@ public class CryptoQuerySimpleFeesSuite {
     private static final String TEST_ACCOUNT = "testAccount";
     private static final double CRYPTO_GET_INFO_USD = 0.0001;
     private static final double CRYPTO_GET_ACCOUNT_RECORDS_USD = 0.0001;
-    private static final long EXPECTED_NODE_PAYMENT_TINYBARS = 8L;
+    private static final long EXPECTED_NODE_PAYMENT_TINYBARS = 7L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {

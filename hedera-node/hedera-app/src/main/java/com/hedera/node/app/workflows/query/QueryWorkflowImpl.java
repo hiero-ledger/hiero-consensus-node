@@ -370,15 +370,14 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             final var simpleFeeCalculator = feeManager.getSimpleFeeCalculator();
             if (simpleFeeCalculator != null) {
                 try {
-                    final var queryFeeTinyCents =
-                            simpleFeeCalculator.calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                    final var queryFeeTinyCents = simpleFeeCalculator.calculateQueryFee(
+                            context.query(), new SimpleFeeContextImpl(null, context));
                     return tinycentsToTinybars(
                             queryFeeTinyCents.totalTinycents(),
                             fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                 } catch (UnsupportedOperationException e) {
                     logger.debug(
-                            "No simple query fee calculator for {}, using legacy query fee calculation",
-                            functionality);
+                            "No simple query fee calculator for {}, using legacy query fee calculation", functionality);
                 }
             }
         }

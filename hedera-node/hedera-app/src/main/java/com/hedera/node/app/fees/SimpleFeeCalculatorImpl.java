@@ -302,7 +302,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         if (queryFeeCalculator == null) {
-            throw new UnsupportedOperationException("No QueryFeeCalculator registered for " + query.query().kind());
+            throw new UnsupportedOperationException(
+                    "No QueryFeeCalculator registered for " + query.query().kind());
         }
         queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
         return result;
