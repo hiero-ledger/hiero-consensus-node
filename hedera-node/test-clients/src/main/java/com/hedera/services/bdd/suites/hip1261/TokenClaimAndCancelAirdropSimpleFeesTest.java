@@ -5,9 +5,9 @@ import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPub
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNonfungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -16,15 +16,14 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -36,14 +35,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenClaimAirdropFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenClaimAirdropNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
@@ -78,15 +77,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
 
     private static final String PAYER = "payer";
     private static final String THRESHOLD_PAYER = "thresholdPayer";
-    private static final String PAYER_INSUFFICIENT_BALANCE = "payerInsufficientBalance";
-    private static final String PAYER_WITH_HOOK = "payerWithHook";
-    private static final String PAYER_WITH_TWO_HOOKS = "payerWithTwoHooks";
-    private static final String PAYER_WITH_THREE_HOOKS = "payerWithThreeHooks";
     private static final String RECEIVER_ASSOCIATED_FIRST = "receiverAssociatedFirst";
-    private static final String RECEIVER_ASSOCIATED_SECOND = "receiverAssociatedSecond";
-    private static final String RECEIVER_ASSOCIATED_THIRD = "receiverAssociatedThird";
-    private static final String RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS = "receiverUnlimitedAutoAssociations";
-    private static final String RECEIVER_FREE_AUTO_ASSOCIATIONS = "receiverFreeAutoAssociations";
     private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS = "receiverWithoutFreeAutoAssociations";
     private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND =
             "receiverWithoutFreeAutoAssociationsSecond";
@@ -94,24 +85,11 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
             "receiverWithoutFreeAutoAssociationsThird";
     private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH =
             "receiverWithoutFreeAutoAssociationsFourth";
-    private static final String RECEIVER_NOT_ASSOCIATED = "receiverNotAssociated";
-    private static final String RECEIVER_WITH_SIG_REQUIRED = "receiver_sig_required";
-    private static final String RECEIVER_ZERO_BALANCE = "receiverZeroBalance";
-    private static final String VALID_ALIAS_ED25519 = "validAliasED25519";
-    private static final String VALID_ALIAS_ED25519_SECOND = "validAliasED25519Second";
-    private static final String VALID_ALIAS_ECDSA = "validAliasECDSA";
-    private static final String VALID_ALIAS_ECDSA_SECOND = "validAliasECDSASecond";
-    private static final String VALID_ALIAS_HOLLOW = "validAliasHollow";
-    private static final String VALID_ALIAS_HOLLOW_SECOND = "validAliasHollowSecond";
     private static final String OWNER = "owner";
-    private static final String HBAR_OWNER_INSUFFICIENT_BALANCE = "hbarOwnerInsufficientBalance";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
-    private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String adminKey = "adminKey";
     private static final String supplyKey = "supplyKey";
-    private static final String freezeKey = "freezeKey";
-    private static final String pauseKey = "pauseKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String HOOK_CONTRACT = "TruePreHook";
 
@@ -419,85 +397,232 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                 0.1)));
             }
 
-            // claim pending airdrop to hollow account
             @HapiTest
-            @DisplayName(
-                    "Token Airdrop - Claim Pending Airdrop to Hollow Account with FT moving to non-existing evm alias - full fees charging")
-            final Stream<DynamicTest> tokenAirdropClaimPendingAirdropToHollowAccountWithFTMovingFullFeesCharging() {
-
-                //                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-                final var validAlias = "validAlias";
-
+            @DisplayName("Token Cancel FT Pending Airdrop - base fees full charging")
+            final Stream<DynamicTest> tokenCancelFTAirdropFullFeesCharging() {
                 return hapiTest(flattened(
                         createAccountsAndKeys(),
                         createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        //                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-                        //                        withOpContext((spec, log) -> {
-                        //                            final var alias = evmAlias.get();
-
-                        //                            final var tokenAirdropOp =
-                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, validAlias))
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
                                 .payingWith(OWNER)
                                 .signedBy(OWNER)
-                                .via("tokenAirdropTxn"),
-
-                        //                            final var checkHollowAccount =
-                        getAliasedAccountInfo(validAlias)
-                                .isHollow()
-                                .hasNoTokenRelationship(FUNGIBLE_TOKEN)
-                                .has(accountWith()
-                                        .hasEmptyKey()
-                                        .noAlias()
-                                        .balance(0L)
-                                        .maxAutoAssociations(-1)),
-
-                        //                            final var tokenClaimAirdropOp =
-                        tokenClaimAirdrop(pendingAirdrop(OWNER, validAlias, FUNGIBLE_TOKEN))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
-                                .via("tokenClaimAirdropTxn"),
-
-                        //                            final var checkOpChargedUsd =
+                                .via("tokenCancelAirdropTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "tokenClaimAirdropTxn",
-                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.1),
-
-                        //                            final var checkOpInfo =
-                        getAliasedAccountInfo(validAlias)
-                                .isNotHollow()
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .hasNonEmptyKey()
-                                        .noAlias()
-                                        .balance(0L)
-                                        .maxAutoAssociations(-1)),
-
-                        //                            final var checkOwnerBalance =
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-
-                        //                            allRunFor(spec, tokenAirdropOp, checkHollowAccount,
-                        // tokenClaimAirdropOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
-                        //                        })
-                        ));
+                                0.1)));
             }
 
-            // cancel FT pending airdrop
+            @HapiTest
+            @DisplayName("Token Cancel Multiple FT Pending Airdrop - full fees charging")
+            final Stream<DynamicTest> tokenCancelMultipleFTAirdropBaseFeesFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(40, FUNGIBLE_TOKEN)
+                                        .distributing(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
-            // cancel multiple pending FT
+            @HapiTest
+            @DisplayName("Token Cancel NFT Pending Airdrop - full fees charging")
+            final Stream<DynamicTest> tokenCancelPendingNFTAirdropFeesFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(pendingNFTAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
-            // cancel NFT
+            @HapiTest
+            @DisplayName("Token Cancel Multiple NFT Pending Airdrops - full fees charging")
+            final Stream<DynamicTest> tokenCancelMultiplePendingNFTAirdropsFeesFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 3L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 4L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(
+                                        pendingNFTAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                                NON_FUNGIBLE_TOKEN,
+                                                2L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                                NON_FUNGIBLE_TOKEN,
+                                                3L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH,
+                                                NON_FUNGIBLE_TOKEN,
+                                                4L))
+                                .payingWith(OWNER)
+                                .signedBy(
+                                        OWNER,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)
+                                .via("tokenCancelAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
-            // cancel multiple NFT
+            @HapiTest
+            @DisplayName("Token Cancel Multiple FT and NFT Pending Airdrops - full fees charging")
+            final Stream<DynamicTest> tokenCancelMultiplePendingFTAndNFTAirdropsFeesFullCharging() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(
+                                        moving(40, FUNGIBLE_TOKEN)
+                                                .distributing(
+                                                        OWNER,
+                                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS,
+                                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 3L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 4L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD, FUNGIBLE_TOKEN),
+                                        pendingAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH, FUNGIBLE_TOKEN),
+                                        pendingNFTAirdrop(
+                                                OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                                NON_FUNGIBLE_TOKEN,
+                                                2L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                                NON_FUNGIBLE_TOKEN,
+                                                3L),
+                                        pendingNFTAirdrop(
+                                                OWNER,
+                                                RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH,
+                                                NON_FUNGIBLE_TOKEN,
+                                                4L))
+                                .payingWith(OWNER)
+                                .signedBy(
+                                        OWNER,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD,
+                                        RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)
+                                .via("tokenCancelAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
-            // cancel multiple FT and NFT
+            @HapiTest
+            @DisplayName(
+                    "Token Cancel FT Pending Airdrop with threshold key - full fees with extra signatures charging")
+            final Stream<DynamicTest> tokenCancelAirdropWithExtraSignaturesFullCharging() {
+                // Define a threshold submit key
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
-            // cancel threshold key
+                // Create valid signature
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON, sigs(ON, ON)));
 
-            // cancel pending airdrop to valid alias
-            // cancel pending airdrop to hollow alias - successful
-
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(THRESHOLD_PAYER)
+                                .key(PAYER_KEY)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .balance(ONE_HUNDRED_HBARS),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(THRESHOLD_PAYER)
+                                .signedBy(OWNER, THRESHOLD_PAYER)
+                                .via("tokenCancelAirdropTxn"),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
         }
 
         @Nested
@@ -526,7 +651,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
 
             @HapiTest
             @DisplayName("Token Claim FT Pending Airdrop with missing receiver signature - full fees charging")
-            final Stream<DynamicTest> tokenClaimAirdropWithMissingReceiverSignatureFailsOnIngest() {
+            final Stream<DynamicTest> tokenClaimAirdropWithMissingReceiverSignatureFailsOnHandle() {
                 return hapiTest(flattened(
                         createAccountsAndKeys(),
                         createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
@@ -546,24 +671,313 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                                 .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenClaimAirdropTxn",
-                                txnSize -> expectedTokenClaimAirdropNetworkFeeOnlyUsd(
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1)));
             }
 
-            // can't cancel claimed pending airdrop
-            // can't claim canceled pending airdrop
+            @HapiTest
+            @DisplayName("Token Cancel FT Pending Airdrop that is already Claimed fails on handle")
+            final Stream<DynamicTest> tokenCancelClaimedFTAirdropFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenClaimAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxn"),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        getTxnRecord("tokenAirdropTxn")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, FUNGIBLE_TOKEN)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxn",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
-            // cancel without sender signature
-            // claim non-existing pendning airdrop - full fee charged
-            // cancel non-existing pending airdrop - full fee charged
-            // cliam already claimed airdrop - full fees
-            // cancel already canceled - full fees
-            // claim with receiver no longer associated - still full fees
-            // cancel when sender no longer owns token - full fees
-            // claim NFT pending airdrop with wrong serial - full fees
-            // claim pending airdrop for hollow account without signature??? - Invalid signature?
+            @HapiTest
+            @DisplayName("Token Claim FT Pending Airdrop that is already Canceled fails on handle")
+            final Stream<DynamicTest> tokenClaimFTAirdropThatIsAlreadyCanceledFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxn"),
+                        tokenClaimAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxn",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
 
+            @HapiTest
+            @DisplayName("Token Claim FT Pending Airdrop that is already Claimed fails on handle")
+            final Stream<DynamicTest> tokenClaimFTAirdropThatIsAlreadyClaimedFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenClaimAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxnFirst"),
+                        tokenClaimAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxnSecond")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxnFirst",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxnSecond",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Cancel FT Pending Airdrop that is already Canceled fails on handle")
+            final Stream<DynamicTest> tokenCancelFTAirdropThatIsAlreadyCanceledFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxnFirst"),
+                        tokenCancelAirdrop(
+                                        pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxnSecond")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxnFirst",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxnSecond",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Claim FT Pending Airdrop that is already Canceled fails on handle")
+            final Stream<DynamicTest> tokenClaimNonExistingFTAirdropFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenClaimAirdrop(pendingAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxn",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Cancel FT Pending Airdrop that is already Canceled fails on handle")
+            final Stream<DynamicTest> tokenCancelNonExistingFTAirdropFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        tokenCancelAirdrop(pendingAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenCancelAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenCancelAirdropTxn",
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Claim NFT Pending Airdrop when the Sender no longer owns the token fails on handle")
+            final Stream<DynamicTest> tokenClaimPendingNFTAirdropWhenSenderNoLongerOwnsTheTokenFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxn"),
+                        getTxnRecord("tokenAirdropTxn")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
+                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST)),
+                        tokenClaimAirdrop(pendingAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxn",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName(
+                    "Token Claim NFT - Multiple Pending Airdrops for the same NFT serial - all claims after first one fail on handle")
+            final Stream<DynamicTest>
+                    tokenClaimNFTMultiplePendingAirdropsForTheSameSerialAllClaimsAfterFirstOneFailOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxnFirst"),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxnSecond"),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxnThird"),
+                        getTxnRecord("tokenAirdropTxnFirst")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
+                        getTxnRecord("tokenAirdropTxnSecond")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND)))),
+                        getTxnRecord("tokenAirdropTxnThird")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_THIRD)))),
+                        tokenClaimAirdrop(pendingNFTAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxnFirst"),
+                        tokenClaimAirdrop(pendingNFTAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND, NON_FUNGIBLE_TOKEN, 1L))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_SECOND)
+                                .via("tokenClaimAirdropTxnSecond")
+                                .hasKnownStatus(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxnFirst",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxnSecond",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
+
+            @HapiTest
+            @DisplayName("Token Claim NFT Pending Airdrop with wrong serial - fails on handle")
+            final Stream<DynamicTest> tokenClaimNFTPendingAirdropWithWrongSerialFailsOnHandle() {
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER)
+                                .via("tokenAirdropTxnFirst"),
+                        getTxnRecord("tokenAirdropTxnFirst")
+                                .hasPriority(recordWith()
+                                        .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
+                        tokenClaimAirdrop(pendingNFTAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 2L))
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
+                                .via("tokenClaimAirdropTxn")
+                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                "tokenClaimAirdropTxn",
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1)));
+            }
         }
     }
 
@@ -627,32 +1041,10 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(PAYER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 100000),
                 uploadInitCode(HOOK_CONTRACT),
                 contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER_WITH_HOOK)
-                        .balance(ONE_MILLION_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(PAYER_WITH_TWO_HOOKS)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(2L, HOOK_CONTRACT)),
-                cryptoCreate(PAYER_WITH_THREE_HOOKS)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(2L, HOOK_CONTRACT))
-                        .withHook(accountAllowanceHook(3L, HOOK_CONTRACT)),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(HBAR_OWNER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 100000),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_ASSOCIATED_THIRD).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS)
-                        .maxAutomaticTokenAssociations(-1)
-                        .balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_FREE_AUTO_ASSOCIATIONS)
-                        .maxAutomaticTokenAssociations(2)
-                        .balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
                         .maxAutomaticTokenAssociations(0)
                         .balance(ONE_HBAR),
@@ -665,17 +1057,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                 cryptoCreate(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)
                         .maxAutomaticTokenAssociations(0)
                         .balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_NOT_ASSOCIATED).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_ZERO_BALANCE).balance(0L),
-                newKeyNamed(VALID_ALIAS_ED25519).shape(KeyShape.ED25519),
-                newKeyNamed(VALID_ALIAS_ED25519_SECOND).shape(KeyShape.ED25519),
-                newKeyNamed(VALID_ALIAS_ECDSA).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_ECDSA_SECOND).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_HOLLOW).shape(SECP_256K1_SHAPE),
-                newKeyNamed(VALID_ALIAS_HOLLOW_SECOND).shape(SECP_256K1_SHAPE),
                 newKeyNamed(adminKey),
-                newKeyNamed(supplyKey),
-                newKeyNamed(freezeKey),
-                newKeyNamed(pauseKey));
+                newKeyNamed(supplyKey));
     }
 }
