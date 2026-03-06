@@ -284,7 +284,7 @@
           "name": "FileGetContents",
           "baseFee": 0,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            { "name": "PROCESSING_BYTES", "includedCount": 1000}
           ]
         },
         {
@@ -716,14 +716,18 @@
         {
           "name": "ContractCallLocal",
           "baseFee": 9000000,
-          "extras": []
+          "extras": [
+            {
+              "name": "GAS", "includedCount": 0
+            }
+          ]
         },
         {
           "name": "ContractGetBytecode",
           "baseFee": 499000000,
           "extras": [
             {
-              "name": "STATE_BYTES", "includedCount": 1000
+              "name": "PROCESSING_BYTES", "includedCount": 20000
             }
           ]
         },

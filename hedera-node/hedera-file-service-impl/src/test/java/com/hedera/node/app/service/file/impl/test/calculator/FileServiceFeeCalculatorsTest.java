@@ -329,7 +329,7 @@ class FileServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.STATE_BYTES, 10))
+                        makeExtraDef(Extra.PROCESSING_BYTES, 10))
                 .services(makeService(
                         "ScheduleService",
                         makeServiceFee(
@@ -350,7 +350,9 @@ class FileServiceFeeCalculatorsTest {
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
                         makeServiceFee(
-                                HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.STATE_BYTES, 1000)),
+                                HederaFunctionality.FILE_GET_CONTENTS,
+                                7,
+                                makeExtraIncluded(Extra.PROCESSING_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
                         makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();
