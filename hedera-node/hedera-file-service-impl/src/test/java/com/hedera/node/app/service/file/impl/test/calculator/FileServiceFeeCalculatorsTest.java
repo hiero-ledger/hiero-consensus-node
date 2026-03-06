@@ -329,6 +329,7 @@ class FileServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
+                        makeExtraDef(Extra.STATE_BYTES, 10),
                         makeExtraDef(Extra.PROCESSING_BYTES, 10))
                 .services(makeService(
                         "ScheduleService",
