@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -794,7 +795,8 @@ public class TokenServiceSimpleFeesSuite {
                         .hasTotalSupply(1000L)
                         .via("get-token-info-query")
                         .payingWith(PAYER),
-                validateChargedSimpleFees("Simple Fees", "get-token-info-query", 0.0001, 1));
+                validateChargedSimpleFees("Simple Fees", "get-token-info-query", 0.0001, 1),
+                validateNonZeroNodePaymentForQuery("get-token-info-query"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -821,7 +823,8 @@ public class TokenServiceSimpleFeesSuite {
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("get-token-nft-info-query"),
-                validateChargedSimpleFees("Simple Fees", "get-token-nft-info-query", 0.0001, 1));
+                validateChargedSimpleFees("Simple Fees", "get-token-nft-info-query", 0.0001, 1),
+                validateNonZeroNodePaymentForQuery("get-token-nft-info-query"));
     }
 
     @HapiTest

@@ -15,6 +15,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -634,12 +635,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(bufferService).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -651,6 +655,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
         when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(12L);
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -683,6 +689,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -693,6 +701,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService).getBlockState(11L);
@@ -1656,6 +1665,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
         when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
         when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
                 .thenReturn(false);
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -1664,6 +1675,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockBehindPublisher(Long.MAX_VALUE);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
         verify(bufferService).getBlockState(0L);
         verifyNoMoreInteractions(metrics);
@@ -1679,6 +1691,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
 
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
         when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
                 .thenReturn(true);
         when(connectionManager.getBehindPublisherScheduleDelay()).thenReturn(Duration.ofMinutes(5));
@@ -1695,6 +1709,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Verify EndStream request metrics
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordRequestLatency(anyLong());
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
         verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
         // Verify EndStream request was sent with RESET code
@@ -1702,6 +1717,75 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(requestPipeline).onNext(any(PublishStreamRequest.class));
         verify(requestPipeline).onComplete();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - first message in new window should be processed
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_firstMessageInWindow() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // First message should NOT be ignored (new window, queue is empty)
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(bufferService).getBlockState(11L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any(Instant.class));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - second message within ignore period should be ignored
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_withinIgnorePeriod() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Second message within ignore period should be ignored
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(true);
+
+        connection.onNext(response);
+
+        // Metrics are recorded before the ignore check in onNext, but handleBlockNodeBehind returns early
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        // Should NOT record or process the message in handleBlockNodeBehind
+        verify(connectionManager, never()).recordBehindPublisherAndCheckLimit(any(), any());
+        verify(bufferService, never()).getBlockState(anyLong());
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - message after ignore period expires but within same window
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_afterIgnorePeriodExpires() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // After ignore period expires (shouldIgnore returns false), message should be processed
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(bufferService).getBlockState(11L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any(Instant.class));
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
     }
