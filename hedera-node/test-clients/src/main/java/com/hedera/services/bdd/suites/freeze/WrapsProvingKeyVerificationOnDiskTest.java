@@ -92,6 +92,7 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
         }));
     }
 
+    @SuppressWarnings("DuplicatedCode")
     @LeakyHapiTest(overrides = {"tss.wrapsProvingKeyPath", "tss.wrapsProvingKeyHash"})
     @Order(0)
     final Stream<DynamicTest> setsFirstProvingKeyHash() {

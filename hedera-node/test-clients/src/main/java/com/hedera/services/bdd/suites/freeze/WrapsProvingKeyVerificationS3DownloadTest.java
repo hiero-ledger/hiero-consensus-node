@@ -35,10 +35,8 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
@@ -54,9 +52,8 @@ import org.testcontainers.utility.MountableFile;
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class WrapsProvingKeyS3DownloadTest implements LifecycleTest {
-    private static final Logger log = LogManager.getLogger(WrapsProvingKeyS3DownloadTest.class);
+class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
+    private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerificationS3DownloadTest.class);
 
     private static final String INVALID_WRAPS_PROVING_KEY = "testfiles/invalid-wraps-proving-key.tar.gz";
     private static final int S3_API_PORT = 9000;

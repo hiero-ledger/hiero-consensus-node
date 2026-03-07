@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.history.schemas;
+package com.hedera.node.app.s3;
 
 import java.net.http.HttpHeaders;
 import java.util.List;

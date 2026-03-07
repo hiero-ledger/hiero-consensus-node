@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import com.hedera.node.app.history.schemas.S3Client;
-import com.hedera.node.app.history.schemas.S3ClientException;
+import com.hedera.node.app.s3.S3Client;
+import com.hedera.node.app.s3.S3ClientException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Downloads the WRAPS proving key from an S3-compatible URL using {@link S3Client}.
@@ -16,7 +14,6 @@ import org.apache.logging.log4j.Logger;
  * <p>Expects a path-style URL of the form {@code https://host/bucket/key}.
  */
 public class S3WrapsProvingKeyDownloader implements WrapsProvingKeyDownloader {
-    private static final Logger log = LogManager.getLogger(S3WrapsProvingKeyDownloader.class);
 
     @Override
     public void download(@NonNull final String downloadUrl, @NonNull final Path targetPath) throws IOException {
@@ -36,16 +33,12 @@ public class S3WrapsProvingKeyDownloader implements WrapsProvingKeyDownloader {
         final var endpoint =
                 uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "") + "/";
 
-        log.fatal("matt: S3 download endpoint={}, bucket={}, key={}, targetPath={}", endpoint, bucket, key, targetPath);
         try (final var s3Client = new S3Client(endpoint, bucket)) {
-            log.fatal("matt: S3Client created, calling downloadFile");
             final long bytesDownloaded = s3Client.downloadFile(key, targetPath);
-            log.fatal("matt: S3Client.downloadFile returned bytesDownloaded={}", bytesDownloaded);
             if (bytesDownloaded == -1) {
                 throw new IOException("Object not found in S3: " + key);
             }
         } catch (final S3ClientException e) {
-            log.fatal("matt: S3ClientException during download: {}", e.getMessage());
             throw new IOException("Failed to download from S3: " + downloadUrl, e);
         }
     }

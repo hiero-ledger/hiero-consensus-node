@@ -233,8 +233,8 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
-        this.wrapsProvingKeyVerification = requireNonNull(wrapsProvingKeyVerification);
         this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
+        this.wrapsProvingKeyVerification = requireNonNull(wrapsProvingKeyVerification);
     }
 
     /**
@@ -522,11 +522,7 @@ public class SystemTransactions {
         }
 
         // If appropriate, persist a valid pending WRAPS proving key hash to state
-        log.fatal(
-                "matt: about to call maybePersistPendingHash, pendingHash={}",
-                wrapsProvingKeyVerification.pendingHash());
         wrapsProvingKeyVerification.maybePersistPendingHash(state, configProvider.getConfiguration());
-        log.fatal("matt: maybePersistPendingHash returned");
     }
 
     /**

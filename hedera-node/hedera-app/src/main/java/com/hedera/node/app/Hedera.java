@@ -772,10 +772,7 @@ public final class Hedera
 
         // Verify the WRAPS proving key hash (if configured)
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
-            logger.fatal("matt: wraps enabled, verifying proving key hash...");
             verifyWrapsProvingKeyHash(state);
-        } else {
-            logger.fatal("matt: wraps NOT enabled...");
         }
 
         // Perform any service initialization that has to be postponed until Dagger is available

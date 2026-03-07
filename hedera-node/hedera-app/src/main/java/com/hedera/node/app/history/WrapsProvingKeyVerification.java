@@ -4,7 +4,6 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -12,7 +11,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -94,8 +92,6 @@ public class WrapsProvingKeyVerification {
         if (!tssConfig.wrapsEnabled()) {
             log.info("WRAPS not enabled, skipping proving key hash verification");
             return;
-        } else {
-            log.fatal("matt: WRAPS enabled and verifying");
         }
 
         final var bootstrapHash = tssConfig.wrapsProvingKeyHash();
@@ -105,10 +101,7 @@ public class WrapsProvingKeyVerification {
 
         final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
-        final var historyStates = state.getReadableStates(HistoryService.NAME);
-        final var store = new ReadableHistoryStoreImpl(historyStates);
-        final var existingHash = store.getWrapsProvingKeyHash();
-        verifyAndRememberPendingHash(provingKeyPath, bootstrapHash, existingHash, downloadUrl, downloader);
+        verifyAndRememberPendingHash(provingKeyPath, bootstrapHash, downloadUrl, downloader);
     }
 
     /**
@@ -123,7 +116,6 @@ public class WrapsProvingKeyVerification {
         requireNonNull(state);
         requireNonNull(config);
         awaitDownloadIfPending();
-        log.fatal("matt: maybePersistPendingHash called with pendingHash={}", pendingHash);
         if (pendingHash.equals(Bytes.EMPTY)) {
             return;
         }
@@ -156,28 +148,15 @@ public class WrapsProvingKeyVerification {
     private void verifyAndRememberPendingHash(
             @NonNull final Path provingKeyPath,
             @NonNull final String bootstrapHash,
-            @Nullable final Bytes existingHashInState,
             @NonNull final String downloadUrl,
             @NonNull final WrapsProvingKeyDownloader downloader) {
         final var expectedHash = Bytes.fromHex(bootstrapHash);
-        log.fatal(
-                "matt: verifyAndRememberPendingHash path={}, expectedHash={}, existingInState={}, downloadUrl={}",
-                provingKeyPath,
-                expectedHash,
-                existingHashInState,
-                downloadUrl);
         if (!Files.exists(provingKeyPath)) {
-            log.fatal("matt: proving key file NOT found at {}, will download", provingKeyPath);
             log.info("WRAPS proving key file not found at {}. Initiating download", provingKeyPath);
             asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader);
             return;
         }
         final Bytes fileHash = hashFile(provingKeyPath);
-        log.fatal(
-                "matt: proving key file found at {}, fileHash={}, matches={}",
-                provingKeyPath,
-                fileHash,
-                fileHash.equals(expectedHash));
         if (!fileHash.equals(expectedHash)) {
             log.warn(
                     "WRAPS proving key hash mismatch at {} (expected={}, actual={}), initiating download",
@@ -188,7 +167,6 @@ public class WrapsProvingKeyVerification {
             return;
         }
         this.pendingHash = expectedHash;
-        log.fatal("matt: pendingHash set synchronously to {}", expectedHash);
     }
 
     private void asyncDownloadAndVerify(
@@ -196,61 +174,41 @@ public class WrapsProvingKeyVerification {
             @NonNull final Bytes expectedHash,
             @NonNull final String downloadUrl,
             @NonNull final WrapsProvingKeyDownloader downloader) {
-        log.fatal("matt: asyncDownloadAndVerify starting, url={}, targetPath={}", downloadUrl, provingKeyPath);
         downloadFuture = CompletableFuture.runAsync(
                 () -> {
-                    log.fatal(
-                            "matt: async download runnable executing on thread {}",
-                            Thread.currentThread().getName());
                     try {
                         downloader.download(downloadUrl, provingKeyPath);
-                        log.fatal("matt: download completed successfully to {}", provingKeyPath);
                     } catch (final IOException e) {
-                        log.fatal("matt: download FAILED with IOException: {}", e.getMessage());
                         log.error("Failed to download WRAPS proving key from {}", downloadUrl, e);
                         return;
                     }
                     final Bytes downloadedHash = hashFile(provingKeyPath);
-                    log.fatal(
-                            "matt: downloaded file hash={}, expected={}, matches={}",
-                            downloadedHash,
-                            expectedHash,
-                            downloadedHash.equals(expectedHash));
                     if (!downloadedHash.equals(expectedHash)) {
                         throw new IllegalStateException("Downloaded WRAPS proving key hash mismatch: expected="
                                 + expectedHash + ", actual=" + downloadedHash);
                     }
                     this.pendingHash = expectedHash;
-                    log.fatal("matt: pendingHash set to {} after successful download", expectedHash);
                     log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
                 },
                 downloadExecutor);
-        log.fatal("matt: asyncDownloadAndVerify future created, isDone={}", downloadFuture.isDone());
     }
 
     private void awaitDownloadIfPending() {
-        log.fatal("matt: awaitDownloadIfPending called, downloadFuture.isDone={}", downloadFuture.isDone());
         if (!downloadFuture.isDone()) {
             log.info("Waiting for WRAPS proving key download to complete");
             try {
                 downloadFuture.get(downloadTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                log.fatal("matt: download future completed after waiting");
             } catch (final TimeoutException e) {
                 throw new IllegalStateException(
                         "WRAPS proving key download did not complete within " + downloadTimeout, e);
             } catch (final ExecutionException e) {
-                log.fatal(
-                        "matt: download future completed exceptionally: {}",
-                        e.getCause().getMessage());
                 throw (e.getCause() instanceof RuntimeException re) ? re : new IllegalStateException(e.getCause());
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Interrupted while waiting for WRAPS proving key download", e);
             }
         } else {
-            log.fatal("matt: download future already done, joining");
             downloadFuture.join();
-            log.fatal("matt: join completed");
         }
     }
 
