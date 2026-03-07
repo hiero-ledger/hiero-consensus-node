@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
@@ -40,8 +41,10 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -766,19 +769,17 @@ class SystemTransactionsTest {
         // Simulate a non-empty pending hash by making maybePersistPendingHash write to state
         doAnswer(invocation -> {
                     final State s = invocation.getArgument(0);
-                    // Mimic what WrapsProvingKeyVerification does when pendingHash is non-empty
-                    final var historyStates = s.getWritableStates(com.hedera.node.app.history.HistoryService.NAME);
-                    ((com.swirlds.state.spi.CommittableWritableStates) historyStates).commit();
+                    // Mimics WrapsProvingKeyVerification when pending hash is non-empty
+                    final var historyStates = s.getWritableStates(HistoryService.NAME);
+                    ((CommittableWritableStates) historyStates).commit();
                     return null;
                 })
                 .when(wrapsProvingKeyVerification)
-                .maybePersistPendingHash(any(State.class), any(com.swirlds.config.api.Configuration.class));
+                .maybePersistPendingHash(any(State.class), any(Configuration.class));
 
-        final var historyWritableStates = mock(
-                WritableStates.class,
-                withSettings().extraInterfaces(com.swirlds.state.spi.CommittableWritableStates.class));
-        given(state.getWritableStates(eq(com.hedera.node.app.history.HistoryService.NAME)))
-                .willReturn(historyWritableStates);
+        final var historyWritableStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(eq(HistoryService.NAME))).willReturn(historyWritableStates);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -801,11 +802,9 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        verify(wrapsProvingKeyVerification)
-                .maybePersistPendingHash(eq(state), any(com.swirlds.config.api.Configuration.class));
-        verify(state).getWritableStates(eq(com.hedera.node.app.history.HistoryService.NAME));
-        verify((com.swirlds.state.spi.CommittableWritableStates) historyWritableStates)
-                .commit();
+        verify(wrapsProvingKeyVerification).maybePersistPendingHash(eq(state), any(Configuration.class));
+        verify(state).getWritableStates(eq(HistoryService.NAME));
+        verify((CommittableWritableStates) historyWritableStates).commit();
     }
 
     @Test
@@ -853,9 +852,7 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        verify(wrapsProvingKeyVerification)
-                .maybePersistPendingHash(eq(state), any(com.swirlds.config.api.Configuration.class));
-        // HistoryService writable states were never requested (mock maybePersistPendingHash is a no-op)
-        verify(state, never()).getWritableStates(eq(com.hedera.node.app.history.HistoryService.NAME));
+        verify(wrapsProvingKeyVerification).maybePersistPendingHash(eq(state), any(Configuration.class));
+        verify(state, never()).getWritableStates(eq(HistoryService.NAME));
     }
 }

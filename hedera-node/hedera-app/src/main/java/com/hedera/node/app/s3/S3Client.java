@@ -30,10 +30,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
  */
 @SuppressWarnings("JavadocLinkAsPlainText")
 public final class S3Client implements AutoCloseable {
-    /* Set the system property to allow restricted headers in HttpClient */
-    static {
-        System.setProperty("jdk.httpclient.allowRestrictedHeaders", "Host,Content-Length");
-    }
     /** SHA256 hash of an empty request body **/
     private static final String EMPTY_BODY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     /** The size limit of response body to be read for an exceptional response */

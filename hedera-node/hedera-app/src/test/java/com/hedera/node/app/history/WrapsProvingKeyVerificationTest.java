@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.history.schemas.V073HistorySchema;
 import com.hedera.node.config.data.TssConfig;
@@ -179,7 +180,7 @@ class WrapsProvingKeyVerificationTest {
         subject.verify(state, configuration, downloader);
         assertEquals(Bytes.EMPTY, subject.pendingHash());
 
-        // The exception surfaces when maybePersistPendingHash awaits the download
+        // The exception surfaces when maybePersistPendingHash waits for the download
         final var thrown =
                 assertThrows(CompletionException.class, () -> subject.maybePersistPendingHash(state, configuration));
         assertEquals(IllegalStateException.class, thrown.getCause().getClass());
@@ -193,7 +194,7 @@ class WrapsProvingKeyVerificationTest {
         givenReadableHistoryStates(null);
         doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
 
-        // IOException is caught and logged; does not propagate
+        // IOException is caught and logged; should not propagate
         subject.verify(state, configuration, downloader);
 
         assertEquals(Bytes.EMPTY, subject.pendingHash());
@@ -246,7 +247,7 @@ class WrapsProvingKeyVerificationTest {
         givenSubjectWithPendingHash(CONTENT_A);
         final var writableStates = givenWritableHistoryStates(HASH_B);
         // givenConfigWithHashAndPath already set wrapsProvingKeyHash to HASH_A.toHex(),
-        // which matches pendingHash — triggering the overwrite branch
+        // which matches pendingHash, thereby triggering the overwrite branch
 
         subject.maybePersistPendingHash(state, configuration);
 
@@ -269,7 +270,7 @@ class WrapsProvingKeyVerificationTest {
     void persistThrowsWhenConfigHashIsBlankAndStateValueDiffers() throws IOException {
         givenSubjectWithPendingHash(CONTENT_A);
         givenWritableHistoryStates(HASH_B);
-        // Override the config hash to blank
+
         given(tssConfig.wrapsProvingKeyHash()).willReturn("");
 
         assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
@@ -302,7 +303,7 @@ class WrapsProvingKeyVerificationTest {
 
         Thread.currentThread().interrupt();
         assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
-        // Clear the interrupt flag so it doesn't affect other tests
+        // Clear interrupt flag so it doesn't affect other tests
         assertTrue(Thread.interrupted());
     }
 
@@ -327,13 +328,10 @@ class WrapsProvingKeyVerificationTest {
 
     private void givenReadableHistoryStates(final Bytes existingHash) {
         given(state.getReadableStates(HistoryService.NAME)).willReturn(readableStates);
-        final var protoBytes = existingHash != null
-                ? new com.hedera.hapi.node.state.primitives.ProtoBytes(existingHash)
-                : new com.hedera.hapi.node.state.primitives.ProtoBytes(Bytes.EMPTY);
+        final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
         Mockito.lenient()
                 .when(readableStates
-                        .<com.hedera.hapi.node.state.primitives.ProtoBytes>getSingleton(
-                                V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
+                        .<ProtoBytes>getSingleton(V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
                         .get())
                 .thenReturn(protoBytes);
     }
@@ -356,13 +354,10 @@ class WrapsProvingKeyVerificationTest {
                 WritableStates.class,
                 withSettings().extraInterfaces(CommittableWritableStates.class).defaultAnswer(RETURNS_DEEP_STUBS));
         given(state.getWritableStates(HistoryService.NAME)).willReturn(writableStates);
-        final var protoBytes = existingHash != null
-                ? new com.hedera.hapi.node.state.primitives.ProtoBytes(existingHash)
-                : new com.hedera.hapi.node.state.primitives.ProtoBytes(Bytes.EMPTY);
+        final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
         Mockito.lenient()
                 .when(writableStates
-                        .<com.hedera.hapi.node.state.primitives.ProtoBytes>getSingleton(
-                                V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
+                        .<ProtoBytes>getSingleton(V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
                         .get())
                 .thenReturn(protoBytes);
         return writableStates;

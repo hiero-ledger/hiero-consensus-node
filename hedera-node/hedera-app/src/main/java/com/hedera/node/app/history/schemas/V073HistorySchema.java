@@ -17,7 +17,7 @@ import java.util.Set;
  */
 public class V073HistorySchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().minor(72).build();
+            SemanticVersion.newBuilder().minor(73).build();
 
     public static final String WRAPS_PROVING_KEY_HASH_KEY = "WRAPS_PROVING_KEY_HASH";
     public static final int WRAPS_PROVING_KEY_HASH_STATE_ID =

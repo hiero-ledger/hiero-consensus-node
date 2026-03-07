@@ -27,10 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Encapsulates the WRAPS proving key hash verification lifecycle. Created early
- * by {@link com.hedera.node.app.Hedera} and shared with
- * {@link com.hedera.node.app.workflows.handle.record.SystemTransactions} via Dagger
- * (following the same pattern as {@code WrappedRecordBlockHashMigration}).
+ * Encapsulates the WRAPS proving key hash verification lifecycle.
  *
  * <p>During {@code onStateInitialized()}, the on-disk proving key file is verified
  * against the bootstrap hash from config. If the hash matches and state does not yet
@@ -40,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
 
-    private static final Duration DEFAULT_DOWNLOAD_TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration DEFAULT_DOWNLOAD_TIMEOUT = Duration.ofSeconds(300);
 
     private final Executor downloadExecutor;
     private final Duration downloadTimeout;
@@ -78,17 +75,17 @@ public class WrapsProvingKeyVerification {
      * as pending for later persistence.
      *
      * @param state the current state
-     * @param bootstrapConfig the bootstrap configuration
+     * @param config the configuration
      * @param downloader the downloader to invoke if the file is missing or corrupt
      */
     public void verify(
             @NonNull final State state,
-            @NonNull final Configuration bootstrapConfig,
+            @NonNull final Configuration config,
             @NonNull final WrapsProvingKeyDownloader downloader) {
         requireNonNull(state);
-        requireNonNull(bootstrapConfig);
+        requireNonNull(config);
         requireNonNull(downloader);
-        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
+        final var tssConfig = config.getConfigData(TssConfig.class);
         if (!tssConfig.wrapsEnabled()) {
             log.info("WRAPS not enabled, skipping proving key hash verification");
             return;

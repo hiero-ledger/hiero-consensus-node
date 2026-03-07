@@ -20,7 +20,7 @@ class S3WrapsProvingKeyDownloaderTest {
     private static final byte[] FILE_CONTENT = "test proving key bytes".getBytes();
 
     @TempDir
-    Path tempDir;
+    private Path tempDir;
 
     private HttpServer server;
     private String baseUrl;
