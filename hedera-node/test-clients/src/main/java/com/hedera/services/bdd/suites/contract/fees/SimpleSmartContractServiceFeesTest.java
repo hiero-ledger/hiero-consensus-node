@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.contract.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -21,6 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithoutGas;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -36,6 +39,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -120,6 +124,48 @@ public class SimpleSmartContractServiceFeesTest {
                 // ContractCall's fee is paid with gas only. Estimated price is based on call data and gas used
                 validateChargedUsdForGasOnly(contractCall, EXPECTED_GAS_USED, 1),
                 validateChargedUsdWithoutGas(contractCall, CONTRACT_CALL_BASE_FEE, 0));
+    }
+
+    @HapiTest
+    @DisplayName("ContractCallLocal query node payment scales with gas")
+    final Stream<DynamicTest> contractCallLocalPaymentScalesWithGas() {
+        final var lowGasQuery = "contractLocalLowGas";
+        final var highGasQuery = "contractLocalHighGas";
+        return hapiTest(
+                contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
+                        .gas(21_500)
+                        .payingWith(civilian.name())
+                        .signedBy(civilian.name())
+                        .via(lowGasQuery),
+                contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
+                        .gas(200_000)
+                        .payingWith(civilian.name())
+                        .signedBy(civilian.name())
+                        .via(highGasQuery),
+                validateNonZeroNodePaymentForQuery(lowGasQuery),
+                validateNonZeroNodePaymentForQuery(highGasQuery),
+                withOpContext((spec, opLog) -> {
+                    final var lowRecord = getTxnRecord(lowGasQuery);
+                    final var highRecord = getTxnRecord(highGasQuery);
+                    allRunFor(spec, lowRecord, highRecord);
+                    final var nodeId = spec.setup().defaultNode();
+                    final var lowNodePayment =
+                            lowRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
+                    final var highNodePayment =
+                            highRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
+                    assertTrue(
+                            highNodePayment > lowNodePayment,
+                            "Expected higher node payment for higher gas, but got low="
+                                    + lowNodePayment
+                                    + " and high="
+                                    + highNodePayment);
+                }));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
