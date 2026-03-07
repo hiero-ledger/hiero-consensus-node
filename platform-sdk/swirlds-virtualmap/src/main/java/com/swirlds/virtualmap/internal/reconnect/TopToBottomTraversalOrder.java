@@ -38,7 +38,11 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     public TopToBottomTraversalOrder() {}
 
     @Override
-    public void start(final long firstLeafPath, final long lastLeafPath) {
+    public void start(
+            final long oldFirstLeafPath,
+            final long oldLastLeafPath,
+            final long firstLeafPath,
+            final long lastLeafPath) {
         this.reconnectFirstLeafPath = firstLeafPath;
         this.reconnectLastLeafPath = lastLeafPath;
 

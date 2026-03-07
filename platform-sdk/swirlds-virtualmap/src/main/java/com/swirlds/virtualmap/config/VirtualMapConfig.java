@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.config;
 
+import static com.swirlds.virtualmap.config.VirtualMapReconnectMode.PULL_PARALLEL_TOP_TO_BOTTOM;
 import static com.swirlds.virtualmap.config.VirtualMapReconnectMode.PUSH;
 
 import com.swirlds.config.api.ConfigData;
@@ -53,7 +54,7 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "3") int virtualHasherChunkHeight,
-        @ConfigProperty(defaultValue = PUSH) String reconnectMode,
+        @ConfigProperty(defaultValue = PULL_PARALLEL_TOP_TO_BOTTOM) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,

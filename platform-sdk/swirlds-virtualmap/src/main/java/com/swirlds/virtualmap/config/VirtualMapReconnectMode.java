@@ -33,5 +33,7 @@ public final class VirtualMapReconnectMode {
      */
     public static final String PULL_PARALLEL_SYNC = "pullParallelSync";
 
+    public static final String PULL_PARALLEL_TOP_TO_BOTTOM = "pullParallelTopToBottom";
+
     private VirtualMapReconnectMode() {}
 }
