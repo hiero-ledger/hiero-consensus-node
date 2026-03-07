@@ -327,7 +327,6 @@ class WrapsProvingKeyVerificationTest {
     }
 
     private void givenReadableHistoryStates(final Bytes existingHash) {
-        given(state.getReadableStates(HistoryService.NAME)).willReturn(readableStates);
         final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
         Mockito.lenient()
                 .when(readableStates
