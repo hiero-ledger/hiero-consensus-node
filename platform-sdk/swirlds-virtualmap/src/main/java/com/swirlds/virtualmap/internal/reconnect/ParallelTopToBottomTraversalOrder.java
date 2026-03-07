@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 
-    private static final int MAX_IN_FLIGHT = 16384;
+    private static final int MAX_IN_FLIGHT = 65536;
 
     private volatile boolean simpleMode = false;
 
