@@ -63,7 +63,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
 
         assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
@@ -98,7 +98,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
 
         assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
@@ -117,7 +117,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
 
         final var removedNodeIds = activeRosters.removedNodeIds().stream().toList();
         Assertions.assertEquals(List.of(4L), removedNodeIds);

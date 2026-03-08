@@ -2,16 +2,26 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.TestTags.WRAPS;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import java.time.Duration;
+import java.util.List;
+import java.util.Random;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -23,6 +33,12 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class WrapsHandoffsTest implements LifecycleTest {
+    private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
+    private static final Duration GENESIS_WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
+    private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
+    private static final long TRANSFER_PACING_MS = 250L;
+    private static final Random RANDOM = new Random(2_721_828L);
+
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
@@ -42,7 +58,31 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> addressBookAndNodeDetailsPopulated() {
-        return hapiTest();
+    final Stream<DynamicTest> genesisWrapsProof() {
+        return hapiTest(untilHgcaaLogContainsText(
+                        byNodeId(0),
+                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
+                        GENESIS_WRAPS_PROOF_TIMEOUT,
+                        LOG_POLL_INTERVAL,
+                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                .loggingOff());
+    }
+
+    private static SpecOperation randomStakerTransfer() {
+        final var stakers = stakers();
+        final var senderIndex = RANDOM.nextInt(stakers.size());
+        var receiverIndex = RANDOM.nextInt(stakers.size() - 1);
+        if (receiverIndex >= senderIndex) {
+            receiverIndex++;
+        }
+        final var sender = stakers.get(senderIndex);
+        final var receiver = stakers.get(receiverIndex);
+        final long amount = RANDOM.nextLong(10L, 101L) * ONE_HBAR;
+        return cryptoTransfer(tinyBarsFromTo(sender.name(), receiver.name(), amount))
+                .payingWith(sender.name());
+    }
+
+    private static List<SpecAccount> stakers() {
+        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER);
     }
 }

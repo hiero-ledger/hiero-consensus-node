@@ -43,6 +43,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -1095,7 +1096,23 @@ public class HandleWorkflow {
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
-            final var activeRosters = ActiveRosters.from(rosterStore);
+            final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+            final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var activeRosters = ActiveRosters.from(
+                    rosterStore,
+                    tssConfig.historyEnabled(),
+                    () -> !new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                            .getActiveConstruction()
+                            .hasHintsScheme(),
+                    !tssConfig.historyEnabled()
+                            ? null
+                            : () -> {
+                                final var activeConstruction =
+                                        new ReadableHistoryStoreImpl(historyWritableStates).getActiveConstruction();
+                                return !activeConstruction.hasTargetProof()
+                                        || (tssConfig.wrapsEnabled()
+                                                != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
+                            });
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
@@ -1106,7 +1123,6 @@ public class HandleWorkflow {
                         null,
                         () -> hintsService.executeCrsWork(
                                 new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
-                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
@@ -1117,7 +1133,6 @@ public class HandleWorkflow {
                                 tssConfig,
                                 isActive));
                 if (tssConfig.historyEnabled()) {
-                    final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;

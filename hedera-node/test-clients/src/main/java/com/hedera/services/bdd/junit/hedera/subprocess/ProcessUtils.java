@@ -145,7 +145,7 @@ public class ProcessUtils {
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
         // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz,
         // e.g. "/Users/hincadenza/misc/wraps-v0.2.0", to get the WRAPS library ready to produce proofs
-        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "/Users/michaeltinker/misc/wraps-v0.2.0");
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts

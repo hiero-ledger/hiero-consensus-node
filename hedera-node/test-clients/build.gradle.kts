@@ -193,7 +193,10 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put("hapiTestWraps", "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8")
+        put(
+            "hapiTestWraps",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8,staking.periodMins=15",
+        )
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
