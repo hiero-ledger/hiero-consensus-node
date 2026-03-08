@@ -2,8 +2,10 @@
 package com.hedera.node.app.service.roster.impl.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -13,9 +15,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.hiero.consensus.roster.ReadableRosterStore;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.BDDMockito;
@@ -42,6 +44,7 @@ class ActiveRostersTest {
                     RosterTransitionWeights.NodeWeight::nodeId, RosterTransitionWeights.NodeWeight::weight));
     private static final Bytes A_ROSTER_HASH = Bytes.wrap("A_ROSTER_HASH");
     private static final Bytes B_ROSTER_HASH = Bytes.wrap("B_ROSTER_HASH");
+    private static final Bytes UNKNOWN_ROSTER_HASH = Bytes.wrap("UNKNOWN_ROSTER_HASH");
     private static final Roster A_ROSTER = new Roster(A_ROSTER_WEIGHTS.entrySet().stream()
             .map(entry -> new RosterEntry(entry.getKey(), entry.getValue(), Bytes.EMPTY, List.of()))
             .toList());
@@ -63,14 +66,25 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
 
         assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
+        assertSame(A_ROSTER, activeRosters.currentRoster());
         assertEquals(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
+        assertNull(activeRosters.findRelatedRoster(UNKNOWN_ROSTER_HASH));
         assertEquals(A_ROSTER, activeRosters.targetRoster());
+        assertTrue(activeRosters.removedNodeIds().isEmpty());
+        assertEquals(new TreeMap<>(A_ROSTER_WEIGHTS), ActiveRosters.weightsFrom(A_ROSTER));
+        assertEquals(
+                "ActiveRosters{phase=BOOTSTRAP, source="
+                        + abbreviated(A_ROSTER_HASH)
+                        + ", target="
+                        + abbreviated(A_ROSTER_HASH)
+                        + '}',
+                activeRosters.toString());
         final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(A_ROSTER_WEIGHTS, weights.targetNodeWeights());
@@ -78,11 +92,9 @@ class ActiveRostersTest {
         assertEquals(A_ROSTER_STRICT_MAJORITY_WEIGHT, weights.targetWeightThreshold());
         assertEquals(A_ROSTER_NODE_WEIGHTS, weights.orderedSourceWeights().toList());
         assertEquals(A_ROSTER_NODE_WEIGHTS, weights.orderedTargetWeights().toList());
-        Assertions.assertTrue(
-                A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.sourceWeightOf(nw.nodeId()) == nw.weight()));
-        Assertions.assertTrue(
-                A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetWeightOf(nw.nodeId()) == nw.weight()));
-        Assertions.assertTrue(A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetIncludes(nw.nodeId())));
+        assertTrue(A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.sourceWeightOf(nw.nodeId()) == nw.weight()));
+        assertTrue(A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetWeightOf(nw.nodeId()) == nw.weight()));
+        assertTrue(A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetIncludes(nw.nodeId())));
         assertEquals(A_ROSTER.rosterEntries().size(), weights.numTargetNodesIn(A_ROSTER_WEIGHTS.keySet()));
         assertEquals(
                 1,
@@ -98,10 +110,14 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
 
         assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
+        assertSame(A_ROSTER, activeRosters.currentRoster());
+        assertEquals(
+                "ActiveRosters{phase=HANDOFF, source=<NONE>, target=" + abbreviated(A_ROSTER_HASH) + '}',
+                activeRosters.toString());
         assertThrows(IllegalStateException.class, activeRosters::targetRoster);
         assertThrows(IllegalStateException.class, activeRosters::sourceRosterHash);
         assertThrows(IllegalStateException.class, activeRosters::targetRosterHash);
@@ -117,14 +133,15 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
 
         final var removedNodeIds = activeRosters.removedNodeIds().stream().toList();
-        Assertions.assertEquals(List.of(4L), removedNodeIds);
+        assertEquals(List.of(4L), removedNodeIds);
         assertEquals(ActiveRosters.Phase.TRANSITION, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
         assertEquals(B_ROSTER_HASH, activeRosters.targetRosterHash());
+        assertSame(A_ROSTER, activeRosters.currentRoster());
         assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
         assertSame(B_ROSTER, activeRosters.targetRoster());
         final var weights = activeRosters.transitionWeights(null);
@@ -134,15 +151,69 @@ class ActiveRostersTest {
         assertEquals(B_ROSTER_STRICT_MAJORITY_WEIGHT, weights.targetWeightThreshold());
         assertEquals(A_ROSTER_NODE_WEIGHTS, weights.orderedSourceWeights().toList());
         assertEquals(B_ROSTER_NODE_WEIGHTS, weights.orderedTargetWeights().toList());
-        Assertions.assertTrue(
-                A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.sourceWeightOf(nw.nodeId()) == nw.weight()));
-        Assertions.assertTrue(
-                B_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetWeightOf(nw.nodeId()) == nw.weight()));
-        Assertions.assertTrue(B_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetIncludes(nw.nodeId())));
+        assertTrue(A_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.sourceWeightOf(nw.nodeId()) == nw.weight()));
+        assertTrue(B_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetWeightOf(nw.nodeId()) == nw.weight()));
+        assertTrue(B_ROSTER_NODE_WEIGHTS.stream().allMatch(nw -> weights.targetIncludes(nw.nodeId())));
         final var allNodeIds = B_ROSTER_WEIGHTS.keySet().stream().toList();
         final var someNodeIds = Set.copyOf(allNodeIds.subList(1, allNodeIds.size()));
         assertEquals(B_ROSTER.rosterEntries().size() - 1, weights.numTargetNodesIn(someNodeIds));
         assertEquals(0L, weights.sourceWeightOf(MISSING_NODE_ID));
         assertEquals(0L, weights.targetWeightOf(MISSING_NODE_ID));
+    }
+
+    @Test
+    void ignoresCandidateWhenHintsAreInProgress() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> true, null);
+
+        assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
+        assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
+        assertSame(A_ROSTER, activeRosters.targetRoster());
+    }
+
+    @Test
+    void ignoresCandidateWhenHistoryProofIsInProgress() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> true);
+
+        assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
+        assertSame(A_ROSTER, activeRosters.currentRoster());
+    }
+
+    @Test
+    void requiresProofSupplierWhenHistoryEnabledWithCandidateRoster() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
+
+        assertThrows(NullPointerException.class, () -> ActiveRosters.from(rosterStore, true, () -> false, null));
+    }
+
+    @Test
+    void usesExplicitSourceWeightsInTransition() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
+        final var explicitSourceWeights = new TreeMap<Long, Long>(Map.of(1L, 11L, 2L, 22L));
+
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var weights = activeRosters.transitionWeights(explicitSourceWeights);
+
+        assertSame(explicitSourceWeights, weights.sourceNodeWeights());
+        assertEquals(
+                RosterTransitionWeights.atLeastOneThirdOfTotal(explicitSourceWeights), weights.sourceWeightThreshold());
+        assertEquals(B_ROSTER_WEIGHTS, weights.targetNodeWeights());
+    }
+
+    private static String abbreviated(final Bytes hash) {
+        return hash.toHex().substring(0, 6) + "...";
     }
 }
