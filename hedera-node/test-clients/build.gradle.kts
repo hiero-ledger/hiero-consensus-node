@@ -77,6 +77,7 @@ val basePrCheckTags =
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
+        "hapiTestWraps" to "WRAPS",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
@@ -100,6 +101,7 @@ val concurrentTasks =
         "hapiTestMiscSerial",
         "hapiTestMiscRecords",
         "hapiTestMiscRecordsSerial",
+        "hapiTestWraps",
         "hapiTestTimeConsuming",
         "hapiTestTimeConsumingSerial",
         "hapiTestStateThrottling",
@@ -142,6 +144,7 @@ val prCheckStartPorts =
         put("hapiTestSmartContract", "25800")
         put("hapiTestNDReconnect", "26000")
         put("hapiTestTimeConsuming", "26200")
+        put("hapiTestWraps", "26300")
         put("hapiTestIss", "26400")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
@@ -190,6 +193,7 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestWraps", "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8")
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
