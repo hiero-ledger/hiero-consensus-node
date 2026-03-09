@@ -32,6 +32,9 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param garbageThreshold
  *      Garbage ratio that triggers compaction for a level. 0.0 means every file is eligible for compaction,
  *      while 1.0 means only files where all items are no longer referenced from the index are eligible for compaction.
+ * @param maxCompactionDataPerLevelInKB
+ *      Maximum total size, in KB, of source files selected for a single-level compaction run. A non-positive
+ *      value disables this limit.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
@@ -78,6 +81,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
         @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
+        @ConfigProperty(defaultValue = "100000") long maxCompactionDataPerLevelInKB,
         @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,

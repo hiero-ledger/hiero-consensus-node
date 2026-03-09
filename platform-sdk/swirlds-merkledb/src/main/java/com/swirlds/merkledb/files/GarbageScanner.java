@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
+import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
@@ -130,12 +131,15 @@ public class GarbageScanner {
      * @param scanResult       per-file garbage statistics from a recent scan
      * @param allFiles         current list of completed files in the collection
      * @param garbageThreshold garbage ratio that triggers compaction for a file
+     * @param maxCompactionDataPerLevelInKB maximum total size in KB of files to compact per level; non-positive
+     *                                       value means no limit
      * @return map from level to list of files to compact; multiple levels may be eligible
      */
     public static Map<Integer, List<DataFileReader>> evaluateCompactionCandidates(
             final Map<Integer, GarbageFileStats> scanResult,
             final List<DataFileReader> allFiles,
-            final double garbageThreshold) {
+            final double garbageThreshold,
+            final long maxCompactionDataPerLevelInKB) {
 
         final Map<Integer, List<DataFileReader>> readersByLevel = new HashMap<>();
         for (final DataFileReader reader : allFiles) {
@@ -148,13 +152,25 @@ public class GarbageScanner {
         for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
             final int level = entry.getKey();
             final List<DataFileReader> levelFiles = entry.getValue();
+            final long maxCompactionDataPerLevelInBytes =
+                    maxCompactionDataPerLevelInKB <= 0 ? Long.MAX_VALUE : maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES;
 
-            final List<DataFileReader> filesToCompact = levelFiles.stream()
-                    .filter(file -> {
-                        final GarbageFileStats stats = scanResult.get(file.getIndex());
-                        return stats != null && stats.garbageRatio() > garbageThreshold;
-                    })
-                    .toList();
+            long totalCompactionDataInBytes = 0;
+            final List<DataFileReader> filesToCompact = new ArrayList<>();
+            for (final DataFileReader file : levelFiles) {
+                final GarbageFileStats stats = scanResult.get(file.getIndex());
+                if (stats == null || stats.garbageRatio() <= garbageThreshold) {
+                    continue;
+                }
+                final long fileSize = file.getSize();
+
+                if (!filesToCompact.isEmpty() && // we add at least one file to the compaction list
+                        totalCompactionDataInBytes + fileSize > maxCompactionDataPerLevelInBytes) {
+                    continue;
+                }
+                filesToCompact.add(file);
+                totalCompactionDataInBytes += fileSize;
+            }
             if (!filesToCompact.isEmpty()) {
                 result.put(level, filesToCompact);
             }

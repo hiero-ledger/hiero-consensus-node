@@ -387,7 +387,11 @@ class MerkleDbCompactionCoordinator {
                 // Evaluate candidates for this level using fresh file list
                 final List<DataFileReader> allFiles = fileCollection.getAllCompletedFiles();
                 final Map<Integer, List<DataFileReader>> candidatesByLevel =
-                        GarbageScanner.evaluateCompactionCandidates(scanResult, allFiles, config.garbageThreshold());
+                        GarbageScanner.evaluateCompactionCandidates(
+                                scanResult,
+                                allFiles,
+                                config.garbageThreshold(),
+                                config.maxCompactionDataPerLevelInKB());
 
                 final List<DataFileReader> filesToCompact = candidatesByLevel.get(sourceLevel);
                 if (filesToCompact == null || filesToCompact.isEmpty()) {

@@ -192,9 +192,10 @@ it computes and stores garbage statistics but does not directly submit compactio
 
 ### Compaction Triggering
 
-Compaction decisions are driven by a single garbage threshold, not file counts. The `garbageThreshold` configuration parameter `(default 0.3)`
-controls which files are compacted: any file whose garbage ratio exceeds this threshold is included in the compaction set for its level.
-If at least one file at a level exceeds the threshold, compaction proceeds for that level.
+Compaction decisions are driven by a garbage threshold and an optional per-level size cap. The `garbageThreshold` configuration parameter
+`(default 0.3)` controls which files are compacted: any file whose garbage ratio exceeds this threshold is eligible for the compaction set for
+its level. The `maxCompactionDataPerLevelInKB` parameter `(default 0, disabled)` caps the total size of files selected for one compaction run at
+that level.
 
 ### Compaction Task Submission
 
@@ -216,7 +217,7 @@ flush `N+100` or later. By deferring evaluation, the task always uses the most r
 1. Check if compaction is still enabled (exit if disabled during shutdown).
 2. Read cached scan results from `scanResultsByStore`. If no results are available (scanner hasn't completed yet), exit — the next flush will submit a new task.
 3. Get the current file list from the `DataFileCollection` (fresh, not cached from submission time).
-4. Call `evaluateCompactionCandidates()` to determine which files at this task's level exceed the garbage thresholds.
+4. Call `evaluateCompactionCandidates()` to determine which files at this task's level exceed the garbage threshold and fit within the per-level size cap.
 5. If no files are eligible, exit (no-op).
 6. Create a `DataFileCompactor` via the factory, register it for pause/resume, and compact.
 
@@ -383,6 +384,7 @@ The following configuration parameters in `MerkleDbConfig` control compaction be
 | `compactionThreads`  | 6       | Size of the shared thread pool for scanner and compaction tasks.                                                     |
 | `maxCompactionLevel` | 5       | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                   |
 | `garbageThreshold`   | 0.3     | Garbage ratio that triggers compaction for a level. At least one file must exceed this for the level to be eligible. |
+| `maxCompactionDataPerLevelInKB` | 100000 | Maximum total size (KB) of source files compacted per level in one task. `0` disables the limit. |
 
 ### Observability
 
