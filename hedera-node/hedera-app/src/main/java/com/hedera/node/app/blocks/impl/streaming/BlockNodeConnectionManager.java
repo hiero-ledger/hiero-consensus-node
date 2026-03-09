@@ -525,7 +525,7 @@ public class BlockNodeConnectionManager {
         final BlockNodeConfiguration selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
-            logger.info("No available block nodes found for streaming.");
+            //            logger.info("No available block nodes found for streaming.");
             return false;
         }
 

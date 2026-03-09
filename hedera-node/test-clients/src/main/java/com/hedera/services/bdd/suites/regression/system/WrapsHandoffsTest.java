@@ -34,7 +34,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class WrapsHandoffsTest implements LifecycleTest {
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
-    private static final Duration GENESIS_WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
+    private static final String INCREMENTAL_WRAPS_PROOF_STARTED = "Constructing incremental WRAPS proof";
+    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
+    private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(16);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -58,14 +60,22 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> genesisWrapsProof() {
-        return hapiTest(untilHgcaaLogContainsText(
-                        byNodeId(0),
-                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
-                        GENESIS_WRAPS_PROOF_TIMEOUT,
-                        LOG_POLL_INTERVAL,
-                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
-                .loggingOff());
+    final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
+        return hapiTest(
+                untilHgcaaLogContainsText(
+                                byNodeId(0),
+                                GENESIS_WRAPS_PROOF_CONSTRUCTED,
+                                WRAPS_PROOF_TIMEOUT,
+                                LOG_POLL_INTERVAL,
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff(),
+                untilHgcaaLogContainsText(
+                                byNodeId(0),
+                                INCREMENTAL_WRAPS_PROOF_STARTED,
+                                STAKE_PERIOD_DURATION,
+                                LOG_POLL_INTERVAL,
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff());
     }
 
     private static SpecOperation randomStakerTransfer() {

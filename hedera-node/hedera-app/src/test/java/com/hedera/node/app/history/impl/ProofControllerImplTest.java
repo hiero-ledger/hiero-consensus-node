@@ -609,7 +609,7 @@ class ProofControllerImplTest {
                 .proof(HistoryProof.newBuilder().build())
                 .build();
 
-        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
     }
@@ -624,7 +624,7 @@ class ProofControllerImplTest {
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
                 .willReturn(construction);
 
-        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
@@ -663,7 +663,7 @@ class ProofControllerImplTest {
         given(weights.sourceWeightThreshold()).willReturn(15L);
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), any())).willReturn(construction);
 
-        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(congruentVote));
     }

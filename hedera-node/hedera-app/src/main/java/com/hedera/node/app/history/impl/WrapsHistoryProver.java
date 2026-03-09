@@ -153,7 +153,18 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private record AggregatePhaseOutput(byte[] signature, List<Long> nodeIds) implements WrapsPhaseOutput {}
 
-    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {}
+    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {
+        @NonNull
+        @Override
+        public String toString() {
+            return "WRAPS{compressed="
+                    + compressed.length
+                    + " bytes (" + Bytes.wrap(noThrowSha384HashOf(compressed)) + "), " + "uncompressed="
+                    + uncompressed.length
+                    + " bytes (" + Bytes.wrap(noThrowSha384HashOf(uncompressed)) + ")"
+                    + "}";
+        }
+    }
 
     private enum VoteChoice {
         SUBMIT,
@@ -629,7 +640,13 @@ public class WrapsHistoryProver implements HistoryProver {
                                 .aggregatedNodeSignaturesOrThrow()
                                 .signingNodeIds());
                         final long now = System.nanoTime();
-                        log.info("Constructing genesis WRAPS proof...");
+                        log.info(
+                                "Constructing genesis WRAPS proof w/\n  {}\n  {}\n  {}\n  {}\n  {}\n",
+                                ledgerId,
+                                targetMetadata,
+                                Bytes.wrap(signature),
+                                signers,
+                                targetBook);
                         final var proof = historyLibrary.constructGenesisWrapsProof(
                                 requireNonNull(ledgerId).toByteArray(),
                                 targetMetadata.toByteArray(),
@@ -637,7 +654,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                 signers,
                                 targetBook);
                         logElapsed("constructing genesis WRAPS proof", now);
-                        yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                        final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                        log.info(" -> {}", output);
+                        yield output;
                     }
                 },
                 executor);
