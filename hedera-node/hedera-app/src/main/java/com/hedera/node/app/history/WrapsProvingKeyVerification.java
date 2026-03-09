@@ -11,11 +11,13 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -38,6 +40,7 @@ public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
 
     private static final Duration DEFAULT_DOWNLOAD_TIMEOUT = Duration.ofSeconds(300);
+    public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
 
     private final Executor downloadExecutor;
     private final Duration downloadTimeout;
@@ -81,7 +84,7 @@ public class WrapsProvingKeyVerification {
     public void verify(
             @NonNull final State state,
             @NonNull final Configuration config,
-            @NonNull final WrapsProvingKeyDownloader downloader) {
+            @NonNull final HttpWrapsProvingKeyDownloader downloader) {
         requireNonNull(state);
         requireNonNull(config);
         requireNonNull(downloader);
@@ -146,7 +149,7 @@ public class WrapsProvingKeyVerification {
             @NonNull final Path provingKeyPath,
             @NonNull final String bootstrapHash,
             @NonNull final String downloadUrl,
-            @NonNull final WrapsProvingKeyDownloader downloader) {
+            @NonNull final HttpWrapsProvingKeyDownloader downloader) {
         final var expectedHash = Bytes.fromHex(bootstrapHash);
         if (!Files.exists(provingKeyPath)) {
             log.info("WRAPS proving key file not found at {}. Initiating download", provingKeyPath);
@@ -170,7 +173,7 @@ public class WrapsProvingKeyVerification {
             @NonNull final Path provingKeyPath,
             @NonNull final Bytes expectedHash,
             @NonNull final String downloadUrl,
-            @NonNull final WrapsProvingKeyDownloader downloader) {
+            @NonNull final HttpWrapsProvingKeyDownloader downloader) {
         downloadFuture = CompletableFuture.runAsync(
                 () -> {
                     try {
@@ -210,8 +213,20 @@ public class WrapsProvingKeyVerification {
     }
 
     private static Bytes hashFile(@NonNull final Path path) {
+        requireNonNull(path);
+
         try {
-            return CommonUtils.noThrowSha384HashOf(Bytes.wrap(Files.readAllBytes(path)));
+            final MessageDigest digest = CommonUtils.sha384DigestOrThrow();
+            // We expect these files to be large, so allocate a large buffer
+            final byte[] buffer = new byte[READ_BUFFER_SIZE];
+            try (final FileInputStream fileInputStream = new FileInputStream(path.toFile())) {
+                int bytesRead;
+                while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                    digest.update(buffer, 0, bytesRead);
+                }
+            }
+
+            return Bytes.wrap(digest.digest());
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read WRAPS proving key file at " + path, e);
         }

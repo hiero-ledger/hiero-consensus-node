@@ -15,7 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class S3WrapsProvingKeyDownloaderTest {
+class HttpWrapsProvingKeyDownloaderTest {
 
     private static final byte[] FILE_CONTENT = "test proving key bytes".getBytes();
 
@@ -24,14 +24,14 @@ class S3WrapsProvingKeyDownloaderTest {
 
     private HttpServer server;
     private String baseUrl;
-    private S3WrapsProvingKeyDownloader subject;
+    private HttpWrapsProvingKeyDownloader subject;
 
     @BeforeEach
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.start();
         baseUrl = "http://localhost:" + server.getAddress().getPort();
-        subject = new S3WrapsProvingKeyDownloader();
+        subject = new HttpWrapsProvingKeyDownloader();
     }
 
     @AfterEach
@@ -41,7 +41,7 @@ class S3WrapsProvingKeyDownloaderTest {
 
     @Test
     void downloadsFileSuccessfully() throws Exception {
-        server.createContext("/my-bucket/path/to/key.tar.gz", exchange -> {
+        server.createContext("/path/to/key.tar.gz", exchange -> {
             exchange.sendResponseHeaders(200, FILE_CONTENT.length);
             try (final var os = exchange.getResponseBody()) {
                 os.write(FILE_CONTENT);
@@ -49,35 +49,32 @@ class S3WrapsProvingKeyDownloaderTest {
         });
         final var target = tempDir.resolve("downloaded.tar.gz");
 
-        subject.download(baseUrl + "/my-bucket/path/to/key.tar.gz", target);
+        subject.download(baseUrl + "/path/to/key.tar.gz", target);
 
         assertArrayEquals(FILE_CONTENT, Files.readAllBytes(target));
     }
 
     @Test
-    void throwsOnS3NotFound() {
-        server.createContext("/my-bucket/missing.key", exchange -> {
+    void throwsOnNotFound() {
+        server.createContext("/missing.key", exchange -> {
             exchange.sendResponseHeaders(404, -1);
             exchange.close();
         });
         final var target = tempDir.resolve("missing.tar.gz");
 
-        final var ex =
-                assertThrows(IOException.class, () -> subject.download(baseUrl + "/my-bucket/missing.key", target));
-        assertEquals("Object not found in S3: missing.key", ex.getMessage());
+        final var ex = assertThrows(IOException.class, () -> subject.download(baseUrl + "/missing.key", target));
+        assertEquals("File not found at URL: " + baseUrl + "/missing.key", ex.getMessage());
     }
 
     @Test
-    void throwsOnInvalidUrlMissingKey() {
-        final var target = tempDir.resolve("out.tar.gz");
+    void throwsOnServerError() {
+        server.createContext("/error", exchange -> {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
+        final var target = tempDir.resolve("error.tar.gz");
 
-        assertThrows(IOException.class, () -> subject.download(baseUrl + "/bucketonly", target));
-    }
-
-    @Test
-    void throwsOnInvalidUrlMissingPath() {
-        final var target = tempDir.resolve("out.tar.gz");
-
-        assertThrows(IOException.class, () -> subject.download(baseUrl + "/", target));
+        final var ex = assertThrows(IOException.class, () -> subject.download(baseUrl + "/error", target));
+        assertEquals("Failed to download from " + baseUrl + "/error (HTTP status 500)", ex.getMessage());
     }
 }

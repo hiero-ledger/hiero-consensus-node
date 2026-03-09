@@ -59,7 +59,7 @@ class WrapsProvingKeyVerificationTest {
     private TssConfig tssConfig;
 
     @Mock
-    private WrapsProvingKeyDownloader downloader;
+    private HttpWrapsProvingKeyDownloader downloader;
 
     @Mock(answer = org.mockito.Answers.RETURNS_DEEP_STUBS)
     private ReadableStates readableStates;

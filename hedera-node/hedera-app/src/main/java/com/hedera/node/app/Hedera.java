@@ -58,7 +58,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.S3WrapsProvingKeyDownloader;
+import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
 import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
@@ -804,7 +804,8 @@ public final class Hedera
      * Verifies the WRAPS proving key file hash against the configured hash (if any).
      */
     private void verifyWrapsProvingKeyHash(@NonNull final State state) {
-        wrapsProvingKeyVerification.verify(state, configProvider.getConfiguration(), new S3WrapsProvingKeyDownloader());
+        wrapsProvingKeyVerification.verify(
+                state, configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
     }
 
     /**

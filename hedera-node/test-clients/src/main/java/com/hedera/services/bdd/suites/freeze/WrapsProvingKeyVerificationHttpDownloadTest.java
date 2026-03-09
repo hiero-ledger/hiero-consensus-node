@@ -43,22 +43,22 @@ import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * Subprocess test that exercises the full S3 download path for the WRAPS proving key.
- * Starts a MinIO container as a local S3-compatible store, seeds it with the proving key,
- * then restarts the network with a config that points to a missing local file, thereby forcing
- * the node to download the key via {@code S3WrapsProvingKeyDownloader}.
+ * Subprocess test that exercises the full HTTP download path for the WRAPS proving key.
+ * Starts a Python HTTP server container to serve the proving key file, then restarts
+ * the network with a config that points to a missing local file, thereby forcing
+ * the node to download the key via HTTP.
  */
 @Tag(RESTART)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
-class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
-    private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerificationS3DownloadTest.class);
+class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
+    private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerificationHttpDownloadTest.class);
 
     private static final String INVALID_WRAPS_PROVING_KEY = "testfiles/invalid-wraps-proving-key.tar.gz";
-    private static final int S3_API_PORT = 9000;
+    private static final int HTTP_PORT = 8000;
 
-    private static GenericContainer<?> minioContainer;
+    private static GenericContainer<?> httpContainer;
     private static Bytes validProvingKeyHash = Bytes.EMPTY;
 
     @BeforeAll
@@ -73,27 +73,25 @@ class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
         }
         log.info("Valid proving key hash: {}", validProvingKeyHash);
 
-        // Set up the MinIO container
-        minioContainer = new GenericContainer<>(DockerImageName.parse("minio/minio:RELEASE.2025-02-18T16-25-55Z"))
-                .withCommand("server", "/data")
-                .withExposedPorts(S3_API_PORT)
+        // Set up a dead-simple Python HTTP server container to serve the proving key
+        httpContainer = new GenericContainer<>(DockerImageName.parse("python:3.12-alpine"))
+                .withCommand("python", "-m", "http.server", String.valueOf(HTTP_PORT), "--directory", "/data")
+                .withExposedPorts(HTTP_PORT)
                 .withCopyFileToContainer(
                         MountableFile.forHostPath(
                                 validWrapsProvingKeyPath.toAbsolutePath().toString()),
-                        "/tmp/proving-key.tar.gz")
-                .waitingFor(Wait.forHttp("/minio/health/live")
-                        .forPort(S3_API_PORT)
+                        "/data/wraps-proving-key.tar.gz")
+                .waitingFor(Wait.forHttp("/wraps-proving-key.tar.gz")
+                        .forPort(HTTP_PORT)
                         .withStartupTimeout(Duration.ofSeconds(60)));
-        minioContainer.start();
+        httpContainer.start();
         log.info(
-                "MinIO container started at {}:{}",
-                minioContainer.getHost(),
-                minioContainer.getMappedPort(S3_API_PORT));
+                "HTTP server container started at {}:{}",
+                httpContainer.getHost(),
+                httpContainer.getMappedPort(HTTP_PORT));
 
-        seedMinIOBucket();
-
-        final String downloadUrl = "http://" + minioContainer.getHost() + ":"
-                + minioContainer.getMappedPort(S3_API_PORT) + "/proving-keys/wraps-proving-key.tar.gz";
+        final String downloadUrl = "http://" + httpContainer.getHost() + ":" + httpContainer.getMappedPort(HTTP_PORT)
+                + "/wraps-proving-key.tar.gz";
         log.info("Download URL: {}", downloadUrl);
 
         // Copy the invalid proving key file to each node's config directory
@@ -114,14 +112,14 @@ class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
 
     @AfterAll
     static void afterAll() {
-        if (minioContainer != null) {
-            minioContainer.stop();
+        if (httpContainer != null) {
+            httpContainer.stop();
         }
     }
 
     @LeakyHapiTest(overrides = {"tss.wrapsProvingKeyPath", "tss.wrapsProvingKeyHash"})
     @Order(0)
-    final Stream<DynamicTest> downloadsProvingKeyFromS3WhenFileMissing() {
+    final Stream<DynamicTest> downloadsProvingKeyWhenFileMissing() {
         final AtomicReference<String> downloadedHash = new AtomicReference<>();
         final AtomicReference<String> persistedHash = new AtomicReference<>();
 
@@ -129,7 +127,7 @@ class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/s3-downloaded-proving-key.tar.gz",
+                        "data/config/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex())),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -165,7 +163,7 @@ class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/s3-downloaded-proving-key.tar.gz",
+                        "data/config/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex())),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -206,30 +204,5 @@ class WrapsProvingKeyVerificationS3DownloadTest implements LifecycleTest {
                         validProvingKeyHash.toHex(),
                         downloadedHash.get(),
                         "Re-downloaded proving key hash should match expected hash")));
-    }
-
-    /**
-     * Uses the {@code mc} binary inside the MinIO container to create a public bucket
-     * and upload the proving key file into it.
-     */
-    private static void seedMinIOBucket() {
-        try {
-            execInMinIO("mc", "alias", "set", "local", "http://localhost:9000", "minioadmin", "minioadmin");
-            execInMinIO("mc", "mb", "local/proving-keys");
-            execInMinIO("mc", "cp", "/tmp/proving-key.tar.gz", "local/proving-keys/wraps-proving-key.tar.gz");
-            execInMinIO("mc", "anonymous", "set", "download", "local/proving-keys");
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to seed MinIO bucket", e);
-        }
-    }
-
-    private static void execInMinIO(final String... command) throws IOException, InterruptedException {
-        final var result = minioContainer.execInContainer(command);
-        if (result.getExitCode() != 0) {
-            throw new RuntimeException("MinIO command failed: " + String.join(" ", command)
-                    + "\nstdout: " + result.getStdout()
-                    + "\nstderr: " + result.getStderr());
-        }
-        log.info("mc: {}", result.getStdout().trim());
     }
 }
