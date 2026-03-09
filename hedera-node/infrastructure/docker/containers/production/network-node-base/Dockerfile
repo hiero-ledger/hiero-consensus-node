@@ -5,11 +5,8 @@
 ########################################################################################################################
 ARG UBUNTU_SHA="sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab"
 
-ARG OPENJDK_SHORT_VERSION="25"
-ARG OPENJDK_FULL_VERSION=25
-ARG OPENJDK_VERSION=25
-ARG OPENJDK_BUILD="10"
-ARG OPENJDK_NAME="hotspot"
+ARG OPENJDK_VERSION=25.0.2
+ARG OPENJDK_DL_KEY="b1e0dfa218384cb9959bdcb897162d4e/10"
 
 ########################################################################################################################
 #
@@ -19,11 +16,8 @@ ARG OPENJDK_NAME="hotspot"
 FROM ubuntu@${UBUNTU_SHA} AS openjdk-builder
 
 # Define Global Argument Refs
-ARG OPENJDK_SHORT_VERSION
-ARG OPENJDK_FULL_VERSION
+ARG OPENJDK_DL_KEY
 ARG OPENJDK_VERSION
-ARG OPENJDK_BUILD
-ARG OPENJDK_NAME
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
@@ -45,19 +39,18 @@ RUN apt-get update && \
 
 # Download Java Archive
 WORKDIR "/tmp/java"
-# Download the JDK
-RUN wget --quiet https://github.com/adoptium/temurin${OPENJDK_SHORT_VERSION}-binaries/releases/download/jdk-${OPENJDK_VERSION}%2B${OPENJDK_BUILD}/OpenJDK${OPENJDK_SHORT_VERSION}U-jdk_x64_linux_${OPENJDK_NAME}_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz
+RUN wget --quiet https://download.java.net/java/GA/jdk${OPENJDK_VERSION}/${OPENJDK_DL_KEY}/GPL/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz
 
 # Validate Java Archive
-RUN sha256sum -c /tmp/checksums/OpenJDK${OPENJDK_SHORT_VERSION}U-jdk_x64_linux_${OPENJDK_NAME}_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz.sha256
+RUN sha256sum -c /tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz.sha256
 
 # Unpack Java Archive
 RUN mkdir -p /usr/local/java && \
-	tar -zxf OpenJDK${OPENJDK_SHORT_VERSION}U-jdk_x64_linux_${OPENJDK_NAME}_${OPENJDK_VERSION}_${OPENJDK_BUILD}.tar.gz -C /usr/local/java
+	tar -zxf openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz -C /usr/local/java
 
-WORKDIR /usr/local/java/jdk-${OPENJDK_FULL_VERSION}
+WORKDIR /usr/local/java/jdk-${OPENJDK_VERSION}
 # Validate Java Files
-RUN	hashdeep -rlx -k /tmp/checksums/OpenJDK${OPENJDK_SHORT_VERSION}U-jdk_x64_linux_${OPENJDK_NAME}_${OPENJDK_VERSION}_${OPENJDK_BUILD}_bin.chkd *
+RUN	hashdeep -rlx -k /tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin.chkd *
 
 
 ########################################################################################################################
@@ -68,7 +61,7 @@ RUN	hashdeep -rlx -k /tmp/checksums/OpenJDK${OPENJDK_SHORT_VERSION}U-jdk_x64_lin
 FROM ubuntu@${UBUNTU_SHA} AS openjdk-base
 
 # Define Global Argument Refs
-ARG OPENJDK_FULL_VERSION
+ARG OPENJDK_VERSION
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
@@ -89,9 +82,9 @@ RUN apt-get update && \
 	rm -rf /var/cache/apt
 
 # Install Java Alternatives
-RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/java/jdk-${OPENJDK_FULL_VERSION}/bin/java" 1500 && \
-    update-alternatives --install "/usr/bin/javac" "javac" "/usr/local/java/jdk-${OPENJDK_FULL_VERSION}/bin/javac" 1500 && \
-    update-alternatives --install "/usr/bin/javadoc" "javadoc" "/usr/local/java/jdk-${OPENJDK_FULL_VERSION}/bin/javadoc" 1500
+RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/java" 1500 && \
+    update-alternatives --install "/usr/bin/javac" "javac" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/javac" 1500 && \
+    update-alternatives --install "/usr/bin/javadoc" "javadoc" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/javadoc" 1500
 
 # Create Application Folders
 RUN mkdir -p "/opt/hgcapp" && \
