@@ -99,11 +99,11 @@ while IFS= read -r xml_file; do
         # Use jq to safely build JSON with proper escaping
         entry=$(jq -n \
             --arg artifactName "${artifact_name}" \
-            --arg module "${module}" \
+            --arg moduleName "${module}" \
             --arg class "${classname}" \
             --arg method "${testname}" \
             --arg stackTrace "${stack_trace}" \
-            '{artifactName: $artifactName, module: $module, class: $class, method: $method, stackTrace: $stackTrace}')
+            '{artifactName: $artifactName, module: $moduleName, class: $class, method: $method, stackTrace: $stackTrace}')
 
         # Append to output file
         jq --argjson entry "${entry}" '. += [$entry]' "${OUTPUT_FILE}" > "${OUTPUT_FILE}.tmp" \
