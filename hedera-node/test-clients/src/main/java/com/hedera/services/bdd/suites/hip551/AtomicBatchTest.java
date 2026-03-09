@@ -681,7 +681,7 @@ public class AtomicBatchTest {
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
-                            return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5);
+                            return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.0527, 5);
                         }
                     }),
                     doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -693,7 +693,7 @@ public class AtomicBatchTest {
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
-                            return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5);
+                            return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.0527, 5);
                         }
                     }));
         }

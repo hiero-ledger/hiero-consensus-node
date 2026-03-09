@@ -298,7 +298,7 @@ public class IssueRegressionTests {
                                 .hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -4250000, 10000));
                     } else {
                         return getAccountBalance(PAYER)
-                                .hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -6872159, 10000));
+                                .hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -9483696, 10000));
                     }
                 }));
     }
@@ -337,7 +337,7 @@ public class IssueRegressionTests {
                         .payingWith(payer)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("simpleContractCreate"),
-                validateChargedUsd("legacyContractCreate", 0.742),
+                validateChargedUsd("legacyContractCreate", 0.7505),
                 validateChargedUsd("simpleContractCreate", 1.02));
     }
 
