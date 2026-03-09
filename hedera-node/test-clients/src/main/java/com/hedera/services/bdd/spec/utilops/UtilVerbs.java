@@ -2431,6 +2431,32 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateNodePaymentAmountForQuery(
+            @NonNull final String txn, final long expectedTinybars) {
+        requireNonNull(txn);
+        return assertionsHold((spec, assertLog) -> {
+            final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            assertEquals(
+                    expectedTinybars,
+                    actualNodePayment,
+                    String.format(
+                            "Node payment for query '%s' was %d tinybars, expected %d tinybars",
+                            txn, actualNodePayment, expectedTinybars));
+        });
+    }
+
+    public static CustomSpecAssert validateNonZeroNodePaymentForQuery(@NonNull final String txn) {
+        requireNonNull(txn);
+        return assertionsHold((spec, assertLog) -> {
+            final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            assertTrue(
+                    actualNodePayment > 0,
+                    String.format(
+                            "Expected positive node payment for query '%s', but got %d tinybars",
+                            txn, actualNodePayment));
+        });
+    }
+
     public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
         return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
@@ -3218,6 +3244,19 @@ public class UtilVerbs {
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    private static long getDefaultNodePaymentForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        final var defaultNode = spec.setup().defaultNode();
+        return rcd.getTransferList().getAccountAmountsList().stream()
+                .filter(aa -> aa.getAccountID().equals(defaultNode))
+                .mapToLong(AccountAmount::getAmount)
+                .sum();
     }
 
     private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
