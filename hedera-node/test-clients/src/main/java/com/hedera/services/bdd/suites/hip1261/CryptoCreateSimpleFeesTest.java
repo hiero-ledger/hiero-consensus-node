@@ -1287,9 +1287,8 @@ public class CryptoCreateSimpleFeesTest {
         @DisplayName("Corner Cases for CryptoCreate Simple Fees")
         class CornerCasesForCryptoCreateSimpleFees {
             @HapiTest
-            @DisplayName(
-                    "CryptoCreate - additional not required signature is not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateOneAdditionalSigIsNotCharged() {
+            @DisplayName("CryptoCreate - additional not required signature is charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateOneAdditionalSigIsCharged() {
                 return hapiTest(
                         newKeyNamed(ADMIN_KEY),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -1302,7 +1301,7 @@ public class CryptoCreateSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "cryptoCreateTxn",
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
+                                        SIGNATURES, 2L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.0001));
@@ -1310,8 +1309,8 @@ public class CryptoCreateSimpleFeesTest {
 
             @HapiTest
             @DisplayName(
-                    "CryptoCreate - multiple additional not required signatures are not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateMultipleAdditionalSigIsNotCharged() {
+                    "CryptoCreate - multiple additional not required signatures are charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateMultipleAdditionalSigIsCharged() {
                 return hapiTest(
                         newKeyNamed(ADMIN_KEY),
                         newKeyNamed("extraKey1"),
@@ -1326,7 +1325,7 @@ public class CryptoCreateSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "cryptoCreateTxn",
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
+                                        SIGNATURES, 4L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.0001));
@@ -1334,8 +1333,8 @@ public class CryptoCreateSimpleFeesTest {
 
             @HapiTest
             @DisplayName(
-                    "CryptoCreate - threshold payer key with multiple additional not required signatures are not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateWithThresholdKeyAndMultipleAdditionalSigIsNotCharged() {
+                    "CryptoCreate - threshold payer key with multiple additional not required signatures are charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateWithThresholdKeyAndMultipleAdditionalSigIsCharged() {
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
 
@@ -1359,7 +1358,7 @@ public class CryptoCreateSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "cryptoCreateTxn",
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 2L,
+                                        SIGNATURES, 4L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.0001));

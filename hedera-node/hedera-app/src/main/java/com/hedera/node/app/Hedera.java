@@ -64,6 +64,7 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
@@ -312,6 +313,13 @@ public final class Hedera
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+
+    /**
+     * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
+     * SystemTransactions (state write) via Dagger.
+     */
+    private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
+            new WrappedRecordBlockHashMigration();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -568,6 +576,13 @@ public final class Hedera
     @Override
     public SemanticVersion getSemanticVersion() {
         return version;
+    }
+
+    /**
+     * Returns the shared {@link WrappedRecordBlockHashMigration} instance.
+     */
+    public WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration() {
+        return wrappedRecordBlockHashMigration;
     }
 
     /*==================================================================================================================
@@ -1272,6 +1287,7 @@ public final class Hedera
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
+                .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

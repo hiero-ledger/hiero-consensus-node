@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -39,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -48,7 +47,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class NodeDeleteTest {
@@ -190,7 +188,6 @@ public class NodeDeleteTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> handleCanBeExecutedJustWithPrivilegedAccount() throws CertificateEncodingException {
         long PAYER_BALANCE = 1_999_999_999L;
         final String nodeName = "mytestnode";
@@ -209,7 +206,9 @@ public class NodeDeleteTest {
                 nodeDelete(nodeName));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.enableDAB"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.enableDAB"})
     @DisplayName("DAB enable test")
     final Stream<DynamicTest> checkDABEnable() throws CertificateEncodingException {
         final String nodeName = "mytestnode";

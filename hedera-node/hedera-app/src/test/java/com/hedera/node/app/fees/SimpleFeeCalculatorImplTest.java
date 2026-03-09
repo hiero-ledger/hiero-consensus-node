@@ -26,6 +26,9 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -61,12 +64,27 @@ class SimpleFeeCalculatorImplTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private FeesConfig feesConfig;
+
+    @Mock
+    private NetworkAdminConfig networkAdminConfig;
+
     private FeeSchedule testSchedule;
     private Set<ServiceFeeCalculator> serviceFeeCalculators;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
+        lenient().when(feeContext.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+        lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
+        lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+
         // Create a mock service fee calculator for FILE_CREATE
         ServiceFeeCalculator mockFileCreateCalculator = new ServiceFeeCalculator() {
             @Override
