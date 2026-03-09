@@ -1720,7 +1720,7 @@ public class UtilVerbs {
                         maxNetworkFee,
                         maxServiceFee);
             }
-            var rawPerturbedSchedules = perturbedSchedules.build().toByteString();
+            var rawPerturbedSchedules = ByteString.copyFrom(FeeScheduleConverter.toBytes(perturbedSchedules.build()));
             allRunFor(spec, updateLargeFile(GENESIS, FEE_SCHEDULE, rawPerturbedSchedules));
         });
     }

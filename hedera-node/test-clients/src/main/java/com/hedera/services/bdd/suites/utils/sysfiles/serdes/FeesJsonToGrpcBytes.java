@@ -33,7 +33,7 @@ public class FeesJsonToGrpcBytes implements SysFileSerde<String> {
     @Override
     public byte[] toRawFile(String styledFile, @Nullable String interpolatedSrcDir) {
         try {
-            return FeesJsonToProtoSerde.parseFeeScheduleFromJson(styledFile).toByteArray();
+            return FeeScheduleConverter.toBytes(FeesJsonToProtoSerde.parseFeeScheduleFromJson(styledFile));
         } catch (Exception e) {
             throw new IllegalArgumentException("Not a set of fee schedules!", e);
         }
