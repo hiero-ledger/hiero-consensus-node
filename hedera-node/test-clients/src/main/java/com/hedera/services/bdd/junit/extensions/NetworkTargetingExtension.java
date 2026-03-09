@@ -334,9 +334,8 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         if (store.get(PREVIOUS_LOG_DIR_KEY) == null) {
             store.put(PREVIOUS_LOG_DIR_KEY, System.getProperty("hapi.test.log.dir"));
         }
-        final var className = extensionContext.getRequiredTestClass().getSimpleName();
-        final var scopedName = (className + "." + methodName).replaceAll("[^a-zA-Z0-9._-]", "_");
-        final var logDir = Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output", scopedName)
+        final var scope = methodName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        final var logDir = Path.of(System.getProperty("user.dir"), "build", scope + "-test", "output")
                 .toAbsolutePath();
         try {
             Files.createDirectories(logDir.resolve("transaction-state"));
@@ -345,8 +344,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         }
         System.setProperty("hapi.test.log.dir", logDir.toString());
         System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
-        Configurator.initialize(
-                "test-clients", NetworkTargetingExtension.class.getClassLoader(), "log4j2-test-client.xml");
+        Configurator.reconfigure();
     }
 
     private static void restorePreviousLogDir(@NonNull final ExtensionContext extensionContext) {
@@ -358,7 +356,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
             System.setProperty("hapi.test.log.dir", previousLogDir);
         }
         System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
-        Configurator.initialize(
-                "test-clients", NetworkTargetingExtension.class.getClassLoader(), "log4j2-test-client.xml");
+        Configurator.reconfigure();
     }
 }

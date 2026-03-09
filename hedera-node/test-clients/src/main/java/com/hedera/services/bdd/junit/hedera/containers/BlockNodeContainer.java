@@ -19,6 +19,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -130,7 +131,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * subprocess/embedded networks (i.e., next to {@code node0}, {@code node1}, ... working directories).
      */
     private static Path pluginCacheDir() {
-        final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
+        final Path scopeRoot = scopedBuildRoot()
+                .orElseGet(() -> WorkingDirUtils.workingDirFor(0, null).getParent());
         if (scopeRoot == null) {
             // workingDirFor() always includes node0, so this should never happen; keep a safe fallback
             return Path.of("build", "block-node", BLOCK_NODE_VERSION, "plugins")
@@ -143,6 +145,25 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 .resolve("plugins")
                 .toAbsolutePath()
                 .normalize();
+    }
+
+    private static Optional<Path> scopedBuildRoot() {
+        final var configuredLogDir = System.getProperty("hapi.test.log.dir");
+        if (configuredLogDir == null || configuredLogDir.isBlank()) {
+            return Optional.empty();
+        }
+        final Path absoluteLogDir = Path.of(configuredLogDir).toAbsolutePath().normalize();
+        final Path fileName = absoluteLogDir.getFileName();
+        if (fileName != null && "output".equals(fileName.toString())) {
+            return Optional.ofNullable(absoluteLogDir.getParent());
+        }
+        final Path parent = absoluteLogDir.getParent();
+        if (parent != null
+                && parent.getFileName() != null
+                && "output".equals(parent.getFileName().toString())) {
+            return Optional.ofNullable(parent.getParent());
+        }
+        return Optional.empty();
     }
 
     private static void downloadIfMissing(final HttpClient client, final String url, final Path destination)
