@@ -1,5 +1,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.virtualmap.internal.Path;
@@ -7,10 +8,16 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
+
+    private static final Logger logger = LogManager.getLogger(ParallelTopToBottomTraversalOrder.class);
 
     private static final int MAX_IN_FLIGHT = 65536;
 
@@ -33,7 +40,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
     private final Set<Long> cleanPaths = ConcurrentHashMap.newKeySet();
 
     private final AtomicInteger internalsInFlight = new AtomicInteger(0);
-    private final Queue<Long> internals = new ConcurrentLinkedQueue<>();
+    private final Queue<Long> internals = new PriorityBlockingQueue<>();
 
     private final AtomicLong currentLeafPath = new AtomicLong();
 
@@ -63,6 +70,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 //            internals.add(chunkRootPath);
             addInitialChunkInternals(chunkRootPath);
             chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, firstLeafRank - chunkRootRank);
+            logger.info(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
         }
     }
 
@@ -86,7 +94,11 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         }
     }
 
+    private final AtomicInteger maxInFlight = new AtomicInteger(0);
+
     private final AtomicLong skippedInternals = new AtomicLong(0);
+
+    private final AtomicBoolean firstLeafInChunk = new AtomicBoolean(true);
 
     @Override
     public long getNextInternalPathToSend() {
@@ -103,9 +115,9 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-        if (internalsInFlight.get() >= MAX_IN_FLIGHT) {
-            return PATH_NOT_AVAILABLE_YET;
-        }
+//        if (internalsInFlight.get() >= MAX_IN_FLIGHT) {
+//            return PATH_NOT_AVAILABLE_YET;
+//        }
         for (Long internal = internals.poll(); internal != null; internal = internals.poll()) {
             if (hasCleanParent(internal)) {
                 skippedInternals.incrementAndGet();
@@ -128,8 +140,12 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             if (right < firstLeafPath) {
                 internals.add(Path.getRightChildPath(internal));
             }
-            internalsInFlight.incrementAndGet();
+            final int inFlight = internalsInFlight.incrementAndGet();
+            maxInFlight.set(Math.max(maxInFlight.get(), inFlight));
             return internal;
+        }
+        if (firstLeafInChunk.compareAndSet(true, false)) {
+            logger.info(RECONNECT.getMarker(), "First leaf, clean paths: {}, in flight: {}", cleanPaths.size(), internalsInFlight.get());
         }
         return Path.INVALID_PATH;
     }
@@ -157,6 +173,8 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         if (leafPath > lastLeafPath) {
             System.out.println("Skipped I: " + skippedInternals.get());
             System.out.println("Skipped L: " + skippedLeaves.get());
+            logger.info(RECONNECT.getMarker(), "Skipped: {} / {}", skippedInternals.get(), skippedLeaves.get());
+            logger.info(RECONNECT.getMarker(), "Max in flight: {}", maxInFlight.get());
         }
         if (leafPath > lastLeafPath) {
             currentLeafPath.set(Path.INVALID_PATH);
@@ -176,6 +194,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             } else {
                 currentLeafPath.set(leafPath);
 //                assert internals.isEmpty(); // ?
+                logger.info(RECONNECT.getMarker(), "Chunk end: clean paths: {}, in flight: {}", cleanPaths.size(), internalsInFlight.get());
                 cleanPaths.clear();
                 long nextChunkRootPath = chunkRootPath + 1;
                 if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
@@ -188,6 +207,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
                 chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 //                internals.add(chunkRootPath);
                 addInitialChunkInternals(chunkRootPath);
+                firstLeafInChunk.set(true);
                 return PATH_NOT_AVAILABLE_YET;
             }
         }

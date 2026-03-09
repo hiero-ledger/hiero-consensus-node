@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.stats;
 
-import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An implementation of ReconnectMapStats that emits all the stats as LongGauge metrics.
  */
 public class ReconnectMapMetrics implements ReconnectMapStats {
-
-    private static final String RECONNECT_MAP_CATEGORY = "reconnect_vmap";
 
     /** A map label as passed to the constructor, w/o any normalization. */
     @Nullable
@@ -20,18 +18,18 @@ public class ReconnectMapMetrics implements ReconnectMapStats {
 
     private final ReconnectMapStats aggregateStats;
 
-    private final LongGauge transfersFromTeacher;
-    private final LongGauge transfersFromLearner;
+    private final AtomicLong transfersFromTeacher = new AtomicLong(0);
+    private final AtomicLong transfersFromLearner = new AtomicLong(0);
 
-    private final LongGauge internalHashes;
-    private final LongGauge internalCleanHashes;
-    private final LongGauge internalData;
-    private final LongGauge internalCleanData;
+    private final AtomicLong internalHashes = new AtomicLong(0);
+    private final AtomicLong internalCleanHashes = new AtomicLong(0);
+    private final AtomicLong internalData = new AtomicLong(0);
+    private final AtomicLong internalCleanData = new AtomicLong(0);
 
-    private final LongGauge leafHashes;
-    private final LongGauge leafCleanHashes;
-    private final LongGauge leafData;
-    private final LongGauge leafCleanData;
+    private final AtomicLong leafHashes = new AtomicLong(0);
+    private final AtomicLong leafCleanHashes = new AtomicLong(0);
+    private final AtomicLong leafData = new AtomicLong(0);
+    private final AtomicLong leafCleanData = new AtomicLong(0);
 
     /**
      * Create an instance of ReconnectMapMetrics.
@@ -51,38 +49,6 @@ public class ReconnectMapMetrics implements ReconnectMapStats {
         // Normalize the label
         final String label = originalLabel == null ? null : originalLabel.replace('.', '_');
 
-        this.transfersFromTeacher = metrics.getOrCreate(
-                new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("transfersFromTeacher", label))
-                        .withDescription("number of transfers from teacher to learner"));
-        this.transfersFromLearner = metrics.getOrCreate(
-                new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("transfersFromLearner", label))
-                        .withDescription("number of transfers from learner to teacher"));
-
-        this.internalHashes =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("internalHashes", label))
-                        .withDescription("number of internal node hashes transferred"));
-        this.internalCleanHashes = metrics.getOrCreate(
-                new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("internalCleanHashes", label))
-                        .withDescription("number of clean internal node hashes transferred"));
-        this.internalData =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("internalData", label))
-                        .withDescription("number of internal node data transferred"));
-        this.internalCleanData =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("internalCleanData", label))
-                        .withDescription("number of clean internal node data transferred"));
-
-        this.leafHashes =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("leafHashes", label))
-                        .withDescription("number of leaf node hashes transferred"));
-        this.leafCleanHashes =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("leafCleanHashes", label))
-                        .withDescription("number of clean leaf node hashes transferred"));
-        this.leafData = metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("leafData", label))
-                .withDescription("number of leaf node data transferred"));
-        this.leafCleanData =
-                metrics.getOrCreate(new LongGauge.Config(RECONNECT_MAP_CATEGORY, formatName("leafCleanData", label))
-                        .withDescription("number of clean leaf node data transferred"));
-
         // Reset metric values to zeros on reconnect start
         resetMetrics();
     }
@@ -91,8 +57,8 @@ public class ReconnectMapMetrics implements ReconnectMapStats {
         return (label == null || label.isBlank() ? name : (name + "_" + label + "_")) + "Total";
     }
 
-    private static void add(final LongGauge metric, final long value) {
-        metric.set(metric.get() + value);
+    private static void add(final AtomicLong metric, final long value) {
+        metric.addAndGet(value);
     }
 
     /**
