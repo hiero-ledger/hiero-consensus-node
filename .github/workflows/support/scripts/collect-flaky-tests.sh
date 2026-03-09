@@ -72,7 +72,7 @@ while IFS= read -r xml_file; do
         in_flaky = 0
         # Print the extracted data as tab-separated values
         if (classname != "" && testname != "") {
-            printf "%s\t%s\t%s\n", classname, testname, flaky_content
+            printf "%s\t%s\t%s%c", classname, testname, flaky_content, 0
         }
         # Only capture first flakyFailure per testcase
         in_testcase = 0
@@ -90,7 +90,8 @@ while IFS= read -r xml_file; do
     /<\/testcase>/ {
         in_testcase = 0
     }
-    ' "${xml_file}" | while IFS=$'\t' read -r classname testname stack_trace; do
+    # NB: read -d '' uses the NUL byte as record delimiter (empty string → \0 in bash)
+    ' "${xml_file}" | while IFS=$'\t' read -r -d '' classname testname stack_trace; do
         # Truncate stack trace to 2000 chars
         if [[ ${#stack_trace} -gt 2000 ]]; then
             stack_trace="${stack_trace:0:2000}... (truncated)"
