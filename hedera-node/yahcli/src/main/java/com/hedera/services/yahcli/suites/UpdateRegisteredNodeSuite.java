@@ -64,8 +64,8 @@ public class UpdateRegisteredNodeSuite extends HapiSuite {
     final Stream<DynamicTest> doUpdate() {
         final var adminKey = "adminKey";
         final var newAdminKey = "newAdminKey";
-        final var spec =
-                new HapiSpec("UpdateRegisteredNode", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
+        final var spec = new HapiSpec(
+                "UpdateRegisteredNode", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     adminKeyLoc == null
                             ? noOp()
                             : keyFromFile(adminKey, adminKeyLoc).yahcliLogged(),

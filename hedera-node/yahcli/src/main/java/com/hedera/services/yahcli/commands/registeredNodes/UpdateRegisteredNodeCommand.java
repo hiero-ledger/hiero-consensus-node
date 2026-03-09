@@ -88,12 +88,7 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
         }
 
         final var delegate = new UpdateRegisteredNodeSuite(
-                config,
-                targetNodeId,
-                adminKeyPath,
-                newAdminKeyPath,
-                description,
-                buildEndpoints());
+                config, targetNodeId, adminKeyPath, newAdminKeyPath, description, buildEndpoints());
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

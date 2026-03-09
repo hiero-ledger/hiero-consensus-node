@@ -66,8 +66,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-d",
                                 "Updated description")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -104,8 +104,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "--mirrorNodeEndpoint",
                                 "127.0.0.1:5551")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     /**
@@ -142,8 +142,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 "blocknode.example.com:8081:PUBLISH",
                                 "--blockNodeEndpoint",
                                 "blocknode.example.com:8082:SUBSCRIBE_STREAM")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     /**
@@ -180,8 +180,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 "infra.example.com:5443:tls",
                                 "--rpcRelayEndpoint",
                                 "infra.example.com:7443:tls")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -221,8 +221,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-nk",
                                 asYcDefaultNetworkKey(newAdminKeyFile))
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     /**
@@ -258,8 +258,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-nk",
                                 asYcDefaultNetworkKey(newAdminKeyFile))
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -299,8 +299,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 "Updated description",
                                 "--rpcRelayEndpoint",
                                 "relay.example.com:7546")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -330,14 +330,10 @@ public class UpdateRegisteredNodesCommandsTest {
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Update without admin key - payer signature alone is not enough
                 sourcingContextual(spec -> yahcliRegisteredNodes(
-                                "update",
-                                "-n",
-                                Long.toString(createdId.get()),
-                                "-d",
-                                "Should fail without admin key")
+                                "update", "-n", Long.toString(createdId.get()), "-d", "Should fail without admin key")
                         .expectFail()
-                        .exposingOutputTo(
-                                output -> assertTrue(output.contains("FAILED to update registeredNode" + createdId.get())))));
+                        .exposingOutputTo(output ->
+                                assertTrue(output.contains("FAILED to update registeredNode" + createdId.get())))));
     }
 
     /**
@@ -375,8 +371,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 "-d",
                                 "Should fail with wrong admin key")
                         .expectFail()
-                        .exposingOutputTo(
-                                output -> assertTrue(output.contains("FAILED to update registeredNode" + createdId.get())))));
+                        .exposingOutputTo(output ->
+                                assertTrue(output.contains("FAILED to update registeredNode" + createdId.get())))));
     }
 
     /**
@@ -403,8 +399,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-d",
                                         "Should fail for non-existent node")
                                 .expectFail()
-                                .exposingOutputTo(output ->
-                                        assertTrue(output.contains("FAILED to update registeredNode" + nonExistentNodeId))))));
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("FAILED to update registeredNode" + nonExistentNodeId))))));
     }
 
     // -------------------------------------------------------------------------
@@ -515,8 +511,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-d",
                                 "Updated with SECP256K1 admin key")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -555,8 +551,8 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-d",
                                 "Updated via dotted node ID format")
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 
     // -------------------------------------------------------------------------
@@ -599,7 +595,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                 asYcDefaultNetworkKey(adminKeyFile),
                                 "-nk",
                                 asYcDefaultNetworkKey(newAdminKeyFile))
-                        .exposingOutputTo(output ->
-                                assertTrue(output.contains("registeredNode" + createdId.get() + " has been updated")))));
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
     }
 }
