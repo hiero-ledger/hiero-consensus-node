@@ -163,18 +163,17 @@ public class SimpleFeesRecordStreamTest {
         json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
         csv.field(rate.getCurrentRate().getHbarEquiv());
         json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
-        json.key("signed_txn_size",signedTxnBytes.size());
+        json.key("signed_txn_size", signedTxnBytes.size());
         csv.endLine();
         json.endRecord();
     }
 
     void processStateEvents(String records_dir, String report_file_path) throws IOException {
-//        final var target_seconds = 1771630721; final var target_nanos = 427079381;
-        final var target_seconds = 1771622388; final var target_nanos = 129000000;
+        //        final var target_seconds = 1771630721; final var target_nanos = 427079381;
+        final var target_seconds = 1771622388;
+        final var target_nanos = 129000000;
 
-
-        final JSONFormatter json = new JSONFormatter(
-                new FileWriter(report_file_path));
+        final JSONFormatter json = new JSONFormatter(new FileWriter(report_file_path));
         System.out.println("records dir is" + records_dir);
         AtomicInteger totalInvalidCount = new AtomicInteger();
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
@@ -182,7 +181,7 @@ public class SimpleFeesRecordStreamTest {
                 if (!file.toString().endsWith("rcd.gz")) {
                     return;
                 }
-//                System.out.println("parsing " + file);
+                //                System.out.println("parsing " + file);
                 try (final var fin = new GZIPInputStream(new FileInputStream(file.toFile()))) {
                     // we have to read the first 4 bytes
                     final var recordFileVersion =
@@ -195,62 +194,78 @@ public class SimpleFeesRecordStreamTest {
                             final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
                             final var body = TransactionBody.PROTOBUF.parse(
                                     Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-                            if(body.transactionID() == null) {
-//                                System.out.println("skipping invalid transaction id for type " + body.data().kind().name());
+                            if (body.transactionID() == null) {
+                                //                                System.out.println("skipping invalid transaction id
+                                // for type " + body.data().kind().name());
                                 invalidCount.addAndGet(1);
-//                                System.out.println("the body is " + body);
+                                //                                System.out.println("the body is " + body);
                                 return;
                             }
                             json.startRecord();
-                            final Transaction txn = Transaction.newBuilder().body(body).build();
+                            final Transaction txn =
+                                    Transaction.newBuilder().body(body).build();
                             final var record = item.getRecord();
                             final var txnFee = record.getTransactionFee();
                             final var rate = record.getReceipt().getExchangeRate();
                             json.key("name", body.data().kind().name());
-                            if(body.transactionID().transactionValidStart().seconds() == target_seconds && body.transactionID().transactionValidStart().nanos() == target_nanos) {
+                            if (body.transactionID().transactionValidStart().seconds() == target_seconds
+                                    && body.transactionID()
+                                                    .transactionValidStart()
+                                                    .nanos()
+                                            == target_nanos) {
                                 System.out.println("Matched body: " + body);
                                 System.out.println("full record: " + record);
-                                System.out.println("signed transaction: " + signedTxn.getSigMap().getSigPairCount());
+                                System.out.println("signed transaction: "
+                                        + signedTxn.getSigMap().getSigPairCount());
                             }
-                            json.key("seconds", body.transactionID().transactionValidStart().seconds());
-                            json.key("nanos", body.transactionID().transactionValidStart().nanos());
-                            json.key("nonce",body.transactionID().nonce());
-                            long accountNumber = body.transactionID().accountID().accountNum();
-                            json.key("account",accountNumber);
+                            json.key(
+                                    "seconds",
+                                    body.transactionID().transactionValidStart().seconds());
+                            json.key(
+                                    "nanos",
+                                    body.transactionID().transactionValidStart().nanos());
+                            json.key("nonce", body.transactionID().nonce());
+                            long accountNumber =
+                                    body.transactionID().accountID().accountNum();
+                            json.key("account", accountNumber);
                             long txnFeeTC = 0;
                             if (rate.getCurrentRate().getHbarEquiv() != 0) {
                                 txnFeeTC = txnFee
                                         * rate.getCurrentRate().getCentEquiv()
                                         / rate.getCurrentRate().getHbarEquiv();
                             }
-                            json.key("fee_hbar",txnFee);
+                            json.key("fee_hbar", txnFee);
                             json.key("fee_tc", txnFeeTC);
                             json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
                             json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
-                            json.key("status",record.getReceipt().getStatus().name());
-                            json.key("signed_txn_size",signedTxnBytes.size());
+                            json.key("status", record.getReceipt().getStatus().name());
+                            json.key("signed_txn_size", signedTxnBytes.size());
                             json.key("sigmap_pair_size", signedTxn.getSigMap().getSigPairCount());
                             json.key("serialized_size", signedTxn.getSerializedSize());
-                            json.key("serial_numbers_count",record.getReceipt().getSerialNumbersCount());
+                            json.key("serial_numbers_count", record.getReceipt().getSerialNumbersCount());
                             json.key("assessed_custom_fees_count", record.getAssessedCustomFeesCount());
-                            json.key("automatic_token_assocations_count",record.getAutomaticTokenAssociationsCount());
-                            json.key("high_volume_pricing_muliplier",record.getHighVolumePricingMultiplier());
-                            json.key("new_pending_airdrops_count",record.getNewPendingAirdropsCount());
-                            json.key("paid_staking_rewards_count",record.getPaidStakingRewardsCount());
-                            json.key("record_serialized_size",record.getSerializedSize());
-                            json.key("token_transfer_lists_count",record.getTokenTransferListsCount());
-                            json.key("memo",body.memo());
+                            json.key("automatic_token_assocations_count", record.getAutomaticTokenAssociationsCount());
+                            json.key("high_volume_pricing_muliplier", record.getHighVolumePricingMultiplier());
+                            json.key("new_pending_airdrops_count", record.getNewPendingAirdropsCount());
+                            json.key("paid_staking_rewards_count", record.getPaidStakingRewardsCount());
+                            json.key("record_serialized_size", record.getSerializedSize());
+                            json.key("token_transfer_lists_count", record.getTokenTransferListsCount());
+                            json.key("memo", body.memo());
                             json.key("body", body.toString());
                             json.endRecord();
-                            //{ "name":"CRYPTO_TRANSFER", "account" : 10231006 , "seconds" : 1770230700 , "nanos" : 779324416 ,
-                            // "nonce" : 0 , "fee" : 112235 , "status":"SUCCESS", "signedTxnBytes" : 183 , "custom_fees_count" : 0 , "memo":""}
-//                            System.out.println("item is " + txn.body().data().kind().name());
+                            // { "name":"CRYPTO_TRANSFER", "account" : 10231006 , "seconds" : 1770230700 , "nanos" :
+                            // 779324416 ,
+                            // "nonce" : 0 , "fee" : 112235 , "status":"SUCCESS", "signedTxnBytes" : 183 ,
+                            // "custom_fees_count" : 0 , "memo":""}
+                            //                            System.out.println("item is " +
+                            // txn.body().data().kind().name());
                         } catch (Exception e) {
                             System.out.println("exception " + e);
                         }
                     });
-                    if(invalidCount.get() > 0) {
-//                        System.out.println("invalid count for " + file + " is " + invalidCount.get());
+                    if (invalidCount.get() > 0) {
+                        //                        System.out.println("invalid count for " + file + " is " +
+                        // invalidCount.get());
                         totalInvalidCount.addAndGet(invalidCount.get());
                     }
                 } catch (FileNotFoundException e) {
@@ -267,11 +282,11 @@ public class SimpleFeesRecordStreamTest {
 
     @Test
     void convertStateEventsToJSON() throws IOException {
-        processStateEvents("../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3",
+        processStateEvents(
+                "../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3",
                 "../../reports/replay-mainnet-legacy.json");
-        processStateEvents("../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3",
+        processStateEvents(
+                "../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3",
                 "../../reports/replay-mainnet-simple.json");
     }
-
-
 }

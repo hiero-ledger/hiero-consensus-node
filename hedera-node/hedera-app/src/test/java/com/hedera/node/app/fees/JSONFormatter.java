@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
 import java.io.FileWriter;
@@ -22,7 +23,7 @@ class JSONFormatter {
         if (!this.start) {
             writer.append(", ");
         }
-        writer.append(String.format("\"%s\":\"%s\"", name, value.replaceAll("\n"," ")));
+        writer.append(String.format("\"%s\":\"%s\"", name, value.replaceAll("\n", " ")));
         this.start = false;
     }
 
