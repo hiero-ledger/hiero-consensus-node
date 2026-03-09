@@ -152,8 +152,9 @@ public class GarbageScanner {
         for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
             final int level = entry.getKey();
             final List<DataFileReader> levelFiles = entry.getValue();
-            final long maxCompactionDataPerLevelInBytes =
-                    maxCompactionDataPerLevelInKB <= 0 ? Long.MAX_VALUE : maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES;
+            final long maxCompactionDataPerLevelInBytes = maxCompactionDataPerLevelInKB <= 0
+                    ? Long.MAX_VALUE
+                    : maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES;
 
             long totalCompactionDataInBytes = 0;
             final List<DataFileReader> filesToCompact = new ArrayList<>();
@@ -164,7 +165,8 @@ public class GarbageScanner {
                 }
                 final long fileSize = file.getSize();
 
-                if (!filesToCompact.isEmpty() && // we add at least one file to the compaction list
+                if (!filesToCompact.isEmpty()
+                        && // we add at least one file to the compaction list
                         totalCompactionDataInBytes + fileSize > maxCompactionDataPerLevelInBytes) {
                     continue;
                 }

@@ -75,8 +75,8 @@ class GarbageScannerEvaluateCandidatesTest {
                 1, stats(1, 1, 0, 0), // ratio 1.0
                 2, stats(2, 1, 4, 3)); // ratio 1 - 3/4 = 0.25
 
-        final Map<Integer, List<DataFileReader>> result =
-                GarbageScanner.evaluateCompactionCandidates(scanResult, List.of(zeroTotal, exactlyOnThreshold), 0.25, 0);
+        final Map<Integer, List<DataFileReader>> result = GarbageScanner.evaluateCompactionCandidates(
+                scanResult, List.of(zeroTotal, exactlyOnThreshold), 0.25, 0);
 
         assertEquals(1, result.size());
         assertEquals(List.of(zeroTotal), result.get(1));

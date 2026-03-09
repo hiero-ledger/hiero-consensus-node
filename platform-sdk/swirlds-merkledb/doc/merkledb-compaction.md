@@ -379,12 +379,12 @@ stays at the same level (the cap prevents further promotion). This ensures a bou
 
 The following configuration parameters in `MerkleDbConfig` control compaction behavior:
 
-|      Parameter       | Default |                                                     Description                                                      |
-|----------------------|---------|----------------------------------------------------------------------------------------------------------------------|
-| `compactionThreads`  | 6       | Size of the shared thread pool for scanner and compaction tasks.                                                     |
-| `maxCompactionLevel` | 5       | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                   |
-| `garbageThreshold`   | 0.3     | Garbage ratio that triggers compaction for a level. At least one file must exceed this for the level to be eligible. |
-| `maxCompactionDataPerLevelInKB` | 100000 | Maximum total size (KB) of source files compacted per level in one task. `0` disables the limit. |
+|            Parameter            | Default |                                                     Description                                                      |
+|---------------------------------|---------|----------------------------------------------------------------------------------------------------------------------|
+| `compactionThreads`             | 6       | Size of the shared thread pool for scanner and compaction tasks.                                                     |
+| `maxCompactionLevel`            | 5       | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                   |
+| `garbageThreshold`              | 0.3     | Garbage ratio that triggers compaction for a level. At least one file must exceed this for the level to be eligible. |
+| `maxCompactionDataPerLevelInKB` | 100000  | Maximum total size (KB) of source files compacted per level in one task. `0` disables the limit.                     |
 
 ### Observability
 
