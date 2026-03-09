@@ -86,11 +86,17 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
     @Override
     public void nodeReceived(final long path, final boolean isClean) {
         final boolean isLeaf = path >= firstLeafPath;
-        if (isClean && !isLeaf) {
-            cleanPaths.add(path);
+        if ((path == 0) || isLeaf) {
+            return;
         }
-        if ((path != 0) && !isLeaf) {
-            internalsInFlight.decrementAndGet();
+        internalsInFlight.decrementAndGet();
+        if (isClean) {
+            final int r = Path.getRank(path);
+            if (chunkRootPath == Path.getGrandParentPath(path, r - chunkRootRank)) {
+                if (!cleanPaths.contains(Path.getParentPath(path))) {
+                    cleanPaths.add(path);
+                }
+            }
         }
     }
 
@@ -115,9 +121,9 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-//        if (internalsInFlight.get() >= MAX_IN_FLIGHT) {
-//            return PATH_NOT_AVAILABLE_YET;
-//        }
+        if (internalsInFlight.get() >= MAX_IN_FLIGHT) {
+            return PATH_NOT_AVAILABLE_YET;
+        }
         for (Long internal = internals.poll(); internal != null; internal = internals.poll()) {
             if (hasCleanParent(internal)) {
                 skippedInternals.incrementAndGet();
@@ -194,7 +200,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             } else {
                 currentLeafPath.set(leafPath);
 //                assert internals.isEmpty(); // ?
-                logger.info(RECONNECT.getMarker(), "Chunk end: clean paths: {}, in flight: {}", cleanPaths.size(), internalsInFlight.get());
+                logger.info(RECONNECT.getMarker(), "Chunk end: clean paths: {} in flight: {} last chunk path: {}", cleanPaths.size(), internalsInFlight.get(), chunkLastLeafPath);
                 cleanPaths.clear();
                 long nextChunkRootPath = chunkRootPath + 1;
                 if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
