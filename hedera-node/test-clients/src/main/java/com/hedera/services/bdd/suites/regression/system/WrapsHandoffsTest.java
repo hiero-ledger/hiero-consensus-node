@@ -6,12 +6,16 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
+import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -62,28 +66,37 @@ public class WrapsHandoffsTest implements LifecycleTest {
 
     @HapiTest
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
-        return hapiTest(
-                untilHgcaaLogContainsText(
-                                byNodeId(0),
-                                GENESIS_WRAPS_PROOF_CONSTRUCTED,
-                                WRAPS_PROOF_TIMEOUT,
-                                LOG_POLL_INTERVAL,
-                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
-                        .loggingOff(),
-                untilHgcaaLogContainsText(
-                                byNodeId(0),
-                                INCREMENTAL_WRAPS_PROOF_STARTED,
-                                STAKE_PERIOD_DURATION,
-                                LOG_POLL_INTERVAL,
-                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
-                        .loggingOff(),
-                untilHgcaaLogContainsText(
-                                byNodeId(0),
-                                INCREMENTAL_WRAPS_PROOF_CONSTRUCTED,
-                                WRAPS_PROOF_TIMEOUT.plus(WRAPS_PROOF_TIMEOUT),
-                                LOG_POLL_INTERVAL,
-                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
-                        .loggingOff());
+        return hapiTest(sourcingContextual(spec -> {
+            if (WRAPSLibraryBridge.isProofSupported()) {
+                return blockingOrder(
+                        untilHgcaaLogContainsText(
+                                        byNodeId(0),
+                                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
+                                        WRAPS_PROOF_TIMEOUT,
+                                        LOG_POLL_INTERVAL,
+                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
+                                        })
+                                .loggingOff(),
+                        untilHgcaaLogContainsText(
+                                        byNodeId(0),
+                                        INCREMENTAL_WRAPS_PROOF_STARTED,
+                                        STAKE_PERIOD_DURATION,
+                                        LOG_POLL_INTERVAL,
+                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
+                                        })
+                                .loggingOff(),
+                        untilHgcaaLogContainsText(
+                                        byNodeId(0),
+                                        INCREMENTAL_WRAPS_PROOF_CONSTRUCTED,
+                                        WRAPS_PROOF_TIMEOUT.plus(WRAPS_PROOF_TIMEOUT),
+                                        LOG_POLL_INTERVAL,
+                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
+                                        })
+                                .loggingOff());
+            } else {
+                return noOp();
+            }
+        }));
     }
 
     private static SpecOperation randomStakerTransfer() {
