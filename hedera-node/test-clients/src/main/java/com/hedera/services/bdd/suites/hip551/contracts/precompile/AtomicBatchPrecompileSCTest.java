@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -34,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -58,6 +58,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@OrderedInIsolation
 @HapiTestLifecycle
 class AtomicBatchPrecompileSCTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
@@ -115,7 +116,6 @@ class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
-    @Tag(MATS)
     Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
             @NonFungibleToken(
                             numPreMints = 10,
@@ -168,7 +168,6 @@ class AtomicBatchPrecompileSCTest {
      * UnknownFunctionSelectorTest
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount account,
             @Account() final SpecAccount receiver,

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -18,6 +17,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("metadataUpdateTests")
 @SuppressWarnings("java:S1192") // literals are duplicated for readability
+@OrderedInIsolation
 @HapiTestLifecycle
 public class UpdateTokenMetadataTest {
 
@@ -64,7 +65,6 @@ public class UpdateTokenMetadataTest {
 
         @HapiTest
         @DisplayName("use updateMetadataForNFTs to correctly update metadata for 1 NFT")
-        @Tag(MATS)
         public Stream<DynamicTest> usingUpdateMetadataForNFTsWorksForSingleNFT() {
             final int serialNumber = 1;
             return hapiTest(
@@ -91,7 +91,6 @@ public class UpdateTokenMetadataTest {
 
         @HapiTest
         @DisplayName("use updateMetadataForNFTs with empty metadata to update multiple NFTs")
-        @Tag(MATS)
         public Stream<DynamicTest> usingUpdateMetadataForNFTsWorksWithEmptyMetadata() {
             final long[] serialNumbers = new long[] {4, 5};
             return hapiTest(
