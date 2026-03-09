@@ -144,6 +144,11 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     private WrapsPhase wrapsPhase = R1;
 
+    /**
+     * Indicates this prover's construction has been canceled and any post-output work should be skipped.
+     */
+    private volatile boolean constructionCanceled = false;
+
     private sealed interface WrapsPhaseOutput
             permits NoopOutput, MessagePhaseOutput, ProofPhaseOutput, AggregatePhaseOutput {}
 
@@ -317,6 +322,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     @Override
     public boolean cancelPendingWork() {
+        constructionCanceled = true;
         final var sb = new StringBuilder("Canceled work on WRAPS prover");
         boolean canceledSomething = false;
         if (r1Future != null && !r1Future.isDone()) {
@@ -383,6 +389,9 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final TssConfig tssConfig,
             @Nullable final Bytes ledgerId,
             @Nullable final HistoryProof aggregatedSignatureProof) {
+        if (shouldSkipAfterCancellation(constructionId, phase)) {
+            return;
+        }
         if (futureOf(phase) == null
                 && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
@@ -414,8 +423,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                             }
                                             return;
                                         }
+                                        if (shouldSkipAfterCancellation(constructionId, phase)) {
+                                            return;
+                                        }
                                         switch (output) {
                                             case MessagePhaseOutput messageOutput -> {
+                                                if (shouldSkipAfterCancellation(constructionId, phase)) {
+                                                    return;
+                                                }
                                                 final var wrapsMessage = Bytes.wrap(messageOutput.message());
                                                 submissions
                                                         .submitWrapsSigningMessage(phase, wrapsMessage, constructionId)
@@ -473,6 +488,10 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private void scheduleVoteWithJitter(
             final long constructionId, @NonNull final TssConfig tssConfig, @NonNull final HistoryProof proof) {
+        if (constructionCanceled) {
+            log.info("Skipping vote scheduling on canceled construction #{}", constructionId);
+            return;
+        }
         this.historyProof = proof;
 
         final var selfProofHash = hashOf(proof);
@@ -516,6 +535,14 @@ public class WrapsHistoryProver implements HistoryProver {
         if (f != null && !f.isDone()) {
             f.complete(decision);
         }
+    }
+
+    private boolean shouldSkipAfterCancellation(final long constructionId, @NonNull final WrapsPhase phase) {
+        if (constructionCanceled) {
+            log.info("Skipping post-output work for WRAPS {} on canceled construction #{}", phase, constructionId);
+            return true;
+        }
+        return false;
     }
 
     private long computeJitterMs(@NonNull final TssConfig tssConfig, final long constructionId) {
@@ -630,8 +657,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     signature,
                                     signers);
-                            logElapsed("constructing incremental WRAPS proof", now);
-                            yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            logElapsed(
+                                    constructionCanceled
+                                            ? "constructing canceled incremental WRAPS proof"
+                                            : "constructing incremental WRAPS proof",
+                                    now);
+                            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            log.info(" -> {}", output);
+                            yield output;
                         }
                     }
                     case POST_AGGREGATION -> {
