@@ -656,8 +656,8 @@ public final class Hedera
                 }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
-                    logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
-                    daggerApp.blockNodeConnectionManager().shutdown();
+                    logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes with RESET");
+                    daggerApp.blockNodeConnectionManager().shutdownWithReset();
                 }
             }
             case CATASTROPHIC_FAILURE -> {

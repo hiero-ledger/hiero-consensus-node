@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -413,6 +414,18 @@ public class BlockNodeConnectionManager {
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
+        shutdown(false);
+    }
+
+    /**
+     * Gracefully shuts down the connection manager, sending EndStream with RESET before
+     * closing each active streaming connection.
+     */
+    public void shutdownWithReset() {
+        shutdown(true);
+    }
+
+    private void shutdown(final boolean sendResetBeforeClose) {
         if (!isConnectionManagerActive.compareAndSet(true, false)) {
             logger.info("Connection Manager already shutdown.");
             return;
@@ -425,9 +438,9 @@ public class BlockNodeConnectionManager {
         }
 
         stopConfigWatcher();
-        blockBufferService.shutdown();
         shutdownScheduledExecutorService();
-        closeAllConnections();
+        closeAllConnections(sendResetBeforeClose);
+        blockBufferService.shutdown();
         clearManagerMetadata();
 
         logger.info("Block node connection manager shutdown complete");
@@ -445,26 +458,24 @@ public class BlockNodeConnectionManager {
         availableBlockNodes.clear();
     }
 
-    private void closeAllConnections() {
+    private void closeAllConnections(final boolean sendResetBeforeClose) {
         logger.info("Stopping block node connections");
-        // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfiguration, BlockNodeStreamingConnection>> iterator =
-                connections.entrySet().iterator();
-        while (iterator.hasNext()) {
-            final Map.Entry<BlockNodeConfiguration, BlockNodeStreamingConnection> entry = iterator.next();
-            final BlockNodeStreamingConnection connection = entry.getValue();
+        final var connectionSnapshot = new ArrayList<>(connections.values());
+        for (final BlockNodeStreamingConnection connection : connectionSnapshot) {
             try {
-                // This method is invoked during a shutdown of the connection manager, in which case we don't want
-                // to gracefully close connections at block boundaries, so just call close immediately.
-                connection.close();
+                if (sendResetBeforeClose) {
+                    connection.endTheStreamWith(RESET);
+                } else {
+                    connection.close();
+                }
             } catch (final RuntimeException e) {
                 logger.debug(
                         "{} Error while closing connection during connection manager shutdown. Ignoring.",
                         connection,
                         e);
             }
-            iterator.remove();
         }
+        connections.clear();
     }
 
     /**
@@ -942,7 +953,7 @@ public class BlockNodeConnectionManager {
         }
 
         shutdownScheduledExecutorService();
-        closeAllConnections();
+        closeAllConnections(false);
         clearManagerMetadata();
 
         synchronized (availableBlockNodes) {
