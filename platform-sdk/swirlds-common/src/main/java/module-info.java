@@ -51,7 +51,6 @@ module com.swirlds.common {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
-    requires java.desktop;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
