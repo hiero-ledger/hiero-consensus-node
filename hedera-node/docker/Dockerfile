@@ -1,4 +1,4 @@
-## Installs OpenJDK21 and openssl (used by Swirlds Platform to
+## Installs OpenJDK25 and openssl (used by Swirlds Platform to
 ## generate node keys for e.g. signing states), then copies
 ## required libraries and startup assets for a node with:
 ##  * Configuration from /opt/hedera/services/config-mount; and,
