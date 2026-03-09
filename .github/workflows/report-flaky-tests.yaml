@@ -141,19 +141,19 @@ jobs:
               body += '## ⚠️ New Flaky Test(s) Detected — Action Required\n\n';
               body += 'New flaky tests were detected in this run. **New tickets have been created and require your attention — please investigate whether the flakiness was introduced by changes in this PR.**\n\n';
             } else {
-              body += '## ⚠️ Flaky Test(s) Detected\n\n';
+              body += '## Flaky Test(s) Detected\n\n';
               body += 'One or more flaky tests were detected in this run. These tests have been reported before.\n\n';
             }
 
-            body += '| Test | Ticket | Status |\n';
-            body += '|------|--------|--------|\n';
+            body += '| Test | Ticket |\n';
+            body += '|------|--------|\n';
             for (const test of flakyIssues) {
               const testName = `\`${test.module} - ${test.class}#${test.method}\``;
               if (hasNew) {
                 const status = test.is_new ? '🆕 New' : '🔁 Existing';
-                body += `| ${testName} | #${test.issue_number} (${status}) | [View Issue](${test.issue_url}) |\n`;
+                body += `| ${testName} | #${test.issue_number} (${status}) |\n`;
               } else {
-                body += `| ${testName} | #${test.issue_number} | [View Issue](${test.issue_url}) |\n`;
+                body += `| ${testName} | #${test.issue_number} |\n`;
               }
             }
 
