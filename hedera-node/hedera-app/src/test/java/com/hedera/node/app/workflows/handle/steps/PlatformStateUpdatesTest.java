@@ -278,7 +278,8 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                         .build());
         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
         rosterStore.putActiveRoster(
-                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint)))), 123L);
+                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint), Bytes.EMPTY))),
+                123L);
 
         subject.handleTxBody(state, txBody.build(), configWith(true, true));
 
@@ -302,7 +303,8 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                         .build());
         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
         rosterStore.putActiveRoster(
-                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint)))), 123L);
+                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint), Bytes.EMPTY))),
+                123L);
 
         subject.handleTxBody(state, txBody.build(), configWith(true, true));
 

@@ -77,6 +77,7 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
         switch (type) {
             case SIGNING -> sigTrustStore.setCertificateEntry(type.storeName(nodeId), certificate);
             case AGREEMENT -> agrTrustStore.setCertificateEntry(type.storeName(nodeId), certificate);
+            case EVENT_SIGNING -> {} // Ed25519 event signing keys are not stored in trust stores
         }
     }
 
@@ -95,6 +96,7 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
             certificate = switch (type) {
                 case SIGNING -> sigTrustStore.getCertificate(name);
                 case AGREEMENT -> agrTrustStore.getCertificate(name);
+                case EVENT_SIGNING -> null; // Ed25519 event signing keys are not stored in trust stores
             };
         } catch (KeyStoreException e) {
             // cannot be thrown because we ensure the key store is initialized in the constructor

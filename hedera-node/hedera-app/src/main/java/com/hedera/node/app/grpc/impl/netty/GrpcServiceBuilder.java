@@ -8,15 +8,18 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.impl.MethodBase;
 import com.hedera.node.app.grpc.impl.QueryMethod;
+import com.hedera.node.app.grpc.impl.SynchronousTransactionMethod;
 import com.hedera.node.app.grpc.impl.TransactionMethod;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.app.workflows.synchronous.SynchronousWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.MethodType;
@@ -82,7 +85,7 @@ final class GrpcServiceBuilder {
      * The set of transaction method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #transaction(String)}. Then,
-     * when {@link #build(Metrics, int)} is called, the set is used to create the transaction service method definitions.
+     * when {@link #build(Metrics, ConfigProvider)} is called, the set is used to create the transaction service method definitions.
      */
     private final Set<String> txMethodNames = new HashSet<>();
 
@@ -90,12 +93,24 @@ final class GrpcServiceBuilder {
      * The set of query method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #query(String)}. Then,
-     * when {@link #build(Metrics, int)} is called, the set is used to create the query service method definitions.
+     * when {@link #build(Metrics, ConfigProvider)} is called, the set is used to create the query service method definitions.
      */
     private final Set<String> queryMethodNames = new HashSet<>();
 
     /**
-     * Creates a new builder. Typically only a single builder instance is created per service.
+     * The {@link SynchronousWorkflow} to invoke for synchronous transaction methods, or {@code null}
+     * if no synchronous methods have been registered.
+     */
+    @Nullable
+    private SynchronousWorkflow synchronousWorkflow;
+
+    /**
+     * The set of synchronous transaction method names.
+     */
+    private final Set<String> syncMethodNames = new HashSet<>();
+
+    /**
+     * Creates a new builder. Typically, only a single builder instance is created per service.
      *
      * @param serviceName The name of the service. Cannot be null or blank.
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
@@ -158,6 +173,34 @@ final class GrpcServiceBuilder {
     }
 
     /**
+     * Set the {@link SynchronousWorkflow} to use for synchronous transaction methods.
+     *
+     * @param wf the workflow instance
+     * @return a reference to the builder
+     */
+    public @NonNull GrpcServiceBuilder synchronousWorkflow(@NonNull final SynchronousWorkflow wf) {
+        this.synchronousWorkflow = requireNonNull(wf);
+        return this;
+    }
+
+    /**
+     * Register the creation of a new gRPC method for handling synchronous transactions with the given name.
+     * This call is idempotent.
+     *
+     * @param methodName The name of the synchronous transaction method. Cannot be null or blank.
+     * @return A reference to the builder.
+     * @throws NullPointerException     if the methodName is null
+     * @throws IllegalArgumentException if the methodName is blank
+     */
+    public @NonNull GrpcServiceBuilder synchronousTransaction(@NonNull final String methodName) {
+        if (requireNonNull(methodName).isBlank()) {
+            throw new IllegalArgumentException("The gRPC method name cannot be blank");
+        }
+        syncMethodNames.add(methodName);
+        return this;
+    }
+
+    /**
      * Build a grpc {@link ServerServiceDefinition} for each transaction and query method registered with this builder.
      *
      * @param metrics Used for recording metrics for the transaction or query methods
@@ -194,6 +237,15 @@ final class GrpcServiceBuilder {
             final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
             addMethod(builder, serviceName, methodName, method, marshaller);
         });
+        if (!syncMethodNames.isEmpty()) {
+            requireNonNull(synchronousWorkflow, "synchronousWorkflow must be set before registering sync methods");
+            syncMethodNames.forEach(methodName -> {
+                logger.debug("Registering gRPC synchronous transaction method {}.{}", serviceName, methodName);
+                final var method = new SynchronousTransactionMethod(
+                        serviceName, methodName, synchronousWorkflow, metrics, MAX_TRANSACTION_SIZE);
+                addMethod(builder, serviceName, methodName, method, marshaller);
+            });
+        }
         return builder.build();
     }
 

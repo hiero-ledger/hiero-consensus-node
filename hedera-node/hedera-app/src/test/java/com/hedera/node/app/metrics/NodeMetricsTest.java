@@ -49,7 +49,7 @@ class NodeMetricsTest {
     @Test
     void registerNodeMetrics() {
         long nodeId = 1L;
-        RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
+        RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         List<RosterEntry> roster = List.of(entry);
 
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);
@@ -67,8 +67,8 @@ class NodeMetricsTest {
     @Test
     void registerNodeMetricsDuplicateEntriesRegistersOnlyOnce() {
         long nodeId = 2L;
-        RosterEntry entry1 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
-        RosterEntry entry2 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
+        RosterEntry entry1 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of(), Bytes.EMPTY);
+        RosterEntry entry2 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         List<RosterEntry> roster = List.of(entry1, entry2);
 
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);
@@ -94,7 +94,7 @@ class NodeMetricsTest {
     @Test
     void registerNodeMetricsConfigurationPassedToMetrics() {
         long nodeId = 4L;
-        RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
+        RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         List<RosterEntry> roster = List.of(entry);
 
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);

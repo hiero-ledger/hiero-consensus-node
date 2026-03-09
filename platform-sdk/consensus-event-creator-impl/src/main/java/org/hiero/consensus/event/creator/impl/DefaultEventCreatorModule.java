@@ -18,6 +18,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
@@ -79,7 +80,10 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         eventCreationManagerWiring.getInputWire(EventCreationManager::quiescenceCommand);
 
         // Create and bind components
-        final BytesSigner bytesSigner = new PlatformSigner(keysAndCerts);
+        // Use Ed25519 via libsodium for event signing when key is available, RSA fallback otherwise
+        final BytesSigner bytesSigner = keysAndCerts.eventSigKeyPair() != null
+                ? SigningFactory.createSigner(keysAndCerts.eventSigKeyPair())
+                : new PlatformSigner(keysAndCerts);
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, random, bytesSigner, roster, selfId, transactionSupplier);
         final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(

@@ -52,6 +52,7 @@ import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
+import com.hedera.node.app.workflows.synchronous.PendingFutureRegistry;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -189,6 +190,9 @@ class HandleWorkflowTest {
 
     @Mock
     private NodeFeeManager nodeFeeManager;
+
+    @Mock
+    private PendingFutureRegistry pendingFutureRegistry;
 
     private HandleWorkflow subject;
 
@@ -530,7 +534,8 @@ class HandleWorkflowTest {
                 blockBufferService,
                 Map.of(),
                 quiescenceController,
-                nodeFeeManager);
+                nodeFeeManager,
+                pendingFutureRegistry);
     }
 
     @Test

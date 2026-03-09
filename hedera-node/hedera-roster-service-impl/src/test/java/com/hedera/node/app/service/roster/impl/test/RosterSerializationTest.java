@@ -19,8 +19,8 @@ public class RosterSerializationTest {
     void testDeserializeOldRosterStillValid() {
 
         final String TEST_RESOURCES_PATH = Paths.get("src", "test", "resources").toString();
-        RosterEntry rosterEntry1 = new RosterEntry(1L, 100L, null, null);
-        RosterEntry rosterEntry2 = new RosterEntry(2L, 50L, null, null);
+        RosterEntry rosterEntry1 = new RosterEntry(1L, 100L, null, null, null);
+        RosterEntry rosterEntry2 = new RosterEntry(2L, 50L, null, null, null);
 
         final byte[] gossipCaCertificate = "gossipCaCertificate".getBytes();
 

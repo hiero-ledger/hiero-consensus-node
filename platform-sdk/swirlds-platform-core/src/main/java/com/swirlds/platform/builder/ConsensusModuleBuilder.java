@@ -86,7 +86,7 @@ public class ConsensusModuleBuilder {
         } catch (final Exception e) {
             throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
         }
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         final Roster roster = new Roster(List.of(rosterEntry));
 
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
@@ -119,7 +119,7 @@ public class ConsensusModuleBuilder {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         final Roster roster = new Roster(List.of(rosterEntry));
         final RosterHistory rosterHistory =
                 new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
@@ -219,7 +219,7 @@ public class ConsensusModuleBuilder {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of(), Bytes.EMPTY);
         final Roster roster = new Roster(List.of(rosterEntry));
         final HashgraphModule hashgraphModule = createHashgraphModule();
         final EventPipelineTracker eventPipelineTracker = null;
@@ -263,7 +263,8 @@ public class ConsensusModuleBuilder {
             // These exceptions should not occur since we are using default values
             throw new RuntimeException(e);
         }
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, certificate, List.of(ServiceEndpoint.DEFAULT));
+        final RosterEntry rosterEntry =
+                new RosterEntry(selfId.id(), 0L, certificate, List.of(ServiceEndpoint.DEFAULT), Bytes.EMPTY);
         final Roster roster = new Roster(List.of(rosterEntry));
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();

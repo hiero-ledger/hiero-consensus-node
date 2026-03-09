@@ -125,9 +125,13 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return false;
         }
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
-
-        final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
+        // Prefer Ed25519 event signing key if available in roster
+        PublicKey publicKey = RosterUtils.fetchEventSigningPublicKey(rosterEntry);
+        if (publicKey == null) {
+            // Fallback to RSA key from X.509 certificate
+            final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+            publicKey = cert == null ? null : cert.getPublicKey();
+        }
         if (publicKey == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", eventCreatorId);

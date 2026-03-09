@@ -12,7 +12,10 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.KeyFactory;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -42,6 +45,38 @@ public final class RosterUtils {
         try {
             return CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
         } catch (final CryptographyException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The fixed 12-byte SPKI header for Ed25519 public keys (OID 1.3.101.112).
+     * Prepending this to a raw 32-byte Ed25519 key yields a valid X.509 SubjectPublicKeyInfo encoding.
+     */
+    private static final byte[] ED25519_SPKI_HEADER = {
+        0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00
+    };
+
+    /**
+     * Fetch the Ed25519 event signing public key from a given RosterEntry.
+     * Returns null if the field is empty or cannot be parsed.
+     *
+     * @param entry a RosterEntry
+     * @return an Ed25519 PublicKey, or null if not available
+     */
+    @Nullable
+    public static PublicKey fetchEventSigningPublicKey(@NonNull final RosterEntry entry) {
+        final var rawKey = entry.eventSigningPublicKey();
+        if (rawKey == null || rawKey.length() != 32) {
+            return null;
+        }
+        try {
+            // Build SPKI encoding: 12-byte fixed header + 32-byte raw Ed25519 public key
+            final byte[] spki = new byte[ED25519_SPKI_HEADER.length + 32];
+            System.arraycopy(ED25519_SPKI_HEADER, 0, spki, 0, ED25519_SPKI_HEADER.length);
+            rawKey.getBytes(0, spki, ED25519_SPKI_HEADER.length, 32);
+            return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(spki));
+        } catch (final Exception e) {
             return null;
         }
     }

@@ -31,6 +31,7 @@ public class KeysAndCertsGenerator {
 
     private static final int SIG_SEED = 2;
     private static final int AGR_SEED = 0;
+    private static final int EVENT_SIG_SEED = 4;
 
     private KeysAndCertsGenerator() {}
 
@@ -82,11 +83,19 @@ public class KeysAndCertsGenerator {
         agrDetRandom.setSeed(memberId);
         agrDetRandom.setSeed(AGR_SEED);
 
-        return generate(nodeId, schema, sigDetRandom, agrDetRandom);
+        // deterministic CSPRNG for Ed25519 event signing key
+        final SecureRandom eventSigDetRandom = DetRandomProvider.getDetRandom();
+        eventSigDetRandom.setSeed(masterKey);
+        eventSigDetRandom.setSeed(swirldId);
+        eventSigDetRandom.setSeed(memberId);
+        eventSigDetRandom.setSeed(EVENT_SIG_SEED);
+
+        return generate(nodeId, schema, sigDetRandom, agrDetRandom, eventSigDetRandom);
     }
 
     /**
      * Generated keys using the supplied randomness and creates certificates with those keys.
+     * This overload does not generate an Ed25519 event signing key pair.
      *
      * @param nodeId       the node ID used for the certificate distinguished names
      * @param schema       the signing schema to use for the signing key pair
@@ -101,12 +110,38 @@ public class KeysAndCertsGenerator {
             @NonNull final SecureRandom sigDetRandom,
             @NonNull final SecureRandom agrDetRandom)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+        return generate(nodeId, schema, sigDetRandom, agrDetRandom, null);
+    }
+
+    /**
+     * Generated keys using the supplied randomness and creates certificates with those keys.
+     *
+     * @param nodeId             the node ID used for the certificate distinguished names
+     * @param schema             the signing schema to use for the signing key pair
+     * @param sigDetRandom       the source of randomness for generating the signing key pair
+     * @param agrDetRandom       the source of randomness for generating the agreement key pair
+     * @param eventSigDetRandom  the source of randomness for generating the Ed25519 event signing key pair (nullable)
+     * @return the generated keys and certs
+     */
+    @NonNull
+    public static KeysAndCerts generate(
+            @NonNull final NodeId nodeId,
+            @NonNull final SigningSchema schema,
+            @NonNull final SecureRandom sigDetRandom,
+            @NonNull final SecureRandom agrDetRandom,
+            @edu.umd.cs.findbugs.annotations.Nullable final SecureRandom eventSigDetRandom)
+            throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
         final KeyPairGenerator agrKeyGen =
                 KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
         agrKeyGen.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, agrDetRandom);
 
         final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
+
+        // Generate Ed25519 event signing key pair if randomness source is provided
+        final KeyPair eventSigKeyPair = eventSigDetRandom != null
+                ? SigningFactory.generateKeyPair(SigningSchema.ED25519, eventSigDetRandom)
+                : null;
 
         final String dnS = CertificateUtils.distinguishedName(SIGNING.storeName(nodeId));
         final String dnA = CertificateUtils.distinguishedName(AGREEMENT.storeName(nodeId));
@@ -117,7 +152,7 @@ public class KeysAndCertsGenerator {
                 dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom, schema.getSigningAlgorithm());
         final X509Certificate agrCert = CertificateUtils.generateCertificate(
                 dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
-        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
+        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert, eventSigKeyPair);
     }
 
     /**

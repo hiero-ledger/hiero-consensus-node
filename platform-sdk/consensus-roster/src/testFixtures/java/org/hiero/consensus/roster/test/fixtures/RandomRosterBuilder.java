@@ -226,6 +226,12 @@ public class RandomRosterBuilder {
 
                 addressBuilder.withSigCert(keysAndCerts.sigCert());
 
+                // Set Ed25519 event signing public key if available
+                if (keysAndCerts.eventSigKeyPair() != null) {
+                    addressBuilder.withEventSigningPublicKey(
+                            keysAndCerts.eventSigKeyPair().getPublic());
+                }
+
             } catch (final Exception e) {
                 throw new RuntimeException();
             }

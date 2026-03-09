@@ -48,16 +48,32 @@ public class GenerateKeysCommand extends AbstractCommand {
             sigCertPath = Path.of(System.getProperty("user.dir")).resolve("data/keys");
         }
         for (var kEntry : keysEntries.entrySet()) {
-            var publicKeyStorePath = sigCertPath.resolve(
-                    String.format("s-public-%s.pem", NodeUtilities.formatNodeName(kEntry.getKey())));
-            var privateKeyStorePath = sigCertPath.resolve(
-                    String.format("s-private-%s.pem", NodeUtilities.formatNodeName(kEntry.getKey())));
+            var nodeName = NodeUtilities.formatNodeName(kEntry.getKey());
+            var keysAndCerts = kEntry.getValue();
+
+            // Write RSA signing keys
+            var publicKeyStorePath = sigCertPath.resolve(String.format("s-public-%s.pem", nodeName));
+            var privateKeyStorePath = sigCertPath.resolve(String.format("s-private-%s.pem", nodeName));
             EnhancedKeyStoreLoader.writePemFile(
                     true,
                     privateKeyStorePath,
-                    kEntry.getValue().sigKeyPair().getPrivate().getEncoded());
+                    keysAndCerts.sigKeyPair().getPrivate().getEncoded());
             EnhancedKeyStoreLoader.writePemFile(
-                    false, publicKeyStorePath, kEntry.getValue().sigCert().getEncoded());
+                    false, publicKeyStorePath, keysAndCerts.sigCert().getEncoded());
+
+            // Write Ed25519 event signing keys if generated
+            if (keysAndCerts.eventSigKeyPair() != null) {
+                var eventPrivatePath = sigCertPath.resolve(String.format("e-private-%s.pem", nodeName));
+                var eventPublicPath = sigCertPath.resolve(String.format("e-public-%s.pem", nodeName));
+                EnhancedKeyStoreLoader.writePemFile(
+                        true,
+                        eventPrivatePath,
+                        keysAndCerts.eventSigKeyPair().getPrivate().getEncoded());
+                EnhancedKeyStoreLoader.writePemFile(
+                        false,
+                        eventPublicPath,
+                        keysAndCerts.eventSigKeyPair().getPublic().getEncoded());
+            }
         }
         CommonUtils.tellUserConsole("All " + ids.size() + " keys generated in:" + sigCertPath);
         return 0;

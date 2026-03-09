@@ -286,8 +286,8 @@ class HandleWorkflowModuleTest {
     @Test
     void exportsRosterToGivenPath() {
         final var path = tempDir.resolve("network.json");
-        final var roster = new Roster(List.of(
-                new RosterEntry(1L, 2L, Bytes.EMPTY, List.of(new ServiceEndpoint(Bytes.EMPTY, 8080, "localhost")))));
+        final var roster = new Roster(List.of(new RosterEntry(
+                1L, 2L, Bytes.EMPTY, List.of(new ServiceEndpoint(Bytes.EMPTY, 8080, "localhost")), Bytes.EMPTY)));
 
         HandleWorkflowModule.provideRosterExportHelper().accept(roster, path);
 

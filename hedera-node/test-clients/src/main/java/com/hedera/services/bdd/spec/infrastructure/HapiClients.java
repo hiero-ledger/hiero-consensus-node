@@ -19,6 +19,7 @@ import com.hederahashgraph.service.proto.java.FreezeServiceGrpc.FreezeServiceBlo
 import com.hederahashgraph.service.proto.java.NetworkServiceGrpc.NetworkServiceBlockingStub;
 import com.hederahashgraph.service.proto.java.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.hederahashgraph.service.proto.java.SmartContractServiceGrpc.SmartContractServiceBlockingStub;
+import com.hederahashgraph.service.proto.java.SynchronousServiceGrpc;
 import com.hederahashgraph.service.proto.java.TokenServiceGrpc.TokenServiceBlockingStub;
 import com.hederahashgraph.service.proto.java.UtilServiceGrpc;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -197,14 +198,14 @@ public class HapiClients {
 
     /**
      * Retrieves a blocking stub for the FileService based on the provided parameters.
-     *
-     * This method obtains a stub from the pool, identified by the given AccountID,
+     * <p>
+     * This method gets a stub from the pool, identified by the given AccountID,
      * TLS usage, and node operator status. It sets a deadline for the stub's
-     * operations to ensure they complete within a specified time frame.
+     * operations to ensure they are complete within a specified time frame.
      *
      * @param nodeId the node for which the stub is requested
      * @param useTls whether to use TLS for secure communication
-     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @param asNodeOperator whether to get the stub as a node operator
      * @return a blocking stub for the FileService with a specified deadline
      */
     public FileServiceBlockingStub getFileSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
@@ -214,14 +215,14 @@ public class HapiClients {
 
     /**
      * Retrieves a blocking stub for the TokenService based on the provided parameters.
-     *
-     * This method obtains a stub from the pool, identified by the given AccountID,
+     * <p>
+     * This method gets a stub from the pool, identified by the given AccountID,
      * TLS usage, and node operator status. It sets a deadline for the stub's
      * operations to ensure they complete within a specified time frame.
      *
      * @param nodeId the node for which the stub is requested
      * @param useTls whether to use TLS for secure communication
-     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @param asNodeOperator whether to get the stub as a node operator
      * @return a blocking stub for the TokenService with a specified deadline
      */
     public TokenServiceBlockingStub getTokenSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
@@ -373,6 +374,23 @@ public class HapiClients {
             AccountID nodeId, boolean useTls, boolean asNodeOperator) {
         return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .utilSvcStubs()
+                .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Retrieves a blocking stub for the SynchronousService based on the provided parameters.
+     *
+     * <p>This stub submits a transaction and blocks until the {@code TransactionRecord} is available.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the SynchronousService with a specified deadline
+     */
+    public SynchronousServiceGrpc.SynchronousServiceBlockingStub getSyncSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
+                .syncSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 

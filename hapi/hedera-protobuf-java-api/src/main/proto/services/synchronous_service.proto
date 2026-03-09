@@ -1,0 +1,29 @@
+/**
+ * # Synchronous Service API
+ * GRPC service definition for the Hedera Synchronous Transaction Service.
+ * Accepts a transaction and blocks until the TransactionRecord is available.
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.synchronous">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/transaction.proto";
+import "services/transaction_record.proto";
+
+/**
+ * A service that accepts a transaction and blocks until the TransactionRecord
+ * is available, enabling sub-10ms end-to-end latency measurement.
+ */
+service SynchronousService {
+    /**
+     * Submit a transaction and block until the TransactionRecord is available.
+     * <p>
+     * The request body MUST be a [Transaction](#proto.Transaction)<br/>
+     * The response body SHALL be a [TransactionRecord](#proto.TransactionRecord)
+     */
+    rpc syncTransaction (Transaction) returns (TransactionRecord);
+}

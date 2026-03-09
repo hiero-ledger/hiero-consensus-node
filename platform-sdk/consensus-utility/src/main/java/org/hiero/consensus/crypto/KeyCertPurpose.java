@@ -9,7 +9,8 @@ import org.hiero.consensus.node.NodeUtilities;
  */
 public enum KeyCertPurpose {
     SIGNING("s"),
-    AGREEMENT("a");
+    AGREEMENT("a"),
+    EVENT_SIGNING("e");
 
     /** the prefix used for certificate names */
     private final String prefix;

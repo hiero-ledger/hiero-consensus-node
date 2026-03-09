@@ -7,6 +7,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
@@ -24,6 +26,9 @@ public class RandomRosterEntryBuilder {
     private Integer port;
     private String hostname;
     private X509Certificate sigCert;
+
+    @Nullable
+    private PublicKey eventSigningPublicKey;
 
     private long minimumWeight = 0;
     private long maximumWeight = Long.MAX_VALUE / 1024;
@@ -76,15 +81,22 @@ public class RandomRosterEntryBuilder {
         }
 
         try {
-            return RosterEntry.newBuilder()
+            final var builder = RosterEntry.newBuilder()
                     .nodeId(nodeId)
                     .weight(weight)
                     .gossipCaCertificate(Bytes.wrap(sigCert.getEncoded()))
                     .gossipEndpoint(ServiceEndpoint.newBuilder()
                             .domainName(hostname)
                             .port(port)
-                            .build())
-                    .build();
+                            .build());
+            if (eventSigningPublicKey != null) {
+                // Extract raw 32-byte Ed25519 public key from SPKI encoding (skip 12-byte header)
+                final byte[] spki = eventSigningPublicKey.getEncoded();
+                final byte[] raw = new byte[32];
+                System.arraycopy(spki, spki.length - 32, raw, 0, 32);
+                builder.eventSigningPublicKey(Bytes.wrap(raw));
+            }
+            return builder.build();
         } catch (CertificateEncodingException e) {
             throw new IllegalStateException(e);
         }
@@ -147,6 +159,18 @@ public class RandomRosterEntryBuilder {
     @NonNull
     public RandomRosterEntryBuilder withSigCert(@NonNull final X509Certificate sigCert) {
         this.sigCert = Objects.requireNonNull(sigCert);
+        return this;
+    }
+
+    /**
+     * Sets the Ed25519 event signing public key.
+     *
+     * @param eventSigningPublicKey the Ed25519 public key
+     * @return this builder
+     */
+    @NonNull
+    public RandomRosterEntryBuilder withEventSigningPublicKey(@NonNull final PublicKey eventSigningPublicKey) {
+        this.eventSigningPublicKey = Objects.requireNonNull(eventSigningPublicKey);
         return this;
     }
 
