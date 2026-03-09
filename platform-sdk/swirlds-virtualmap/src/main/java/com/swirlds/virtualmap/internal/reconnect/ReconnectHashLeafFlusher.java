@@ -99,13 +99,13 @@ public class ReconnectHashLeafFlusher {
         actionAndCheckFlush(() -> updatedHashes.add(new VirtualHashRecord(path, hash)));
     }
 
-    void updateLeaf(final VirtualLeafBytes leaf) {
+    void updateLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateLeaf called without start";
         actionAndCheckFlush(() -> updatedLeaves.add(leaf));
     }
 
-    void deleteLeaf(final VirtualLeafBytes leaf) {
+    void deleteLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "deleteLeaf called without start";
         actionAndCheckFlush(() -> deletedLeaves.add(leaf));

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -39,6 +38,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_WITH_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -59,20 +61,19 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class CryptoServiceFeesSuite {
-    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_INFO = 0.0001;
+    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_INFO = 0.000102;
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
-    private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
-    private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.05;
+    private static final double BASE_FEE_CRYPTO_DELETE = 0.0051;
+    private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.050395;
     private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214952;
     private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.000221485;
     private static final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;
-    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.0001;
+    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.000102;
 
     private static final String CIVILIAN = "civilian";
     private static final String FEES_ACCOUNT = "feesAccount";
@@ -222,7 +223,7 @@ public class CryptoServiceFeesSuite {
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via("approve")
                         .blankMemo(),
-                validateChargedUsdWithin("approve", 0.05, 0.01),
+                validateChargedUsdWithin("approve", 0.050392, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
@@ -288,7 +289,6 @@ public class CryptoServiceFeesSuite {
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     @DisplayName("CryptoUpdate transaction has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoUpdateBaseUSDFee() {
 
         final var baseTxn = "baseTxn";
@@ -424,19 +424,24 @@ public class CryptoServiceFeesSuite {
                 mintToken(nonFungibleTokenWithCustomFee, List.of(copyFromUtf8("memo2"))),
                 tokenAssociate(RECEIVER, nonFungibleToken, nonFungibleTokenWithCustomFee),
                 cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1).between(SENDER, nonTreasurySender))
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(SENDER, nonTreasurySender))
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER),
                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 100L))
                         .payingWith(SENDER)
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .via(hbarXferTxn),
                 cryptoTransfer(moving(1, fungibleToken).between(SENDER, RECEIVER))
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER)
                         .via(htsXferTxn),
                 cryptoTransfer(movingUnique(nonFungibleToken, 1).between(SENDER, RECEIVER))
                         .blankMemo()
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(SENDER)
                         .via(nftXferTxn),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
@@ -449,16 +454,17 @@ public class CryptoServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
-                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),
-                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.1),
-                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.3),
-                validateChargedUsdWithin(htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, 0.1),
-                validateChargedUsdWithin(nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, 0.3));
+                validateFees(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, NODE_AND_NETWORK_BASE_FEE),
+                validateFees(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, TOKEN_TRANSFER_FEE),
+                validateFees(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, TOKEN_TRANSFER_FEE),
+                validateFees(
+                        htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, TOKEN_TRANSFER_WITH_CUSTOM_FEE),
+                validateFees(
+                        nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
     }
 
     @HapiTest
     @DisplayName("CryptoGetAccountRecords query has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoCryptoGetAccountRecordsBaseUSDFee() {
         final var nonTreasurySender = "nonTreasurySender";
 

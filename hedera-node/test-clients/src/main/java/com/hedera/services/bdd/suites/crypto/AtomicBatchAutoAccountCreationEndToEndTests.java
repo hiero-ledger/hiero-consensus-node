@@ -974,9 +974,8 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
         }
 
         @HapiTest
-        @DisplayName(
-                "Auto Create Hollow Account in one Batch and Finalize it in another Batch Inner Transaction Fails in Atomic Batch")
-        Stream<DynamicTest> autoCreateHollowAccountAndFinalizeInInnerTxnFailsInBatch() {
+        @DisplayName("Auto Create Hollow Account in one Batch and Hollow Account remains hollow after second Batch")
+        Stream<DynamicTest> autoCreateHollowAccountRemainsHollowAfterSecondBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1012,7 +1011,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                         createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                         CIVILIAN,
                                                         evmAlias.get(),
-                                                        10L,
+                                                        ONE_HBAR,
                                                         1L,
                                                         FT_FOR_AUTO_ACCOUNT,
                                                         List.of(3L), // NFT serials
@@ -1030,7 +1029,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .isHollow()
                                 .has(accountWith()
                                         .hasEmptyKey()
-                                        .balance(10L)
+                                        .balance(ONE_HBAR)
                                         .noAlias()
                                         .maxAutoAssociations(-1)
                                         .memo(AUTO_MEMO))
@@ -1068,10 +1067,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                         spec.registry().saveAccountId(VALID_ALIAS_HOLLOW, newAccountId);
 
                         // try to finalize the auto-created hollow account with inner transaction only in second batch
+                        // the batch succeeds but the hollow account is not finalized in batch context
                         final var atomicBatchTransactionSecond = atomicBatch(finalizeHollowAccount)
                                 .payingWith(BATCH_OPERATOR)
-                                .via("batchTxnFirst")
-                                .hasPrecheck(INVALID_SIGNATURE);
+                                .via("batchTxnSecond")
+                                .hasKnownStatus(SUCCESS);
 
                         // validate the hollow account is not finalized but remains hollow
                         final var infoCheckEVMAliasSecond = getAliasedAccountInfo(evmAlias.get())

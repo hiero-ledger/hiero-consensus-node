@@ -59,4 +59,11 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty
         int signingThresholdDivisor,
 
-        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank) {}
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
+        int maxWrapsRetries,
+
+        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
+
+        // Whether to double-check aggregate hinTS signature during block signing
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean validateBlockSignatures) {}

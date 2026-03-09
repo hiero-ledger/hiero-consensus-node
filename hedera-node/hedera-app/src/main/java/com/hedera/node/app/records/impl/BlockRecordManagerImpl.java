@@ -534,7 +534,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.migrationRecordsStreamed(),
                 lastBlockInfo.firstConsTimeOfCurrentBlock(),
                 asTimestamp(consensusTime),
-                lastBlockInfo.lastIntervalProcessTime());
+                lastBlockInfo.lastIntervalProcessTime(),
+                lastBlockInfo.previousWrappedRecordBlockRootHash(),
+                lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes(),
+                lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         updateBlockInfo(newBlockInfo, state);
     }
 
@@ -640,7 +643,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 new Timestamp(
                         currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()),
                 lastBlockInfo.lastUsedConsTime(),
-                lastBlockInfo.lastIntervalProcessTime());
+                lastBlockInfo.lastIntervalProcessTime(),
+                // (FUTURE) Here we'll track the historical wrapped record block root hashes
+                Bytes.EMPTY,
+                List.of(),
+                0);
     }
 
     /**

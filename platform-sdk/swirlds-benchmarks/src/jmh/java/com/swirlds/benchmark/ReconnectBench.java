@@ -214,12 +214,14 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public static void main(String[] args) throws Exception {
         final ReconnectBench bench = new ReconnectBench();
         bench.setup();
+        bench.createLocal();
         bench.setupBenchmark();
         bench.beforeTest();
         bench.setupInvocation();
         bench.reconnect();
         bench.tearDownInvocation();
         bench.afterTest();
+        bench.destroyLocal();
         bench.destroy();
     }
 }

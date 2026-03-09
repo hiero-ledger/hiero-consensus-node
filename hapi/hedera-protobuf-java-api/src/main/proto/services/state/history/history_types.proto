@@ -148,6 +148,11 @@ message HistoryProofConstruction {
      */
     WrapsSigningState wraps_signing_state = 9;
   }
+
+  /**
+   * The number of times the network has had to restart this construction.
+   */
+  uint32 wraps_retry_count = 10;
 }
 
 /**
