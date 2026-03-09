@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
@@ -98,6 +99,7 @@ public class ScheduleServiceSimpleFeesTest {
                 validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
                 validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL),
-                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));
+                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO),
+                validateNonZeroNodePaymentForQuery("getScheduleInfoBasic"));
     }
 }
