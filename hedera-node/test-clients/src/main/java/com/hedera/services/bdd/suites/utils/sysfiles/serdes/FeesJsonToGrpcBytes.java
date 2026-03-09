@@ -3,9 +3,10 @@ package com.hedera.services.bdd.suites.utils.sysfiles.serdes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.node.app.hapi.utils.sysfiles.serdes.FeesJsonToProtoSerde;
-import com.hedera.services.bdd.spec.fees.FeeScheduleConverter;
 import com.hedera.services.bdd.suites.utils.sysfiles.FeeSchedulesListEntry;
+import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,7 @@ public class FeesJsonToGrpcBytes implements SysFileSerde<String> {
     @Override
     public String fromRawFile(byte[] bytes) {
         try {
-            var grpc = FeeScheduleConverter.parseFrom(bytes);
+            var grpc = CurrentAndNextFeeSchedule.parseFrom(bytes);
 
             List<FeeSchedulesListEntry> feeSchedules = new ArrayList<>();
             feeSchedules.add(FeeSchedulesListEntry.asCurrentFeeSchedule(
@@ -25,7 +26,7 @@ public class FeesJsonToGrpcBytes implements SysFileSerde<String> {
                     FeeSchedulesListEntry.asNextFeeSchedule(FeeSchedulesListEntry.from(grpc.getNextFeeSchedule())));
 
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(feeSchedules);
-        } catch (JsonProcessingException e) {
+        } catch (InvalidProtocolBufferException | JsonProcessingException e) {
             throw new IllegalArgumentException("Not a set of fee schedules!", e);
         }
     }
@@ -33,7 +34,7 @@ public class FeesJsonToGrpcBytes implements SysFileSerde<String> {
     @Override
     public byte[] toRawFile(String styledFile, @Nullable String interpolatedSrcDir) {
         try {
-            return FeeScheduleConverter.toBytes(FeesJsonToProtoSerde.parseFeeScheduleFromJson(styledFile));
+            return FeesJsonToProtoSerde.parseFeeScheduleFromJson(styledFile).toByteArray();
         } catch (Exception e) {
             throw new IllegalArgumentException("Not a set of fee schedules!", e);
         }

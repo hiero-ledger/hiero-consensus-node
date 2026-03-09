@@ -128,7 +128,7 @@ public class FeesAndRatesProvider {
         long queryFee = lookupDownloadFee(setup.feeScheduleId());
         FileGetContentsResponse response = downloadWith(queryFee, false, setup.feeScheduleId());
         byte[] bytes = response.getFileContents().getContents().toByteArray();
-        CurrentAndNextFeeSchedule wrapper = FeeScheduleConverter.parseFrom(bytes);
+        CurrentAndNextFeeSchedule wrapper = CurrentAndNextFeeSchedule.parseFrom(bytes);
         setScheduleAndGasPriceFrom(typePatching.withPatchedTypesIfNecessary(wrapper.getCurrentFeeSchedule()));
         String message = String.format(
                 "The fee schedule covers %s ops.",
