@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.VALID_WRAPS_PROVING_KEY;
@@ -63,27 +64,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        // Calculate the hash of the proving key file we'll serve
-        final var validWrapsProvingKeyPath = Paths.get(VALID_WRAPS_PROVING_KEY);
-        try {
-            validProvingKeyHash =
-                    Bytes.wrap(sha384DigestOrThrow().digest(Files.readAllBytes(validWrapsProvingKeyPath)));
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        log.info("Valid proving key hash: {}", validProvingKeyHash);
-
-        // Set up a dead-simple Python HTTP server container to serve the proving key
+        // Start the Python HTTP server container with an empty /data directory;
+        // the proving key file will be copied in lazily once the working directory is set
         httpContainer = new GenericContainer<>(DockerImageName.parse("python:3.12-alpine"))
                 .withCommand("python", "-m", "http.server", String.valueOf(HTTP_PORT), "--directory", "/data")
                 .withExposedPorts(HTTP_PORT)
-                .withCopyFileToContainer(
-                        MountableFile.forHostPath(
-                                validWrapsProvingKeyPath.toAbsolutePath().toString()),
-                        "/data/wraps-proving-key.tar.gz")
-                .waitingFor(Wait.forHttp("/wraps-proving-key.tar.gz")
-                        .forPort(HTTP_PORT)
-                        .withStartupTimeout(Duration.ofSeconds(60)));
+                .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(60)));
         httpContainer.start();
         log.info(
                 "HTTP server container started at {}:{}",
@@ -93,15 +79,6 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
         final String downloadUrl = "http://" + httpContainer.getHost() + ":" + httpContainer.getMappedPort(HTTP_PORT)
                 + "/wraps-proving-key.tar.gz";
         log.info("Download URL: {}", downloadUrl);
-
-        // Copy the invalid proving key file to each node's config directory
-        testLifecycle.doAdhoc(doingContextual(spec -> {
-            for (final var node : spec.getNetworkNodes()) {
-                final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
-                WorkingDirUtils.copyUnchecked(
-                        Paths.get(INVALID_WRAPS_PROVING_KEY), configDir.resolve("invalid-wraps-proving-key.tar.gz"));
-            }
-        }));
 
         testLifecycle.overrideInClass(Map.of(
                 "tss.hintsEnabled", "true",
@@ -124,22 +101,39 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
         final AtomicReference<String> persistedHash = new AtomicReference<>();
 
         return hapiTest(
+                // Seed the container lazily so paths resolve after the framework sets the working dir
+                doingContextual(spec -> {
+                    final var validWrapsProvingKeyPath = Paths.get(VALID_WRAPS_PROVING_KEY);
+                    try {
+                        validProvingKeyHash =
+                                Bytes.wrap(sha384DigestOrThrow().digest(Files.readAllBytes(validWrapsProvingKeyPath)));
+                    } catch (final IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    log.info("Valid proving key hash: {}", validProvingKeyHash);
+                    httpContainer.copyFileToContainer(
+                            MountableFile.forHostPath(
+                                    validWrapsProvingKeyPath.toAbsolutePath().toString()),
+                            "/data/wraps-proving-key.tar.gz");
+                    log.info("Copied proving key to container");
+                }),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of(
+                // Requires lazy execution due to the container copy op
+                sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
                         "data/config/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
-                        validProvingKeyHash.toHex())),
+                        validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(30))
+                                Duration.ofSeconds(5))
                         .exposingMatchGroupTo(1, downloadedHash),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(10))
+                                Duration.ofSeconds(5))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> {
                     assertEquals(
@@ -161,11 +155,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
 
         return hapiTest(
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of(
+                // Requires lazy execution due to the container copy op
+                sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
                         "data/config/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
-                        validProvingKeyHash.toHex())),
+                        validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
@@ -185,11 +180,19 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
 
         return hapiTest(
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of(
+                doingContextual(spec -> {
+                    for (final var node : spec.getNetworkNodes()) {
+                        final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
+                        WorkingDirUtils.copyUnchecked(
+                                Paths.get(INVALID_WRAPS_PROVING_KEY),
+                                configDir.resolve("invalid-wraps-proving-key.tar.gz"));
+                    }
+                }),
+                sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
                         "data/config/invalid-wraps-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
-                        validProvingKeyHash.toHex())),
+                        validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
@@ -198,7 +201,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(30))
+                                Duration.ofSeconds(5))
                         .exposingMatchGroupTo(1, downloadedHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
