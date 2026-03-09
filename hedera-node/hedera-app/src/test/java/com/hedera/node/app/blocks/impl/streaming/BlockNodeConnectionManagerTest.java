@@ -123,7 +123,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                             RetrieveBlockNodeStatusTask.class, "svcConnection", BlockNodeServiceConnection.class);
 
             final Method closeAllConnections =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections");
+                    BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections", boolean.class);
             closeAllConnections.setAccessible(true);
             closeAllConnectionsHandle = lookup.unreflect(closeAllConnections);
 
@@ -1893,7 +1893,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testCloseAllConnections_withException() {
         final BlockNodeStreamingConnection conn = mock(BlockNodeStreamingConnection.class);
-        doThrow(new RuntimeException("Close failed")).when(conn).close(true);
+        doThrow(new RuntimeException("Close failed")).when(conn).close();
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
         // Should not throw - exceptions are caught and logged
@@ -3109,7 +3109,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private void invoke_closeAllConnections() {
         try {
-            closeAllConnectionsHandle.invoke(connectionManager);
+            closeAllConnectionsHandle.invoke(connectionManager, false);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
