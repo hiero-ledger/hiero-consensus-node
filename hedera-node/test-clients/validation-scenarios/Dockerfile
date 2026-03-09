@@ -12,7 +12,7 @@ RUN apt-get update \
     && locale-gen en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_VERSION jdk-17.0.5+8
+ENV JAVA_VERSION jdk-25.0.2+10
 
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
