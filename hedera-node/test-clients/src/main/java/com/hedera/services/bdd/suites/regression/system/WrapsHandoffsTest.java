@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Tag;
 public class WrapsHandoffsTest implements LifecycleTest {
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final String INCREMENTAL_WRAPS_PROOF_STARTED = "Constructing incremental WRAPS proof";
+    private static final String INCREMENTAL_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing incremental WRAPS proof";
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(16);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
@@ -73,6 +74,13 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                 byNodeId(0),
                                 INCREMENTAL_WRAPS_PROOF_STARTED,
                                 STAKE_PERIOD_DURATION,
+                                LOG_POLL_INTERVAL,
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff(),
+                untilHgcaaLogContainsText(
+                                byNodeId(0),
+                                INCREMENTAL_WRAPS_PROOF_CONSTRUCTED,
+                                WRAPS_PROOF_TIMEOUT.plus(WRAPS_PROOF_TIMEOUT),
                                 LOG_POLL_INTERVAL,
                                 () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
                         .loggingOff());

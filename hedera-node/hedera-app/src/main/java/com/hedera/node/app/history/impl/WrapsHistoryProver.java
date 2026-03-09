@@ -613,7 +613,15 @@ public class WrapsHistoryProver implements HistoryProver {
                                 throw new IllegalStateException("Invalid aggregate signature using nodes " + signers);
                             }
                             final long now = System.nanoTime();
-                            log.info("Constructing incremental WRAPS proof...");
+                            log.info(
+                                    "Constructing incremental WRAPS proof w/\n  {}\n  {}\n  {}\n  {}\n  {}\n  {}\n  {}\n",
+                                    ledgerId,
+                                    sourceBook,
+                                    noThrowSha384HashOf(sourceProof.uncompressedWrapsProof()),
+                                    targetMetadata,
+                                    Bytes.wrap(signature),
+                                    signers,
+                                    targetBook);
                             final var proof = historyLibrary.constructIncrementalWrapsProof(
                                     requireNonNull(ledgerId).toByteArray(),
                                     sourceProof.uncompressedWrapsProof().toByteArray(),

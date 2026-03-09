@@ -1042,13 +1042,15 @@ public class HandleWorkflow {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
-                        // And set the ledger id
-                        final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
-                        historyStore.setLedgerId(ledgerId);
-                        logger.info("Set ledger id to '{}'", ledgerId);
-                        // Record its context for later externalization
-                        setLedgerIdContext.set(
-                                new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+                        // And set the ledger id if needed
+                        if (historyStore.getLedgerId() == null) {
+                            final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                            historyStore.setLedgerId(ledgerId);
+                            logger.info("Set ledger id to '{}'", ledgerId);
+                            // Record its context for later externalization
+                            setLedgerIdContext.set(
+                                    new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+                        }
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time

@@ -131,7 +131,7 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        votes.forEach((nodeId, historyProofVote) -> this.votes.put(nodeId, new ExplicitProofVote(historyProofVote)));
+        votes.forEach(this::incorporateVote);
         if (!construction.hasTargetProof()) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
@@ -274,14 +274,7 @@ public class ProofControllerImpl implements ProofController {
                             : "adequate with WRAPS disabled");
             return;
         }
-        if (vote.hasProof()) {
-            votes.put(nodeId, new ExplicitProofVote(vote));
-        } else if (vote.hasCongruentNodeId()) {
-            final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
-            if (congruentVote != null) {
-                votes.put(nodeId, congruentVote);
-            }
-        }
+        incorporateVote(nodeId, vote);
         historyStore.addProofVote(nodeId, construction.constructionId(), vote);
         final var proofWeights = votes.entrySet().stream()
                 .collect(groupingBy(
@@ -291,6 +284,7 @@ public class ProofControllerImpl implements ProofController {
                 proofWeights.values(),
                 construction.constructionId());
         final var maybeWinningTag = proofWeights.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
@@ -324,6 +318,23 @@ public class ProofControllerImpl implements ProofController {
             log.info(sb.toString());
         }
         historyProofMetrics.forgetConstruction(constructionId());
+    }
+
+    /**
+     * Incorporates the given vote into the in-memory state of this controller; used to determine when a particular
+     * proof has enough votes to be completed.
+     * @param nodeId the ID of the node that cast the vote
+     * @param vote the vote to incorporate
+     */
+    private void incorporateVote(final long nodeId, @NonNull final HistoryProofVote vote) {
+        if (vote.hasProof()) {
+            votes.put(nodeId, new ExplicitProofVote(vote));
+        } else if (vote.hasCongruentNodeId()) {
+            final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
+            if (congruentVote != null) {
+                votes.put(nodeId, congruentVote);
+            }
+        }
     }
 
     /**
