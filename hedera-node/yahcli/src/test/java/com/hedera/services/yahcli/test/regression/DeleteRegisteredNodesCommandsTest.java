@@ -247,18 +247,16 @@ public class DeleteRegisteredNodesCommandsTest {
                                         Long.toString(rnId.get()))
                                 .exposingOutputTo(newNodeCapturer(dabNodeId::set))),
                         // Attempt to delete while still referenced — must fail
-                        sourcingContextual(spec2 -> yahcliRegisteredNodes(
-                                        "delete", "-n", Long.toString(rnId.get()))
+                        sourcingContextual(spec2 -> yahcliRegisteredNodes("delete", "-n", Long.toString(rnId.get()))
                                 .expectFail()
-                                .exposingOutputTo(output -> assertTrue(
-                                        output.contains("FAILED to delete registeredNode" + rnId.get())))),
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("FAILED to delete registeredNode" + rnId.get())))),
                         // Delete the DAB node first to clear the association
                         sourcingContextual(spec3 -> yahcliNodes("delete", "-n", Long.toString(dabNodeId.get()))
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + dabNodeId.get() + " has been deleted")))),
                         // Now the registered node can be deleted
-                        sourcingContextual(spec4 -> yahcliRegisteredNodes(
-                                        "delete", "-n", Long.toString(rnId.get()))
+                        sourcingContextual(spec4 -> yahcliRegisteredNodes("delete", "-n", Long.toString(rnId.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("registeredNode" + rnId.get() + " has been deleted")))))));
     }

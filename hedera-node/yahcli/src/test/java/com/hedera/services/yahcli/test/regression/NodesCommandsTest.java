@@ -214,8 +214,8 @@ public class NodesCommandsTest {
                                         Long.toString(registeredNodeId.get()))
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set))),
                         sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
-                                .exposingOutputTo(output -> assertTrue(
-                                        output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
                         sourcingContextual(
                                 spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
                                         .exposingOutputTo(output -> assertTrue(output.contains(
@@ -275,8 +275,8 @@ public class NodesCommandsTest {
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
                         sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
-                                .exposingOutputTo(output -> assertTrue(
-                                        output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
                         sourcingContextual(
                                 spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
                                         .exposingOutputTo(output -> assertTrue(output.contains(
