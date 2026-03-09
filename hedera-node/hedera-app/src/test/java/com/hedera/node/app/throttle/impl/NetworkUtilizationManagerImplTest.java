@@ -81,10 +81,10 @@ class NetworkUtilizationManagerImplTest {
 
     @Test
     void delegatesHighVolumeThrottleUtilization() {
-        given(throttleAccumulator.getHighVolumeThrottleInstantaneousUtilization(CRYPTO_TRANSFER))
+        given(throttleAccumulator.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow))
                 .willReturn(7_500);
 
         assertEquals(7_500, subject.highVolumeThrottleUtilization(CRYPTO_TRANSFER, consensusNow));
-        verify(throttleAccumulator).getHighVolumeThrottleInstantaneousUtilization(CRYPTO_TRANSFER);
+        verify(throttleAccumulator).getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow);
     }
 }

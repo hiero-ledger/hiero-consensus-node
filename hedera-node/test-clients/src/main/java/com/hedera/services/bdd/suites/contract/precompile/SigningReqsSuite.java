@@ -50,7 +50,6 @@ public class SigningReqsSuite {
     private static final long DEFAULT_AMOUNT_TO_SEND = 20 * ONE_HBAR;
     private static final String MINIMAL_CREATIONS_CONTRACT = "MinimalTokenCreations";
 
-    private static final String LEGACY_ACTIVATIONS_PROP = "contracts.keys.legacyActivations";
     public static final String AUTO_RENEW = "autoRenew";
     public static final int GAS_TO_OFFER = 1_000_000;
 

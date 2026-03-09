@@ -21,10 +21,10 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
@@ -429,7 +429,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
         final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
-        return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
+        return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
                 bodyToDispatch,

@@ -31,8 +31,8 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -299,7 +299,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
         when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusInstant,
                 txnInfo,
                 payerKey,
@@ -344,7 +344,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
         when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusInstant,
                 txnInfo,
                 payerKey,

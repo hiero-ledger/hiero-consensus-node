@@ -336,7 +336,8 @@ public class AddressBookTestBase {
                 deleted,
                 key,
                 false,
-                null);
+                null,
+                List.of());
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {
@@ -352,7 +353,8 @@ public class AddressBookTestBase {
                 false,
                 adminKey,
                 false,
-                null);
+                null,
+                List.of());
     }
 
     protected Node createNode() {

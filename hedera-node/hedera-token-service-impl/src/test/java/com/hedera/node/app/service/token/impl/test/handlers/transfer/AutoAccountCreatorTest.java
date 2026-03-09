@@ -51,7 +51,7 @@ class AutoAccountCreatorTest extends StepsBase {
         given(handleContext.configuration()).willReturn(configOverride);
         transferContext = new TransferContextImpl(handleContext);
         final var aliasBytes = alias.alias();
-        assertThatThrownBy(() -> subject.create(aliasBytes, 0))
+        assertThatThrownBy(() -> subject.create(aliasBytes, 0, false))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
     }
@@ -81,7 +81,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(ecKeyAlias)).isNull();
 
-        subject.create(ecKeyAlias.value(), 0);
+        subject.create(ecKeyAlias.value(), 0, false);
 
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);
@@ -114,7 +114,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(edKeyAlias)).isNull();
 
-        subject.create(edKeyAlias.value(), 0);
+        subject.create(edKeyAlias.value(), 0, false);
 
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);
@@ -149,7 +149,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(address)).isNull();
 
-        subject.create(address.value(), 0);
+        subject.create(address.value(), 0, false);
 
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);

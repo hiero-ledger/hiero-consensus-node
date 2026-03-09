@@ -6,6 +6,7 @@ import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
@@ -180,6 +181,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
         this.genesisNetwork = network;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
+        this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
 
     /**
@@ -675,6 +677,23 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         } else {
             log.info("No bootstrap property overrides for node {}", nodeId);
+        }
+    }
+
+    /**
+     * Appends platform settings overrides to the {@code settings.txt} in the node's working directory.
+     * These overrides only affect HAPI test subprocess nodes, not the shared dev configuration.
+     */
+    private static void configurePlatformSettings(@NonNull final HederaNode node) {
+        final var settingsPath = node.getExternalPath(WORKING_DIR).resolve("settings.txt");
+        try {
+            Files.writeString(
+                    settingsPath,
+                    System.lineSeparator() + "platformStatus.observingStatusDelay,             0s"
+                            + System.lineSeparator(),
+                    StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

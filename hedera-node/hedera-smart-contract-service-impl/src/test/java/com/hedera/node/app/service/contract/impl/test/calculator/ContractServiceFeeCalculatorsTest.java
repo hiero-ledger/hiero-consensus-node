@@ -30,7 +30,7 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -243,6 +243,16 @@ public class ContractServiceFeeCalculatorsTest {
     }
 
     @Test
+    void testContractCallLocalWithGasExtra() {
+        final var query = Query.newBuilder()
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(12L))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        assertThat(result.totalTinycents()).isEqualTo(570);
+    }
+
+    @Test
     void testContractGetBytecode() {
         final var contractId = ContractID.newBuilder().contractNum(12333).build();
         final var contractStoreMock = mock(ContractStateStore.class);
@@ -280,7 +290,8 @@ public class ContractServiceFeeCalculatorsTest {
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
                         makeExtraDef(Extra.STATE_BYTES, 10),
-                        makeExtraDef(Extra.HOOK_UPDATES, 20000000))
+                        makeExtraDef(Extra.HOOK_UPDATES, 20000000),
+                        makeExtraDef(Extra.GAS, 3))
                 .services(makeService(
                         "ContractService",
                         makeServiceFee(
@@ -298,7 +309,7 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_DELETE, 69000000),
                         makeServiceFee(ETHEREUM_TRANSACTION, 0),
-                        makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555),
+                        makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555, makeExtraIncluded(Extra.GAS, 7)),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_BYTECODE, 666),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_INFO, 777)))
                 .build();

@@ -7,7 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -26,20 +26,22 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
@@ -103,18 +105,19 @@ public class ConsensusNodeManager {
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
+                new ToFilePrometheusExporter(selfId, platformConfig)::handleSnapshots);
 
         final PlatformContext platformContext =
-                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), platformConfig);
+                PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
+        final StateLifecycleManager stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> createGenesisState(platformConfig, metrics, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
@@ -122,6 +125,9 @@ public class ConsensusNodeManager {
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();
+        if (initialState.get().isGenesisState()) {
+            initGenesisState(state, activeRoster, version, otterApp.allServices());
+        }
 
         // Set active the roster
         final ReadablePlatformStateStore store =

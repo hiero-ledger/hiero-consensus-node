@@ -15,6 +15,9 @@ public enum ExternalPath {
     LOG4J2_XML,
     RECORD_STREAMS_DIR,
     BLOCK_STREAMS_DIR,
+    /** Parent {@code blockStreams/} dir; use to scan across all {@code block-X.Y.Z} account-ID subdirectories. */
+    BLOCK_STREAMS_PARENT_DIR,
+    WRAPPED_RECORD_HASHES_FILE,
     DATA_CONFIG_DIR,
     UPGRADE_ARTIFACTS_DIR,
     SAVED_STATES_DIR,

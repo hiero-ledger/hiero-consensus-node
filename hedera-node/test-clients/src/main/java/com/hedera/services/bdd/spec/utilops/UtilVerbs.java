@@ -92,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -133,6 +134,7 @@ import com.hedera.services.bdd.spec.utilops.checks.VerifyGetLiveHashNotSupported
 import com.hedera.services.bdd.spec.utilops.checks.VerifyUserFreezeNotAuthorized;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.grouping.GroupedOps;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
@@ -173,7 +175,10 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsA
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -762,6 +767,33 @@ public class UtilVerbs {
 
     public static BuildUpgradeZipOp buildUpgradeZipFrom(@NonNull final Path path) {
         return new BuildUpgradeZipOp(path);
+    }
+
+    public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
+            @NonNull final AtomicReference<byte[]> contentsRef) {
+        return new BuildDynamicJumpstartFileOp(contentsRef);
+    }
+
+    public static GetWrappedRecordHashesOp getWrappedRecordHashes(
+            @NonNull final AtomicReference<List<WrappedRecordFileBlockHashes>> entriesRef) {
+        return new GetWrappedRecordHashesOp(entriesRef);
+    }
+
+    /**
+     * Verifies the node's jumpstart hash computation via three-way comparison:
+     * file entries, .rcd replay, and the node's logged hash.
+     *
+     * @param jumpstartContents raw bytes of the jumpstart file
+     * @param wrappedHashes     per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash  the hash the node logged during migration
+     * @param freezeBlockNum    the last block the migration processed
+     */
+    public static VerifyJumpstartHashOp verifyJumpstartHash(
+            @NonNull final byte[] jumpstartContents,
+            @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
+            @NonNull final String nodeComputedHash,
+            @NonNull final String freezeBlockNum) {
+        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -2158,6 +2190,25 @@ public class UtilVerbs {
         });
     }
 
+    public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
+            @NonNull final String accountName, @NonNull final LongConsumer cb) {
+        requireNonNull(accountName);
+        requireNonNull(cb);
+        return new ViewAccountOp(accountName, account -> cb.accept(account.numberEvmHookStorageSlots()));
+    }
+
+    public static SpecOperation assertOwnerHasEvmHookSlotUsageChange(
+            @NonNull final String accountName, @NonNull final AtomicLong origCount, final int delta) {
+        requireNonNull(accountName);
+        requireNonNull(origCount);
+        return sourcing(() -> new ViewAccountOp(
+                accountName,
+                account -> assertEquals(
+                        origCount.get() + delta,
+                        account.numberEvmHookStorageSlots(),
+                        "Wrong # of EVM hook storage slots for '" + accountName + "'")));
+    }
+
     @FunctionalInterface
     public interface OpsProvider {
         List<SpecOperation> provide();
@@ -3017,7 +3068,7 @@ public class UtilVerbs {
         return rcd.getTransactionFee();
     }
 
-    private static double getChargedUsedForInnerTxn(
+    public static double getChargedUsedForInnerTxn(
             @NonNull final HapiSpec spec, @NonNull final String parent, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);

@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
@@ -45,9 +46,16 @@ public class ProofControllerImpl implements ProofController {
 
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
+    private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
+    private final HistoryProver.Factory proverFactory;
+    private final HistoryProofMetrics historyProofMetrics;
+
+    @Nullable
+    private final HistoryProof sourceProof;
+
     private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
 
@@ -83,6 +91,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistoryProver.Factory proverFactory,
             @Nullable final HistoryProof sourceProof,
+            @NonNull final HistoryProofMetrics historyProofMetrics,
             @NonNull final TssConfig tssConfig) {
         requireNonNull(machine);
         requireNonNull(tssConfig);
@@ -91,6 +100,10 @@ public class ProofControllerImpl implements ProofController {
         this.submissions = requireNonNull(submissions);
         this.weights = requireNonNull(weights);
         this.construction = requireNonNull(construction);
+        this.proverFactory = requireNonNull(proverFactory);
+        this.sourceProof = sourceProof;
+        this.historyProofMetrics = requireNonNull(historyProofMetrics);
+        this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.votes.putAll(requireNonNull(votes));
@@ -103,21 +116,7 @@ public class ProofControllerImpl implements ProofController {
                     maybeUpdateForProofKey(publication);
                 }
             });
-            // At genesis there is no source proof, so we verify signatures with the target proof keys of
-            // the current construction; in the recursive case we use the target keys from the source proof
-            final var sourceProofKeys = sourceProof == null
-                    ? targetProofKeys
-                    : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
-            this.prover = proverFactory.create(
-                    selfId,
-                    tssConfig,
-                    schnorrKeyPair,
-                    sourceProof,
-                    weights,
-                    sourceProofKeys,
-                    executor,
-                    historyLibrary,
-                    submissions);
+            this.prover = createProver(tssConfig);
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
         }
@@ -147,43 +146,55 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
-        if (!isStillInProgress(tssConfig)) {
-            return;
-        }
-        // Still waiting for the hinTS verification key
-        if (metadata == null) {
-            if (isActive) {
-                ensureProofKeyPublished();
+        historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
+        try {
+            if (construction.hasFailureReason()) {
+                if (!retryIfRecoverableFailure(construction.failureReasonOrThrow(), historyStore, tssConfig)) {
+                    return;
+                }
             }
-            return;
-        }
-        // Have the hinTS verification key, but not yet assembling the history
-        // or computing the WRAPS proof (genesis or incremental)
-        if (!construction.hasTargetProof()
-                && !construction.hasAssemblyStartTime()
-                && !construction.hasWrapsSigningState()) {
-            if (shouldAssemble(now)) {
-                log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
-                construction = historyStore.setAssemblyTime(construction.constructionId(), now);
-            } else if (isActive) {
-                ensureProofKeyPublished();
+            if (!isStillInProgress(tssConfig)) {
+                return;
             }
-            return;
-        }
-        // Cannot make progress on anything without an active network
-        if (!isActive) {
-            return;
-        }
-        final var outcome = requireNonNull(prover)
-                .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
-        switch (outcome) {
-            case HistoryProver.Outcome.InProgress ignored ->
-                construction = historyStore.getConstructionOrThrow(constructionId());
-            case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof());
-            case HistoryProver.Outcome.Failed failed -> {
-                log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
-                historyStore.failForReason(constructionId(), failed.reason());
+            // Still waiting for the hinTS verification key
+            if (metadata == null) {
+                if (isActive) {
+                    ensureProofKeyPublished();
+                }
+                return;
             }
+            // Have the hinTS verification key, but not yet assembling the history
+            // or computing the WRAPS proof (genesis or incremental)
+            if (!construction.hasTargetProof()
+                    && !construction.hasAssemblyStartTime()
+                    && !construction.hasWrapsSigningState()) {
+                if (shouldAssemble(now)) {
+                    log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
+                    construction = historyStore.setAssemblyTime(construction.constructionId(), now);
+                } else if (isActive) {
+                    ensureProofKeyPublished();
+                }
+                return;
+            }
+            // Cannot make progress on anything without an active network
+            if (!isActive) {
+                return;
+            }
+            final var outcome = requireNonNull(prover)
+                    .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
+            switch (outcome) {
+                case HistoryProver.Outcome.InProgress ignored ->
+                    construction = historyStore.getConstructionOrThrow(constructionId());
+                case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof(), now);
+                case HistoryProver.Outcome.Failed failed -> {
+                    if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
+                        log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
+                        construction = historyStore.failForReason(constructionId(), failed.reason());
+                    }
+                }
+            }
+        } finally {
+            historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
         }
     }
 
@@ -211,8 +222,12 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public void addProofVote(
-            final long nodeId, @NonNull final HistoryProofVote vote, @NonNull final WritableHistoryStore historyStore) {
+            final long nodeId,
+            @NonNull final HistoryProofVote vote,
+            @NonNull final Instant now,
+            @NonNull final WritableHistoryStore historyStore) {
         requireNonNull(vote);
+        requireNonNull(now);
         requireNonNull(historyStore);
         if (construction.hasTargetProof() || votes.containsKey(nodeId)) {
             return;
@@ -234,7 +249,7 @@ public class ProofControllerImpl implements ProofController {
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
-        maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof));
+        maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof, now));
         // Let our prover know about the vote to optimize its choice of explicit or congruent voting
         requireNonNull(prover).observeProofVote(nodeId, vote, maybeWinningProof.isPresent());
     }
@@ -255,21 +270,71 @@ public class ProofControllerImpl implements ProofController {
         if (canceledSomething) {
             log.info(sb.toString());
         }
+        historyProofMetrics.forgetConstruction(constructionId());
     }
 
     /**
      * Finishes the active construction, commits its proof to state, and notifies the history service.
      * @param historyStore the writable history store
      * @param proof the proof
+     * @param now the current consensus time
      */
-    private void finishProof(@NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProof proof) {
+    private void finishProof(
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final HistoryProof proof,
+            @NonNull final Instant now) {
         construction = historyStore.completeProof(construction.constructionId(), proof);
+        historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
+        historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
         log.info(
                 "{} (#{}, WRAPS-extensible? {})",
                 PROOF_COMPLETE_MSG,
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
+    }
+
+    /**
+     * If the given failure reason is recoverable and retry budget remains, restarts WRAPS signing for this
+     * construction and reinitializes in-memory prover state.
+     *
+     * @param reason the failure reason
+     * @param historyStore the writable history store
+     * @param tssConfig the TSS configuration
+     * @return whether a retry was started
+     */
+    private boolean retryIfRecoverableFailure(
+            @NonNull final String reason,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final TssConfig tssConfig) {
+        requireNonNull(reason);
+        requireNonNull(historyStore);
+        requireNonNull(tssConfig);
+        if (!WrapsHistoryProver.isRecoverableFailure(reason)) {
+            return false;
+        }
+        final int maxWrapsRetries = tssConfig.maxWrapsRetries();
+        if (construction.wrapsRetryCount() >= maxWrapsRetries) {
+            log.warn(
+                    "Construction #{} exhausted WRAPS retry budget ({}) after recoverable failure '{}'",
+                    constructionId(),
+                    maxWrapsRetries,
+                    reason);
+            return false;
+        }
+        if (prover != null) {
+            prover.cancelPendingWork();
+        }
+        construction = historyStore.restartWrapsSigning(constructionId(), weights.sourceNodeIds());
+        historyProofMetrics.recordRetryStarted();
+        prover = createProver(tssConfig);
+        log.warn(
+                "Restarted WRAPS signing for construction #{} (retry {}/{}) after recoverable failure '{}'",
+                constructionId(),
+                construction.wrapsRetryCount(),
+                maxWrapsRetries,
+                reason);
+        return true;
     }
 
     /**
@@ -329,5 +394,44 @@ public class ProofControllerImpl implements ProofController {
         return targetProofKeys.keySet().stream()
                 .mapToLong(weights::targetWeightOf)
                 .sum();
+    }
+
+    private HistoryProver createProver(@NonNull final TssConfig tssConfig) {
+        final Map<Long, Bytes> sourceProofKeys = sourceProof == null
+                ? targetProofKeys
+                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
+        return proverFactory.create(
+                selfId,
+                tssConfig,
+                schnorrKeyPair,
+                sourceProof,
+                weights,
+                sourceProofKeys,
+                executor,
+                historyLibrary,
+                submissions);
+    }
+
+    private HistoryProofMetrics.Stage currentStage(@Nullable final Bytes metadata) {
+        if (construction.hasTargetProof()) {
+            return HistoryProofMetrics.Stage.COMPLETED;
+        }
+        if (construction.hasFailureReason()) {
+            return HistoryProofMetrics.Stage.FAILED;
+        }
+        if (metadata == null) {
+            return HistoryProofMetrics.Stage.WAITING_FOR_METADATA;
+        }
+        if (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState()) {
+            return HistoryProofMetrics.Stage.WAITING_FOR_ASSEMBLY;
+        }
+        final var phase =
+                construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase();
+        return switch (phase) {
+            case R1 -> HistoryProofMetrics.Stage.WRAPS_R1;
+            case R2 -> HistoryProofMetrics.Stage.WRAPS_R2;
+            case R3 -> HistoryProofMetrics.Stage.WRAPS_R3;
+            case AGGREGATE, POST_AGGREGATION, UNRECOGNIZED -> HistoryProofMetrics.Stage.WRAPS_AGGREGATE;
+        };
     }
 }

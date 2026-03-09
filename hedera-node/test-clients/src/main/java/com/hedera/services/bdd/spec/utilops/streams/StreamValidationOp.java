@@ -3,7 +3,7 @@ package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -29,6 +29,7 @@ import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
+import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -66,6 +67,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private final List<RecordStreamValidator> recordStreamValidators;
+    private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
+            new WrappedRecordHashesByRecordFilesValidator();
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
@@ -123,6 +126,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             dataRef.set(data);
                         },
                         () -> Assertions.fail("No record stream data found"));
+
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
@@ -172,14 +176,26 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         () -> Assertions.fail("No block streams found"));
         validateProofs(spec);
 
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+        }
+
         return false;
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         List<Block> blocks = null;
         final var blockPaths = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
+                .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
+                .distinct()
                 .toList();
         for (final var path : blockPaths) {
             try {
@@ -224,8 +240,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                // Get all marker file numbers
-                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                final var path = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
                 final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
                 final var nodeId = node.getNodeId();

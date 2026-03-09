@@ -71,9 +71,3 @@ timingSensitiveModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.junit.jupiter.api")
 }
-
-tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
-    // runtimeClasspath currently re-introduces this module via a transitive cycle
-    // (through consensus-reconnect-impl), which can duplicate classes already in main output.
-    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
-}

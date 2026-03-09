@@ -10,21 +10,25 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileAppendFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileDeleteFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -38,6 +42,9 @@ class AtomicFileServiceFeesSuite {
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
     private static final double BASE_FEE_FILE_CREATE = 0.05;
+    private static final double BASE_FEE_FILE_UPDATE = 0.05;
+    private static final double BASE_FEE_FILE_DELETE = 0.007;
+    private static final double BASE_FEE_FILE_APPEND = 0.05;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -61,14 +68,21 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, log) -> allRunFor(
-                        spec,
-                        validateInnerTxnFees(
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
                                 "fileCreateBasic",
                                 ATOMIC_BATCH,
-                                BASE_FEE_FILE_CREATE,
-                                FILE_CREATE_BASE_FEE + expectedFeeFromBytesFor(spec, log, "fileCreateBasic"),
-                                5.0))));
+                                txnSize -> expectedFileCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0);
+                    } else {
+                        return validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -90,14 +104,21 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, log) -> allRunFor(
-                        spec,
-                        validateInnerTxnFees(
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
                                 "fileUpdateBasic",
                                 ATOMIC_BATCH,
-                                0.05,
-                                FILE_APPEND_BASE_FEE + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
-                                3))));
+                                txnSize -> expectedFileCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0);
+                    } else {
+                        return validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -117,7 +138,18 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnFees("fileDeleteBasic", ATOMIC_BATCH, 0.00701, FILE_DELETE_BASE_FEE));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "fileDeleteBasic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedFileDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                1.0);
+                    } else {
+                        return validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10);
+                    }
+                }));
     }
 
     @HapiTest
@@ -150,13 +182,19 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, log) -> allRunFor(
-                        spec,
-                        validateInnerTxnFees(
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
                                 baseAppend,
                                 ATOMIC_BATCH,
-                                FILE_APPEND_BASE_FEE,
-                                FILE_APPEND_BASE_FEE + expectedFeeFromBytesFor(spec, log, baseAppend),
-                                5.0))));
+                                txnSize -> expectedFileAppendFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0);
+                    } else {
+                        return validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5);
+                    }
+                }));
     }
 }

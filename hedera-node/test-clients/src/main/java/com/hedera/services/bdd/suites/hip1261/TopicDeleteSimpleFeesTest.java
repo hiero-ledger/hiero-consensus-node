@@ -54,6 +54,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Isolated;
 
 /**
  * Tests for TopicDelete simple fees.
@@ -63,6 +64,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
+@Isolated
 public class TopicDeleteSimpleFeesTest {
 
     private static final String PAYER = "payer";

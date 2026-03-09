@@ -38,11 +38,6 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        delegate.initCurrentRoster(roster);
-    }
-
-    @Override
     public @NonNull Bytes activeVerificationKeyOrThrow() {
         return delegate.activeVerificationKeyOrThrow();
     }

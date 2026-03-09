@@ -48,10 +48,10 @@ public interface InlinePcesWriter {
     void updateNonAncientEventBoundary(@NonNull EventWindow nonAncientBoundary);
 
     /**
-     * Set the minimum ancient indicator needed to be kept on disk.
+     * Set the minimum birth round needed to be kept on disk.
      *
-     * @param minimumAncientIdentifierToStore the minimum ancient indicator required to be stored on disk
+     * @param minimumBirthRoundToStore the minimum birth round required to be stored on disk
      */
     @InputWireLabel("minimum identifier to store")
-    void setMinimumAncientIdentifierToStore(@NonNull Long minimumAncientIdentifierToStore);
+    void setMinimumBirthRoundToStore(@NonNull Long minimumBirthRoundToStore);
 }

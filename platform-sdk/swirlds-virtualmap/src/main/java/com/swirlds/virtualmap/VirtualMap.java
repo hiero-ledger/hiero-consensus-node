@@ -4,6 +4,7 @@ package com.swirlds.virtualmap;
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
@@ -15,11 +16,13 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -39,6 +42,7 @@ import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.internal.hash.FullLeafRehashHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -48,6 +52,7 @@ import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
@@ -64,6 +69,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -72,8 +78,8 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
@@ -140,8 +146,12 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@ConstructableIgnored
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
+
+    /**
+     * The number of elements to have in the buffer used during rehashing on start.
+     */
+    private static final int MAX_REHASHING_BUFFER_SIZE = 10_000_000;
 
     private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
@@ -455,6 +465,132 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         pipeline.registerCopy(this);
     }
 
+    /**
+     * Performs a full rehash of all persisted leaves in the map if the leaf hash bytes
+     * were calculated differently (e.g. due to a change in bytes to hash).
+     * <p>
+     * To detect a difference, this method loads the stored hash of the leaf at
+     * {@code firstLeafPath}, recalculates the current hash for that leaf, and compares
+     * the two values.
+     * <p>
+     * If the hashes differ, the method iterates over every leaf node directly from disk
+     * and rehashes them.
+     * <p>
+     * The main difference from {@link #computeHash()} is that {@code computeHash()}
+     * only updates hashes for dirty leaves that are already in the in-memory cache,
+     * whereas this method always rehashes every leaf from persistent storage. Because
+     * the number of leaves is very large, this method is deliberately designed to never
+     * load all leaves into memory at once (unlike {@code computeHash()}, which can
+     * safely ignore memory consumption since the cache is already resident).
+     */
+    public void fullLeafRehashIfNecessary() {
+        requireNonNull(records, "Records must be initialized before rehashing");
+
+        // getting a range that is relevant for the data source
+        final long firstLeafPath = dataSource.getFirstLeafPath();
+        final long lastLeafPath = dataSource.getLastLeafPath();
+
+        assert firstLeafPath == metadata.getFirstLeafPath();
+        assert lastLeafPath == metadata.getLastLeafPath();
+
+        final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
+                new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
+
+        if (firstLeafPath < 0 || lastLeafPath < 0) {
+            logger.info(STARTUP.getMarker(), "VirtualMap is empty, skipping full rehash.");
+            return;
+        }
+        try {
+            final Hash loadedHash = dataSource.loadHash(firstLeafPath);
+            final VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
+            if (virtualLeafBytes == null || loadedHash == null) {
+                logger.error(
+                        STARTUP.getMarker(),
+                        "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
+                        firstLeafPath);
+                return;
+            }
+            final WritableMessageDigest wmd = new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
+            virtualLeafBytes.writeToForHashing(wmd);
+            final Hash recaclulatedHash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            if (loadedHash.equals(recaclulatedHash)) {
+                logger.info(
+                        STARTUP.getMarker(),
+                        "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
+                return;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
+        final FullLeafRehashHashListener hashListener = new FullLeafRehashHashListener(
+                firstLeafPath,
+                lastLeafPath,
+                dataSource,
+                statistics,
+                // even though this listener has nothing to do with the reconnect, reconnect flush interval value
+                // is appropriate to use here.
+                virtualMapConfig.reconnectFlushInterval());
+
+        // This background thread will be responsible for hashing the tree and sending the
+        // data to the hash listener to flush.
+        final CompletableFuture<Hash> fullRehashFuture = CompletableFuture.supplyAsync(() -> hasher.hash(
+                        records::findHash, rehashIterator, firstLeafPath, lastLeafPath, hashListener, virtualMapConfig))
+                .exceptionally((exception) -> {
+                    // Shut down the iterator.
+                    rehashIterator.close();
+                    final var message = "Full rehash failed";
+                    logger.error(EXCEPTION.getMarker(), message, exception);
+                    throw new MerkleSynchronizationException(message, exception);
+                });
+
+        final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
+        final long start = System.currentTimeMillis();
+        try {
+            for (long i = firstLeafPath; i <= lastLeafPath; i++) {
+                try {
+                    final VirtualLeafBytes<?> leafBytes = dataSource.loadLeafRecord(i);
+                    assert leafBytes != null : "Leaf record should not be null";
+                    try {
+                        rehashIterator.supply(leafBytes);
+                    } catch (final MerkleSynchronizationException e) {
+                        throw e;
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new MerkleSynchronizationException(
+                                "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
+                    } catch (final Exception e) {
+                        throw new MerkleSynchronizationException("Failed to handle a leaf during full rehashing", e);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                if (i % onePercent == 0) {
+                    logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", (i - firstLeafPath) / onePercent + 1);
+                }
+            }
+        } finally {
+            rehashIterator.close();
+        }
+
+        try {
+            final long millisSpent = System.currentTimeMillis() - start;
+            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
+            setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
+        } catch (ExecutionException e) {
+            final var message = "Failed to get hash during full rehashing";
+            throw new MerkleSynchronizationException(message, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            final var message = "Interrupted while full rehashing";
+            throw new MerkleSynchronizationException(message, e);
+        } catch (TimeoutException e) {
+            final var message = "Wasn't able to finish full rehashing in time";
+            throw new MerkleSynchronizationException(message, e);
+        }
+    }
+
     @SuppressWarnings("ClassEscapesDefinedScope")
     public VirtualNodeCache getCache() {
         return cache;
@@ -579,11 +715,25 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
-            final VirtualLeafBytes<V> leaf = valueCodec != null
-                    ? new VirtualLeafBytes<>(path, key, value, valueCodec)
-                    : new VirtualLeafBytes<>(path, key, valueBytes);
-            cache.putLeaf(leaf);
+            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
+            // the data source, and the path above can be used as the old path
+            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
+            final VirtualLeafBytes<V> updated;
+            if (existing != null) {
+                updated = valueCodec != null
+                        ? existing.withValue(value, valueCodec)
+                        : existing.withValueBytes(valueBytes);
+            } else {
+                // There is a leaf with the given key (because path != INVALID_PATH), but it
+                // isn't in the cache, so it must be on disk. Loading the record from disk
+                // with records.findLeafRecord() would be expensive and actually not needed.
+                // The path and the key are known, it's enough to create a new record and
+                // mark it as not moved
+                updated = valueCodec != null
+                        ? new VirtualLeafBytes<>(path, false, key, value, valueCodec)
+                        : new VirtualLeafBytes<>(path, false, key, valueBytes);
+            }
+            cache.putLeaf(updated);
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
@@ -1101,11 +1251,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
-                new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPushVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
@@ -1198,13 +1350,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new LearnerPushVirtualTreeView(
-                        reconnectConfig,
-                        this,
-                        originalMap.records,
-                        originalState,
-                        reconnectState,
-                        nodeRemover,
-                        mapStats);
+                        this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
                 final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
                 yield new LearnerPullVirtualTreeView(
@@ -1227,6 +1373,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         reconnectState,
                         nodeRemover,
                         twoPhasePessimistic,
+                        mapStats);
+            }
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> {
+                final NodeTraversalOrder parallelSync = new ParallelSyncTraversalOrder();
+                yield new LearnerPullVirtualTreeView(
+                        reconnectConfig,
+                        this,
+                        originalMap.records,
+                        originalState,
+                        reconnectState,
+                        nodeRemover,
+                        parallelSync,
                         mapStats);
             }
             default ->
@@ -1485,7 +1643,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             @NonNull final Path snapshotPath,
             @NonNull final Configuration configuration,
             @NonNull Supplier<VirtualDataSourceBuilder> dataSourceBuilderSupplier) {
-        return new VirtualMap(dataSourceBuilderSupplier.get(), configuration, snapshotPath);
+        VirtualMap virtualMap = new VirtualMap(dataSourceBuilderSupplier.get(), configuration, snapshotPath);
+        virtualMap.fullLeafRehashIfNecessary();
+        return virtualMap;
     }
 
     /*

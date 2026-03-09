@@ -45,8 +45,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.node.app.blocks.BlockHashSigner;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
@@ -343,7 +343,7 @@ public final class IngestChecker {
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
-        final FeeContext feeContext = new FeeContextImpl(
+        final FeeContext feeContext = new IngestFeeContext(
                 consensusTime,
                 txInfo,
                 payerKey,

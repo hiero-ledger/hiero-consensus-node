@@ -17,8 +17,11 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
+import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -33,6 +36,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
@@ -127,6 +131,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.recordFileVersion", 6)
                 .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -138,7 +143,15 @@ final class BlockRecordManagerTest extends AppTestBase {
                         RUNNING_HASHES_STATE_ID, new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
                 .withSingletonState(
                         BLOCKS_STATE_ID,
-                        new BlockInfo(-1, EPOCH, STARTING_RUNNING_HASH_OBJ.hash(), null, false, EPOCH, EPOCH, EPOCH))
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .migrationRecordsStreamed(false)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .commit();
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
@@ -170,9 +183,9 @@ final class BlockRecordManagerTest extends AppTestBase {
             app.stateMutator(NAME)
                     .withSingletonState(
                             BLOCKS_STATE_ID,
-                            new BlockInfo(
-                                    STARTING_BLOCK - 1,
-                                    new Timestamp(
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(STARTING_BLOCK - 1)
+                                    .firstConsTimeOfLastBlock(new Timestamp(
                                             TEST_BLOCKS
                                                             .get(0)
                                                             .get(0)
@@ -180,13 +193,14 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                             .consensusTimestamp()
                                                             .seconds()
                                                     - 2,
-                                            0),
-                                    STARTING_RUNNING_HASH_OBJ.hash(),
-                                    CONSENSUS_TIME,
-                                    true,
-                                    FIRST_CONS_TIME_OF_LAST_BLOCK,
-                                    EPOCH,
-                                    EPOCH))
+                                            0))
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                                    .migrationRecordsStreamed(true)
+                                    .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .build())
                     .commit();
         }
 
@@ -195,6 +209,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 ? new StreamFileProducerConcurrent(
                         blockRecordFormat, blockRecordWriterFactory, ForkJoinPool.commonPool(), app.hapiVersion())
                 : new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -203,6 +218,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -246,6 +262,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files
@@ -266,9 +283,9 @@ final class BlockRecordManagerTest extends AppTestBase {
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
-                        new BlockInfo(
-                                BLOCK_NUM - 1,
-                                new Timestamp(
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(BLOCK_NUM - 1)
+                                .firstConsTimeOfLastBlock(new Timestamp(
                                         TEST_BLOCKS
                                                         .get(0)
                                                         .get(0)
@@ -276,19 +293,21 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                         .consensusTimestamp()
                                                         .seconds()
                                                 - 2,
-                                        0),
-                                STARTING_RUNNING_HASH_OBJ.hash(),
-                                CONSENSUS_TIME,
-                                true,
-                                FIRST_CONS_TIME_OF_LAST_BLOCK,
-                                EPOCH,
-                                EPOCH))
+                                        0))
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .commit();
 
         final Random random = new Random(82792874);
         final var merkleState = app.workingStateAccessor().getState();
         final var producer =
                 new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -297,6 +316,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
@@ -383,6 +403,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files
@@ -406,8 +427,14 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @Test
     void isDefaultConsTimeForNullConsensusTimeOfLastHandledTxn() {
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(
-                new BlockInfo(0, CONSENSUS_TIME, Bytes.EMPTY, null, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
@@ -417,15 +444,29 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .seconds(EPOCH.seconds())
                 .nanos(EPOCH.nanos() + 1)
                 .build();
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(new BlockInfo(
-                0, CONSENSUS_TIME, Bytes.EMPTY, timestampAfterEpoch, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(timestampAfterEpoch)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isFalse();
     }
 
     @Test
     void isDefaultConsTimeForTimestampAtEpoch() {
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(
-                new BlockInfo(0, CONSENSUS_TIME, Bytes.EMPTY, EPOCH, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(EPOCH)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
@@ -435,14 +476,29 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .seconds(EPOCH.seconds())
                 .nanos(EPOCH.nanos() - 1)
                 .build();
-        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(new BlockInfo(
-                0, CONSENSUS_TIME, Bytes.EMPTY, timestampBeforeEpoch, false, CONSENSUS_TIME, EPOCH, EPOCH));
+        final var result = BlockRecordManagerImpl.isDefaultConsTimeOfLastHandledTxn(BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(CONSENSUS_TIME)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(timestampBeforeEpoch)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build());
         Assertions.assertThat(result).isTrue();
     }
 
     @Test
     void consTimeOfLastHandledTxnIsSet() {
-        final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, CONSENSUS_TIME, false, EPOCH, EPOCH, EPOCH);
+        final var blockInfo = BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(EPOCH)
+                .blockHashes(Bytes.EMPTY)
+                .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(EPOCH)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build();
         final var state = simpleBlockInfoState(blockInfo);
         final var subject = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -451,6 +507,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -460,7 +517,14 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @Test
     void consTimeOfLastHandledTxnIsNotSet() {
-        final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, null, false, EPOCH, EPOCH, EPOCH);
+        final var blockInfo = BlockInfo.newBuilder()
+                .firstConsTimeOfLastBlock(EPOCH)
+                .blockHashes(Bytes.EMPTY)
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(EPOCH)
+                .lastUsedConsTime(EPOCH)
+                .lastIntervalProcessTime(EPOCH)
+                .build();
         final var state = simpleBlockInfoState(blockInfo);
         final var subject = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -469,6 +533,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();

@@ -90,6 +90,6 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     @Override
     public int highVolumeThrottleUtilization(
             @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
-        return backendThrottle.getHighVolumeThrottleInstantaneousUtilization(function);
+        return backendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, consensusTime);
     }
 }

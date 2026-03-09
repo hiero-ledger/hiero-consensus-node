@@ -4,12 +4,10 @@ package com.swirlds.platform.system.status.logic;
 import com.swirlds.platform.system.status.IllegalPlatformStatusException;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +15,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#OBSERVING} status.

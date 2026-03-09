@@ -74,4 +74,7 @@ public record HederaConfig(
         boolean ingestThrottleEnabled,
 
         @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
-        int throttleTransactionQueueSize) {}
+        int throttleTransactionQueueSize,
+
+        @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
+        long maximumPermissibleUnhealthySeconds) {}

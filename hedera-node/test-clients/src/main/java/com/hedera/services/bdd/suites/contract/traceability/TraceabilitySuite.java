@@ -130,7 +130,6 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
 public class TraceabilitySuite {
-
     private static final Logger log = LogManager.getLogger(TraceabilitySuite.class);
 
     private static final ByteString EMPTY = ByteStringUtils.wrapUnsafely(new byte[0]);
@@ -4660,7 +4659,7 @@ public class TraceabilitySuite {
                                             .setCallOperationType(CallOperationType.OP_CALL)
                                             .setCallingAccount(ethSenderAccountReference.get())
                                             .setGas(1_979_000)
-                                            .setGasUsed(554517)
+                                            .setGasUsed(spec.simpleFeesEnabled() ? 586854 : 554517)
                                             .setValue(valueToSend)
                                             .setRecipientAccount(lazyAccountIdReference.get())
                                             .setOutput(EMPTY)

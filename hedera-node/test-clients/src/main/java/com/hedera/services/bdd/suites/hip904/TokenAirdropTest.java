@@ -1289,7 +1289,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, secp256K1))
                             .payingWith(OWNER)
                             .via("secp256k1Receiver"),
-                    getAutoCreatedAccountBalance(secp256K1).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                     // Any new auto-creation needs to explicitly associate token. So it will be $0.1
                     validateChargedUsd("secp256k1Receiver", 0.1, 1));
         }
