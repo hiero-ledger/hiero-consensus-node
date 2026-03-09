@@ -54,8 +54,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
-        final var blockDir = fileSystem.getPath(
-                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class).blockFileDir());
+        final var blockDir = fileSystem.getPath(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .blockFileDir());
         this.nodeScopedBlockDir =
                 blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
     }
@@ -142,11 +144,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
                 out.write(Block.PROTOBUF.toBytes(new Block(items)).toByteArray());
             }
             Files.writeString(pendingProofPath(blockNumber), PendingProof.JSON.toJSON(pendingProof));
-            logger.info(
-                    "Flushed pending block #{} ({}, {})",
-                    blockNumber,
-                    contentsPath,
-                    pendingProofPath(blockNumber));
+            logger.info("Flushed pending block #{} ({}, {})", blockNumber, contentsPath, pendingProofPath(blockNumber));
         } catch (IOException e) {
             logger.error("Error flushing pending block #{}", blockNumber, e);
         }

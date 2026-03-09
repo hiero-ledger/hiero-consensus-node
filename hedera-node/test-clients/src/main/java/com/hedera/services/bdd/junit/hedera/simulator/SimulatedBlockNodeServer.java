@@ -30,11 +30,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.BlockNodeServiceInterface;
-import org.hiero.block.api.BlockStreamSubscribeServiceInterface;
-import org.hiero.block.api.BlockStreamPublishServiceInterface;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.BlockNodeServiceInterface;
+import org.hiero.block.api.BlockStreamPublishServiceInterface;
+import org.hiero.block.api.BlockStreamSubscribeServiceInterface;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -144,7 +144,10 @@ public class SimulatedBlockNodeServer {
 
         this.webServer = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl).service(subscribeImpl))
+                .addRouting(PbjRouting.builder()
+                        .service(streamingImpl)
+                        .service(serviceImpl)
+                        .service(subscribeImpl))
                 .addProtocol(pbjConfig)
                 .connectionConfig(connectionConfig)
                 .build();
@@ -1069,7 +1072,8 @@ public class SimulatedBlockNodeServer {
                         .blockItems(BlockItemSet.newBuilder().blockItems(items).build())
                         .build());
                 replies.onNext(SubscribeStreamResponse.newBuilder()
-                        .endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber).build())
+                        .endOfBlock(
+                                BlockEnd.newBuilder().blockNumber(blockNumber).build())
                         .build());
             }
             replies.onNext(SubscribeStreamResponse.newBuilder()

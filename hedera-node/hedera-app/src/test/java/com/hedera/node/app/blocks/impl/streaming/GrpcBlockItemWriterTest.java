@@ -17,9 +17,9 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.nio.file.Files;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +50,7 @@ class GrpcBlockItemWriterTest {
     private SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private final FileSystem fileSystem = FileSystems.getDefault();
+
     @TempDir
     Path tempDir;
 
@@ -59,30 +60,24 @@ class GrpcBlockItemWriterTest {
         when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
         when(selfNodeAccountIdManager.getSelfNodeAccountId())
-                .thenReturn(AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(3).build());
+                .thenReturn(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3)
+                        .build());
     }
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
     void testOpenBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
 
         grpcBlockItemWriter.openBlock(0);
 
@@ -91,13 +86,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
@@ -105,13 +95,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePbjItemAndBytes() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -125,13 +110,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePbjItem() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -145,13 +125,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testCompleteBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
 
         grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.closeCompleteBlock();

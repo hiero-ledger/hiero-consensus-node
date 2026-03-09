@@ -23,7 +23,8 @@ public final class BlockStreamOutputHelper {
         if (configured != null && !configured.isBlank()) {
             return Path.of(configured).toAbsolutePath();
         }
-        return Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output").toAbsolutePath();
+        return Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output")
+                .toAbsolutePath();
     }
 
     public static @NonNull Path writeBlocksToConfiguredOutput(
@@ -41,7 +42,9 @@ public final class BlockStreamOutputHelper {
         Files.createDirectories(blockStreamsDir);
         cleanBlockStreamsDir(blockStreamsDir);
         for (final var block : blocks) {
-            final long blockNumber = block.items().isEmpty() ? -1 : block.items().getFirst().blockHeaderOrThrow().number();
+            final long blockNumber = block.items().isEmpty()
+                    ? -1
+                    : block.items().getFirst().blockHeaderOrThrow().number();
             if (blockNumber < 0) {
                 continue;
             }

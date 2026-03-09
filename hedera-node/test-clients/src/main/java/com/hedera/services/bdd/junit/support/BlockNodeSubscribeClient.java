@@ -48,12 +48,12 @@ public class BlockNodeSubscribeClient {
         final var config = blockNodeConfig(host, port);
         final var factory = new BlockNodeClientFactory();
         try (final BlockNodeServiceClient serviceClient = factory.createServiceClient(config, timeout);
-                final BlockStreamSubscribeServiceClient subscribeClient = factory.createSubscribeClient(config, timeout)) {
+                final BlockStreamSubscribeServiceClient subscribeClient =
+                        factory.createSubscribeClient(config, timeout)) {
             final var status = serviceClient.serverStatus(new ServerStatusRequest());
             if (status.lastAvailableBlock() < endBlockNumber) {
-                throw new IllegalStateException(
-                        "Requested end block " + endBlockNumber + " is above block node availability "
-                                + status.lastAvailableBlock());
+                throw new IllegalStateException("Requested end block " + endBlockNumber
+                        + " is above block node availability " + status.lastAvailableBlock());
             }
             final var request = SubscribeStreamRequest.newBuilder()
                     .startBlockNumber(0)
@@ -93,7 +93,8 @@ public class BlockNodeSubscribeClient {
         final var config = blockNodeConfig(host, port);
         final var factory = new BlockNodeClientFactory();
         try (final BlockNodeServiceClient serviceClient = factory.createServiceClient(config, timeout);
-                final BlockStreamSubscribeServiceClient subscribeClient = factory.createSubscribeClient(config, timeout)) {
+                final BlockStreamSubscribeServiceClient subscribeClient =
+                        factory.createSubscribeClient(config, timeout)) {
             final var status = serviceClient.serverStatus(new ServerStatusRequest());
             final var endBlockNumber = status.lastAvailableBlock();
             if (endBlockNumber < 0) {
@@ -162,7 +163,9 @@ public class BlockNodeSubscribeClient {
                     if (currentBlock < 0) {
                         throw new IllegalStateException("Block stream received items before a block header");
                     }
-                    itemsByBlock.computeIfAbsent(currentBlock, ignored -> new ArrayList<>()).add(blockItem);
+                    itemsByBlock
+                            .computeIfAbsent(currentBlock, ignored -> new ArrayList<>())
+                            .add(blockItem);
                 }
             }
         }

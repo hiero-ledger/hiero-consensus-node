@@ -15,8 +15,8 @@ import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
 import java.util.Optional;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
-import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
+import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
 
 /**
  * Factory class to create instances of {@link BlockStreamPublishServiceClient} or {@link org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient} for communicating with block nodes.

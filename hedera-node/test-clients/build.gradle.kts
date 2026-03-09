@@ -18,7 +18,10 @@ sourceSets { create("rcdiff") }
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
 tasks.withType<Test>().configureEach {
-    systemProperty("hapi.test.log.dir", layout.buildDirectory.dir("hapi-test/output").get().asFile.absolutePath)
+    systemProperty(
+        "hapi.test.log.dir",
+        layout.buildDirectory.dir("hapi-test/output").get().asFile.absolutePath,
+    )
 }
 
 tasks.register<JavaExec>("runTestClient") {

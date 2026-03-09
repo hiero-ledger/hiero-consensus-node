@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -28,13 +29,12 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
-import com.hedera.hapi.block.stream.Block;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -86,7 +86,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         configureTestClientLogDir();
         // Gradle logging issue. Workaround documented here: https://github.com/gradle/gradle/issues/36861
         System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
-        Configurator.initialize("test-clients", SharedNetworkLauncherSessionListener.class.getClassLoader(), "log4j2-test-client.xml");
+        Configurator.initialize(
+                "test-clients", SharedNetworkLauncherSessionListener.class.getClassLoader(), "log4j2-test-client.xml");
         session.getLauncher().registerTestExecutionListeners(new SharedNetworkExecutionListener());
     }
 
@@ -96,7 +97,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         if (configuredDir != null && !configuredDir.isBlank()) {
             logDir = Path.of(configuredDir).toAbsolutePath();
         } else {
-            logDir = Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output").toAbsolutePath();
+            logDir = Path.of(System.getProperty("user.dir"), "build", "hapi-test", "output")
+                    .toAbsolutePath();
         }
         try {
             Files.createDirectories(logDir.resolve("transaction-state"));
@@ -226,13 +228,15 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     }
                     final int port;
                     if (mode == BlockNodeMode.REAL) {
-                        final var container = blockNodeNetwork.getBlockNodeContainerById().get(blockNodeId);
+                        final var container =
+                                blockNodeNetwork.getBlockNodeContainerById().get(blockNodeId);
                         if (container == null) {
                             continue;
                         }
                         port = container.getPort();
                     } else {
-                        final var simulator = blockNodeNetwork.getSimulatedBlockNodeById().get(blockNodeId);
+                        final var simulator =
+                                blockNodeNetwork.getSimulatedBlockNodeById().get(blockNodeId);
                         if (simulator == null) {
                             continue;
                         }
@@ -251,7 +255,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             status,
                             blocks.size(),
                             blockNodeId,
-                            BlockStreamOutputHelper.configuredLogDir().resolve("blockStreams").toAbsolutePath());
+                            BlockStreamOutputHelper.configuredLogDir()
+                                    .resolve("blockStreams")
+                                    .toAbsolutePath());
                     return;
                 }
             } catch (Exception e) {
@@ -388,9 +394,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     blockNodeNetwork.getBlockNodeModeById().put(blockNodeId, BlockNodeMode.REAL);
                 }
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork
-                            .getBlockNodeIdsBySubProcessNodeId()
-                            .put(node.getNodeId(), sharedBlockNodeIds);
+                    blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), sharedBlockNodeIds);
                     blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), equalPriorities);
                 });
                 blockNodeNetwork.start();

@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
-import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.node.config.types.BlockStreamWriterMode.GRPC;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
@@ -22,9 +22,9 @@ import static java.util.stream.Collectors.joining;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
-import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.support.BlockStreamOutputHelper;
+import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
@@ -211,8 +211,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             for (final var blockNodeId : blockNodeNetwork.nodeIds()) {
                 try {
                     final int port = spec.getBlockNodePortById(blockNodeId);
-                    log.info("Trying to read blocks from block node {} via subscribe API on localhost:{}", blockNodeId, port);
-                    blocks = subscribeClient.fetchBlocks("localhost", port, freezePendingBlock-1);
+                    log.info(
+                            "Trying to read blocks from block node {} via subscribe API on localhost:{}",
+                            blockNodeId,
+                            port);
+                    blocks = subscribeClient.fetchBlocks("localhost", port, freezePendingBlock - 1);
                     log.info("Read {} blocks from block node {} subscribe API", blocks.size(), blockNodeId);
                 } catch (Exception e) {
                     log.warn("Failed reading blocks via subscribe API from block node {}", blockNodeId, e);
@@ -307,7 +310,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 diagnostics.append("\n  blockNodeIds=").append(ids);
                 for (final var id : ids) {
                     try {
-                        diagnostics.append("\n  blockNodePort[").append(id).append("]=").append(spec.getBlockNodePortById(id));
+                        diagnostics
+                                .append("\n  blockNodePort[")
+                                .append(id)
+                                .append("]=")
+                                .append(spec.getBlockNodePortById(id));
                     } catch (Exception e) {
                         diagnostics
                                 .append("\n  blockNodePort[")
@@ -319,7 +326,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 }
             }
             final var freezePending = freezePendingBlockNumber(spec);
-            diagnostics.append("\n  freezePendingBlock=").append(freezePending.isPresent() ? freezePending.getAsLong() : "<none>");
+            diagnostics
+                    .append("\n  freezePendingBlock=")
+                    .append(freezePending.isPresent() ? freezePending.getAsLong() : "<none>");
         }
         return diagnostics.toString();
     }

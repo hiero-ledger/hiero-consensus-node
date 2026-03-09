@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
@@ -19,6 +18,7 @@ import com.hedera.node.app.blocks.utils.BlockGeneratorUtil;
 import com.hedera.node.app.blocks.utils.FakeGrpcServer;
 import com.hedera.node.app.blocks.utils.SimulatedNetworkProxy;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockBufferConfig;
@@ -398,7 +398,11 @@ public class BlockStreamingBenchmark {
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManager() {
             @Override
             public AccountID getSelfNodeAccountId() {
-                return AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(3).build();
+                return AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3)
+                        .build();
             }
 
             @Override
