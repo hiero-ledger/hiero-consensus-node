@@ -64,8 +64,7 @@ public class WritableStoreFactory {
         newMap.put(WritableNodeStore.class, new StoreEntry(AddressBookService.NAME, WritableNodeStore::new));
         newMap.put(
                 WritableRegisteredNodeStore.class,
-                new StoreEntry(
-                        AddressBookService.NAME, (states, entityCounters) -> new WritableRegisteredNodeStore(states)));
+                new StoreEntry(AddressBookService.NAME, WritableRegisteredNodeStore::new));
         newMap.put(
                 WritableAccountNodeRelStore.class,
                 new StoreEntry(

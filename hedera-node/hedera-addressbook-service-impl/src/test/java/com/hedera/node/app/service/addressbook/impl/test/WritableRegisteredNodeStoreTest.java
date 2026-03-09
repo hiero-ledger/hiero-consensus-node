@@ -11,11 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
@@ -43,6 +46,9 @@ class WritableRegisteredNodeStoreTest {
     @Mock
     private WritableStates writableStates;
 
+    @Mock
+    private WritableEntityIdStore writableEntityIdStore;
+
     private MapWritableKVState<EntityNumber, RegisteredNode> writableState;
     private WritableRegisteredNodeStore subject;
 
@@ -53,12 +59,13 @@ class WritableRegisteredNodeStoreTest {
                 .build();
         given(writableStates.<EntityNumber, RegisteredNode>get(REGISTERED_NODES_STATE_ID))
                 .willReturn(writableState);
-        subject = new WritableRegisteredNodeStore(writableStates);
+        subject = new WritableRegisteredNodeStore(writableStates, writableEntityIdStore);
     }
 
     @Test
     void nullArgsFail() {
-        assertThrows(NullPointerException.class, () -> new WritableRegisteredNodeStore(null));
+        assertThrows(NullPointerException.class, () -> new WritableRegisteredNodeStore(null, writableEntityIdStore));
+        assertThrows(NullPointerException.class, () -> new WritableRegisteredNodeStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> subject.put(null));
     }
 
@@ -104,6 +111,28 @@ class WritableRegisteredNodeStoreTest {
     @Test
     void removeNonExistentNodeDoesNotThrow() {
         subject.remove(999L);
+    }
+
+    @Test
+    void putAndIncrementCountStoresNodeAndIncrementsCounter() {
+        assertFalse(writableState.contains(NODE_ENTITY_NUM));
+
+        subject.putAndIncrementCount(REGISTERED_NODE);
+
+        assertTrue(writableState.contains(NODE_ENTITY_NUM));
+        assertEquals(REGISTERED_NODE, writableState.get(NODE_ENTITY_NUM));
+        verify(writableEntityIdStore).incrementEntityTypeCount(EntityType.REGISTERED_NODE);
+    }
+
+    @Test
+    void removeDecrementsCounter() {
+        subject.put(REGISTERED_NODE);
+        assertTrue(writableState.contains(NODE_ENTITY_NUM));
+
+        subject.remove(NODE_ID);
+
+        assertFalse(writableState.contains(NODE_ENTITY_NUM));
+        verify(writableEntityIdStore).decrementEntityTypeCounter(EntityType.REGISTERED_NODE);
     }
 
     @Test

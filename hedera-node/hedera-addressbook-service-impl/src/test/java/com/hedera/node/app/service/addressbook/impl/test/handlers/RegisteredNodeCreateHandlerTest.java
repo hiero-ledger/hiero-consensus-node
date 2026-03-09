@@ -221,7 +221,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
         verify(recordBuilder).registeredNodeID(newId);
     }
 
@@ -239,7 +239,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     @Test
@@ -265,7 +265,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     @Test
@@ -287,7 +287,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).put(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
         final var persisted = captor.getValue();
 
         assertEquals(newId, persisted.registeredNodeId());
@@ -320,7 +320,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).put(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
         assertEquals(List.of(domainEndpoint), captor.getValue().serviceEndpoint());
     }
 
@@ -350,7 +350,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).put(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
         assertEquals(3, captor.getValue().serviceEndpoint().size());
     }
 
@@ -421,7 +421,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     @Test
@@ -436,7 +436,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     @Test
@@ -472,7 +472,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     @Test
@@ -596,7 +596,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     // ─── Boundary tests ─────────────────────────────────────────────────
@@ -616,7 +616,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).put(any());
+        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
     }
 
     private void givenHandleContext(
