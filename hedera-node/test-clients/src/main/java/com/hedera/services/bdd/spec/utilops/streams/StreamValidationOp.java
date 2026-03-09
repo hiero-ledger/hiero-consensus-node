@@ -178,7 +178,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
                         },
-                        () -> Assertions.fail("No block streams found.\n" + blockStreamDiagnostics(spec)));
+                        () -> Assertions.fail("No block streams found.\n"));
         validateProofs(spec);
 
         // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
@@ -286,66 +286,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         }
         log.info("Final freeze pending block candidate = {}", maxPending);
         return maxPending >= 0 ? OptionalLong.of(maxPending) : OptionalLong.empty();
-    }
-
-    private static String blockStreamDiagnostics(@NonNull final HapiSpec spec) {
-        final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-        final var diagnostics = new StringBuilder("Block stream diagnostics:");
-        diagnostics.append("\n  writerMode=").append(writerMode);
-        final var blockPaths = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath())
-                .toList();
-        for (final var path : blockPaths) {
-            diagnostics.append("\n  path=").append(path);
-            diagnostics.append(", exists=").append(Files.exists(path));
-            diagnostics.append(", blkFiles=").append(fileCount(path, "\\.blk(\\.gz)?$"));
-            diagnostics.append(", markerFiles=").append(fileCount(path, "\\.mf$"));
-            diagnostics.append(", pendingProofFiles=").append(fileCount(path, "\\.pnd\\.json$"));
-        }
-        if (GRPC.name().equals(writerMode)) {
-            final var maybeBlockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-            diagnostics.append("\n  blockNodeNetworkPresent=").append(maybeBlockNodeNetwork != null);
-            if (maybeBlockNodeNetwork != null) {
-                final var ids = maybeBlockNodeNetwork.nodeIds();
-                diagnostics.append("\n  blockNodeIds=").append(ids);
-                for (final var id : ids) {
-                    try {
-                        diagnostics
-                                .append("\n  blockNodePort[")
-                                .append(id)
-                                .append("]=")
-                                .append(spec.getBlockNodePortById(id));
-                    } catch (Exception e) {
-                        diagnostics
-                                .append("\n  blockNodePort[")
-                                .append(id)
-                                .append("]=<error: ")
-                                .append(e.getMessage())
-                                .append(">");
-                    }
-                }
-            }
-            final var freezePending = freezePendingBlockNumber(spec);
-            diagnostics
-                    .append("\n  freezePendingBlock=")
-                    .append(freezePending.isPresent() ? freezePending.getAsLong() : "<none>");
-        }
-        return diagnostics.toString();
-    }
-
-    private static long fileCount(@NonNull final Path path, @NonNull final String regex) {
-        if (!Files.exists(path)) {
-            return 0;
-        }
-        try (final var stream = Files.walk(path)) {
-            return stream.map(Path::getFileName)
-                    .filter(java.util.Objects::nonNull)
-                    .map(Path::toString)
-                    .filter(name -> name.matches(regex))
-                    .count();
-        } catch (Exception e) {
-            return -1;
-        }
     }
 
     private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
-import static com.hedera.node.config.types.BlockStreamWriterMode.GRPC;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
@@ -12,7 +11,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -21,8 +19,6 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.junit.support.BlockNodeSubscribeClient;
-import com.hedera.services.bdd.junit.support.BlockStreamOutputHelper;
 import com.hedera.services.bdd.junit.support.validators.HighVolumePricingValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
@@ -34,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -191,7 +186,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         @Override
         public void executionFinished(
                 @NonNull final TestIdentifier testIdentifier, @NonNull final TestExecutionResult testExecutionResult) {
-            maybeDumpGrpcBlocksOnFailure(testIdentifier, testExecutionResult);
             if (!subprocessConcurrent) {
                 return;
             }
@@ -201,68 +195,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     ConcurrentSubprocessValidationLatch.countDown();
                 }
             });
-        }
-
-        private void maybeDumpGrpcBlocksOnFailure(
-                @NonNull final TestIdentifier testIdentifier, @NonNull final TestExecutionResult testExecutionResult) {
-            if (grpcFailureDumpDone || !testIdentifier.isTest()) {
-                return;
-            }
-            final var status = testExecutionResult.getStatus();
-            if (status != TestExecutionResult.Status.FAILED && status != TestExecutionResult.Status.ABORTED) {
-                return;
-            }
-            final var writerMode = ProcessUtils.prCheckOverrides().get("blockStream.writerMode");
-            if (!GRPC.name().equals(writerMode)) {
-                return;
-            }
-            final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
-            if (blockNodeNetwork == null || blockNodeNetwork.nodeIds().isEmpty()) {
-                return;
-            }
-            try {
-                for (final var blockNodeId : blockNodeNetwork.nodeIds()) {
-                    final var mode = blockNodeNetwork.getBlockNodeModeById().get(blockNodeId);
-                    if (mode != BlockNodeMode.REAL && mode != BlockNodeMode.SIMULATOR) {
-                        continue;
-                    }
-                    final int port;
-                    if (mode == BlockNodeMode.REAL) {
-                        final var container =
-                                blockNodeNetwork.getBlockNodeContainerById().get(blockNodeId);
-                        if (container == null) {
-                            continue;
-                        }
-                        port = container.getPort();
-                    } else {
-                        final var simulator =
-                                blockNodeNetwork.getSimulatedBlockNodeById().get(blockNodeId);
-                        if (simulator == null) {
-                            continue;
-                        }
-                        port = simulator.getPort();
-                    }
-                    final var subscribeClient = new BlockNodeSubscribeClient();
-                    final var blocks = subscribeClient.fetchAllAvailableBlocks("localhost", port);
-                    if (blocks.isEmpty()) {
-                        continue;
-                    }
-                    writeBlocksToOutputDir(blocks);
-                    grpcFailureDumpDone = true;
-                    log.warn(
-                            "Detected failed test '{}' (status={}); dumped {} blocks from block node {} to {}",
-                            testIdentifier.getDisplayName(),
-                            status,
-                            blocks.size(),
-                            blockNodeId,
-                            BlockStreamOutputHelper.configuredLogDir()
-                                    .resolve("blockStreams")
-                                    .toAbsolutePath());
-                    return;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to dump block-node blocks after test failure", e);
-            }
         }
 
         @Override
@@ -371,11 +303,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case "repeatable" -> Embedding.REPEATABLE;
                 default -> Embedding.NA;
             };
-        }
-
-        private static void writeBlocksToOutputDir(@NonNull final List<Block> blocks) throws IOException {
-            final var metadata = "Dumped at " + Instant.now() + " from block node subscribe API\n";
-            BlockStreamOutputHelper.writeBlocksToConfiguredOutput(blocks, metadata);
         }
     }
 
