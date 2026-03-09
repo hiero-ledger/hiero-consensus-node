@@ -3,7 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -79,7 +79,7 @@ class GarbageScannerTest {
     }
 
     @Test
-    void scanIgnoresEntriesForUnknownFiles() {
+    void scanFailsOnEntriesForUnknownFiles() {
         final DataFileReader file1 = mockFileReader(1, 0, 10);
         final DataFileReader file2 = mockFileReader(2, 1, 10);
 
@@ -91,13 +91,7 @@ class GarbageScannerTest {
 
         final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2), new KeyRange(0, 10));
 
-        final Map<Integer, GarbageScanner.GarbageFileStats> result = task.scan();
-
-        assertEquals(2, result.size());
-        assertNotNull(result.get(1));
-        assertNotNull(result.get(2));
-        assertEquals(2, result.get(1).aliveItems());
-        assertEquals(0, result.get(2).aliveItems());
+        assertThrows(AssertionError.class, task::scan);
     }
 
     private static GarbageScanner createTask(

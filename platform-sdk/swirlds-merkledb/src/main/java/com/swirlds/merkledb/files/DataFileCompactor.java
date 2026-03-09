@@ -80,6 +80,9 @@ public class DataFileCompactor {
     @Nullable
     private final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction;
 
+    /**
+     * A function that will be called to report the amount of space used by the compaction level.
+     */
     @Nullable
     private final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction;
 

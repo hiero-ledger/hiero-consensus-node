@@ -113,7 +113,8 @@ class MerkleDbCompactionCoordinator {
      */
     private final Set<String> tasks = new HashSet<>(20);
 
-    /** Latest scan results per store name. Written by scanner tasks, read by compaction tasks
+    /**
+     * Latest scan results per store name. Written by scanner tasks, read by compaction tasks
      * when they evaluate candidates at execution time. Keys are store names (e.g. "HashStoreDisk").
      */
     private final Map<String, Map<Integer, GarbageFileStats>> scanResultsByStore = new ConcurrentHashMap<>(4);

@@ -68,6 +68,7 @@ public final class DataFileMetadata {
      * @param creationDate The creation data of this file, this is critical as it is used when
      *     merging two files to know which files data is newer.
      * @param compactionLevel The level of compaction this file has. See {@link DataFileCompactor}
+     * @param itemsCount Total number of items in this file.
      */
     public DataFileMetadata(
             final int index, final Instant creationDate, final int compactionLevel, final long itemsCount) {
