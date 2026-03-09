@@ -13,7 +13,9 @@ import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetworkKey;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.loadResourceFile;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newNodeCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newRegisteredNodeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliNodes;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliRegisteredNodes;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -165,6 +167,120 @@ public class NodesCommandsTest {
                         yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("node" + newNodeNum.get() + " has been deleted"))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> createNodeWithAssociatedRegisteredNode() {
+        final var registeredNodeId = new AtomicLong();
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "create_areg_dab.pem";
+        final var rnAdminKeyFile = "create_areg_rn.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("create_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                newKeyNamed("create_areg_rn_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(rnAdminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(rnAdminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080",
+                                        "-d",
+                                        "Block node for association test")
+                                .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
+                        sourcingContextual(spec1 -> yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node with associated registered node",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212",
+                                        "--associatedRegisteredNode",
+                                        Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set))),
+                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                        sourcingContextual(
+                                spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                        .exposingOutputTo(output -> assertTrue(output.contains(
+                                                "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> updateNodeAssociatedRegisteredNodes() {
+        final var registeredNodeId = new AtomicLong();
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "update_areg_dab.pem";
+        final var rnAdminKeyFile = "update_areg_rn.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("update_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                newKeyNamed("update_areg_rn_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(rnAdminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(rnAdminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080",
+                                        "-d",
+                                        "Block node for update association test")
+                                .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node to update associations",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212")
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
+                        sourcingContextual(spec1 -> yahcliNodes(
+                                        "update",
+                                        "-n",
+                                        Long.toString(newNodeNum.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--associatedRegisteredNode",
+                                        Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
+                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                        sourcingContextual(
+                                spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                        .exposingOutputTo(output -> assertTrue(output.contains(
+                                                "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
     }
 
     // Helpers
