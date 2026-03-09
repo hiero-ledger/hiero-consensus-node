@@ -133,6 +133,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
             case STAKING_INFO -> entityState.numStakingInfos();
             case HOOK -> entityState.numHooks();
             case EVM_HOOK_STORAGE -> entityState.numEvmHookStorageSlots();
+            case REGISTERED_NODE -> entityState.numRegisteredNodes();
         };
     }
 

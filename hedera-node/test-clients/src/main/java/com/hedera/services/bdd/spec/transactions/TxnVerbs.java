@@ -299,8 +299,16 @@ public class TxnVerbs {
         return new HapiRegisteredNodeUpdate(idSupplier);
     }
 
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final String name) {
+        return new HapiRegisteredNodeUpdate(name);
+    }
+
     public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final LongSupplier idSupplier) {
         return new HapiRegisteredNodeDelete(idSupplier);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final String name) {
+        return new HapiRegisteredNodeDelete(name);
     }
 
     /* TOKEN */

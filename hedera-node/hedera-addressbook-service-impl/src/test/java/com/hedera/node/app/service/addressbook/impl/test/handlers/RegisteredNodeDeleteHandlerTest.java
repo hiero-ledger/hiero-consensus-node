@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_REFERENCED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -229,7 +229,7 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         given(readableNodeStore.get(1)).willReturn(referencingNode);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(REGISTERED_NODE_STILL_REFERENCED, msg.getStatus());
+        assertEquals(REGISTERED_NODE_STILL_ASSOCIATED, msg.getStatus());
     }
 
     @Test
@@ -315,7 +315,7 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         given(readableNodeStore.get(2)).willReturn(node2);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(REGISTERED_NODE_STILL_REFERENCED, msg.getStatus());
+        assertEquals(REGISTERED_NODE_STILL_ASSOCIATED, msg.getStatus());
     }
 
     // ─── calculateFees ─────────────────────────────────────────────
