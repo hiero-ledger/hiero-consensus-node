@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Tag;
 public class TopicGetInfoSimpleFeesTest {
 
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
+    private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
     private static final String TOPIC = "testTopic";
@@ -59,7 +61,8 @@ public class TopicGetInfoSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
                     getTopicInfo(TOPIC).payingWith(PAYER).via("getTopicInfoQuery"),
-                    validateChargedUsdForQueries("getTopicInfoQuery", EXPECTED_CRYPTO_TRANSFER_FEE, 1.0));
+                    validateChargedUsdForQueries("getTopicInfoQuery", EXPECTED_CRYPTO_TRANSFER_FEE, 1.0),
+                    validateNodePaymentAmountForQuery("getTopicInfoQuery", EXPECTED_NODE_PAYMENT_TINYCENTS));
         }
     }
 
