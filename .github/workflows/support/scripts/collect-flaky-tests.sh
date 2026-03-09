@@ -70,6 +70,8 @@ while IFS= read -r xml_file; do
 
     /<\/flakyFailure>/ && in_flaky {
         in_flaky = 0
+        # Strip <stackTrace> / </stackTrace> XML tags from captured content
+        gsub(/<\/?stackTrace[^>]*>/, "", flaky_content)
         # Print the extracted data as tab-separated values
         if (classname != "" && testname != "") {
             printf "%s\t%s\t%s%c", classname, testname, flaky_content, 0

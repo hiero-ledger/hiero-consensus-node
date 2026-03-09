@@ -93,6 +93,19 @@ lookup_managers() {
 # Initialize output array
 echo '[]' > "${OUTPUT_FILE}"
 
+# Fetch all existing flaky-test issues once upfront.
+# Uses the GraphQL-backed `gh issue list` which returns real-time data,
+# unlike `gh search issues` which suffers from search-index delay and
+# caused duplicate issue creation.
+echo "Fetching existing flaky-test issues..."
+ALL_FLAKY_ISSUES=$(gh issue list \
+    --repo "${REPO}" \
+    --label "flaky-test" \
+    --state all \
+    --json number,state,title,url,closedAt \
+    --limit 500 2>/dev/null || echo '[]')
+echo "Found $(echo "${ALL_FLAKY_ISSUES}" | jq 'length') existing flaky-test issue(s)"
+
 # Process each flaky test
 for i in $(seq 0 $((count - 1))); do
     entry=$(jq -r ".[$i]" "${FLAKY_TESTS_JSON}")
@@ -106,16 +119,8 @@ for i in $(seq 0 $((count - 1))); do
     TITLE="[Flaky Test] ${module} - ${class}#${method}"
     echo "Processing: ${TITLE}"
 
-    # Search for existing issues with this title
-    search_results=$(gh search issues \
-        --repo "${REPO}" \
-        --label "flaky-test" \
-        "${TITLE}" \
-        --json number,state,title,url,closedAt \
-        --limit 100 2>/dev/null || echo '[]')
-
-    # Filter for exact title match
-    exact_matches=$(echo "${search_results}" | jq --arg title "${TITLE}" '[.[] | select(.title == $title)]')
+    # Look up existing issues from the pre-fetched cache (exact title match)
+    exact_matches=$(echo "${ALL_FLAKY_ISSUES}" | jq --arg title "${TITLE}" '[.[] | select(.title == $title)]')
     open_matches=$(echo "${exact_matches}" | jq '[.[] | select(.state == "OPEN")]')
     closed_matches=$(echo "${exact_matches}" | jq '[.[] | select(.state == "CLOSED")]')
 
@@ -195,6 +200,15 @@ ${stack_trace}
         issue_url="${create_result}"
         issue_number=$(echo "${issue_url}" | grep -oE '[0-9]+$')
         echo "  Created issue: #${issue_number}"
+
+        # Add newly created issue to the local cache to prevent self-duplication
+        # within the same run (e.g. if collect produced duplicate entries)
+        new_cache_entry=$(jq -n \
+            --arg number "${issue_number}" \
+            --arg title "${TITLE}" \
+            --arg url "${issue_url}" \
+            '{number: ($number | tonumber), state: "OPEN", title: $title, url: $url, closedAt: null}')
+        ALL_FLAKY_ISSUES=$(echo "${ALL_FLAKY_ISSUES}" | jq --argjson entry "${new_cache_entry}" '. += [$entry]')
     fi
 
     # Update occurrence tracking comment

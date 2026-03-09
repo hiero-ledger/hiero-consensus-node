@@ -34,6 +34,9 @@ jobs:
   report:
     name: Report Flaky Tests
     runs-on: hl-cn-default-lin-sm
+    concurrency:
+      group: report-flaky-tests
+      cancel-in-progress: false
     outputs:
       flaky-count: ${{ steps.set-outputs.outputs.flaky-count }}
       flaky-tests-json: ${{ steps.set-outputs.outputs.flaky-tests-json }}
