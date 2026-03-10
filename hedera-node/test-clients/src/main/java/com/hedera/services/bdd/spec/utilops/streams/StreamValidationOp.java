@@ -191,7 +191,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        List<Block> blocks = null;
+        List<Block> bestComplete = null;
+        List<Block> bestBySize = null;
         final var blockPaths = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
@@ -200,16 +201,33 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         for (final var path : blockPaths) {
             try {
                 log.info("Trying to read blocks from {}", path);
-                blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
+                final var blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
                 log.info("Read {} blocks from {}", blocks.size(), path);
+                if (bestBySize == null || blocks.size() > bestBySize.size()) {
+                    bestBySize = blocks;
+                }
+                if (hasValidLastBlockProof(blocks) && (bestComplete == null || blocks.size() > bestComplete.size())) {
+                    bestComplete = blocks;
+                }
             } catch (Exception ignore) {
                 // We will try to read the next node's streams
             }
-            if (blocks != null && !blocks.isEmpty()) {
-                break;
-            }
         }
-        return Optional.ofNullable(blocks);
+        if (bestComplete == null && bestBySize != null) {
+            log.warn(
+                    "No node had a complete block set with final proof; using largest set of {} blocks",
+                    bestBySize.size());
+        }
+        return Optional.ofNullable(bestComplete != null ? bestComplete : bestBySize);
+    }
+
+    private static boolean hasValidLastBlockProof(@NonNull final List<Block> blocks) {
+        if (blocks.isEmpty()) {
+            return false;
+        }
+        final var lastBlock = blocks.getLast();
+        final var items = lastBlock.items();
+        return !items.isEmpty() && items.getLast().hasBlockProof();
     }
 
     private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
