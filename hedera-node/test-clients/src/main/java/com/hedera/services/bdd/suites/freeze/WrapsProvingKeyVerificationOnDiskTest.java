@@ -18,13 +18,13 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Subprocess test that verifies the WRAPS proving key without requiring an S3 download. Instead, the
+ * Subprocess test that verifies the WRAPS proving key without requiring a key download. Instead, the
  * test copies proving key files to the config directory of each node before the tests run.
  */
 @Tag(RESTART)
@@ -59,23 +59,19 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true"));
 
         // Assign hashes and assert preconditions
+        final var validBytes = readClasspathResource(VALID_WRAPS_PROVING_KEY);
+        final var variantBytes = readClasspathResource(VALID_VARIANT_WRAPS_PROVING_KEY);
         final var digest = sha384DigestOrThrow();
-        try {
-            final byte[] validProvingKey = Files.readAllBytes(Paths.get(VALID_WRAPS_PROVING_KEY));
-            validProvingKeyHash = Bytes.wrap(digest.digest(validProvingKey));
-            log.info("Valid proving key hash: {}", validProvingKeyHash);
+        validProvingKeyHash = Bytes.wrap(digest.digest(validBytes));
+        log.info("Valid proving key hash: {}", validProvingKeyHash);
 
-            final byte[] validVariantProvingKey = Files.readAllBytes(Paths.get(VALID_VARIANT_WRAPS_PROVING_KEY));
-            validVariantProvingKeyHash = Bytes.wrap(digest.digest(validVariantProvingKey));
-            log.info("Valid variant proving key hash: {}", validVariantProvingKeyHash);
+        validVariantProvingKeyHash = Bytes.wrap(digest.digest(variantBytes));
+        log.info("Valid variant proving key hash: {}", validVariantProvingKeyHash);
 
-            assertNotEquals(
-                    validProvingKeyHash,
-                    validVariantProvingKeyHash,
-                    "Precondition: valid and valid variant proving key hashes can't be the same");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        assertNotEquals(
+                validProvingKeyHash,
+                validVariantProvingKeyHash,
+                "Precondition: valid and valid variant proving key hashes can't be the same");
 
         // Copy valid and valid variant proving key files to the config directory of each node
         testLifecycle.doAdhoc(doingContextual(spec -> {
@@ -83,11 +79,8 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                     .map(n -> n.getExternalPath(ExternalPath.DATA_CONFIG_DIR))
                     .toList();
             for (final var workingDir : workingDirs) {
-                WorkingDirUtils.copyUnchecked(
-                        Paths.get(VALID_WRAPS_PROVING_KEY), workingDir.resolve("valid-wraps-proving-key.tar.gz"));
-                WorkingDirUtils.copyUnchecked(
-                        Paths.get(VALID_VARIANT_WRAPS_PROVING_KEY),
-                        workingDir.resolve("valid-wraps-proving-key-variant.tar.gz"));
+                writeBytes(validBytes, workingDir.resolve("valid-wraps-proving-key.tar.gz"));
+                writeBytes(variantBytes, workingDir.resolve("valid-wraps-proving-key-variant.tar.gz"));
             }
         }));
     }
@@ -149,5 +142,33 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                             selectedProvingKeyHash.get(),
                             "Node should log the valid variant proving key hash");
                 }));
+    }
+
+    /**
+     * Reads all bytes of a classpath resource.
+     */
+    static byte[] readClasspathResource(@NonNull final String name) {
+        final var in =
+                WrapsProvingKeyVerificationOnDiskTest.class.getClassLoader().getResourceAsStream(name);
+        if (in == null) {
+            throw new IllegalStateException("Classpath resource not found: " + name);
+        }
+        try (in) {
+            return in.readAllBytes();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Writes bytes to a target path, creating parent directories as needed.
+     */
+    static void writeBytes(@NonNull final byte[] bytes, @NonNull final Path target) {
+        try {
+            Files.createDirectories(target.getParent());
+            Files.write(target, bytes);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

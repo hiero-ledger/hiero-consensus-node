@@ -11,6 +11,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.VALID_WRAPS_PROVING_KEY;
+import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.readClasspathResource;
+import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.writeBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -19,14 +21,9 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,19 +98,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
         final AtomicReference<String> persistedHash = new AtomicReference<>();
 
         return hapiTest(
-                // Seed the container lazily so paths resolve after the framework sets the working dir
                 doingContextual(spec -> {
-                    final var validWrapsProvingKeyPath = Paths.get(VALID_WRAPS_PROVING_KEY);
-                    try {
-                        validProvingKeyHash =
-                                Bytes.wrap(sha384DigestOrThrow().digest(Files.readAllBytes(validWrapsProvingKeyPath)));
-                    } catch (final IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    final var validBytes = readClasspathResource(VALID_WRAPS_PROVING_KEY);
+                    validProvingKeyHash = Bytes.wrap(sha384DigestOrThrow().digest(validBytes));
                     log.info("Valid proving key hash: {}", validProvingKeyHash);
                     httpContainer.copyFileToContainer(
-                            MountableFile.forHostPath(
-                                    validWrapsProvingKeyPath.toAbsolutePath().toString()),
+                            MountableFile.forClasspathResource("/" + VALID_WRAPS_PROVING_KEY),
                             "/data/wraps-proving-key.tar.gz");
                     log.info("Copied proving key to container");
                 }),
@@ -181,11 +171,10 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
         return hapiTest(
                 prepareFakeUpgrade(),
                 doingContextual(spec -> {
+                    final var invalidBytes = readClasspathResource(INVALID_WRAPS_PROVING_KEY);
                     for (final var node : spec.getNetworkNodes()) {
                         final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
-                        WorkingDirUtils.copyUnchecked(
-                                Paths.get(INVALID_WRAPS_PROVING_KEY),
-                                configDir.resolve("invalid-wraps-proving-key.tar.gz"));
+                        writeBytes(invalidBytes, configDir.resolve("invalid-wraps-proving-key.tar.gz"));
                     }
                 }),
                 sourcing(() -> upgradeToNextConfigVersion(Map.of(
