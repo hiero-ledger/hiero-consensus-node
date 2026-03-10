@@ -34,6 +34,7 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
     private static final long CLASS_ID = 0x756d0ee945226a92L;
 
     static {
+        System.out.println("running the constructable registry");
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         try {
             registry.registerConstructable(new ClassConstructorPair(SigSet.class, SigSet::new));
