@@ -18,8 +18,6 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private static final Logger logger = LogManager.getLogger(ParallelTopToBottomTraversalOrder.class);
 
-    private static final int DEFAULT_MAX_IN_FLIGHT = 1 << 18;
-
     private volatile boolean simpleMode = false;
 
     private volatile long oldFirstLeafPath;
@@ -32,14 +30,15 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private volatile int chunkRootRank;
     private volatile long chunkRootPath;
-    // Can be either firstLeafRank or lastLeafRank
-    private volatile int chunkLastRank;
+    private volatile int chunkLastRank; // Can be either firstLeafRank or lastLeafRank
     private volatile long chunkLastLeafPath;
 
     private final Set<Long> cleanPaths = ConcurrentHashMap.newKeySet();
+    private final Set<Long> someDirtyPaths = ConcurrentHashMap.newKeySet();
 
     private final AtomicInteger internalsInFlight = new AtomicInteger(0);
-    private final Queue<Long> internals = new PriorityBlockingQueue<>();
+    private final AtomicInteger maxInFlight = new AtomicInteger(0);
+    private final Queue<Long> internals = new PriorityBlockingQueue<>(1 << 16);
 
     private final AtomicLong currentLeafPath = new AtomicLong();
 
@@ -55,7 +54,6 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         this.lastLeafPath = lastLeafPath;
 
         currentLeafPath.set(firstLeafPath);
-        internalsInFlight.set(0);
 
         firstLeafRank = Path.getRank(firstLeafPath);
         lastLeafRank = Path.getRank(lastLeafPath);
@@ -66,7 +64,6 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         } else {
             chunkRootRank = firstLeafRank - 20;
             chunkRootPath = Path.getGrandParentPath(firstLeafPath, firstLeafRank - chunkRootRank);
-//            internals.add(chunkRootPath);
             addInitialChunkInternals(chunkRootPath);
             chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, firstLeafRank - chunkRootRank);
             logger.info(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
@@ -74,7 +71,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
     }
 
     private void addInitialChunkInternals(final long chunkRootPath) {
-        final int skipRanks = 5;
+        final int skipRanks = 12;
         final long firstPath = Path.getLeftGrandChildPath(chunkRootPath, skipRanks);
         final long lastPath = Path.getRightGrandChildPath(chunkRootPath, skipRanks);
         for (long path = firstPath; path <= lastPath; path++) {
@@ -96,16 +93,17 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
                     cleanPaths.add(path);
                 }
             }
+        } else {
+            final long left = Path.getLeftChildPath(path);
+            if (left < firstLeafPath) {
+                internals.add(left);
+                final long right = Path.getRightChildPath(path);
+                internals.add(right);
+            } else {
+                someDirtyPaths.add(path);
+            }
         }
     }
-
-    private volatile int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
-
-    private final AtomicInteger everMaxInFlight = new AtomicInteger(0);
-
-    private final AtomicLong skippedInternals = new AtomicLong(0);
-
-    private final AtomicBoolean firstLeafInChunk = new AtomicBoolean(true);
 
     @Override
     public long getNextInternalPathToSend() {
@@ -121,38 +119,20 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-//        if (internalsInFlight.get() >= DEFAULT_MAX_IN_FLIGHT) {
-        if (internalsInFlight.get() >= maxInFlight) {
-            return PATH_NOT_AVAILABLE_YET;
-        }
         for (Long internal = internals.poll(); internal != null; internal = internals.poll()) {
             if (hasCleanParent(internal)) {
-                skippedInternals.incrementAndGet();
                 continue;
             }
             final int rank = Path.getRank(internal);
             if (Path.getRightGrandChildPath(internal, chunkLastRank - rank) < firstLeafPath) {
-                skippedInternals.incrementAndGet();
                 continue;
             }
             if (Path.getLeftGrandChildPath(internal, chunkLastRank - rank) > lastLeafPath) {
-                skippedInternals.incrementAndGet();
                 continue;
             }
-            final long left = Path.getLeftChildPath(internal);
-            if (left < firstLeafPath) {
-                internals.add(Path.getLeftChildPath(internal));
-            }
-            final long right = Path.getRightChildPath(internal);
-            if (right < firstLeafPath) {
-                internals.add(Path.getRightChildPath(internal));
-            }
             final int inFlight = internalsInFlight.incrementAndGet();
-            everMaxInFlight.set(Math.max(everMaxInFlight.get(), inFlight));
+            maxInFlight.set(Math.max(maxInFlight.get(), inFlight));
             return internal;
-        }
-        if (firstLeafInChunk.compareAndSet(true, false)) {
-            logger.info(RECONNECT.getMarker(), "First leaf, clean paths: {}, in flight: {}", cleanPaths.size(), internalsInFlight.get());
         }
         return Path.INVALID_PATH;
     }
@@ -178,8 +158,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             return leafPath;
         }
         if (leafPath > lastLeafPath) {
-            logger.info(RECONNECT.getMarker(), "Skipped: {} / {}", skippedInternals.get(), skippedLeaves.get());
-            logger.info(RECONNECT.getMarker(), "Max in flight: {}", everMaxInFlight.get());
+            logger.info(RECONNECT.getMarker(), "Max in flight: " + maxInFlight.get());
         }
         if (leafPath > lastLeafPath) {
             currentLeafPath.set(Path.INVALID_PATH);
@@ -198,25 +177,28 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
                 return Path.INVALID_PATH;
             } else {
                 currentLeafPath.set(leafPath);
-                logger.info(RECONNECT.getMarker(), "Chunk end: clean paths: {} in flight: {} last chunk path: {}", cleanPaths.size(), internalsInFlight.get(), chunkLastLeafPath);
+                logger.info(RECONNECT.getMarker(), "Chunk end: some clean paths: {} some dirty paths: {} last chunk path: {}", cleanPaths.size(), someDirtyPaths.size(), chunkLastLeafPath);
                 cleanPaths.clear();
+                someDirtyPaths.clear();
                 long nextChunkRootPath = chunkRootPath + 1;
                 if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
                     assert Path.getRank(nextChunkRootPath) == chunkRootRank + 1;
                     nextChunkRootPath = Path.getParentPath(nextChunkRootPath);
                     assert chunkLastRank == firstLeafRank;
                     chunkLastRank = lastLeafRank;
-                    maxInFlight = maxInFlight * 2;
                 }
                 chunkRootPath = nextChunkRootPath;
                 chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 //                internals.add(chunkRootPath);
                 addInitialChunkInternals(chunkRootPath);
-                firstLeafInChunk.set(true);
                 return PATH_NOT_AVAILABLE_YET;
             }
         }
         currentLeafPath.set(leafPath + 1);
+        final long parent = Path.getParentPath(leafPath);
+        if (!someDirtyPaths.contains(parent)) {
+            return PATH_NOT_AVAILABLE_YET;
+        }
         return leafPath;
     }
 
@@ -228,12 +210,6 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             parent = Path.getParentPath(parent);
         }
         return clean;
-    }
-
-    private boolean isPathInSubtree(final long path, final long parent) {
-        final int pathRank = Path.getRank(path);
-        final int parentRank = Path.getRank(parent);
-        return (pathRank >= parentRank) && (parent == Path.getGrandParentPath(path, pathRank - parentRank));
     }
 
     /**
