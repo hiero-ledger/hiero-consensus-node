@@ -40,6 +40,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -57,7 +58,9 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -107,6 +110,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -494,8 +498,40 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Archive the jumpstart file so the migration doesn't run again
-        if (wrappedRecordBlockHashMigration.result() != null) {
+        // Apply effects of the jumpstart file migration (if any)
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration != null) {
+            // Check if the block info in state matches the migration result; if not, overwrite
+            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoState = writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var blockInfo = blockInfoState.get();
+            boolean changed = false;
+            final var builder = blockInfo.copyBuilder();
+            if (!migration
+                    .previousWrappedRecordBlockRootHash()
+                    .equals(blockInfo.previousWrappedRecordBlockRootHash())) {
+                builder.previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash());
+                changed = true;
+            }
+            if (!migration
+                    .wrappedIntermediatePreviousBlockRootHashes()
+                    .equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
+                builder.wrappedIntermediatePreviousBlockRootHashes(
+                        migration.wrappedIntermediatePreviousBlockRootHashes());
+                changed = true;
+            }
+            if (migration.wrappedIntermediateBlockRootsLeafCount()
+                    != blockInfo.wrappedIntermediateBlockRootsLeafCount()) {
+                builder.wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount());
+                changed = true;
+            }
+            if (changed) {
+                blockInfoState.put(builder.build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+                log.info("Updated block info state to match migration result");
+            }
+
+            // Archive the jumpstart file so the migration doesn't run again
             final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
             if (jumpstartFilePath != null) {
                 try {
