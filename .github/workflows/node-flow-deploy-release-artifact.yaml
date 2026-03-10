@@ -91,7 +91,7 @@ jobs:
       sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
       sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
       sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
+      slack-webhook-url: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
       jf-url: ${{ vars.JF_URL }}
       jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
       jf-user-name: ${{ vars.JF_USER_NAME }}
@@ -177,7 +177,7 @@ jobs:
       sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
       sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
       sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
+      slack-webhook-url: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
       jf-url: ${{ vars.JF_URL }}
       jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
       jf-user-name: ${{ vars.JF_USER_NAME }}
