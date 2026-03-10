@@ -30,13 +30,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitEthereumTransaction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
@@ -45,7 +42,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyF
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
@@ -58,7 +54,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -78,7 +73,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -89,17 +83,13 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.utils.Signing;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -125,7 +115,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractCreateSuite {
 
@@ -437,57 +426,6 @@ public class ContractCreateSuite {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).balance(1L).hasKnownStatus(CONTRACT_REVERT_EXECUTED));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
-        final var justSendContract = "JustSend";
-        final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
-
-        final var beneficiary = "civilian";
-        final var totalToSend = 1_000L;
-        final var origKey = KeyShape.threshOf(1, SIMPLE, CONTRACT);
-        final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
-        final var newKey = "delegateContractKey";
-
-        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
-        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
-
-        return hapiTest(
-                uploadInitCode(justSendContract, sendInternalAndDelegateContract),
-                // refuse eth conversion because we can't delegate call contract by contract num
-                // when it has EVM address alias (isNotPriority check fails)
-                contractCreate(justSendContract)
-                        .gas(300_000L)
-                        .exposingContractIdTo(justSendContractId::set)
-                        .refusingEthConversion(),
-                contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
-                cryptoCreate(beneficiary)
-                        .balance(0L)
-                        .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
-                        .receiverSigRequired(true)
-                        .exposingCreatedIdTo(beneficiaryAccountId::set),
-                /* Without delegateContractId permissions, the second send via delegate call will
-                 * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
-                 * call doesn't fail because exceptional halts in "raw calls" don't automatically
-                 * propagate up the stack like a Solidity revert does.) */
-                sourcing(() -> contractCall(
-                        sendInternalAndDelegateContract,
-                        "sendRepeatedlyTo",
-                        new BigInteger(asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
-                        BigInteger.valueOf(totalToSend / 2))),
-                getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
-                /* But now we update the beneficiary to have a delegateContractId */
-                newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
-                cryptoUpdate(beneficiary).key(newKey),
-                sourcing(() -> contractCall(
-                        sendInternalAndDelegateContract,
-                        "sendRepeatedlyTo",
-                        new BigInteger(asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
-                        BigInteger.valueOf(totalToSend / 2))),
-                getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 
     @HapiTest

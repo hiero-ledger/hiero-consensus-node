@@ -119,7 +119,11 @@ public class HasScheduleCapacitySerialTest {
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
             final var scheduleId = asScheduleId(spec, scheduleAddress.get());
             final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
-            allRunFor(spec, getScheduleInfo(scheduleIdString).hasScheduleId(scheduleIdString).isDeleted());
+            allRunFor(
+                    spec,
+                    getScheduleInfo(scheduleIdString)
+                            .hasScheduleId(scheduleIdString)
+                            .isDeleted());
         }));
     }
 }
