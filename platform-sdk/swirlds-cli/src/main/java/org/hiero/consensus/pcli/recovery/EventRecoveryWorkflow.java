@@ -259,6 +259,7 @@ public final class EventRecoveryWorkflow {
         notificationEngine.register(
                 NewRecoveredStateListener.class,
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
+        System.out.println("roster service states");
         System.out.println(initialState.getReadableStates("RosterService").stateIds());
         consensusStateEventHandler.onStateInitialized(
                 initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
