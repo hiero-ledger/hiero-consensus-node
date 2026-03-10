@@ -119,17 +119,8 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-        for (Long internal = internals.poll(); internal != null; internal = internals.poll()) {
-            if (hasCleanParent(internal)) {
-                continue;
-            }
-            final int rank = Path.getRank(internal);
-            if (Path.getRightGrandChildPath(internal, chunkLastRank - rank) < firstLeafPath) {
-                continue;
-            }
-            if (Path.getLeftGrandChildPath(internal, chunkLastRank - rank) > lastLeafPath) {
-                continue;
-            }
+        final Long internal = internals.poll();
+        if (internal != null) {
             final int inFlight = internalsInFlight.incrementAndGet();
             maxInFlight.set(Math.max(maxInFlight.get(), inFlight));
             return internal;
@@ -176,7 +167,6 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
                 currentLeafPath.set(Path.INVALID_PATH);
                 return Path.INVALID_PATH;
             } else {
-                currentLeafPath.set(leafPath);
                 logger.info(RECONNECT.getMarker(), "Chunk end: some clean paths: {} some dirty paths: {} last chunk path: {}", cleanPaths.size(), someDirtyPaths.size(), chunkLastLeafPath);
                 cleanPaths.clear();
                 someDirtyPaths.clear();
@@ -191,14 +181,16 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
                 chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 //                internals.add(chunkRootPath);
                 addInitialChunkInternals(chunkRootPath);
+                currentLeafPath.set(leafPath);
                 return PATH_NOT_AVAILABLE_YET;
             }
         }
-        currentLeafPath.set(leafPath + 1);
         final long parent = Path.getParentPath(leafPath);
         if (!someDirtyPaths.contains(parent)) {
+            currentLeafPath.set(leafPath);
             return PATH_NOT_AVAILABLE_YET;
         }
+        currentLeafPath.set(leafPath + 1);
         return leafPath;
     }
 
