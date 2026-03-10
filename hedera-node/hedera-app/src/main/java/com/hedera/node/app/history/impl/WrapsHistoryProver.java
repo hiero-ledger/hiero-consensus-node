@@ -666,13 +666,12 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     signature,
                                     signers);
+                            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                             logElapsed(
                                     constructionCanceled
                                             ? "constructing canceled incremental WRAPS proof"
-                                            : "constructing incremental WRAPS proof",
+                                            : "constructing incremental WRAPS proof -> " + output,
                                     now);
-                            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
-                            log.info(" -> {}", output);
                             yield output;
                         }
                     }
@@ -704,9 +703,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                 signature,
                                 signers,
                                 targetBook);
-                        logElapsed("constructing genesis WRAPS proof", now);
                         final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
-                        log.info(" -> {}", output);
+                        logElapsed("constructing genesis WRAPS proof -> " + output, now);
                         yield output;
                     }
                 },
