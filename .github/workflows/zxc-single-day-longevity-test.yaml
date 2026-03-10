@@ -440,7 +440,8 @@ jobs:
           echo '#!/usr/bin/sh -f' > "${HOME}"/solo
           echo "node "${curdir}"/solo/dist/solo.js \$*" >> "${HOME}"/solo
           chmod a+rx "${HOME}"/solo
-          
+          sudo mv "${HOME}"/solo /usr/bin/solo
+
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           git checkout fix-tss-readiness-check
