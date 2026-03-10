@@ -15,8 +15,8 @@ class StateChangesValidatorTest {
 
     @Test
     void detectsCompressedWrapsProofSignatureShape() {
-        final var wrapsSignature =
-                Bytes.wrap(new byte[HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH + COMPRESSED_WRAPS_PROOF_LENGTH]);
+        final var wrapsSignature = Bytes.wrap(
+                new byte[HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH + COMPRESSED_WRAPS_PROOF_LENGTH]);
 
         assertTrue(StateChangesValidator.hasCompressedWrapsProof(wrapsSignature));
     }

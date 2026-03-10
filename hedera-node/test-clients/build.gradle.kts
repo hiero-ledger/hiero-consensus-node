@@ -229,6 +229,8 @@ val prCheckPrepareUpgradeOffsets =
         }
     }
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps")
+// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be in CI and set it here
+val prCheckTssLibWrapsArtifactsPaths = mapOf("hapiTestWraps" to "")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
@@ -317,6 +319,14 @@ tasks.register<Test>("testSubprocess") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -432,6 +442,14 @@ tasks.register<Test>("testSubprocessConcurrent") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -512,6 +530,14 @@ tasks.register<Test>("testRemote") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames

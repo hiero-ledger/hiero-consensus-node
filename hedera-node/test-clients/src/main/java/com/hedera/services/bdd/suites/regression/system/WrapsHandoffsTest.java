@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
-import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -68,7 +67,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
         return hapiTest(sourcingContextual(spec -> {
-            if (WRAPSLibraryBridge.isProofSupported()) {
+            if (hasWrapsArtifactsPath()) {
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         untilHgcaaLogContainsText(
@@ -100,6 +99,11 @@ public class WrapsHandoffsTest implements LifecycleTest {
                 return noOp();
             }
         }));
+    }
+
+    private static boolean hasWrapsArtifactsPath() {
+        final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath");
+        return wrapsArtifactsPath != null && !wrapsArtifactsPath.isBlank();
     }
 
     private static SpecOperation randomStakerTransfer() {

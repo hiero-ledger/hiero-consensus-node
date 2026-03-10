@@ -765,7 +765,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final var valid = TSS.verifyTSS(
                         ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
                 if (!valid) {
-                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + ") - " + proof);
+                    Assertions.fail(
+                            () -> "Invalid TSS signature in proof (start round #" + firstRound + ") - " + proof);
                 }
                 observedCompressedWrapsProof |= usedCompressedWrapsProof;
                 logger.info("Verified signature on #{} via TSS", blockNumber);
