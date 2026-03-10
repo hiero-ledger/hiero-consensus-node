@@ -154,7 +154,7 @@ public class TransactionProcessor {
             codeDelegationResult = new CodeDelegationProcessor(contractsConfig.chainId())
                     .process(updater, lazyCreationGasAvailable, transaction.codeDelegations());
         } else {
-            codeDelegationResult = CodeDelegationResult.empty();
+            codeDelegationResult = CodeDelegationResult.EMPTY;
         }
 
         // The initial gas available for code execution is the gas limit
