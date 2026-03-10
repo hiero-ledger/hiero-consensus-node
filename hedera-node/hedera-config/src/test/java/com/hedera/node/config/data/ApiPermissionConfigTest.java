@@ -29,6 +29,7 @@ final class ApiPermissionConfigTest {
                 "HOOK_DISPATCH",
                 "NODE_STAKE_UPDATE",
                 "LEDGER_ID_PUBLICATION",
+                "UNPARSABLE_TRANSACTION",
             })
     void internalDispatchTypesAreExplicitlyProhibited(@NonNull final HederaFunctionality function) {
         final var config = HederaTestConfigBuilder.create()
@@ -57,7 +58,8 @@ final class ApiPermissionConfigTest {
                 "CRYPTO_ACCOUNT_AUTO_RENEW",
                 "CONTRACT_AUTO_RENEW",
                 "UNCHECKED_SUBMIT",
-                "NODE_STAKE_UPDATE"
+                "NODE_STAKE_UPDATE",
+                "UNPARSABLE_TRANSACTION"
             })
     void testHederaFunctionalityUsage(final HederaFunctionality hederaFunctionality) {
         // given

@@ -87,6 +87,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE_NFTS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECORD;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNPARSABLE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -294,6 +295,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange unparsableTransaction,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange createRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange updateRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange deleteRegisteredNode) {
@@ -388,6 +390,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(LEDGER_ID_PUBLICATION, c -> c.ledgerIdPublication);
+        permissionKeys.put(UNPARSABLE_TRANSACTION, c -> c.unparsableTransaction);
         permissionKeys.put(REGISTERED_NODE_CREATE, c -> c.createRegisteredNode);
         permissionKeys.put(REGISTERED_NODE_UPDATE, c -> c.updateRegisteredNode);
         permissionKeys.put(REGISTERED_NODE_DELETE, c -> c.deleteRegisteredNode);

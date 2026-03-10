@@ -63,6 +63,7 @@ import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -77,7 +78,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -177,7 +177,11 @@ public class ParentTxnFactory {
     public static HandleContext.TransactionCategory getTxnCategory(@NonNull final PreHandleResult preHandleResult) {
         requireNonNull(preHandleResult);
         return preHandleResult.txInfo() == null
-                        || preHandleResult.txnInfoOrThrow().signatureMap().sigPair().isEmpty()
+                        || preHandleResult
+                                .txnInfoOrThrow()
+                                .signatureMap()
+                                .sigPair()
+                                .isEmpty()
                 ? NODE
                 : USER;
     }
