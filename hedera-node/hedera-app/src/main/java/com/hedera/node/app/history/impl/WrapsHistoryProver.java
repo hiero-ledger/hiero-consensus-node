@@ -641,7 +641,16 @@ public class WrapsHistoryProver implements HistoryProver {
                             }
                             final long now = System.nanoTime();
                             log.info(
-                                    "Constructing incremental WRAPS proof w/\n  {}\n  {}\n  {}\n  {}\n  {}\n  {}\n  {}\n",
+                                    """
+                                            Constructing incremental WRAPS proof with:
+                                              ledgerId={}
+                                              sourceBook={}
+                                              sourceProofHash={}
+                                              targetMetadata={}
+                                              aggregateSignature={}
+                                              signers={}
+                                              targetBook={}
+                                            """,
                                     ledgerId,
                                     sourceBook,
                                     noThrowSha384HashOf(sourceProof.uncompressedWrapsProof()),
@@ -681,13 +690,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                 .aggregatedNodeSignaturesOrThrow()
                                 .signingNodeIds());
                         final long now = System.nanoTime();
-                        log.info(
-                                "Constructing genesis WRAPS proof w/\n  {}\n  {}\n  {}\n  {}\n  {}\n",
-                                ledgerId,
-                                targetMetadata,
-                                Bytes.wrap(signature),
-                                signers,
-                                targetBook);
+                        log.info("""
+                                        Constructing genesis WRAPS proof with:
+                                          ledgerId={}
+                                          targetMetadata={}
+                                          aggregateSignature={}
+                                          signers={}
+                                          targetBook={}
+                                        """, ledgerId, targetMetadata, Bytes.wrap(signature), signers, targetBook);
                         final var proof = historyLibrary.constructGenesisWrapsProof(
                                 requireNonNull(ledgerId).toByteArray(),
                                 targetMetadata.toByteArray(),
