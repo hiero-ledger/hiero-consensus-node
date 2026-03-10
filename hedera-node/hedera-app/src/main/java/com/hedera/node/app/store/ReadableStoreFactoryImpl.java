@@ -208,9 +208,9 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
 
         @SuppressWarnings("unchecked")
         public <T> T createFrom(
-                @NonNull final ReadableStates readableStates, @NonNull final ReadableEntityIdStore entityCounters) {
+                @NonNull final ReadableStates readableStates, @NonNull final ReadableEntityIdStore entityIdStore) {
             requireNonNull(readableStates);
-            return (T) fromStates.apply(readableStates, entityCounters);
+            return (T) fromStates.apply(readableStates, entityIdStore);
         }
     }
 }
