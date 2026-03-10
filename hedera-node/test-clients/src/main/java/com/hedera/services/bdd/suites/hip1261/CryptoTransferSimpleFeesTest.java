@@ -2111,6 +2111,48 @@ public class CryptoTransferSimpleFeesTest {
                                 allRunFor(spec, finalizeOp, checkFinalizeFee, checkFinalized);
                             })));
                 }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto-Create one account and Auto-Associate another in same transfer")
+                final Stream<DynamicTest> cryptoTransferAutoCreationAndAutoAssociationInSameTransfer() {
+                    return hapiTest(flattened(
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 100L, OWNER, adminKey),
+
+                            // Auto-create via alias + auto-associate existing account with new token
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
+                                            moving(10L, FUNGIBLE_TOKEN_2)
+                                                    .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "tokenTransferTxn",
+                                    txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                                    SIGNATURES, 1L,
+                                                    ACCOUNTS, 3L,
+                                                    TOKEN_TYPES, 2L,
+                                                    PROCESSING_BYTES, (long) txnSize))
+                                            + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
+                                    0.001),
+                            // Verify auto-created account
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1)),
+                            // Verify existing account got auto-associated
+                            getAccountInfo(RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN_2)),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L)));
+                }
             }
 
             @Nested
