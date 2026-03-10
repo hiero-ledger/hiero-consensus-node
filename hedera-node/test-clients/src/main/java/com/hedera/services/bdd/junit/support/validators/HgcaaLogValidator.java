@@ -103,7 +103,9 @@ public class HgcaaLogValidator {
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
-                List.of("Native library besu blake2bf is not present"));
+                List.of("Native library besu blake2bf is not present"),
+                // Expected as part of `WrapsProvingKeyVerificationHttpDownloadTest`
+                List.of("WRAPS proving key hash mismatch at data/config/invalid-wraps-proving-key.tar.gz"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
