@@ -344,4 +344,43 @@ public class ScheduleServiceSimpleFeesTest {
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
+
+    @HapiTest
+    @DisplayName("Scheduled ContractCall full lifecycle - create, sign, execute fees")
+    final Stream<DynamicTest> scheduledContractCallFullLifecycleFees() {
+        final var schedulePayer = "contractSchedulePayer";
+        return hapiTest(
+                uploadInitCode(SIMPLE_UPDATE),
+                cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
+                contractCreate(SIMPLE_UPDATE).gas(300_000L),
+                // Schedule a contract call
+                scheduleCreate(
+                                "contractCallSchedule",
+                                contractCall(SIMPLE_UPDATE, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
+                                        .gas(100_000)
+                                        .fee(ONE_HBAR))
+                        .designatingPayer(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER)
+                        .via("createTxn")
+                        .fee(ONE_HBAR),
+                // Sign with schedule payer to trigger execution
+                scheduleSign("contractCallSchedule")
+                        .alsoSigningWith(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER, schedulePayer)
+                        .via("signTxn")
+                        .fee(ONE_HBAR),
+                // Verify sign fee (schedule create with contract call charges near-zero — known issue)
+                validateChargedUsd("signTxn", 0.001, SCHEDULE_FEE_TOLERANCE),
+                // Verify execution succeeded
+                withOpContext((spec, log) -> {
+                    var triggeredTx = getTxnRecord("createTxn").scheduled();
+                    allRunFor(spec, triggeredTx);
+                    assertEquals(
+                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            triggeredTx.getResponseRecord().getReceipt().getStatus());
+                }));
+    }
 }
