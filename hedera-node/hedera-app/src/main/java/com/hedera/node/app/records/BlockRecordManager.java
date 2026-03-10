@@ -6,7 +6,6 @@ import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.stream.Stream;
 
@@ -154,7 +153,7 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * Note that the 'live' check is intentionally preferred over the 'disk' check, because if live
      * computation is enabled, there's no need to write data to the disk file.
      *
-     * @param state the state to persist BlockInfo to, or {@code null} to skip the state update
+     * @param state the state to persist BlockInfo to
      */
-    void writeFreezeBlockWrappedRecordFileBlockHashes(@Nullable State state);
+    void writeFreezeBlockWrappedRecordFileBlockHashes(@NonNull State state);
 }

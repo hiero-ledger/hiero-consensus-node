@@ -270,7 +270,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashes(@Nullable final State state) {
+    public void writeFreezeBlockWrappedRecordFileBlockHashes(@NonNull final State state) {
         if (!writeWrappedRecordFileBlockHashesToDisk() && !liveWritePrevWrappedRecordHashes()) {
             return;
         }
@@ -290,21 +290,19 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 // Update the in-memory values
                 updateWrappedBlockHashes(currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
 
-                // If the given state is writable, persist the updated values to BlockInfo
-                if (state != null) {
-                    lastBlockInfo = lastBlockInfo
-                            .copyBuilder()
-                            .previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash)
-                            .wrappedIntermediatePreviousBlockRootHashes(
-                                    prevWrappedRecordBlockHashes.intermediateHashingState())
-                            .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
-                            .build();
-                    putLastBlockInfo(state);
-                    logger.info(
-                            "Persisted live wrapped record block root hash (as of block {}): {}",
-                            currentBlockNumber,
-                            previousWrappedRecordBlockRootHash);
-                }
+                // Persist the updated values to BlockInfo
+                lastBlockInfo = lastBlockInfo
+                        .copyBuilder()
+                        .previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash)
+                        .wrappedIntermediatePreviousBlockRootHashes(
+                                prevWrappedRecordBlockHashes.intermediateHashingState())
+                        .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
+                        .build();
+                putLastBlockInfo(state);
+                logger.info(
+                        "Persisted live wrapped record block root hash (as of block {}): {}",
+                        currentBlockNumber,
+                        previousWrappedRecordBlockRootHash);
             } else if (writeWrappedRecordFileBlockHashesToDisk()) {
                 // Only write to the wrapped hashes file if live writing isn't enabled
                 appendWrappedRecordFileBlockHashesToDisk(

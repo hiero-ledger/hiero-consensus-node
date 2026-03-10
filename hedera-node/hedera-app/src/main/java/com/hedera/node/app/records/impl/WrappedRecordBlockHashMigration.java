@@ -4,7 +4,6 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
@@ -53,12 +52,21 @@ public class WrappedRecordBlockHashMigration {
             long wrappedIntermediateBlockRootsLeafCount) {}
 
     private @Nullable Result result;
+    private @Nullable Path jumpstartFilePath;
 
     /**
      * Returns the computed migration result, or null if the migration has not run or was skipped.
      */
     public @Nullable Result result() {
         return result;
+    }
+
+    /**
+     * Returns the path to the jumpstart file used by the migration, or null if the migration
+     * has not run or was skipped.
+     */
+    public @Nullable Path jumpstartFilePath() {
+        return jumpstartFilePath;
     }
 
     private static final String RESUME_MESSAGE =
@@ -134,8 +142,8 @@ public class WrappedRecordBlockHashMigration {
 
     private void executeInternal(@NonNull final BlockRecordStreamConfig recordsConfig) throws Exception {
         // Verify jumpstart file exists and can be loaded
-        final var jumpstartFilePath = resolveJumpstartPath(recordsConfig);
-        if (jumpstartFilePath == null) {
+        this.jumpstartFilePath = resolveJumpstartPath(recordsConfig);
+        if (this.jumpstartFilePath == null) {
             return;
         }
 
@@ -144,7 +152,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        final var jumpstartData = loadJumpstartData(jumpstartFilePath);
+        final var jumpstartData = loadJumpstartData(this.jumpstartFilePath);
         if (jumpstartData == null) {
             return;
         }
@@ -160,11 +168,6 @@ public class WrappedRecordBlockHashMigration {
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
-
-        // Archive the jumpstart file so the migration doesn't run again
-        final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-        Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-        log.info("Archived jumpstart file to {}", archivedPath);
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
