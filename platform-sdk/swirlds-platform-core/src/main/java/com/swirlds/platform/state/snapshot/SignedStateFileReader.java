@@ -186,6 +186,7 @@ public final class SignedStateFileReader {
      * @param state a State to register schemas in
      */
     public static void registerServiceStates(@NonNull final VirtualMapState state) {
+        System.out.println("calling register service states");
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
         registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
     }
@@ -198,6 +199,7 @@ public final class SignedStateFileReader {
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, def);
+                    System.out.println("registering def " + def);
                     if (def.singleton() || def.keyValue()) {
                         state.initializeState(md);
                     } else {
