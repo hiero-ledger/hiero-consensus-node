@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
@@ -46,6 +47,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferTokenWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
@@ -1955,6 +1957,158 @@ public class CryptoTransferSimpleFeesTest {
                                         checkFinalizeOpChargedUsd,
                                         finalisedAccountInfoCheck,
                                         ownerBalanceCheck);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create ED25519 Account with FT and NFT in one Transfer - extras charging")
+                final Stream<DynamicTest> cryptoTransferFTAndNFT_ED25519_AutoAccountCreation_ExtrasCharging() {
+                    return hapiTest(flattened(
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // Transfer FT + NFT to same alias — triggers auto-creation + 2 auto-associations
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "tokenTransferTxn",
+                                    txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
+                                                    SIGNATURES, 1L,
+                                                    ACCOUNTS, 2L,
+                                                    TOKEN_TYPES, 2L,
+                                                    PROCESSING_BYTES, (long) txnSize))
+                                            + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
+                                    0.001),
+                            // validate auto-created account has both tokens
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1)),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Custom Fee Token to ED25519 Alias with Auto-Creation - extras charging")
+                final Stream<DynamicTest>
+                        cryptoTransferCustomFeeToken_ED25519_AutoAccountCreation_ExtrasCharging() {
+                    final var feeCollector = "feeCollector";
+                    return hapiTest(flattened(
+                            createAccountsAndKeys(),
+                            cryptoCreate(feeCollector).balance(0L),
+                            tokenCreate(FUNGIBLE_TOKEN)
+                                    .initialSupply(100L)
+                                    .treasury(OWNER)
+                                    .adminKey(adminKey)
+                                    .tokenType(FUNGIBLE_COMMON)
+                                    .withCustom(fixedHbarFee(ONE_HBAR, feeCollector)),
+
+                            // Transfer custom fee token to alias — auto-creation + auto-association
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(10 * ONE_HBAR)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "tokenTransferTxn",
+                                    txnSize -> (expectedCryptoTransferTokenWithCustomFullFeeUsd(Map.of(
+                                                    SIGNATURES, 1L,
+                                                    ACCOUNTS, 2L,
+                                                    TOKEN_TYPES, 1L,
+                                                    PROCESSING_BYTES, (long) txnSize))
+                                            + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
+                                    0.001),
+                            // validate auto-created account
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1)),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L)));
+                }
+
+                @HapiTest
+                @DisplayName("Finalize Hollow Account with HBAR Transfer - standard CryptoTransfer fee only")
+                final Stream<DynamicTest> finalizeHollowAccountWithHbarTransfer_StandardFeeOnly() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            createAccountsAndKeys(),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // Step 1: create hollow account via HBAR transfer
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var createHollowOp = cryptoTransfer(
+                                                movingHbar(ONE_HBAR).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("createHollowTxn");
+
+                                final var checkCreateFee = validateChargedUsdWithinWithTxnSize(
+                                        "createHollowTxn",
+                                        txnSize -> (expectedCryptoTransferHbarFullFeeUsd(Map.of(
+                                                SIGNATURES, 1L,
+                                                ACCOUNTS, 2L,
+                                                PROCESSING_BYTES, (long) txnSize))),
+                                        0.001);
+
+                                final var checkHollow = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .has(accountWith().hasEmptyKey().noAlias().maxAutoAssociations(-1));
+
+                                allRunFor(spec, createHollowOp, checkCreateFee, checkHollow);
+
+                                // Register account ID so we can use it as a signer
+                                final var accountInfo =
+                                        getAliasedAccountInfo(evmAlias.get()).logged();
+                                allRunFor(spec, accountInfo);
+                                final var newAccountId = accountInfo
+                                        .getResponse()
+                                        .getCryptoGetInfo()
+                                        .getAccountInfo()
+                                        .getAccountID();
+                                spec.registry().saveAccountId(VALID_ALIAS_ECDSA, newAccountId);
+
+                                // Step 2: finalize by sending HBAR from hollow account (signed with ECDSA key)
+                                final var finalizeOp = cryptoTransfer(
+                                                movingHbar(10L).between(evmAlias.get(), OWNER))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER, VALID_ALIAS_ECDSA)
+                                        .fee(ONE_HBAR)
+                                        .via("finalizeTxn");
+
+                                // Finalization should charge standard CryptoTransfer fee (2 sigs: payer + ECDSA key)
+                                final var checkFinalizeFee = validateChargedUsdWithinWithTxnSize(
+                                        "finalizeTxn",
+                                        txnSize -> (expectedCryptoTransferHbarFullFeeUsd(Map.of(
+                                                SIGNATURES, 2L,
+                                                ACCOUNTS, 2L,
+                                                PROCESSING_BYTES, (long) txnSize))),
+                                        0.001);
+
+                                final var checkFinalized = getAccountInfo(VALID_ALIAS_ECDSA)
+                                        .isNotHollow()
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA)
+                                                .maxAutoAssociations(-1));
+
+                                allRunFor(spec, finalizeOp, checkFinalizeFee, checkFinalized);
                             })));
                 }
             }
