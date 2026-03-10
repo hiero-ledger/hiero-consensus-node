@@ -16,8 +16,7 @@ CLPR introduces no new token. All incentives and penalties are denominated in na
 ## Why CLPR
 
 - **Preserves ABFT guarantees** — if both networks are ABFT, interledger communication inherits ABFT properties.
-- **Eliminates intermediary trust** — ledgers rely on each other's network signatures (state proofs) rather than bridge
-  validators.
+- **Eliminates intermediary trust** — ledgers rely on each other's network proofs rather than bridge validators.
 - **Improves on existing solutions** — faster, cheaper, and/or more reliable than current interledger protocols.
 - **Supports hybrid topologies** — enables communication between public and private Hiero networks and cross-ledger
   application orchestration.
@@ -28,7 +27,6 @@ CLPR introduces no new token. All incentives and penalties are denominated in na
 
 > *"Interledger communication deployed from Ethereum to Hedera Mainnet, and at least 1K transactions processed between
 Ethereum and Mainnet by end of 2026."*
->
 
 ---
 
@@ -37,22 +35,17 @@ Ethereum and Mainnet by end of 2026."*
 CLPR connects one ledger to another without any intermediary nodes or networks. In a very real sense, *the ledgers are
 communicating directly*. Users only have to trust the two ledgers they send messages between.
 
-<aside>
-💡
-
-**A note on Hedera and Hiero:** Throughout this document, "Hiero" refers to the open-source ledger software stack (the
+>💡 **A note on Hedera and Hiero:** Throughout this document, "Hiero" refers to the open-source ledger software stack (the
 node software, its APIs, and its state model). "Hedera" refers to the specific public network that runs Hiero. When
 describing behavior that applies to any network running Hiero (including private deployments), this document uses "
 Hiero." When describing the public mainnet specifically, it uses "Hedera."
 
-</aside>
-
 ## 2.1 Common Terminology
 
 - **Peer Ledger** — The "other" ledger this ledger is communicating with.
-- **State Proof** — A cryptographic proof (Merkle path plus network signatures) that a specific piece of data exists in
-  a ledger's committed state and/or history. State proofs are the mechanism of trust — they allow one ledger to verify
-  claims about another ledger's state without trusting any intermediary.
+- **State Proof** — A cryptographic proof that a specific piece of data exists in a ledger's committed state and/or
+  history. State proofs are the mechanism of trust — they allow one ledger to verify claims about another ledger's state
+  without trusting any intermediary.
 - **Endpoint** — A node responsible for periodically communicating with peer ledger endpoints to exchange configurations
   and messages.
 - **Connection** — An on-ledger entity representing one side of a peer relationship between the local ledger and a
@@ -85,7 +78,7 @@ the **CLPR Service** (which may be a native service on Hedera, or a smart contra
 service maintains a queue of outgoing messages, and some information about which messages have been **acknowledged** as
 having been received by the destination ledger.
 
-![image.png](attachment:48b84734-670b-43bf-9dbf-4c8b0356e900:image.png)
+![clpr-architecture.svg](clpr-architecture.svg)
 
 Before adding a message to the end of the queue, the service will call a **connector** (chosen by the application) to
 ask it whether it will be willing to facilitate payment on the destination ledger for this message. Connectors (noun)
@@ -130,13 +123,8 @@ verified using proof methods negotiated between each pair of connected ledgers. 
 methods, including zero-knowledge verifiers that enable chain-agnostic verification and direct methods that verify a
 ledger's native consensus attestation for reduced latency (see §3.1.5).
 
-<aside>
-💡
-
-**Encoding format under review.** Jasper is examining XDR as an alternative that may be more gas-efficient on Ethereum
+> 💡**Encoding format under review.** Jasper is examining XDR as an alternative that may be more gas-efficient on Ethereum
 than protobuf.
-
-</aside>
 
 ---
 
@@ -145,17 +133,17 @@ than protobuf.
 The network layer defines the CLPR Service and the state it maintains (§3.1.0), how ledgers identify themselves (
 §3.1.1), how the endpoint roster is managed (§3.1.2), how connections are formed and maintained (§3.1.3), how endpoints
 communicate (§3.1.4), and how state proofs provide the underlying trust mechanism (§3.1.5). The network layer also
-defines the three classes of messages that flow between ledgers — Data Messages, Response Messages, and Control
-Messages — and network-level misbehavior detection and reporting mechanisms that protect the protocol (§3.1.5.6).
+defines the three classes of messages that flow between ledgers — `Data` messages, `Response` messages, and `Control`
+messages — and network-level misbehavior detection and reporting mechanisms that protect the protocol (§3.1.5.6).
 
 ### 3.1.0 The CLPR Service
 
 The **CLPR Service** is the core on-ledger component that implements the CLPR protocol. It is the single source of truth
-for all CLPR state on a given ledger, and it contains all of the protocol logic — message routing, payment processing,
-proof verification, misbehavior enforcement, and fund custody. On Hiero networks it is a native service built into the
-node software; on Ethereum it is a smart contract deployed on-chain.
+for all CLPR state on a given ledger, and it contains all protocol logic — message routing, payment processing, proof
+verification, misbehavior enforcement, and fund custody. On Hiero networks it is a native service built into the node
+software; on Ethereum it is a smart contract deployed on-chain.
 
-![image.png](attachment:f3ed433f-68c5-47ed-8b60-2a8a3c2131a0:image.png)
+![CLPR Network Layer](clpr-networking-architecture.svg)
 
 **State owned by the CLPR Service:**
 
@@ -176,22 +164,13 @@ processing and routing message bundles, dispatching messages to application cont
 endpoint nodes, enforcing misbehavior penalties, and managing endpoint roster updates via Control Messages. Connections
 hold state while the CLPR Service holds the logic that acts on that state.
 
-<aside>
-💡
 
-**Hiero:** The CLPR Service is a native Hedera service, co-located with the node software. State is stored in the Merkle
+> 💡 **Hiero:** The CLPR Service is a native Hedera service, co-located with the node software. State is stored in the Merkle
 state tree alongside other Hiero state (accounts, tokens, etc.), making it directly provable via Hiero state proofs.
 
-</aside>
-
-<aside>
-💡
-
-**Ethereum:** The CLPR Service is a smart contract. All state it maintains lives in contract storage and is provable via
+> 💡 **Ethereum:** The CLPR Service is a smart contract. All state it maintains lives in contract storage and is provable via
 Ethereum state proofs (`eth_getProof`). The contract is the authoritative registry for Connections, endpoint rosters,
 Connectors, and all locked funds on the Ethereum side.
-
-</aside>
 
 ### 3.1.1 Ledger Identity and Configuration
 
@@ -230,14 +209,9 @@ For public networks, the namespace and reference SHOULD correspond to a register
 permissioned networks (e.g. HashSphere deployments), operators MAY self-assign a `ChainID` using an unregistered
 namespace; uniqueness within the deployment is the operator's responsibility.
 
-<aside>
-‼️
-
-Anyone could maliciously construct a ledger configuration using any `ChainID` of their choosing. Either the CLPR Service
+> ‼️ Anyone could maliciously construct a ledger configuration using any `ChainID` of their choosing. Either the CLPR Service
 requires an admin to vet new connections, or users of CLPR must vet those connections to make sure they are using the *
 *correct** connection for their ledger of choice.
-
-</aside>
 
 ---
 
@@ -401,24 +375,14 @@ recovery call — it is not a privileged operation.
 
 **How local endpoints are established** varies by ledger type:
 
-<aside>
-💡
-
-**Hiero:** Every consensus node is automatically a CLPR endpoint. When CLPR is first enabled, the node software reads
+> 💡 **Hiero:** Every consensus node is automatically a CLPR endpoint. When CLPR is first enabled, the node software reads
 the active roster and registers all nodes as local endpoints. From that point forward, any roster change — a node
 joining, leaving, or upgrading — automatically updates the local endpoint set. No manual management is required.
 
-</aside>
-
-<aside>
-💡
-
-**Ethereum:** There are no local endpoints by default. Validators opt in as CLPR endpoints by calling a registration
+> 💡 **Ethereum:** There are no local endpoints by default. Validators opt in as CLPR endpoints by calling a registration
 method on the CLPR Service contract and posting a bond (ETH locked in escrow against misbehavior). They can remove
 themselves by calling a deregistration method. There is no automatic synchronization with the Ethereum validator set —
 endpoint participation is explicitly managed through contract calls.
-
-</aside>
 
 ### 3.1.3 Establishing and Updating Connections
 
@@ -481,7 +445,6 @@ one honest and reachable endpoint on each side is required for the Connection to
 > peer (and MAY include more). This seed roster is stored immediately and enables the connection to begin syncing without
 > waiting for an **EndpointJoin** Control Message to arrive. The seed endpoints do not need to be exhaustive — additional
 > endpoints will be learned via Control Messages as the connection operates.
->
 
 **Ongoing updates.** Endpoint roster changes are propagated automatically via Control Messages during the sync
 protocol (§3.1.4). Configuration changes are propagated out of band — see §3.1.4 for details. When endpoints
@@ -495,28 +458,18 @@ ledgers that have never communicated, and when the automatic sync breaks down (f
 rotates its endpoint set and none of the new endpoints are known to the peer). In these cases, any user can download a
 ledger's Configuration from that ledger and upload it to the other ledger, reestablishing the Connection.
 
-<aside>
-💡
-
-**Hiero:** Downloading a Configuration and its state proof uses a paid HAPI query. The caller specifies the desired
+> 💡 **Hiero:** Downloading a Configuration and its state proof uses a paid HAPI query. The caller specifies the desired
 proof method in the query; the node produces the Configuration's state proof in that format. Uploading a peer's
 Configuration uses a HAPI transaction that includes both the Configuration, the state proof, and a declaration of the
 proof method used. The CLPR Service verifies the proof using the declared method. Any user with a Hedera account can
 perform this — it is not a privileged operation due to the state proof.
 
-</aside>
-
-<aside>
-💡
-
-**Ethereum:** Reading the Configuration from a view function on the CLPR Service contract is not sufficient on its own —
+> 💡 **Ethereum:** Reading the Configuration from a view function on the CLPR Service contract is not sufficient on its own —
 a state proof is also needed. The caller obtains both the Configuration data and its proof using the appropriate
 method (e.g., `eth_getProof` for BLS-based proofs, or by running a ZK prover over the contract state for ZK-based
 proofs). To upload a peer's Configuration to Ethereum, the caller invokes a method on the CLPR Service contract, passing
 the Configuration, the state proof, and the proof method identifier. The contract verifies the proof using the declared
 method and creates or updates the Connection. Any Ethereum account can submit the update.
-
-</aside>
 
 ### 3.1.4 Endpoint Communication Protocol
 
@@ -524,7 +477,7 @@ Every CLPR endpoint runs a gRPC server that implements the CLPR Endpoint API. Th
 method — when one endpoint contacts a peer endpoint, they exchange whatever information needs to flow between the two
 ledgers. The sync method is the single entry point for all interledger data exchange at the network layer.
 
-![image.png](attachment:e6174ca4-75d8-48f4-9fc8-dd65239bfa58:image.png)
+![Messaging](clpr-messaging-state.svg)
 
 A sync call is initiated by one endpoint selecting a peer endpoint from the Connection's peer roster and opening a gRPC
 connection to it. **The sync is bidirectional within a single call** — both sides exchange their data simultaneously,
@@ -603,22 +556,12 @@ like Hedera or Ethereum without exposing any network infrastructure.
 
 When a ledger is private, its endpoints are responsible for initiating communication with the peer ledger.
 
-<aside>
-💡
-
-**Hiero:** A gRPC server is built into the consensus node software. Every node runs the CLPR Endpoint API alongside the
+> 💡 **Hiero:** A gRPC server is built into the consensus node software. Every node runs the CLPR Endpoint API alongside the
 existing HAPI gRPC services. Nodes periodically initiate sync calls to peer endpoints on a configurable frequency.
 
-</aside>
-
-<aside>
-💡
-
-**Ethereum:** The gRPC server runs as a sidecar process alongside the Besu client (or as a built-in module if CLPR
+> 💡 **Ethereum:** The gRPC server runs as a sidecar process alongside the Besu client (or as a built-in module if CLPR
 support is contributed to Besu). The sidecar reads from and writes to the CLPR Service contract via standard Ethereum
 JSON-RPC, but communicates with peer endpoints over gRPC.
-
-</aside>
 
 ### 3.1.5 State Proofs
 
@@ -699,14 +642,9 @@ anchor transitions (committee rotations, validator set changes, epoch transition
 proof conforming to the public input interface above. The cost of proof generation is borne by the endpoint and recouped
 through Connector reimbursement (§3.3.3). Endpoints may offload proof generation to specialized proving services.
 
-<aside>
-💡
-
-**Note:** Chain-specific prover specifications (e.g., how to construct a ZK proof of Ethereum sync committee consensus,
+> 💡 **Note:** Chain-specific prover specifications (e.g., how to construct a ZK proof of Ethereum sync committee consensus,
 or how to wrap Solana Tower BFT finality in a SNARK) are out of scope for this document. Each is a separate
 specification maintained by the relevant chain's ecosystem or by the team implementing CLPR support for that chain.
-
-</aside>
 
 ### 3.1.5.2 Proof Method Negotiation
 
@@ -937,21 +875,11 @@ Each queued entry contains:
   payload. When this message is the last one in a bundle, this hash must match the state-proven value, enabling
   verification without requiring the entire queue history.
 
-<aside>
-💡
-
-**Hiero:** Queued messages are stored in the Merkle state as a separate key-value map. They are deleted after
+> 💡 **Hiero:** Queued messages are stored in the Merkle state as a separate key-value map. They are deleted after
 acknowledgement.
 
-</aside>
-
-<aside>
-💡
-
-**Ethereum:** Queued messages are stored in the CLPR Service contract's storage. Gas costs for storage are a significant
+> 💡 **Ethereum:** Queued messages are stored in the CLPR Service contract's storage. Gas costs for storage are a significant
 design consideration — message payloads are deleted aggressively after acknowledgement.
-
-</aside>
 
 ### 3.2.3 Bundle Transport
 
@@ -1267,45 +1195,25 @@ mechanism if this proves to be a practical problem.
 
 ### 3.3.6 Open Economic Design Issues
 
-<aside>
-❓
-
-**Queue monopolization.** A single Connector could authorize a large volume of messages to fill the queue, preventing
+> ❓ **Queue monopolization.** A single Connector could authorize a large volume of messages to fill the queue, preventing
 other Connectors from being able to send anything. One mitigation is to require each message to escrow funds at send
 time, with those funds returned when the response arrives. This forces high-volume senders to commit capital
 proportional to their queue usage. Since Ethereum does not support state rent, a simple "pay more rent for more queue
 space" model is not viable — escrowed capital is the natural alternative.
 
-</aside>
-
-<aside>
-❓
-
-**Connection creation deposits.** How should Connection creation deposits work to protect nodes from non-functional
+> ❓ **Connection creation deposits.** How should Connection creation deposits work to protect nodes from non-functional
 Connectors? (See also §6.2.)
 
-</aside>
-
-<aside>
-❓
-
-**Application-Connector agreements.** How do applications formalize agreements with Connectors? What interfaces and
+> ❓ **Application-Connector agreements.** How do applications formalize agreements with Connectors? What interfaces and
 registration mechanisms are needed? (See also §6.2.)
-
-</aside>
 
 ---
 
 ## 3.4 Application Layer
 
-<aside>
-💡
-
-**Note:** This section is a placeholder. The interaction patterns below are outlined at a high level. Detailed
+> 💡 **Note:** This section is a placeholder. The interaction patterns below are outlined at a high level. Detailed
 application-layer specifications will be developed as specific use cases (e.g., HashDEX cross-ledger settlement, HTS
 asset bridging) are designed.
-
-</aside>
 
 CLPR supports multiple interaction patterns at the application layer, built on top of the general messaging primitive.
 
