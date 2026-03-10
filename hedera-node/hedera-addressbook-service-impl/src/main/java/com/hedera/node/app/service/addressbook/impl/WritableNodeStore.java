@@ -37,11 +37,10 @@ public class WritableNodeStore extends ReadableNodeStoreImpl {
     }
 
     /**
-     * Persists an updated {@link Node} into the state, as well as exporting its ID to the transaction
-     * receipt.
-     * If a node with the same ID already exists, it will be overwritten.
+     * Persists a {@link Node} into the state. If a node with the same ID already exists,
+     * it will be overwritten. Does not modify entity counts or the highest node ID.
      *
-     * @param node - the node to be mapped onto a new {@link Node}
+     * @param node the node to persist
      */
     public void put(@NonNull final Node node) {
         requireNonNull(node);
@@ -49,13 +48,28 @@ public class WritableNodeStore extends ReadableNodeStoreImpl {
     }
 
     /**
-     * Persists a new {@link Node} into the state, as well as exporting its ID to the transaction. It
-     * will also increment the entity type count for {@link EntityType#NODE}.
-     * @param node - the node to be mapped onto a new {@link Node}
+     * Persists a new {@link Node} into the state. Increments both the highest node ID
+     * and the {@link EntityType#NODE} entity type count.
+     *
+     * @param node the node to persist
      */
-    public void putAndIncrementCount(@NonNull final Node node) {
+    public void putAndIncrement(@NonNull final Node node) {
+        requireNonNull(node);
         put(node);
+        writableEntityIdStore.incrementHighestNodeIdAndGet();
         writableEntityIdStore.incrementEntityTypeCount(EntityType.NODE);
+    }
+
+    /**
+     * Updates the highest node ID tracked in state to match the given node's ID,
+     * but only if it is greater than the current highest. This is needed for
+     * system-dispatched node creations (e.g. transplant) where the node ID is
+     * explicitly provided and may exceed the sequentially incremented highest ID.
+     *
+     * @param node the node whose ID may become the new highest
+     */
+    public void updateHighestNodeIdIfLarger(@NonNull final Node node) {
+        writableEntityIdStore.updateHighestNodeIdIfLarger(node.nodeId());
     }
 
     /**

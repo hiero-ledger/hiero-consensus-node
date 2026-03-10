@@ -42,7 +42,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     }
 
     @Override
-    public long incrementAndGet() {
+    public long incrementEntityNumAndGet() {
         final var newEntityNum = peekAtNextNumber();
         entityIdState.put(new EntityNumber(newEntityNum));
         return newEntityNum;
@@ -89,5 +89,14 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     @Override
     public void decrementEntityTypeCounter(final EntityType entityType) {
         adjustEntityCount(entityType, -1);
+    }
+
+    @Override
+    public void updateHighestNodeIdIfLarger(final long nodeId) {
+        final var current = nodeIdState.get();
+        final long currentHighest = current == null ? -1 : current.id();
+        if (nodeId > currentHighest) {
+            nodeIdState.put(new NodeId(nodeId));
+        }
     }
 }

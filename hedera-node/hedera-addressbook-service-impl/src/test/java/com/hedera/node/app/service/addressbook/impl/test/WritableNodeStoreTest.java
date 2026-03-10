@@ -65,12 +65,12 @@ class WritableNodeStoreTest extends AddressBookTestBase {
     }
 
     @Test
-    void putAndIncrementCountStoresNode() {
+    void putAndIncrementStoresNode() {
         rebuildState(0);
         node = createNode();
         assertFalse(writableNodeState.contains(nodeId));
 
-        writableStore.putAndIncrementCount(node);
+        writableStore.putAndIncrement(node);
 
         assertTrue(writableNodeState.contains(nodeId));
         final var writtenNode = writableNodeState.get(nodeId);

@@ -125,19 +125,25 @@ public class NodeCreateHandler implements TransactionHandler {
         long nextNodeId;
         Node node;
 
-        // If a system-dispatched transplant transaction for nodes in override network (non-prod environments)
-        // attempts to create a node that already exists in the state (even if marked as deleted),
-        // neither the highest node ID nor the entity count should be incremented.
-        if (maybeSystemTxnDispatchEntityNum.isPresent() && maybeNodeIsInStateForSystemTxn) {
-            // Assign node id using the one provided by the system dispatch metadata
+        // System-dispatched node creation must use the explicit node id from metadata. If the node
+        // already exists in state (even if deleted), this is a transplant restore and should not
+        // increment either the highest node id or the live node count.
+        if (maybeSystemTxnDispatchEntityNum.isPresent()) {
             nextNodeId = maybeSystemTxnDispatchEntityNum.get();
             node = nodeBuilder.nodeId(nextNodeId).build();
-            nodeStore.put(node);
+            if (maybeNodeIsInStateForSystemTxn) {
+                nodeStore.put(node);
+            } else {
+                // put and increment the count and the highest node id
+                nodeStore.putAndIncrement(node);
+                // but if the explicit node id from metadata is larger, update the highest node id
+                nodeStore.updateHighestNodeIdIfLarger(node);
+            }
         } else {
-            // Assign node id using a dedicated generator to avoid reuse
-            nextNodeId = handleContext.nodeIdGenerator().newNodeId();
+            // Assign node id using the store to avoid reuse
+            nextNodeId = nodeStore.peekAtNewNodeId();
             node = nodeBuilder.nodeId(nextNodeId).build();
-            nodeStore.putAndIncrementCount(node);
+            nodeStore.putAndIncrement(node);
         }
 
         accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());

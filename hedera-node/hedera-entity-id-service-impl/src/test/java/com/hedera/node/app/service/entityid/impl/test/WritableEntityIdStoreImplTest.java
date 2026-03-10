@@ -52,7 +52,7 @@ class WritableEntityIdStoreImplTest {
     @Test
     void peeksAndIncrementsAsExpected() {
         assertEquals(1, subject.peekAtNextNumber());
-        subject.incrementAndGet();
+        subject.incrementEntityNumAndGet();
         assertEquals(2, subject.peekAtNextNumber());
 
         // peeks and increments node ids (starts from 0)

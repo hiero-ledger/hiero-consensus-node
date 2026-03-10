@@ -38,6 +38,13 @@ public interface ReadableNodeStore {
     Node get(long nodeId);
 
     /**
+     * Returns the next node ID that would be generated, without incrementing the highest node ID.
+     *
+     * @return the next available node ID
+     */
+    long peekAtNewNodeId();
+
+    /**
      * Returns the number of nodes in the state.
      * @return the number of nodes in the state
      */

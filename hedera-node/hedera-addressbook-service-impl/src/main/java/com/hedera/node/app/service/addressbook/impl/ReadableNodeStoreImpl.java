@@ -53,6 +53,16 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     /**
+     * Returns the next node ID that would be generated, without incrementing the highest node ID.
+     *
+     * @return the next available node ID
+     */
+    @Override
+    public long peekAtNewNodeId() {
+        return entityIdStore.peekAtNextNodeId();
+    }
+
+    /**
      * Returns the node needed.
      *
      * @param nodeId node id being looked up
