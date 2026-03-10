@@ -207,4 +207,141 @@ public class ScheduleServiceSimpleFeesTest {
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
+
+    @HapiTest
+    @DisplayName("Scheduled CryptoTransfer triggers auto-association on execution")
+    final Stream<DynamicTest> scheduledCryptoTransferTriggersAutoAssociation() {
+        final var token = "fungibleToken";
+        final var unassociatedReceiver = "unassociatedReceiver";
+        return hapiTest(
+                cryptoCreate(PAYING_SENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(unassociatedReceiver)
+                        .maxAutomaticTokenAssociations(-1)
+                        .balance(ONE_HBAR),
+                tokenCreate(token)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(PAYING_SENDER),
+                // Schedule a FT transfer to unassociated receiver — auto-association at execution
+                scheduleCreate(
+                                "autoAssocSchedule",
+                                cryptoTransfer(moving(10L, token).between(PAYING_SENDER, unassociatedReceiver))
+                                        .fee(ONE_HBAR))
+                        .designatingPayer(PAYING_SENDER)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER)
+                        .via("createTxn")
+                        .fee(ONE_HBAR),
+                scheduleSign("autoAssocSchedule")
+                        .alsoSigningWith(PAYING_SENDER)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER, PAYING_SENDER)
+                        .via("signTxn")
+                        .fee(ONE_HBAR),
+                // Verify schedule ops fees
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("signTxn", 0.001, SCHEDULE_FEE_TOLERANCE),
+                // Verify auto-association happened — receiver has the token
+                getAccountInfo(unassociatedReceiver).hasToken(relationshipWith(token)),
+                getAccountBalance(unassociatedReceiver).hasTokenBalance(token, 10L),
+                // Verify execution succeeded
+                withOpContext((spec, log) -> {
+                    var triggeredTx = getTxnRecord("createTxn").scheduled();
+                    allRunFor(spec, triggeredTx);
+                    assertEquals(
+                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            triggeredTx.getResponseRecord().getReceipt().getStatus());
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("Scheduled TokenMint full lifecycle - create, sign, execute fees")
+    final Stream<DynamicTest> scheduledTokenMintFullLifecycleFees() {
+        final var token = "mintableToken";
+        final var supplyKey = "supplyKey";
+        final var treasury = "treasury";
+        final var schedulePayer = "schedulePayer";
+        return hapiTest(
+                cryptoCreate(treasury).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(supplyKey),
+                tokenCreate(token)
+                        .supplyKey(supplyKey)
+                        .treasury(treasury)
+                        .initialSupply(100L),
+                // Schedule a mint of 50 tokens
+                scheduleCreate("mintSchedule", mintToken(token, 50))
+                        .designatingPayer(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER)
+                        .via("createTxn")
+                        .fee(ONE_HBAR),
+                // Sign with supply key and schedule payer to trigger execution
+                scheduleSign("mintSchedule")
+                        .alsoSigningWith(supplyKey, schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER, supplyKey, schedulePayer)
+                        .via("signTxn")
+                        .fee(ONE_HBAR),
+                // Verify fees (sign has 3 signers: OTHER_PAYER + supplyKey + schedulePayer)
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("signTxn", 0.0014, SCHEDULE_FEE_TOLERANCE),
+                // Verify mint happened
+                getTokenInfo(token).hasTotalSupply(150L),
+                // Verify execution record
+                withOpContext((spec, log) -> {
+                    var triggeredTx = getTxnRecord("createTxn").scheduled();
+                    allRunFor(spec, triggeredTx);
+                    assertEquals(
+                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            triggeredTx.getResponseRecord().getReceipt().getStatus());
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("Scheduled TokenBurn full lifecycle - create, sign, execute fees")
+    final Stream<DynamicTest> scheduledTokenBurnFullLifecycleFees() {
+        final var token = "burnableToken";
+        final var supplyKey = "burnSupplyKey";
+        final var treasury = "burnTreasury";
+        final var schedulePayer = "burnSchedulePayer";
+        return hapiTest(
+                cryptoCreate(treasury).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(supplyKey),
+                tokenCreate(token)
+                        .supplyKey(supplyKey)
+                        .treasury(treasury)
+                        .initialSupply(100L),
+                // Schedule a burn of 30 tokens
+                scheduleCreate("burnSchedule", burnToken(token, 30))
+                        .designatingPayer(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER)
+                        .via("createTxn")
+                        .fee(ONE_HBAR),
+                // Sign with supply key and payer to trigger execution
+                scheduleSign("burnSchedule")
+                        .alsoSigningWith(supplyKey, schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER, supplyKey, schedulePayer)
+                        .via("signTxn")
+                        .fee(ONE_HBAR),
+                // Verify fees (sign has 3 signers: OTHER_PAYER + supplyKey + schedulePayer)
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("signTxn", 0.0014, SCHEDULE_FEE_TOLERANCE),
+                // Verify burn happened
+                getTokenInfo(token).hasTotalSupply(70L),
+                // Verify execution record
+                withOpContext((spec, log) -> {
+                    var triggeredTx = getTxnRecord("createTxn").scheduled();
+                    allRunFor(spec, triggeredTx);
+                    assertEquals(
+                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            triggeredTx.getResponseRecord().getReceipt().getStatus());
+                }));
+    }
 }
