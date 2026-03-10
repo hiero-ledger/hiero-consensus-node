@@ -105,8 +105,7 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // No scan results have been published — tasks will be submitted but will no-op
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Wait for submitted task to complete
         coordinator.awaitForCurrentCompactionsToComplete(2000);
@@ -157,8 +156,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         assertTrue(compactionsDone.await(2, TimeUnit.SECONDS), "Compaction tasks were not submitted");
         synchronized (compactedTargetLevels) {
@@ -193,13 +191,11 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // First call: submits a task for level 0
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction task wasn't started");
 
         // Second call: level 0 is already submitted, should not submit another
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Only one compactSingleLevel call should have been made (one task)
         verify(taskCompactor, times(1)).compactSingleLevel(anyList(), anyInt());
@@ -219,8 +215,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         final Supplier<DataFileCompactor> factory = () -> compactor;
 
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         coordinator.awaitForCurrentCompactionsToComplete(2000);
 
@@ -265,8 +260,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         assertTrue(tasksStarted.await(1, TimeUnit.SECONDS), "Compaction tasks didn't start");
 
         coordinator.pauseCompactionAndRun(() -> {});
@@ -294,8 +288,7 @@ class MerkleDbCompactionCoordinatorTest {
             return mock(DataFileCompactor.class);
         };
 
-        coordinator.submitCompactionTasks(
-                HASH_STORE_DISK, fileCollection, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Nothing should have been submitted
         assertFalse(coordinator.isCompactionRunning(HASH_STORE_DISK));

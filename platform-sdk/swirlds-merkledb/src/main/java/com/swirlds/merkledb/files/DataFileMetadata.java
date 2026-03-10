@@ -38,9 +38,6 @@ public final class DataFileMetadata {
     private static final FieldDefinition FIELD_ITEMS_COUNT =
             new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
 
-    private static final FieldDefinition FIELD_ITEM_VERSION =
-            new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
-
     private static final FieldDefinition FIELD_COMPACTION_LEVEL =
             new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
 
@@ -115,8 +112,6 @@ public final class DataFileMetadata {
                                 creationNanos = in.readVarInt(false);
                             } else if (metadataFieldNum == FIELD_ITEMS_COUNT.number()) {
                                 itemsCount = in.readLong();
-                            } else if (metadataFieldNum == FIELD_ITEM_VERSION.number()) {
-                                in.readVarLong(false); // this field is no longer used
                             } else if (metadataFieldNum == FIELD_COMPACTION_LEVEL.number()) {
                                 final int compactionLevelInt = in.readVarInt(false);
                                 assert compactionLevelInt < MAX_COMPACTION_LEVEL;

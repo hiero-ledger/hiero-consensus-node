@@ -83,7 +83,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
         @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
-        @ConfigProperty(defaultValue = "100000") long maxCompactionDataPerLevelInKB,
+        @ConfigProperty(defaultValue = "1000000") long maxCompactionDataPerLevelInKB,
         @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,

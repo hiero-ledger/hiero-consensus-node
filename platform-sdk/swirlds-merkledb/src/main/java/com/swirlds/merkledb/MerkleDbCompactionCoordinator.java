@@ -9,7 +9,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.common.io.utility.IORunnable;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.GarbageScanner;
@@ -28,7 +27,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
@@ -153,10 +151,10 @@ class MerkleDbCompactionCoordinator {
      * @param action action to run while compaction is paused
      */
     synchronized void pauseCompactionAndRun(IORunnable action) throws IOException {
-        for (final DataFileCompactor compactor : compactorsByName.values()) {
-            compactor.pauseCompaction();
-        }
         try {
+            for (final DataFileCompactor compactor : compactorsByName.values()) {
+                compactor.pauseCompaction();
+            }
             action.run();
         } finally {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
@@ -240,23 +238,16 @@ class MerkleDbCompactionCoordinator {
      * compaction work happens asynchronously when the task executes.
      *
      * @param storeName        store name (e.g. {@link DataFileCompactor#HASH_STORE_DISK})
-     * @param fileCollection   the file collection for this store
      * @param compactorFactory creates a fresh {@link DataFileCompactor} per compaction task
      * @param config           MerkleDb config with threshold parameters
      */
     synchronized void submitCompactionTasks(
-            final String storeName,
-            final DataFileCollection fileCollection,
-            final Supplier<DataFileCompactor> compactorFactory,
-            final MerkleDbConfig config) {
+            final String storeName, final Supplier<DataFileCompactor> compactorFactory, final MerkleDbConfig config) {
         if (!compactionEnabled) {
             return;
         }
 
-        // Discover levels from the current file list
-        final Set<Integer> levels = fileCollection.getAllCompletedFiles().stream()
-                .map(f -> f.getMetadata().getCompactionLevel())
-                .collect(Collectors.toSet());
+        final Set<Integer> levels = scanResultsByStore.get(storeName).keySet();
 
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
         for (final int level : levels) {

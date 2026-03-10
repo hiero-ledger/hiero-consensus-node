@@ -5,6 +5,9 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
+import static com.swirlds.merkledb.files.DataFileCompactor.HASH_STORE_DISK;
+import static com.swirlds.merkledb.files.DataFileCompactor.OBJECT_KEY_TO_PATH;
+import static com.swirlds.merkledb.files.DataFileCompactor.PATH_TO_KEY_VALUE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
@@ -177,6 +180,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     final MerkleDbCompactionCoordinator compactionCoordinator;
 
     private MerkleDbStatisticsUpdater statisticsUpdater;
+
+    @Nullable
+    private final GarbageScanner hashStoreDiskScanner;
+
+    private final GarbageScanner pathToKeyValueScanner;
+    private final GarbageScanner objectkeyToPathScanner;
 
     /**
      * Creates a new MerkleDb data source. The specified storage dir must exist and contain valid
@@ -435,6 +444,22 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
+        if (hashStoreDisk != null) {
+            hashStoreDiskScanner = new GarbageScanner(
+                    pathToDiskLocationInternalNodes,
+                    hashStoreDisk.getFileCollection(),
+                    HASH_STORE_DISK,
+                    merkleDbConfig);
+        } else {
+            hashStoreDiskScanner = null;
+        }
+        pathToKeyValueScanner = new GarbageScanner(
+                pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), PATH_TO_KEY_VALUE, merkleDbConfig);
+        objectkeyToPathScanner = new GarbageScanner(
+                keyToPath.getBucketIndexToBucketLocation(),
+                keyToPath.getFileCollection(),
+                OBJECT_KEY_TO_PATH,
+                merkleDbConfig);
 
         logger.info(
                 MERKLE_DB.getMarker(),
@@ -1241,7 +1266,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final DataFileReader keyToPathReader = keyToPath.endWriting();
         statisticsUpdater.setFlushLeafKeysStoreFileSize(keyToPathReader);
 
-        if (!compactionCoordinator.isCompactionRunning(DataFileCompactor.OBJECT_KEY_TO_PATH)) {
+        if (!compactionCoordinator.isCompactionRunning(OBJECT_KEY_TO_PATH)) {
             keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
         }
 
@@ -1254,7 +1279,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     DataFileCompactor newHashStoreDiskCompactor() {
         return new DataFileCompactor(
                 merkleDbConfig,
-                tableName + "_" + DataFileCompactor.HASH_STORE_DISK,
+                tableName + "_" + HASH_STORE_DISK,
                 hashStoreDisk.getFileCollection(),
                 pathToDiskLocationInternalNodes,
                 statisticsUpdater::setHashesStoreCompactionTimeMs,
@@ -1272,7 +1297,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     DataFileCompactor newPathToKeyValueCompactor() {
         return new DataFileCompactor(
                 merkleDbConfig,
-                tableName + "_" + DataFileCompactor.PATH_TO_KEY_VALUE,
+                tableName + "_" + PATH_TO_KEY_VALUE,
                 pathToKeyValue.getFileCollection(),
                 pathToDiskLocationLeafNodes,
                 statisticsUpdater::setLeavesStoreCompactionTimeMs,
@@ -1290,7 +1315,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     DataFileCompactor newKeyToPathCompactor() {
         return new DataFileCompactor(
                 merkleDbConfig,
-                tableName + "_" + DataFileCompactor.OBJECT_KEY_TO_PATH,
+                tableName + "_" + OBJECT_KEY_TO_PATH,
                 keyToPath.getFileCollection(),
                 keyToPath.getBucketIndexToBucketLocation(),
                 statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
@@ -1327,31 +1352,22 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     public void runHashStoreCompaction() {
-        if (hashStoreDisk == null) return;
-        final String storeName = DataFileCompactor.HASH_STORE_DISK;
-        final GarbageScanner scanner = new GarbageScanner(
-                pathToDiskLocationInternalNodes, hashStoreDisk.getFileCollection(), storeName, merkleDbConfig);
-        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
-        compactionCoordinator.submitCompactionTasks(
-                storeName, hashStoreDisk.getFileCollection(), this::newHashStoreDiskCompactor, merkleDbConfig);
+        if (hashStoreDiskScanner == null) {
+            return;
+        }
+        compactionCoordinator.submitScanIfNotRunning(HASH_STORE_DISK, hashStoreDiskScanner);
+        compactionCoordinator.submitCompactionTasks(HASH_STORE_DISK, this::newHashStoreDiskCompactor, merkleDbConfig);
     }
 
     public void runPathToKeyStoreCompaction() {
-        final String storeName = DataFileCompactor.PATH_TO_KEY_VALUE;
-        final GarbageScanner scanner = new GarbageScanner(
-                pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), storeName, merkleDbConfig);
-        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
+        compactionCoordinator.submitScanIfNotRunning(PATH_TO_KEY_VALUE, pathToKeyValueScanner);
         compactionCoordinator.submitCompactionTasks(
-                storeName, pathToKeyValue.getFileCollection(), this::newPathToKeyValueCompactor, merkleDbConfig);
+                PATH_TO_KEY_VALUE, this::newPathToKeyValueCompactor, merkleDbConfig);
     }
 
     public void runKeyToPathStoreCompaction() {
-        final String storeName = DataFileCompactor.OBJECT_KEY_TO_PATH;
-        final GarbageScanner scanner = new GarbageScanner(
-                keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), storeName, merkleDbConfig);
-        compactionCoordinator.submitScanIfNotRunning(storeName, scanner);
-        compactionCoordinator.submitCompactionTasks(
-                storeName, keyToPath.getFileCollection(), this::newKeyToPathCompactor, merkleDbConfig);
+        compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectkeyToPathScanner);
+        compactionCoordinator.submitCompactionTasks(OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig);
     }
 
     public void awaitForCurrentCompactionsToComplete(final long timeoutMillis) {
