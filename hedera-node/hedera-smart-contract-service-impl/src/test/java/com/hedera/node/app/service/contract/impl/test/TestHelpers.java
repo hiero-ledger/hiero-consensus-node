@@ -667,7 +667,7 @@ public final class TestHelpers {
             null,
             null,
             null,
-            CodeDelegationResult.empty());
+            CodeDelegationResult.EMPTY);
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
             ContractID.newBuilder().contractNum(123L).build(),
@@ -1174,7 +1174,7 @@ public final class TestHelpers {
                 actions,
                 null,
                 null,
-                CodeDelegationResult.empty());
+                CodeDelegationResult.EMPTY);
     }
 
     /**
