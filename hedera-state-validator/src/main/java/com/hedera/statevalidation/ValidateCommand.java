@@ -3,7 +3,7 @@ package com.hedera.statevalidation;
 
 import static com.hedera.statevalidation.validator.AccountAndSupplyValidator.ACCOUNT_GROUP;
 import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
-import static com.hedera.statevalidation.validator.HashRecordIntegrityValidator.INTERNAL_GROUP;
+import static com.hedera.statevalidation.validator.HashChunkIntegrityValidator.INTERNAL_GROUP;
 import static com.hedera.statevalidation.validator.HdhmBucketIntegrityValidator.HDHM_GROUP;
 import static com.hedera.statevalidation.validator.LeafBytesIntegrityValidator.LEAF_GROUP;
 import static com.hedera.statevalidation.validator.RehashValidator.REHASH_GROUP;

@@ -13,6 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
@@ -76,20 +77,34 @@ public class ReconnectHashLeafFlusherTest {
     @ValueSource(ints = {0, 1, 10, 31})
     void testHashesFlushed(final int flushInterval) throws Exception {
         final VirtualDataSource ds = new InMemoryDataSource("testHashesFlushed");
+        final int hashChunkHeight = ds.getHashChunkHeight();
         final VirtualMapStatistics stats = new VirtualMapStatistics("testHashesFlushed");
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
-        for (int i = 0; i < COUNT * 2 - 1; i++) {
-            flusher.updateHash(i, hash(i + 2));
+        final long minHashChunkId = VirtualHashChunk.lastChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
+        for (int i = 0; i <= minHashChunkId; i++) {
+            final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
+            final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
+            for (int j = 0; j < chunk.getChunkSize(); j++) {
+                final long path = VirtualHashChunk.getPathInChunk(j, chunkPath, hashChunkHeight);
+                chunk.setHashAtPath(path, hash((int) (path + 2)));
+            }
+            flusher.updateHashChunk(chunk);
         }
         flusher.finish();
         assertEquals(COUNT - 1, ds.getFirstLeafPath());
         assertEquals(COUNT * 2 - 2, ds.getLastLeafPath());
-        for (int i = 0; i < COUNT * 2 - 1; i++) {
-            assertEquals(hash(i + 2), ds.loadHash(i));
+        for (int i = 0; i <= minHashChunkId; i++) {
+            final VirtualHashChunk chunk = ds.loadHashChunk(i);
+            assertNotNull(chunk);
+            for (int j = 0; j < chunk.getChunkSize(); j++) {
+                final long path = chunk.getPath(j);
+                final Hash hash = chunk.getHashAtPath(path);
+                assertEquals(hash((int) path + 2), hash);
+            }
         }
-        assertNull(ds.loadHash(COUNT * 2));
+        assertNull(ds.loadHashChunk(minHashChunkId + 1));
     }
 
     @ParameterizedTest

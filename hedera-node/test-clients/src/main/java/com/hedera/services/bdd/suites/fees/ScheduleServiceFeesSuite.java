@@ -41,7 +41,7 @@ public class ScheduleServiceFeesSuite {
     private static final double BASE_FEE_SCHEDULE_CREATE = 0.01;
     private static final double BASE_FEE_SCHEDULE_SIGN = 0.001;
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
-    private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
+    private static final double BASE_FEE_SCHEDULE_INFO = 0.000102;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
 
     @BeforeAll
