@@ -130,16 +130,17 @@
         {
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -200,7 +201,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -282,14 +283,14 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
             { "name": "STATE_BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -513,13 +514,13 @@
         },
         {
           "name": "TokenGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
           ]
         },
         {
           "name": "TokenGetNftInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
           ]
         }
@@ -567,7 +568,7 @@
         },
         {
           "name": "ScheduleGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -577,12 +578,12 @@
       "schedule": [
         {
           "name": "GetVersionInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         },
         {
           "name": "TransactionGetRecord",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
             {
               "name": "RECORDS",
@@ -593,10 +594,21 @@
         {
           "name": "TransactionGetReceipt",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "GetByKey",
+          "baseFee": 84,
+          "extras": []
+        },
+        {
+          "name": "SystemDelete",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "SystemUndelete",
           "baseFee": 0,
           "extras": []
         }
@@ -733,7 +745,7 @@
         },
         {
           "name": "ContractGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]

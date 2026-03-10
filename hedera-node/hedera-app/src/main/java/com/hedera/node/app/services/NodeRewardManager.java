@@ -26,6 +26,7 @@ import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
+import com.hedera.node.app.service.token.impl.ReadableNodeRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNodeRewardsStoreImpl;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -36,7 +37,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashSet;
@@ -77,7 +77,7 @@ public class NodeRewardManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @Nullable final NodeMetrics metrics) {
+            @NonNull final NodeMetrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -100,7 +100,7 @@ public class NodeRewardManager {
     /**
      * Updates node rewards state at the end of a block given the collected node fees.
      *
-     * @param state             the state
+     * @param state the state
      * @param nodeFeesCollected the fees collected into node accounts in the block
      */
     public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
@@ -108,6 +108,9 @@ public class NodeRewardManager {
         // judge counts
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).nodeRewardsEnabled()) {
             updateNodeRewardState(state, nodeFeesCollected);
+            final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+            final var nodeRewardStore = new ReadableNodeRewardsStoreImpl(state.getWritableStates(TokenService.NAME));
+            updateNodeMetrics(requireNonNull(rosterStore.getActiveRoster()).rosterEntries(), nodeRewardStore);
         }
     }
 
@@ -155,7 +158,7 @@ public class NodeRewardManager {
      * Checks if the last time node rewards were paid was a different staking period.
      *
      * @param state the state
-     * @param now   the current time
+     * @param now the current time
      * @return whether the last time node rewards were paid was a different staking period
      */
     private LastNodeRewardsPaymentTime classifyLastNodeRewardsPaymentTime(
@@ -177,8 +180,8 @@ public class NodeRewardManager {
     /**
      * If the consensus time just crossed a stake period, rewards sufficiently active nodes for the previous period.
      *
-     * @param state              the state
-     * @param now                the current consensus time
+     * @param state the state
+     * @param now the current consensus time
      * @param systemTransactions the system transactions
      * @return whether the node rewards were paid
      */
@@ -257,7 +260,7 @@ public class NodeRewardManager {
     }
 
     private void updateNodeMetrics(
-            final List<RosterEntry> rosterEntries, final WritableNodeRewardsStoreImpl nodeRewardStore) {
+            final List<RosterEntry> rosterEntries, final ReadableNodeRewardsStoreImpl nodeRewardStore) {
         final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
         metrics.registerNodeMetrics(rosterEntries);
         final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
@@ -266,7 +269,7 @@ public class NodeRewardManager {
             final var nodeId = node.nodeId();
             final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
             final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
-            final var activePercent = activeRounds == 0 ? 0 : ((double) ((activeRounds * 100) / roundsLastPeriod));
+            final var activePercent = roundsLastPeriod == 0 ? 0.0 : ((double) activeRounds * 100.0) / roundsLastPeriod;
             metrics.updateNodeActiveMetrics(nodeId, activePercent);
         });
     }
@@ -289,7 +292,7 @@ public class NodeRewardManager {
      * This method updates the number of rounds in the staking period and the number of missed judge rounds for
      * each node.
      *
-     * @param state             the state to update
+     * @param state the state to update
      * @param nodeFeesCollected the fees collected into reward-eligible node accounts
      */
     private void updateNodeRewardState(@NonNull final State state, final long nodeFeesCollected) {
