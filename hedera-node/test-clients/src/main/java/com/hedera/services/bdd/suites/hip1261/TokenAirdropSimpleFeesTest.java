@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -1000,7 +1001,9 @@ public class TokenAirdropSimpleFeesTest {
                                     INNER_ID,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.01)));
+                                    0.01),
+                            getTxnRecord(INNER_ID).logged(),
+                            validateChargedAccount(INNER_ID, "4")));
                 }
 
                 @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -1032,7 +1035,9 @@ public class TokenAirdropSimpleFeesTest {
                                     INNER_ID,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.01)));
+                                    0.01),
+                            getTxnRecord(INNER_ID).logged(),
+                            validateChargedAccount(INNER_ID, "4")));
                 }
 
                 @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -1063,7 +1068,9 @@ public class TokenAirdropSimpleFeesTest {
                                     INNER_ID,
                                     txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.01)));
+                                    0.01),
+                            getTxnRecord(INNER_ID).logged(),
+                            validateChargedAccount(INNER_ID, "4")));
                 }
             }
 
@@ -1152,13 +1159,13 @@ public class TokenAirdropSimpleFeesTest {
                                     .decimals(2)
                                     .initialSupply(1000),
                             tokenAirdrop(movingWithDecimals(10, "decimalFT", 4).betweenWithDecimals(OWNER, "receiver"))
-                                    .signedBy(PAYER, OWNER, "receiver")
+                                    .signedBy(PAYER, OWNER)
                                     .payingWith(PAYER)
                                     .via("tokenAirdropTxn")
                                     .hasKnownStatus(UNEXPECTED_TOKEN_DECIMALS),
                             validateChargedUsdWithinWithTxnSize(
                                     "tokenAirdropTxn",
-                                    txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
+                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2L,
                                             ACCOUNTS, 2L,
                                             TOKEN_TYPES, 1L,
