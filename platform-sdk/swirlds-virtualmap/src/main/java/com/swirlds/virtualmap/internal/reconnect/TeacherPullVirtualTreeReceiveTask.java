@@ -11,6 +11,8 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -95,9 +97,11 @@ public class TeacherPullVirtualTreeReceiveTask {
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
     private void run() {
+        final Set<Long> cleanInternals = ConcurrentHashMap.newKeySet();
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();
+            boolean wasLeaf = false;
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
                 final PullVirtualTreeRequest request = in.readAnticipatedMessage(PullVirtualTreeRequest::new);
@@ -118,19 +122,32 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final long path = request.getPath();
                 final Hash learnerHash = request.getHash();
                 assert learnerHash != null;
-                final Hash teacherHash = view.loadHash(path);
-                // The only valid scenario, when teacherHash may be null, is the empty tree
-                if ((teacherHash == null) && (path != 0)) {
-                    throw new MerkleSerializationException(
-                            "Cannot load node hash (bad request from learner?), path=" + path);
+                final boolean isLeaf = view.isLeaf(path);
+                final boolean isClean;
+                if (hasCleanParent(path, cleanInternals)) {
+                    isClean = true;
+                } else {
+                    final Hash teacherHash = view.loadHash(path);
+                    // The only valid scenario, when teacherHash may be null, is the empty tree
+                    if ((teacherHash == null) && (path != 0)) {
+                        throw new MerkleSerializationException(
+                                "Cannot load node hash (bad request from learner?), path=" + path);
+                    }
+                    isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
+                    if (isClean && !isLeaf) {
+                        cleanInternals.add(path);
+                    }
                 }
-                final boolean isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
-                final VirtualLeafBytes<?> leafData = (!isClean && view.isLeaf(path)) ? view.loadLeaf(path) : null;
+                final VirtualLeafBytes<?> leafData = (!isClean && isLeaf) ? view.loadLeaf(path) : null;
                 final long firstLeafPath = view.getReconnectState().getFirstLeafPath();
                 final long lastLeafPath = view.getReconnectState().getLastLeafPath();
                 final PullVirtualTreeResponse response =
                         new PullVirtualTreeResponse(view, path, isClean, firstLeafPath, lastLeafPath, leafData);
                 out.sendAsync(response);
+                if (!wasLeaf && isLeaf) {
+                    cleanInternals.clear();
+                }
+                wasLeaf = isLeaf;
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
@@ -146,5 +163,15 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final Exception ex) {
             workGroup.handleError(ex);
         }
+    }
+
+    private static boolean hasCleanParent(final long path, final Set<Long> cleanPaths) {
+        long parent = Path.getParentPath(path);
+        boolean clean = false;
+        while ((parent > 0) && !clean) {
+            clean = cleanPaths.contains(parent);
+            parent = Path.getParentPath(parent);
+        }
+        return clean;
     }
 }

@@ -328,6 +328,11 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                             roundOf(consensusState))
                     .toString());
 
+            // TODO: remove this hack
+            if (connection.getOtherId().id() == 6) {
+                throw new RuntimeException("I DONT WANT NODE06 TO TEACH ME");
+            }
+
             final ReservedSignedState reservedSignedState = learner.execute();
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
