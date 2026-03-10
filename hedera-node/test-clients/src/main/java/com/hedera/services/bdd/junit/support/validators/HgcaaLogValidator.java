@@ -102,6 +102,8 @@ public class HgcaaLogValidator {
                 List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
                 List.of("No block nodes available to connect to"),
+                // Expected when exercising unreadable/unparsable transaction charging paths.
+                List.of("TransactionChecker - ParseException while parsing protobuf"),
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"));
 

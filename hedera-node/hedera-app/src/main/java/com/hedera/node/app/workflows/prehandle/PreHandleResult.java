@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
@@ -82,6 +84,15 @@ public record PreHandleResult(
         return status == NODE_DUE_DILIGENCE_FAILURE
                 ? HederaRecordCache.DueDiligenceFailure.YES
                 : HederaRecordCache.DueDiligenceFailure.NO;
+    }
+
+    /**
+     * Returns whether this result represents a node due diligence failure caused by unreadable transaction bytes.
+     */
+    public boolean isUnreadableTransactionFailure() {
+        return status == NODE_DUE_DILIGENCE_FAILURE
+                && txInfo == null
+                && (responseCode == INVALID_TRANSACTION || responseCode == INVALID_TRANSACTION_BODY);
     }
 
     /**

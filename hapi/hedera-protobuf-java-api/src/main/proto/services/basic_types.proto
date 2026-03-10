@@ -1873,6 +1873,12 @@ enum HederaFunctionality {
      * Delete a registered node
      */
     RegisteredNodeDelete = 115;
+
+    /**
+     * (Internal-only) Synthetic functionality used to charge due-diligence fees
+     * for a transaction whose bytes cannot be parsed.
+     */
+    UnparsableTransaction = 116;
 }
 
 /**

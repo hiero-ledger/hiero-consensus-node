@@ -14,7 +14,7 @@
     "multiplier": 9
   },
   "unreadable": {
-    "feeValue": 100
+    "fee": 100000000000
   },
 
   "extras": [

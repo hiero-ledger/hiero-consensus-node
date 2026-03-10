@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
@@ -89,6 +91,27 @@ final class PreHandleResultTest implements Scenarios {
         given(context.optionalNonPayerKeys()).willReturn(Set.of(CAROL.account().keyOrThrow()));
         given(context.requiredHollowAccounts()).willReturn(Set.of(ERIN.account()));
         assertThat(DEFAULT_RESULT.hasReusableVerificationResultsFor(context)).isTrue();
+    }
+
+    @Test
+    void unreadableFailureIsDetectedFromParseFailureCode() {
+        final var result =
+                PreHandleResult.nodeDueDiligenceFailure(NODE_1.nodeAccountID(), INVALID_TRANSACTION, null, 1L);
+        assertThat(result.isUnreadableTransactionFailure()).isTrue();
+    }
+
+    @Test
+    void unreadableFailureIsDetectedFromInvalidBodyCode() {
+        final var result =
+                PreHandleResult.nodeDueDiligenceFailure(NODE_1.nodeAccountID(), INVALID_TRANSACTION_BODY, null, 1L);
+        assertThat(result.isUnreadableTransactionFailure()).isTrue();
+    }
+
+    @Test
+    void unreadableFailureRequiresNullTransactionInfo() {
+        final var result = PreHandleResult.nodeDueDiligenceFailure(
+                NODE_1.nodeAccountID(), INVALID_TRANSACTION, new TransactionScenarioBuilder().txInfo(), 1L);
+        assertThat(result.isUnreadableTransactionFailure()).isFalse();
     }
 
     /**
