@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -120,8 +122,9 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
         when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
-        when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
+        lenient().when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
         when(handleContext.dispatch(any())).thenReturn(recordBuilder);
+        lenient().when(recordBuilder.status()).thenReturn(SUCCESS);
     }
 
     @Test
@@ -206,7 +209,7 @@ public class HollowAccountCompletionsTest {
         assertNull(finalizations);
         verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(AccountID.newBuilder().accountNum(1).build());
-        verify(recordBuilder).status();
+        verify(recordBuilder, times(2)).status();
     }
 
     @Test
@@ -220,7 +223,7 @@ public class HollowAccountCompletionsTest {
 
         verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(accountId);
-        verify(recordBuilder).status();
+        verify(recordBuilder, times(2)).status();
     }
 
     @Test

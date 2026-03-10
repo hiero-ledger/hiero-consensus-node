@@ -435,7 +435,7 @@ class DispatchProcessorTest {
     }
 
     @Test
-    void replaysHollowFinalizationsBeforeHandleExceptionReplay() {
+    void replaysHollowFinalizationsAfterHandleExceptionReplay() {
         final List<String> replayOrder = new ArrayList<>();
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
@@ -465,7 +465,7 @@ class DispatchProcessorTest {
 
         verify(hollowAccountCompletionsDetails).replay(any());
         verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
-        assertEquals(List.of("hollow-replay", "exception-replay"), replayOrder);
+        assertEquals(List.of("exception-replay", "hollow-replay"), replayOrder);
     }
 
     @Test
