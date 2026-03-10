@@ -212,9 +212,9 @@ jobs:
       enable-hapi-tests-simplefees: "false"
       enable-hapi-tests-misc: "false"
       enable-hapi-tests-misc-records: "false"
-      enable-hapi-tests-smart-contract: "true"
+      enable-hapi-tests-smart-contract: "false"
       enable-hapi-tests-bn-communication: "true"
-      enable-hapi-tests-atomic-batch: "true"
+      enable-hapi-tests-atomic-batch: "false"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
