@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -56,6 +55,7 @@ import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -80,12 +80,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.parallel.Isolated;
 
 @Tag(SIMPLE_FEES)
-@Tag(MATS)
 @HapiTestLifecycle
-@Isolated
+@OrderedInIsolation
 public class Hip1313EnabledTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final double CRYPTO_CREATE_BASE_FEE = 0.05;
@@ -371,10 +369,11 @@ public class Hip1313EnabledTest {
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
+                        final var observedRawMultiplier = entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
                         assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                observedMultiplier,
+                                observedRawMultiplier,
                                 utilizationBasisPointsBefore,
                                 utilizationBasisPointsAfter,
                                 "crypto create",
