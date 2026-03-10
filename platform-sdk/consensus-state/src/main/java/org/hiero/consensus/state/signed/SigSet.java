@@ -16,6 +16,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.SelfSerializable;
@@ -28,6 +32,15 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable {
     private static final long CLASS_ID = 0x756d0ee945226a92L;
+
+    static {
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        try {
+            registry.registerConstructable(new ClassConstructorPair(SigSet.class, SigSet::new));
+        } catch (ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     /**
      * The maximum allowed signature count. Used to prevent serialization DOS attacks.
