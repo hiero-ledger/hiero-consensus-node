@@ -7,8 +7,17 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CALL_LOCAL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_BYTECODE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_INFO_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -28,9 +37,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class ContractServiceQueriesSimpleFeesTest {
-    private static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
-    private static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
-    private static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
@@ -51,13 +57,15 @@ public class ContractServiceQueriesSimpleFeesTest {
     @DisplayName("Call a local smart contract local and assure proper fee charged")
     final Stream<DynamicTest> contractLocalCallBaseUSDFee() {
         final var contractLocalCall = "contractLocalCall";
+        final var offeredGas = 21500;
         return hapiTest(
                 contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
-                        .gas(21500)
+                        .gas(offeredGas)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(contractLocalCall),
-                validateChargedUsdForQueries(contractLocalCall, CONTRACT_CALL_LOCAL_BASE_FEE, 1));
+                validateChargedUsdForQueries(
+                        contractLocalCall, CONTRACT_CALL_LOCAL_BASE_FEE + offeredGas * GAS_FEE_USD, 1));
     }
 
     @HapiTest
@@ -66,10 +74,12 @@ public class ContractServiceQueriesSimpleFeesTest {
         final var record = "getBytecode";
         return hapiTest(
                 getContractBytecode(contract.name())
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),
-                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 0.1));
+                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 0.1),
+                validateNonZeroNodePaymentForQuery(record));
     }
 
     @HapiTest
@@ -78,9 +88,55 @@ public class ContractServiceQueriesSimpleFeesTest {
         final var record = "getInfo";
         return hapiTest(
                 getContractInfo(contract.name())
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),
-                validateChargedUsdForQueries(record, CONTRACT_GET_INFO_BASE_FEE, 1));
+                validateChargedUsdForQueries(record, CONTRACT_GET_INFO_BASE_FEE, 1),
+                validateNonZeroNodePaymentForQuery(record));
+    }
+
+    @HapiTest
+    @DisplayName("ContractCallLocal query node payment scales with gas")
+    final Stream<DynamicTest> contractCallLocalNodePaymentScalesWithGas() {
+        final var lowGasQuery = "contractLocalLowGas";
+        final var highGasQuery = "contractLocalHighGas";
+        return hapiTest(
+                contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
+                        .gas(50_000)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(civilian.name())
+                        .signedBy(civilian.name())
+                        .via(lowGasQuery),
+                contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
+                        .gas(100_000)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(civilian.name())
+                        .signedBy(civilian.name())
+                        .via(highGasQuery),
+                validateNonZeroNodePaymentForQuery(lowGasQuery),
+                validateNonZeroNodePaymentForQuery(highGasQuery),
+                withOpContext((spec, opLog) -> {
+                    final var lowRecord = getTxnRecord(lowGasQuery);
+                    final var highRecord = getTxnRecord(highGasQuery);
+                    allRunFor(spec, lowRecord, highRecord);
+                    final var nodeId = spec.setup().defaultNode();
+                    final var lowNodePayment =
+                            lowRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
+                    final var highNodePayment =
+                            highRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
+                                    .filter(aa -> aa.getAccountID().equals(nodeId))
+                                    .mapToLong(aa -> aa.getAmount())
+                                    .sum();
+                    assertTrue(
+                            highNodePayment > lowNodePayment,
+                            "Expected higher node payment for higher gas, but got low="
+                                    + lowNodePayment
+                                    + " and high="
+                                    + highNodePayment);
+                }));
     }
 }

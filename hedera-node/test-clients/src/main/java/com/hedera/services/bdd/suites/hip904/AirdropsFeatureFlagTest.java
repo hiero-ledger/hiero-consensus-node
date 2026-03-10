@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -27,7 +28,7 @@ import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProvi
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -42,7 +43,8 @@ import org.junit.jupiter.api.DynamicTest;
  * from off to on for <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
  */
 public class AirdropsFeatureFlagTest {
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = PROPERTY_OVERRIDES,
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
@@ -132,7 +134,8 @@ public class AirdropsFeatureFlagTest {
                 }));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = PROPERTY_OVERRIDES,
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaFtTransferAndCompleteIt() {
