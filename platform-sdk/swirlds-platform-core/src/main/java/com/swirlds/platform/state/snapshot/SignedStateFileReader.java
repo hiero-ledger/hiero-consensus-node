@@ -27,6 +27,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
@@ -41,6 +45,23 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public final class SignedStateFileReader {
     private SignedStateFileReader() {}
+
+
+    static {
+        System.out.println("running the constructable registry");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        System.out.println("got the registry");
+        System.out.println("" + registry);
+        try {
+            System.out.println("about to register ");
+            registry.registerConstructable(new ClassConstructorPair(SigSet.class, SigSet::new));
+            System.out.println("done registering");
+        } catch (ConstructableRegistryException e) {
+            System.out.println("exception loading the SigSet registry");
+            System.out.println(e);
+            throw new RuntimeException(e);
+        }
+    }
 
     /**
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
