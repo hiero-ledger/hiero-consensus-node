@@ -2,6 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
@@ -82,11 +83,11 @@ class CompactionInterruptTest {
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             // start compaction
             final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
-            coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
+            // coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
             final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
+            // coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
             final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
-            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
+            // coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
             stopCompactionAndVerifyItsStopped(
@@ -148,13 +149,13 @@ class CompactionInterruptTest {
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             // we should take into account previous test runs
             long initTaskCount = compactingExecutor.getTaskCount();
-            // start compaction for all three storages
             final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
-            coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
             final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
             final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
-            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
+
+            dataSource.runHashChunkStoreCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+            dataSource.runPathToKeyValueStoreCompaction();
 
             assertEventuallyEquals(
                     initTaskCount + 3L,

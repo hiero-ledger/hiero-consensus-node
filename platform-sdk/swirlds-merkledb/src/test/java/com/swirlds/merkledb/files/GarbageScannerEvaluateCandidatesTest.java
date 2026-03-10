@@ -186,6 +186,7 @@ class GarbageScannerEvaluateCandidatesTest {
                 DEFAULT_CONFIG.maxNumOfKeys(),
                 DEFAULT_CONFIG.hashesRamToDiskThreshold(),
                 DEFAULT_CONFIG.hashStoreRamBufferSize(),
+                DEFAULT_CONFIG.hashChunkCacheThreshold(),
                 DEFAULT_CONFIG.hashStoreRamOffHeapBuffers(),
                 DEFAULT_CONFIG.longListChunkSize(),
                 DEFAULT_CONFIG.longListReservedBufferSize(),

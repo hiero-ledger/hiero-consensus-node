@@ -163,15 +163,9 @@ class MerkleDbDataSourceSnapshotMergeTest {
                         fail(e);
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "idToHashChunk", dataSource.newHashChunkStoreCompactor());
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "objectKeyToPath", dataSource.newKeyToPathCompactor());
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "pathToKeyValue", dataSource.newKeyValueStoreCompactor());
-                    dataSource.runHashStoreCompaction();
+                    dataSource.runHashChunkStoreCompaction();
                     dataSource.runKeyToPathStoreCompaction();
-                    dataSource.runPathToKeyStoreCompaction();
+                    dataSource.runPathToKeyValueStoreCompaction();
 
                     dataSource.awaitForCurrentCompactionsToComplete(4000);
 

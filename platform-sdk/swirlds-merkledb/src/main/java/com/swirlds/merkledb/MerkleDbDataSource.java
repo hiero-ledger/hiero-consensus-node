@@ -20,6 +20,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.IORunnable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
@@ -208,9 +209,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private MerkleDbStatisticsUpdater statisticsUpdater;
 
     @Nullable
-    private final GarbageScanner hashStoreDiskScanner;
+    private final GarbageScanner chunkStoreScanner;
 
-    private final GarbageScanner pathToKeyValueScanner;
+    private final GarbageScanner pathToKeyValueStoreScanner;
     private final GarbageScanner objectkeyToPathScanner;
 
     /**
@@ -475,17 +476,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
-        if (hashStoreDisk != null) {
-            hashStoreDiskScanner = new GarbageScanner(
-                    pathToDiskLocationInternalNodes,
-                    hashStoreDisk.getFileCollection(),
-                    HASH_STORE_DISK,
-                    merkleDbConfig);
-        } else {
-            hashStoreDiskScanner = null;
-        }
-        pathToKeyValueScanner = new GarbageScanner(
-                pathToDiskLocationLeafNodes, pathToKeyValue.getFileCollection(), PATH_TO_KEY_VALUE, merkleDbConfig);
+
+        chunkStoreScanner = new GarbageScanner(
+                idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
+
+        pathToKeyValueStoreScanner = new GarbageScanner(
+                pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE, merkleDbConfig);
         objectkeyToPathScanner = new GarbageScanner(
                 keyToPath.getBucketIndexToBucketLocation(),
                 keyToPath.getFileCollection(),
@@ -1446,18 +1442,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     public void runHashChunkStoreCompaction() {
-        if (hashStoreDiskScanner == null) {
+        if (chunkStoreScanner == null) {
             return;
         }
-        compactionCoordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, hashStoreDiskScanner);
+        compactionCoordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, chunkStoreScanner);
         compactionCoordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, this::newHashChunkStoreCompactor, merkleDbConfig);
     }
 
-    public void runPathToKeyStoreCompaction() {
-        compactionCoordinator.submitScanIfNotRunning(PATH_TO_KEY_VALUE, pathToKeyValueScanner);
-        compactionCoordinator.submitCompactionTasks(
-                PATH_TO_KEY_VALUE, this::newKeyValueStoreCompactor, merkleDbConfig);
-
+    public void runPathToKeyValueStoreCompaction() {
+        compactionCoordinator.submitScanIfNotRunning(PATH_TO_KEY_VALUE, pathToKeyValueStoreScanner);
+        compactionCoordinator.submitCompactionTasks(PATH_TO_KEY_VALUE, this::newKeyValueStoreCompactor, merkleDbConfig);
     }
 
     public void runKeyToPathStoreCompaction() {

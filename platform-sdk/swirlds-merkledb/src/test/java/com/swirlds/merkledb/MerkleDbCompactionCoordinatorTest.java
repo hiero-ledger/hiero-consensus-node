@@ -3,7 +3,7 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.merkledb.files.DataFileCompactor.HASH_STORE_DISK;
+import static com.swirlds.merkledb.files.DataFileCompactor.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,11 +75,11 @@ class MerkleDbCompactionCoordinatorTest {
             return Map.of();
         });
 
-        coordinator.submitScanIfNotRunning(HASH_STORE_DISK, scanner);
+        coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
         assertTrue(scanStarted.await(1, TimeUnit.SECONDS), "Scanner task wasn't started");
 
         // Submit again while the first is still running — should be a no-op
-        coordinator.submitScanIfNotRunning(HASH_STORE_DISK, scanner);
+        coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
 
         assertEventuallyDoesNotThrow(
                 () -> verify(scanner, times(1)).scan(), Duration.ofSeconds(1), "Duplicate scanner task was submitted");
@@ -105,7 +105,7 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // No scan results have been published — tasks will be submitted but will no-op
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Wait for submitted task to complete
         coordinator.awaitForCurrentCompactionsToComplete(2000);
@@ -128,7 +128,7 @@ class MerkleDbCompactionCoordinatorTest {
 
         // Publish scan results: both levels have high garbage
         publishScanResult(
-                HASH_STORE_DISK, Map.of(0, List.of(level0File1, level0File2), 2, List.of(level2File1, level2File2)));
+                ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File1, level0File2), 2, List.of(level2File1, level2File2)));
 
         final CountDownLatch compactionsDone = new CountDownLatch(2);
         final List<Integer> compactedTargetLevels = new ArrayList<>();
@@ -156,7 +156,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         assertTrue(compactionsDone.await(2, TimeUnit.SECONDS), "Compaction tasks were not submitted");
         synchronized (compactedTargetLevels) {
@@ -173,7 +173,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File1, level0File2));
 
-        publishScanResult(HASH_STORE_DISK, Map.of(0, List.of(level0File1, level0File2)));
+        publishScanResult(ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File1, level0File2)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
@@ -191,11 +191,11 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // First call: submits a task for level 0
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction task wasn't started");
 
         // Second call: level 0 is already submitted, should not submit another
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Only one compactSingleLevel call should have been made (one task)
         verify(taskCompactor, times(1)).compactSingleLevel(anyList(), anyInt());
@@ -210,18 +210,18 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
-        publishScanResult(HASH_STORE_DISK, Map.of());
+        publishScanResult(ID_TO_HASH_CHUNK, Map.of());
 
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         final Supplier<DataFileCompactor> factory = () -> compactor;
 
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         coordinator.awaitForCurrentCompactionsToComplete(2000);
 
         verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
         assertFalse(
-                coordinator.isCompactionRunning(HASH_STORE_DISK),
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
                 "No compaction should be running after task completes");
     }
 
@@ -237,7 +237,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
 
-        publishScanResult(HASH_STORE_DISK, Map.of(0, List.of(level0File), 2, List.of(level2File)));
+        publishScanResult(ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File), 2, List.of(level2File)));
 
         final CountDownLatch tasksStarted = new CountDownLatch(2);
         final CountDownLatch releaseTasks = new CountDownLatch(1);
@@ -260,7 +260,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         assertTrue(tasksStarted.await(1, TimeUnit.SECONDS), "Compaction tasks didn't start");
 
         coordinator.pauseCompactionAndRun(() -> {});
@@ -288,10 +288,10 @@ class MerkleDbCompactionCoordinatorTest {
             return mock(DataFileCompactor.class);
         };
 
-        coordinator.submitCompactionTasks(HASH_STORE_DISK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
 
         // Nothing should have been submitted
-        assertFalse(coordinator.isCompactionRunning(HASH_STORE_DISK));
+        assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK));
     }
 
     // ========================================================================
