@@ -178,10 +178,6 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         return metadata;
     }
 
-    public long getItemsCount() {
-        return metadata.getItemsCount();
-    }
-
     /**
      * Get the path to this data file.
      *

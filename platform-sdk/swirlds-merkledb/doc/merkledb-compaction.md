@@ -53,7 +53,8 @@ finalized — in `DataFileCollection.endWriting()` for flush files and in `DataF
 for compaction output files — and never changes. The count is stored in the file header via `DataFileMetadata.itemsCount`
 and is available at runtime through `DataFileReader`.
 
-This immutable count serves as the denominator for garbage ratio calculations: it tells us how many items the file started with, regardless of how many have since been superseded.
+This immutable count serves as the denominator for garbage ratio calculations: it tells us how many items the file started with,
+regardless of how many have since been superseded.
 
 ### File System Layout
 
@@ -209,19 +210,20 @@ After each flush, the flush handler submits two kinds of tasks to the compaction
    are submitted even before the first scan completes — they will simply no-op if no scan results are available yet.
 
 Crucially, compaction tasks do **not** evaluate scan results at submission time. Evaluation is deferred to execution time inside the task itself.
-This design addresses a staleness problem: if all compaction threads are busy with long-running higher-level compactions, a task submitted during flush `N` may not execute until
-flush `N+100` or later. By deferring evaluation, the task always uses the most recent scan results and file list, ensuring it can include files that were written after the task was submitted.
+This design addresses a staleness problem: if all compaction threads are busy with long-running higher-level compactions, a task submitted during flush `N`
+may not execute until flush `N+100` or later. By deferring evaluation, the task always uses the most recent scan results
+and file list, ensuring it can include files that were written after the task was submitted.
 
 **The flow for each compaction task when it executes:**
 
 1. Check if compaction is still enabled (exit if disabled during shutdown).
 2. Read cached scan results from `scanResultsByStore`. If no results are available (scanner hasn't completed yet), exit — the next flush will submit a new task.
 3. Get the current file list from the `DataFileCollection` (fresh, not cached from submission time).
-4. Call `evaluateCompactionCandidates()` to determine which files at this task's level exceed the garbage threshold and fit within the per-level size cap.
+4. Read the scanner output for this level (`Map<level, List<DataFileReader>>`) and use it directly as the compaction candidate list.
 5. If no files are eligible, exit (no-op).
 6. Create a `DataFileCompactor` via the factory, register it for pause/resume, and compact.
 
-This deferred evaluation model means that the `GarbageFileStats` produced by the scanner are shared across all compaction
+This deferred evaluation model means that scanner-produced candidate lists are shared across all compaction
 tasks for the same store. The scanner runs once (per flush, at most), and all level tasks read from the same cached result.
 Since scanning is one to two orders of magnitude cheaper than compaction, the cost of a single scan amortized across multiple level tasks is negligible.
 
@@ -277,17 +279,23 @@ managed by `MerkleDbCompactionCoordinator`. The pool size is configurable via `M
 - Scanner and compaction tasks for the same store may run concurrently.
 - Different stores are fully independent.
 
-The `MerkleDbCompactionCoordinator` tracks running tasks using keys that encode the store name, task type, and (for compaction tasks) the level — for example, `"HashStoreDisk_scan"` and `"HashStoreDisk_compact_2"`. Before submitting a task, the coordinator checks whether a task with the same key is already running.
+The `MerkleDbCompactionCoordinator` tracks running tasks using keys that encode the store name, task type, and (for compaction tasks) the level — for example,
+`"HashStoreDisk_scan"` and `"HashStoreDisk_compact_2"`. Before submitting a task, the coordinator checks whether a task with the same key is already running.
 
 ### Key Classes
 
 **`MerkleDbCompactionCoordinator`** manages the lifecycle of scanner and compaction tasks. It tracks three categories of tasks:
 
-- **Scanner tasks** (`runningScanners`): at most one per store. Produces `GarbageFileStats` cached in `scanResultsByStore`.
-- **Submitted compaction tasks** (`submittedCompactionTasks`): tracks all queued and running compaction tasks for deduplication. A task is in this set from submission until its `finally` block.
-- **Active compactors** (`compactorsByName`): tracks tasks that have evaluated scan results, decided to compact, and created a `DataFileCompactor`. This is a subset of submitted tasks. Used for `pauseCompaction()` / `resumeCompaction()` during snapshots and `interruptCompaction()` during shutdown.
+- **Scanner tasks** (`runningScanners`): at most one per store. Produces a map of candidates grouped by compaction level (`Map<Integer, List<DataFileReader>>`) cached
+  in `scanResultsByStore`.
+- **Submitted compaction tasks** (`submittedCompactionTasks`): tracks all queued and running compaction tasks for deduplication. A task is in this set from
+  submission until its `finally` block.
+- **Active compactors** (`compactorsByName`): tracks tasks that have evaluated scan results, decided to compact, and created a `DataFileCompactor`.
+  This is a subset of submitted tasks. Used for `pauseCompaction()` / `resumeCompaction()` during snapshots and `interruptCompaction()` during shutdown.
 
-**`GarbageScannerTask`** is the background scanner. It accepts a `CASableLongIndex` and a `DataFileCollection`, traverses the index, and produces a map from file index to alive item count. The scanner stores its results in a shared location (e.g. an `AtomicReference`) that the flush handler can read when evaluating compaction eligibility. The scanner does not submit compaction tasks — it is a pure data producer.
+**`GarbageScanner`** is the background scanner. It accepts a `CASableLongIndex`, a `DataFileCollection`, and compaction config, traverses the index,
+computes per-file garbage stats, applies threshold/size filtering, and produces candidates grouped by compaction level.
+The scanner stores its results in `scanResultsByStore`; it does not submit compaction tasks.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection and level. Its key responsibilities are:
 

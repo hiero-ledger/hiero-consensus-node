@@ -13,7 +13,6 @@ import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.GarbageScanner;
-import com.swirlds.merkledb.files.GarbageScanner.GarbageFileStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -117,7 +116,7 @@ class MerkleDbCompactionCoordinator {
      * Latest scan results per store name. Written by scanner tasks, read by compaction tasks
      * when they evaluate candidates at execution time. Keys are store names (e.g. "HashStoreDisk").
      */
-    private final Map<String, Map<Integer, GarbageFileStats>> scanResultsByStore = new ConcurrentHashMap<>(4);
+    private final Map<String, Map<Integer, List<DataFileReader>>> scanResultsByStore = new ConcurrentHashMap<>(4);
 
     @NonNull
     private final MerkleDbConfig merkleDbConfig;
@@ -268,7 +267,7 @@ class MerkleDbCompactionCoordinator {
             }
 
             tasks.add(taskKey);
-            executor.submit(new CompactionTask(taskKey, storeName, level, fileCollection, compactorFactory, config));
+            executor.submit(new CompactionTask(taskKey, storeName, level, compactorFactory, config));
         }
     }
 
@@ -306,7 +305,7 @@ class MerkleDbCompactionCoordinator {
      * Background task that traverses the in-memory index and computes per-file garbage statistics.
      * Results are stored in {@link #scanResultsByStore} for compaction tasks to consume.
      */
-    private class ScannerTask implements Callable<Map<Integer, GarbageFileStats>> {
+    private class ScannerTask implements Runnable {
 
         private final String taskKey;
         private final String storeName;
@@ -318,12 +317,10 @@ class MerkleDbCompactionCoordinator {
             this.scanner = scanner;
         }
 
-        @Override
-        public Map<Integer, GarbageFileStats> call() {
+        public void run() {
             try {
-                final Map<Integer, GarbageFileStats> result = scanner.scan();
+                final Map<Integer, List<DataFileReader>> result = scanner.scan();
                 scanResultsByStore.put(storeName, result);
-                return result;
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Garbage scan failed", taskKey, e);
             } finally {
@@ -332,7 +329,6 @@ class MerkleDbCompactionCoordinator {
                     MerkleDbCompactionCoordinator.this.notifyAll();
                 }
             }
-            return Map.of();
         }
     }
 
@@ -350,7 +346,6 @@ class MerkleDbCompactionCoordinator {
         private final String taskKey;
         private final String storeName;
         private final int sourceLevel;
-        private final DataFileCollection fileCollection;
         private final Supplier<DataFileCompactor> compactorFactory;
         private final MerkleDbConfig config;
 
@@ -358,13 +353,11 @@ class MerkleDbCompactionCoordinator {
                 @NonNull final String taskKey,
                 @NonNull final String storeName,
                 final int sourceLevel,
-                @NonNull final DataFileCollection fileCollection,
                 @NonNull final Supplier<DataFileCompactor> compactorFactory,
                 @NonNull final MerkleDbConfig config) {
             this.taskKey = taskKey;
             this.storeName = storeName;
             this.sourceLevel = sourceLevel;
-            this.fileCollection = fileCollection;
             this.compactorFactory = compactorFactory;
             this.config = config;
         }
@@ -378,22 +371,14 @@ class MerkleDbCompactionCoordinator {
                 }
 
                 // Read cached scan results
-                final Map<Integer, GarbageFileStats> scanResult = scanResultsByStore.get(storeName);
-                if (scanResult == null) {
+                final Map<Integer, List<DataFileReader>> readersByLevel = scanResultsByStore.get(storeName);
+                if (readersByLevel == null) {
                     // No scan results available yet — scanner hasn't completed. This is
                     // normal during early startup. The next flush will submit a new task.
                     return false;
                 }
-                // Evaluate candidates for this level using fresh file list
-                final List<DataFileReader> allFiles = fileCollection.getAllCompletedFiles();
-                final Map<Integer, List<DataFileReader>> candidatesByLevel =
-                        GarbageScanner.evaluateCompactionCandidates(
-                                scanResult,
-                                allFiles,
-                                config.garbageThreshold(),
-                                config.maxCompactionDataPerLevelInKB());
 
-                final List<DataFileReader> filesToCompact = candidatesByLevel.get(sourceLevel);
+                final List<DataFileReader> filesToCompact = readersByLevel.get(sourceLevel);
                 if (filesToCompact == null || filesToCompact.isEmpty()) {
                     // Nothing to compact at this level — thresholds not exceeded
                     return false;

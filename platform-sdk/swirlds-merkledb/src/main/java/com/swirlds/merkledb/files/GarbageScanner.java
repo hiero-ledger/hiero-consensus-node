@@ -5,6 +5,7 @@ import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,12 +38,21 @@ public class GarbageScanner {
     private final CASableLongIndex index;
     private final DataFileCollection dataFileCollection;
     private final String storeName;
+    private final double garbageThreshold;
+    private final long maxCompactionDataPerLevelInKB;
+    private final int maxCompactionLevel;
 
     public GarbageScanner(
-            final CASableLongIndex index, final DataFileCollection dataFileCollection, final String storeName) {
+            final CASableLongIndex index,
+            final DataFileCollection dataFileCollection,
+            final String storeName,
+            final MerkleDbConfig config) {
         this.index = index;
         this.dataFileCollection = dataFileCollection;
         this.storeName = storeName;
+        this.garbageThreshold = config.garbageThreshold();
+        this.maxCompactionDataPerLevelInKB = config.maxCompactionDataPerLevelInKB();
+        this.maxCompactionLevel = config.maxCompactionLevel();
     }
 
     /**
@@ -53,11 +63,10 @@ public class GarbageScanner {
      *
      * @return a map from file index to garbage statistics for that file
      */
-    public Map<Integer, GarbageFileStats> scan() {
+    public Map<Integer, List<DataFileReader>> scan() {
         final long start = System.currentTimeMillis();
 
         final Map<Integer, GarbageFileStats> statsByFileIndex = createStatsByFileIndexMap();
-
         try {
             index.forEach(
                     (key, dataLocation) -> {
@@ -73,12 +82,29 @@ public class GarbageScanner {
             return Map.of();
         }
 
+        final Map<Integer, List<DataFileReader>> filteredStatsByCompactionLevel = new HashMap<>();
+        final long[] sizeByLevel = new long[maxCompactionLevel + 1];
+        for (GarbageFileStats value : statsByFileIndex.values()) {
+            if (isToBeCompacted(value, sizeByLevel)) {
+                filteredStatsByCompactionLevel
+                        .computeIfAbsent(value.compactionLevel(), level -> new ArrayList<>())
+                        .add(value.fileReader);
+            }
+            sizeByLevel[value.compactionLevel()] += value.fileReader.getSize();
+        }
+
         logLevelStats(statsByFileIndex);
 
         final long tookMillis = System.currentTimeMillis() - start;
         logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
-        return statsByFileIndex;
+        return filteredStatsByCompactionLevel;
+    }
+
+    private boolean isToBeCompacted(GarbageFileStats value, long[] sizeByLevel) {
+        return (maxCompactionDataPerLevelInKB <= 0
+                        || sizeByLevel[value.compactionLevel()] < maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES)
+                && value.garbageRatio() > garbageThreshold;
     }
 
     private void logLevelStats(Map<Integer, GarbageFileStats> statsByFileIndex) {
@@ -112,73 +138,11 @@ public class GarbageScanner {
     private Map<Integer, GarbageFileStats> createStatsByFileIndexMap() {
         final List<DataFileReader> allFiles = dataFileCollection.getAllCompletedFiles();
         final Map<Integer, GarbageFileStats> statsByFileIndex = new HashMap<>(allFiles.size());
-        for (final DataFileReader file : allFiles) {
-            final DataFileMetadata metadata = file.getMetadata();
-            final GarbageFileStats stats =
-                    new GarbageFileStats(file.getIndex(), metadata.getCompactionLevel(), metadata.getItemsCount());
+        for (final DataFileReader fileReader : allFiles) {
+            final GarbageFileStats stats = new GarbageFileStats(fileReader);
             statsByFileIndex.put(stats.fileIndex(), stats);
         }
         return statsByFileIndex;
-    }
-
-    /**
-     * Evaluates which levels have enough garbage to warrant compaction and returns the files
-     * to compact for each level.
-     *
-     * <p>A file is included in the compaction set if its garbage ratio exceeds {@code garbageThreshold}.
-     * Only levels with at least one such file are included in the result.
-     *
-     * @param scanResult       per-file garbage statistics from a recent scan
-     * @param allFiles         current list of completed files in the collection
-     * @param garbageThreshold garbage ratio that triggers compaction for a file
-     * @param maxCompactionDataPerLevelInKB maximum total size in KB of files to compact per level; non-positive
-     *                                       value means no limit
-     * @return map from level to list of files to compact; multiple levels may be eligible
-     */
-    public static Map<Integer, List<DataFileReader>> evaluateCompactionCandidates(
-            final Map<Integer, GarbageFileStats> scanResult,
-            final List<DataFileReader> allFiles,
-            final double garbageThreshold,
-            final long maxCompactionDataPerLevelInKB) {
-
-        final Map<Integer, List<DataFileReader>> readersByLevel = new HashMap<>();
-        for (final DataFileReader reader : allFiles) {
-            readersByLevel
-                    .computeIfAbsent(reader.getMetadata().getCompactionLevel(), ignored -> new ArrayList<>())
-                    .add(reader);
-        }
-
-        final Map<Integer, List<DataFileReader>> result = new HashMap<>();
-        for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
-            final int level = entry.getKey();
-            final List<DataFileReader> levelFiles = entry.getValue();
-            final long maxCompactionDataPerLevelInBytes = maxCompactionDataPerLevelInKB <= 0
-                    ? Long.MAX_VALUE
-                    : maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES;
-
-            long totalCompactionDataInBytes = 0;
-            final List<DataFileReader> filesToCompact = new ArrayList<>();
-            for (final DataFileReader file : levelFiles) {
-                final GarbageFileStats stats = scanResult.get(file.getIndex());
-                if (stats == null || stats.garbageRatio() <= garbageThreshold) {
-                    continue;
-                }
-                final long fileSize = file.getSize();
-
-                if (!filesToCompact.isEmpty()
-                        && // we add at least one file to the compaction list
-                        totalCompactionDataInBytes + fileSize > maxCompactionDataPerLevelInBytes) {
-                    continue;
-                }
-                filesToCompact.add(file);
-                totalCompactionDataInBytes += fileSize;
-            }
-            if (!filesToCompact.isEmpty()) {
-                result.put(level, filesToCompact);
-            }
-        }
-
-        return result;
     }
 
     /**
@@ -188,41 +152,40 @@ public class GarbageScanner {
      */
     public static final class GarbageFileStats {
 
-        private final int fileIndex;
-        private final int compactionLevel;
-        private final long totalItems;
+        private final DataFileReader fileReader;
         private long aliveItems;
 
         /**
          * Creates stats with zero alive items. Used by the scanner during index traversal;
          * alive items are incremented as entries are encountered.
          */
-        public GarbageFileStats(final int fileIndex, final int compactionLevel, final long totalItems) {
-            this(fileIndex, compactionLevel, totalItems, 0);
+        public GarbageFileStats(final DataFileReader fileReader) {
+            this(fileReader, 0);
         }
 
         /**
          * Creates stats with a known alive item count. Useful for testing and for constructing
          * stats from pre-computed data.
          */
-        public GarbageFileStats(
-                final int fileIndex, final int compactionLevel, final long totalItems, final long aliveItems) {
-            this.fileIndex = fileIndex;
-            this.compactionLevel = compactionLevel;
-            this.totalItems = totalItems;
+        public GarbageFileStats(final DataFileReader fileReader, final long aliveItems) {
+            this.fileReader = fileReader;
             this.aliveItems = aliveItems;
         }
 
         public int fileIndex() {
-            return fileIndex;
+            return fileReader.getIndex();
         }
 
         public int compactionLevel() {
-            return compactionLevel;
+            return fileReader.getMetadata().getCompactionLevel();
         }
 
         public long totalItems() {
-            return totalItems;
+            return fileReader.getMetadata().getItemsCount();
+        }
+
+        public DataFileReader fileReader() {
+            return fileReader;
         }
 
         public long aliveItems() {
@@ -241,10 +204,10 @@ public class GarbageScanner {
          * 2) the file metadata is of the previous version which didn't support the item count. In this case we need to do the full compaction.
          */
         public double garbageRatio() {
-            if (totalItems == 0) {
+            if (totalItems() == 0) {
                 return 1.0;
             }
-            return 1.0 - ((double) aliveItems / totalItems);
+            return 1.0 - ((double) aliveItems / totalItems());
         }
     }
 }

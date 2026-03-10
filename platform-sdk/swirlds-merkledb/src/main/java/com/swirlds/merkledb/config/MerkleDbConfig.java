@@ -35,6 +35,8 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param maxCompactionDataPerLevelInKB
  *      Maximum total size, in KB, of source files selected for a single-level compaction run. A non-positive
  *      value disables this limit.
+ * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
+ *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
