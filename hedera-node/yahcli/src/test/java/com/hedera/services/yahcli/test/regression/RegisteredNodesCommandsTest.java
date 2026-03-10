@@ -54,7 +54,7 @@ public class RegisteredNodesCommandsTest {
                                             "-k",
                                             asYcDefaultNetworkKey(adminKeyFile),
                                             "--blockNodeEndpoint",
-                                            "127.0.0.1:8080",
+                                            "127.0.0.1:8080:STATUS",
                                             "-d",
                                             "Block node with default STATUS API")
                                     .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
@@ -197,7 +197,7 @@ public class RegisteredNodesCommandsTest {
                                             "-k",
                                             asYcDefaultNetworkKey(adminKeyFile),
                                             "--blockNodeEndpoint",
-                                            "127.0.0.1:8080",
+                                            "127.0.0.1:8080:STATUS",
                                             "-d",
                                             "Block node with SECP256K1 admin key")
                                     .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));

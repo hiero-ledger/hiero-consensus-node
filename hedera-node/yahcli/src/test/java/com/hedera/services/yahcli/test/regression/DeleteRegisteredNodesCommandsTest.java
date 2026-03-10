@@ -55,7 +55,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes("delete", "-n", Long.toString(createdId.get()))
                         .exposingOutputTo(output -> assertTrue(
@@ -81,7 +81,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "delete",
@@ -113,7 +113,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Node with SECP256K1 admin key")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
@@ -147,7 +147,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Use dotted 0.0.<id> format — normalizePossibleIdLiteral must strip the prefix
                 sourcingContextual(spec -> yahcliRegisteredNodes(
@@ -180,7 +180,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // First delete — must succeed
                 sourcingContextual(spec -> yahcliRegisteredNodes("delete", "-n", Long.toString(createdId.get()))
@@ -222,7 +222,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(rnAdminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Block node to be referenced")
                                 .exposingOutputTo(newRegisteredNodeCapturer(rnId::set)),
@@ -288,7 +288,7 @@ public class DeleteRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(rnAdminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Block node to be referenced via update")
                                 .exposingOutputTo(newRegisteredNodeCapturer(rnId::set)),

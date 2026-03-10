@@ -32,7 +32,7 @@ public class CreateRegisteredNodeCommand implements Callable<Integer> {
 
     @CommandLine.Option(
             names = {"--blockNodeEndpoint"},
-            paramLabel = "block node endpoint, format: addr:port[:blockNodeApi][:tls]",
+            paramLabel = "block node endpoint, format: addr:port:blockNodeApi[:tls]",
             arity = "0..*")
     List<String> blockNodeEndpoints;
 

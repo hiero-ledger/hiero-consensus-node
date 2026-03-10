@@ -54,7 +54,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Initial description")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
@@ -94,7 +94,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "update",
@@ -166,7 +166,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "update",
@@ -211,7 +211,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "update",
@@ -248,7 +248,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "update",
@@ -285,7 +285,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Original description")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
@@ -326,7 +326,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Update without admin key - payer signature alone is not enough
                 sourcingContextual(spec -> yahcliRegisteredNodes(
@@ -359,7 +359,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Update with wrong admin key - must fail
                 sourcingContextual(spec -> yahcliRegisteredNodes(
@@ -437,7 +437,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Rotate: both old and new keys sign
                 sourcingContextual(spec -> yahcliRegisteredNodes(
@@ -499,7 +499,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Node with SECP256K1 admin key")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
@@ -540,7 +540,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 // Use dotted 0.0.<id> format — normalizePossibleIdLiteral must strip the prefix
                 sourcingContextual(spec -> yahcliRegisteredNodes(
@@ -585,7 +585,7 @@ public class UpdateRegisteredNodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(adminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080")
+                                        "127.0.0.1:8080:STATUS")
                                 .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
                 sourcingContextual(spec -> yahcliRegisteredNodes(
                                 "update",

@@ -882,7 +882,7 @@ To create a new registered node, you can use the `registeredNodes create` comman
 The optional `-d/--description` argument provides a description for the new registered node.
 
 Endpoint formats:
-- Block node endpoints are given in the form `addr:port[:blockNodeApi][:tls]`.
+- Block node endpoints are given in the form `addr:port:blockNodeApi[:tls]`.
 - Mirror node and RPC relay endpoints are given in the form `addr:port[:tls]`.
 
 Multiple endpoints of each type can be specified by repeating the option.
@@ -891,7 +891,7 @@ Multiple endpoints of each type can be specified by repeating the option.
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes create \
   --adminKey adminKey.pem \
   --description 'My block node' \
-  --blockNodeEndpoint 10.0.0.1:8080:v1:tls \
+  --blockNodeEndpoint 10.0.0.1:8080:PUBLISH:tls \
   --mirrorNodeEndpoint mirror.example.com:443:tls
 ```
 

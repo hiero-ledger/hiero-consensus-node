@@ -457,12 +457,12 @@ public interface HapiPropertySource {
     }
 
     /**
-     * Interprets the given string as a block node endpoint in the format {@code addr:port[:blockNodeApi][:tls]},
+     * Interprets the given string as a block node endpoint in the format {@code addr:port:blockNodeApi[:tls]},
      * returning a {@link RegisteredServiceEndpoint} with a {@code BlockNodeEndpoint} type set.
      * <p>
-     * The {@code addr} may be an IPv4 address or FQDN. The optional {@code blockNodeApi} may be one of
-     * {@code OTHER}, {@code STATUS}, {@code PUBLISH}, {@code SUBSCRIBE_STREAM}, {@code STATE_PROOF}
-     * (defaulting to {@code STATUS}). The optional literal {@code tls} enables {@code requires_tls = true}.
+     * The {@code addr} may be an IPv4 address or FQDN. The required {@code blockNodeApi} must be one of
+     * {@code OTHER}, {@code STATUS}, {@code PUBLISH}, {@code SUBSCRIBE_STREAM}, {@code STATE_PROOF}.
+     * The optional literal {@code tls} enables {@code requires_tls = true}.
      *
      * @param v the string to interpret
      * @return the parsed {@link RegisteredServiceEndpoint}
@@ -475,7 +475,7 @@ public interface HapiPropertySource {
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, addr);
         builder.setPort(port);
-        var blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS;
+        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi = null;
         boolean requiresTls = false;
         for (int i = 2; i < parts.length; i++) {
             final String part = parts[i];
@@ -488,6 +488,11 @@ public interface HapiPropertySource {
                     // not a known api name; skip
                 }
             }
+        }
+        if (blockNodeApi == null) {
+            throw new IllegalArgumentException("Missing required blockNodeApi in block node endpoint '" + v
+                    + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
+                    + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
         }
         builder.setRequiresTls(requiresTls);
         builder.setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()

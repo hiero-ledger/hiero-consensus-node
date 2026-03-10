@@ -190,7 +190,7 @@ public class NodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(rnAdminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Block node for association test")
                                 .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
@@ -243,7 +243,7 @@ public class NodesCommandsTest {
                                         "-k",
                                         asYcDefaultNetworkKey(rnAdminKeyFile),
                                         "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
+                                        "127.0.0.1:8080:STATUS",
                                         "-d",
                                         "Block node for update association test")
                                 .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
