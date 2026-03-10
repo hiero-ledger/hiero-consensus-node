@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -147,7 +148,7 @@ class ProofControllerImplTest {
     void isStillInProgressFalseWhenHasTargetProof() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -203,7 +204,7 @@ class ProofControllerImplTest {
     void advanceConstructionReturnsEarlyWhenAlreadyFinished() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -341,7 +342,7 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
@@ -538,7 +539,7 @@ class ProofControllerImplTest {
     void addWrapsMessagePublicationReturnsFalseWhenHasTargetProof() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -584,7 +585,7 @@ class ProofControllerImplTest {
     void addProofVoteIgnoresWhenAlreadyCompleted() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -605,9 +606,7 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
-        final var vote = HistoryProofVote.newBuilder()
-                .proof(HistoryProof.newBuilder().build())
-                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(aValidProof()).build();
 
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
@@ -616,7 +615,7 @@ class ProofControllerImplTest {
 
     @Test
     void addProofVoteStoresDirectProofVoteAndMayFinish() {
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
@@ -633,7 +632,7 @@ class ProofControllerImplTest {
 
     @Test
     void addProofVoteHandlesCongruentVotes() {
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
         final var baseVote = HistoryProofVote.newBuilder().proof(proof).build();
         existingVotes.put(OTHER_NODE_ID, baseVote);
 
@@ -690,6 +689,12 @@ class ProofControllerImplTest {
 
     private static Timestamp asTimestamp(final Instant instant) {
         return new Timestamp(instant.getEpochSecond(), instant.getNano());
+    }
+
+    private static HistoryProof aValidProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
     }
 
     private void setField(String name, Object value) throws Exception {
