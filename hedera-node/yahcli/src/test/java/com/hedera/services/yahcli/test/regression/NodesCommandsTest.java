@@ -283,6 +283,82 @@ public class NodesCommandsTest {
                                                 "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
     }
 
+    @LeakyHapiTest
+    final Stream<DynamicTest> createNodeWithNonExistentAssociatedRegisteredNodeFails() {
+        final var adminKeyFileName = "create_bogus_areg_dab.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("create_bogus_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node with bogus associated registered node",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212",
+                                        "--associatedRegisteredNode",
+                                        "999999")
+                                .expectFail()
+                                .exposingOutputTo(output -> assertTrue(output.contains("FAILED to create node"))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> updateNodeWithNonExistentAssociatedRegisteredNodeFails() {
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "update_bogus_areg_dab.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("update_bogus_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node to update with bogus association",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212")
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
+                        sourcingContextual(spec1 -> yahcliNodes(
+                                        "update",
+                                        "-n",
+                                        Long.toString(newNodeNum.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--associatedRegisteredNode",
+                                        "999999")
+                                .expectFail()
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("FAILED to update node" + newNodeNum.get())))),
+                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("node" + newNodeNum.get() + " has been deleted")))))));
+    }
+
     // Helpers
 
     private String getUniqueAdminKey() {

@@ -504,23 +504,10 @@ public interface HapiPropertySource {
      * @return the parsed {@link RegisteredServiceEndpoint}
      */
     static RegisteredServiceEndpoint asMirrorNodeEndpoint(@NonNull final String v) {
-        requireNonNull(v);
-        final String[] parts = v.split(":");
-        final String addr = parts[0];
-        final int port = Integer.parseInt(parts[1]);
-        final var builder = RegisteredServiceEndpoint.newBuilder();
-        setAddress(builder, addr);
-        builder.setPort(port);
-        boolean requiresTls = false;
-        for (int i = 2; i < parts.length; i++) {
-            if (parts[i].equalsIgnoreCase("tls")) {
-                requiresTls = true;
-            }
-        }
-        builder.setRequiresTls(requiresTls);
-        builder.setMirrorNode(
-                RegisteredServiceEndpoint.MirrorNodeEndpoint.newBuilder().build());
-        return builder.build();
+        return parseSimpleEndpoint(v)
+                .setMirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.newBuilder()
+                        .build())
+                .build();
     }
 
     /**
@@ -531,13 +518,23 @@ public interface HapiPropertySource {
      * @return the parsed {@link RegisteredServiceEndpoint}
      */
     static RegisteredServiceEndpoint asRpcRelayEndpoint(@NonNull final String v) {
+        return parseSimpleEndpoint(v)
+                .setRpcRelay(
+                        RegisteredServiceEndpoint.RpcRelayEndpoint.newBuilder().build())
+                .build();
+    }
+
+    /**
+     * Parses a simple endpoint string in the format {@code addr:port[:tls]} and returns
+     * a partially-built {@link RegisteredServiceEndpoint.Builder} with address, port, and
+     * TLS flag set. Callers must set the endpoint type and call {@code build()}.
+     */
+    private static RegisteredServiceEndpoint.Builder parseSimpleEndpoint(@NonNull final String v) {
         requireNonNull(v);
         final String[] parts = v.split(":");
-        final String addr = parts[0];
-        final int port = Integer.parseInt(parts[1]);
         final var builder = RegisteredServiceEndpoint.newBuilder();
-        setAddress(builder, addr);
-        builder.setPort(port);
+        setAddress(builder, parts[0]);
+        builder.setPort(Integer.parseInt(parts[1]));
         boolean requiresTls = false;
         for (int i = 2; i < parts.length; i++) {
             if (parts[i].equalsIgnoreCase("tls")) {
@@ -545,9 +542,7 @@ public interface HapiPropertySource {
             }
         }
         builder.setRequiresTls(requiresTls);
-        builder.setRpcRelay(
-                RegisteredServiceEndpoint.RpcRelayEndpoint.newBuilder().build());
-        return builder.build();
+        return builder;
     }
 
     private static void setAddress(

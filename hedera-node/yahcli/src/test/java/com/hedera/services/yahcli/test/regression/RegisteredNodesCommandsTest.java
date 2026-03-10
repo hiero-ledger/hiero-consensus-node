@@ -9,6 +9,7 @@ import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetworkKey;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newRegisteredNodeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliRegisteredNodes;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -45,17 +46,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
-                                        "-d",
-                                        "Block node with default STATUS API")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8080",
+                                            "-d",
+                                            "Block node with default STATUS API")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -70,17 +74,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "blocknode.example.com:8080:PUBLISH",
-                                        "-d",
-                                        "Block node with PUBLISH API")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "blocknode.example.com:8080:PUBLISH",
+                                            "-d",
+                                            "Block node with PUBLISH API")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -94,17 +101,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--mirrorNodeEndpoint",
-                                        "127.0.0.1:5551",
-                                        "-d",
-                                        "Mirror node")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--mirrorNodeEndpoint",
+                                            "127.0.0.1:5551",
+                                            "-d",
+                                            "Mirror node")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -118,17 +128,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--rpcRelayEndpoint",
-                                        "relay.example.com:7546",
-                                        "-d",
-                                        "RPC relay")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--rpcRelayEndpoint",
+                                            "relay.example.com:7546",
+                                            "-d",
+                                            "RPC relay")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -144,17 +157,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "blocknode.example.com:8443:SUBSCRIBE_STREAM:tls",
-                                        "-d",
-                                        "Block node with TLS and SUBSCRIBE_STREAM API")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "blocknode.example.com:8443:SUBSCRIBE_STREAM:tls",
+                                            "-d",
+                                            "Block node with TLS and SUBSCRIBE_STREAM API")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     // -------------------------------------------------------------------------
@@ -173,17 +189,20 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.SECP256K1_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "127.0.0.1:8080",
-                                        "-d",
-                                        "Block node with SECP256K1 admin key")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8080",
+                                            "-d",
+                                            "Block node with SECP256K1 admin key")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     // -------------------------------------------------------------------------
@@ -203,21 +222,24 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "127.0.0.1:8080:STATUS",
-                                        "--blockNodeEndpoint",
-                                        "127.0.0.1:8081:PUBLISH",
-                                        "--blockNodeEndpoint",
-                                        "127.0.0.1:8082:SUBSCRIBE_STREAM",
-                                        "-d",
-                                        "Block node exposing STATUS, PUBLISH, and SUBSCRIBE_STREAM")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8080:STATUS",
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8081:PUBLISH",
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8082:SUBSCRIBE_STREAM",
+                                            "-d",
+                                            "Block node exposing STATUS, PUBLISH, and SUBSCRIBE_STREAM")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -232,19 +254,22 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "node.example.com:8443:PUBLISH:tls",
-                                        "--mirrorNodeEndpoint",
-                                        "node.example.com:5443:tls",
-                                        "-d",
-                                        "Co-located block node and mirror node")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "node.example.com:8443:PUBLISH:tls",
+                                            "--mirrorNodeEndpoint",
+                                            "node.example.com:5443:tls",
+                                            "-d",
+                                            "Co-located block node and mirror node")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 
     /**
@@ -259,20 +284,23 @@ public class RegisteredNodesCommandsTest {
                 newKeyNamed("adminKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        yahcliRegisteredNodes(
-                                        "create",
-                                        "-k",
-                                        asYcDefaultNetworkKey(adminKeyFile),
-                                        "--blockNodeEndpoint",
-                                        "infra.example.com:8443:PUBLISH:tls",
-                                        "--mirrorNodeEndpoint",
-                                        "infra.example.com:5443:tls",
-                                        "--rpcRelayEndpoint",
-                                        "infra.example.com:7443:tls",
-                                        "-d",
-                                        "Full-service registered node: block, mirror, and RPC relay")
-                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))));
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "infra.example.com:8443:PUBLISH:tls",
+                                            "--mirrorNodeEndpoint",
+                                            "infra.example.com:5443:tls",
+                                            "--rpcRelayEndpoint",
+                                            "infra.example.com:7443:tls",
+                                            "-d",
+                                            "Full-service registered node: block, mirror, and RPC relay")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
     }
 }

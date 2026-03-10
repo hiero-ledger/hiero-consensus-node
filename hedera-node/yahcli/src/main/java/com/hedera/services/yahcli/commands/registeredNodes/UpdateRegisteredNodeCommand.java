@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.commands.registeredNodes;
+package com.hedera.services.yahcli.commands.registerednodes;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asBlockNodeEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asMirrorNodeEndpoint;
@@ -127,7 +127,11 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
 
     private long validatedNodeId(@NonNull final String nodeId) {
         try {
-            return Long.parseLong(nodeId);
+            final long id = Long.parseLong(nodeId);
+            if (id < 0) {
+                throw new IllegalArgumentException("Negative node id");
+            }
+            return id;
         } catch (Exception e) {
             throw new CommandLine.ParameterException(
                     registeredNodesCommand.getYahcli().getSpec().commandLine(),

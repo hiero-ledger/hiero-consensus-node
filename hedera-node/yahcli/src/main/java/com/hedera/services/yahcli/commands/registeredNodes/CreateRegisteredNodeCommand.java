@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.commands.registeredNodes;
+package com.hedera.services.yahcli.commands.registerednodes;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asBlockNodeEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asMirrorNodeEndpoint;

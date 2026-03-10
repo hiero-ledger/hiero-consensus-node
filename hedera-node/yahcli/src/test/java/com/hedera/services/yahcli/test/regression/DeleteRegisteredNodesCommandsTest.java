@@ -262,6 +262,78 @@ public class DeleteRegisteredNodesCommandsTest {
     }
 
     /**
+     * Verifies that clearing a DAB node's association via {@code nodes update} (passing
+     * {@code --associatedRegisteredNode} with no value) allows the registered node to be
+     * deleted afterwards — without having to delete the DAB node itself.
+     */
+    @LeakyHapiTest
+    final Stream<DynamicTest> deleteRegisteredNodeAfterClearingAssociationViaUpdate() {
+        final var rnId = new AtomicLong();
+        final var dabNodeId = new AtomicLong();
+        final var rnAdminKeyFile = "del_rn_update_assoc_rn.pem";
+        final var dabAdminKeyFile = "del_rn_update_assoc_dab.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("rnAdminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(rnAdminKeyFile), "keypass"),
+                newKeyNamed("dabAdminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(dabAdminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        // Create the registered node
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(rnAdminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080",
+                                        "-d",
+                                        "Block node to be referenced via update")
+                                .exposingOutputTo(newRegisteredNodeCapturer(rnId::set)),
+                        // Create a DAB node that references the registered node
+                        sourcingContextual(spec1 -> yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "DAB node for update-clear test",
+                                        "-k",
+                                        asYcDefaultNetworkKey(dabAdminKeyFile),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212",
+                                        "--associatedRegisteredNode",
+                                        Long.toString(rnId.get()))
+                                .exposingOutputTo(newNodeCapturer(dabNodeId::set))),
+                        // Attempt to delete while still referenced — must fail
+                        sourcingContextual(spec2 -> yahcliRegisteredNodes("delete", "-n", Long.toString(rnId.get()))
+                                .expectFail()
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("FAILED to delete registeredNode" + rnId.get())))),
+                        // Update the DAB node to clear the association (no value after --associatedRegisteredNode)
+                        sourcingContextual(spec3 -> yahcliNodes(
+                                        "update",
+                                        "-n",
+                                        Long.toString(dabNodeId.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(dabAdminKeyFile),
+                                        "--associatedRegisteredNode")
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + dabNodeId.get() + " has been updated")))),
+                        // Now the registered node can be deleted
+                        sourcingContextual(spec4 -> yahcliRegisteredNodes("delete", "-n", Long.toString(rnId.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("registeredNode" + rnId.get() + " has been deleted")))))));
+    }
+
+    /**
      * Attempts to delete a registered node ID that does not exist on the network.
      * The network rejects the transaction, and the command must report failure.
      */

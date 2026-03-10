@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.commands.registeredNodes;
+package com.hedera.services.yahcli.commands.registerednodes;
 
 import com.hedera.services.yahcli.Yahcli;
 import java.util.concurrent.Callable;

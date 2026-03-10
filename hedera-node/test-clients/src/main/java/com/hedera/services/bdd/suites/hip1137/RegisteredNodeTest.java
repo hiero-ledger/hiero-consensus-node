@@ -51,10 +51,8 @@ import org.junit.jupiter.api.DynamicTest;
 public class RegisteredNodeTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String NEW_ADMIN_KEY = "newAdminKey";
-    // Distinct key names for the SECP256K1 test to avoid name collision with concurrent tests
-    private static final String RN_ADMIN_KEY = "rnAdminKey";
-    private static final String RN_NEW_ADMIN_KEY = "rnNewAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
+    private static final String UPDATE_TXN = "registeredNodeUpdate";
     private static final String NODE_ACCOUNT = "nodeAccount";
     private static final String REGISTERED_NODE = "registeredNode";
     private static final String TEST_NODE = "testNode";
@@ -87,7 +85,9 @@ public class RegisteredNodeTest {
                         .description("new-desc")
                         .adminKey(NEW_ADMIN_KEY)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
+                        .via(UPDATE_TXN)
                         .hasKnownStatus(SUCCESS),
+                getTxnRecord(UPDATE_TXN).logged(),
                 registeredNodeDelete(REGISTERED_NODE)
                         .signedBy(DEFAULT_PAYER, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
@@ -98,10 +98,10 @@ public class RegisteredNodeTest {
     final Stream<DynamicTest> crudHappyPathWithSecp256k1AdminKey() {
         final var createdId = new AtomicLong();
         return hapiTest(
-                newKeyNamed(RN_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
-                newKeyNamed(RN_NEW_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                newKeyNamed(ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                newKeyNamed(NEW_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
                 registeredNodeCreate("rn")
-                        .adminKey(RN_ADMIN_KEY)
+                        .adminKey(ADMIN_KEY)
                         .serviceEndpoints(DEFAULT_ENDPOINTS)
                         .via(CREATE_TXN)
                         .exposingCreatedIdTo(createdId::set)
@@ -110,10 +110,12 @@ public class RegisteredNodeTest {
                 withOpContext((spec, opLog) -> {
                     final var update = registeredNodeUpdate(createdId::get)
                             .description("new-desc")
-                            .adminKey(spec.registry().getKey(RN_NEW_ADMIN_KEY))
-                            .signedBy(DEFAULT_PAYER, RN_ADMIN_KEY, RN_NEW_ADMIN_KEY)
+                            .adminKey(NEW_ADMIN_KEY)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
+                            .via("secp256k1UpdateTxn")
                             .hasKnownStatus(SUCCESS);
-                    allRunFor(spec, update);
+                    final var record = getTxnRecord("secp256k1UpdateTxn").logged();
+                    allRunFor(spec, update, record);
                 }));
     }
 
