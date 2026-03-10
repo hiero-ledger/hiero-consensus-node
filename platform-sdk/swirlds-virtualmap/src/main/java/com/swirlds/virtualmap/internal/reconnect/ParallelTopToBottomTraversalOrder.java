@@ -7,8 +7,7 @@ import com.swirlds.virtualmap.internal.Path;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -38,7 +37,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private final AtomicInteger internalsInFlight = new AtomicInteger(0);
     private final AtomicInteger maxInFlight = new AtomicInteger(0);
-    private final Queue<Long> internals = new PriorityBlockingQueue<>(1 << 16);
+    private final Queue<Long> internals = new ConcurrentLinkedQueue<>();
 
     private final AtomicLong currentLeafPath = new AtomicLong();
 
