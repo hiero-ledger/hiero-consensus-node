@@ -31,6 +31,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of PermissionSemanticsSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 class AtomicPermissionSemanticsSpec {
 
     public static final String NEVER_TO_BE_USED = "neverToBeUsed";

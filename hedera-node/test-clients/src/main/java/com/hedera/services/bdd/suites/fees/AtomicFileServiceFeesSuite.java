@@ -25,6 +25,7 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of FileServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 class AtomicFileServiceFeesSuite {
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";

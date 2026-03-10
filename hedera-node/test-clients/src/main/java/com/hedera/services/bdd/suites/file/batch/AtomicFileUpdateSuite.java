@@ -36,6 +36,7 @@ import static java.lang.Long.parseLong;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of FileUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 @SuppressWarnings("java:S1192")
 class AtomicFileUpdateSuite {
 

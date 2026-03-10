@@ -26,6 +26,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of SysDelSysUndelSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 class AtomicSysDelSysUndelSpec {
 
     byte[] ORIG_FILE = "SOMETHING".getBytes();
