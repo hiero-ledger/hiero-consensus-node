@@ -77,7 +77,7 @@ on:
         description: "Java JDK Version"
         type: string
         required: false
-        default: "25.0.2"
+        default: "25"
       java-distribution:
         description: "Java JDK Distribution"
         type: string
@@ -154,7 +154,7 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "25.0.2"
+      java-version: "25"
       java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -199,7 +199,7 @@ jobs:
       - build
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -217,7 +217,7 @@ jobs:
       - build
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-network-log-capture: "true"
     secrets:
@@ -234,7 +234,7 @@ jobs:
       - build
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
@@ -264,7 +264,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
@@ -282,7 +282,7 @@ jobs:
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -299,7 +299,7 @@ jobs:
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
       github-token: ${{ secrets.access-token }}
@@ -315,7 +315,7 @@ jobs:
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
+      java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
       github-token: ${{ secrets.access-token }}
