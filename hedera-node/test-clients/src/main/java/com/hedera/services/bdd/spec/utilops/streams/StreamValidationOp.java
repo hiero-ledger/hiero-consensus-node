@@ -20,7 +20,6 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -46,7 +45,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,18 +78,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             //            RedactingEventHashBlockStreamValidator.FACTORY
             );
 
-    private final int historyProofsToWaitFor;
-
-    @Nullable
-    private final Duration historyProofTimeout;
-
     private record DataOrException(
             @Nullable StreamFileAccess.RecordStreamData data,
             @Nullable Exception e) {}
 
-    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
-        this.historyProofsToWaitFor = historyProofsToWaitFor;
-        this.historyProofTimeout = historyProofTimeout;
+    public StreamValidationOp() {
         this.recordStreamValidators = List.of(
                 new BlockNoValidator(),
                 new TransactionBodyValidator(),
@@ -141,21 +132,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
-        }
-        if (historyProofsToWaitFor > 0) {
-            requireNonNull(historyProofTimeout);
-            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
-            spec.getNetworkNodes()
-                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
-                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
-                            .join());
-            // If we waited for more than one history proof, do a freeze
-            // upgrade to test adoption of whatever candidate roster
-            // triggered production of the last history proof (the first
-            // one was the "proof" of the genesis address book)
-            if (historyProofsToWaitFor > 1) {
-                allRunFor(spec, upgradeToNextConfigVersion());
-            }
         }
         // Freeze the network
         allRunFor(

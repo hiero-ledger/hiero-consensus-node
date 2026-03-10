@@ -20,6 +20,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
@@ -68,6 +69,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
         return hapiTest(sourcingContextual(spec -> {
             if (WRAPSLibraryBridge.isProofSupported()) {
+                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
@@ -94,6 +96,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                         })
                                 .loggingOff());
             } else {
+                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(false);
                 return noOp();
             }
         }));

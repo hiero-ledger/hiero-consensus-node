@@ -91,6 +91,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -108,6 +109,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
     private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 2;
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
+    public static final AtomicBoolean AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED = new AtomicBoolean(true);
 
     private static final int HASH_SIZE = 48;
     private static final int VISUALIZATION_HASH_DEPTH = 5;
@@ -116,10 +118,19 @@ public class StateChangesValidator implements BlockStreamValidator {
      * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
     private static final double PROOF_VERIFICATION_PROB = 0.05;
+    /**
+     * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
+     */
+    private static final int HINTS_SIGNATURE_LENGTH = 1632;
+    /**
+     * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
+     */
+    private static final int COMPRESSED_WRAPS_PROOF_LENGTH = 704;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private final long hintsThresholdDenominator;
+    private final boolean assertAtLeastOneWraps;
     private final Hash initializedGenesisStateHash;
     private final Path pathToNode0SwirldsLog;
     private final Bytes expectedRootHash;
@@ -149,6 +160,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
+    private boolean observedCompressedWrapsProof;
 
     /**
      * Tracks a sequence of indirect state proofs preceding a signed block proof. This field should <b>not</b>
@@ -191,6 +203,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
                 hintsThresholdDenominator,
+                false,
                 StateProofsEnabled.NO,
                 shard,
                 realm);
@@ -250,6 +263,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                         .map(Long::parseLong)
                         .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
+                Optional.ofNullable(System.getProperty("hapi.spec.assertAtLeastOneWraps"))
+                        .map(Boolean::parseBoolean)
+                        .orElse(false),
                 stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
                 spec.shard(),
                 spec.realm());
@@ -264,12 +280,14 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
             final long hintsThresholdDenominator,
+            final boolean assertAtLeastOneWraps,
             @NonNull final StateProofsEnabled stateProofsEnabled,
             final long shard,
             final long realm) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
         this.hintsThresholdDenominator = hintsThresholdDenominator;
+        this.assertAtLeastOneWraps = assertAtLeastOneWraps;
 
         System.setProperty(
                 "hedera.app.properties.path",
@@ -515,6 +533,13 @@ public class StateChangesValidator implements BlockStreamValidator {
             assertNotNull(ledgerIdPublication, "Ledger id not published despite TSS history enabled");
             assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
         }
+        if (shouldAssertAtLeastOneWraps(assertAtLeastOneWraps) && !observedCompressedWrapsProof) {
+            Assertions.fail("Expected at least one verified TSS signature backed by a compressed WRAPS proof");
+        }
+    }
+
+    static boolean shouldAssertAtLeastOneWraps(final boolean assertAtLeastOneWraps) {
+        return assertAtLeastOneWraps && AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.get();
     }
 
     private void assertEntityCountsMatch(final WritableSingletonState<EntityCounts> entityCounts) {
@@ -735,9 +760,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
             } else {
                 requireNonNull(ledgerIdFromState);
+                final var usedCompressedWrapsProof = hasCompressedWrapsProof(signature);
                 // Use convenience API to verify signature
-                TSS.verifyTSS(
+                final var valid = TSS.verifyTSS(
                         ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
+                if (!valid) {
+                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + ") - " + proof);
+                }
+                observedCompressedWrapsProof |= usedCompressedWrapsProof;
                 logger.info("Verified signature on #{} via TSS", blockNumber);
             }
             if (indirectProofsNeedVerification()) {
@@ -752,6 +782,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                     proof.signedBlockProofOrThrow().blockSignature(),
                     "Signature mismatch for " + proof);
         }
+    }
+
+    static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {
+        requireNonNull(tssSignature);
+        return tssSignature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH
+                == COMPRESSED_WRAPS_PROOF_LENGTH;
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {

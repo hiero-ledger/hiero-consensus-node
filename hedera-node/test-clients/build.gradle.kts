@@ -228,8 +228,7 @@ val prCheckPrepareUpgradeOffsets =
             if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
-// Note: no MATS variants needed for history proofs
-val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
+val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
@@ -315,12 +314,8 @@ tasks.register<Test>("testSubprocess") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
 
     val prepareUpgradeOffsets =
@@ -434,12 +429,8 @@ tasks.register<Test>("testSubprocessConcurrent") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
 
     val prepareUpgradeOffsets =
@@ -518,12 +509,8 @@ tasks.register<Test>("testRemote") {
         )
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
 
     val prepareUpgradeOffsets =
