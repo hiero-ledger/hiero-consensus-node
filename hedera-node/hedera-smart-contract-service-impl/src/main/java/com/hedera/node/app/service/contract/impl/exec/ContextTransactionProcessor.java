@@ -141,8 +141,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
-            recordProcessedTransactionToMetrics(
-                    hevmTransaction, outcome, elapsedNanos, 0L, CodeDelegationResult.EMPTY);
+            recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L, CodeDelegationResult.EMPTY);
 
             return outcome;
         }

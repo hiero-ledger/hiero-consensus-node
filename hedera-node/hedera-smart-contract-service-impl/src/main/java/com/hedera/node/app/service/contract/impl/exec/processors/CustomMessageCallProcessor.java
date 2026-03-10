@@ -94,12 +94,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
 
             // Account doesn't exist - use contract address directly
             return new CustomMessageCallContext(
-                    frame,
-                    tracer,
-                    Optional.empty(),
-                    frame.getContractAddress(),
-                    false,
-                    transfersValue);
+                    frame, tracer, Optional.empty(), frame.getContractAddress(), false, transfersValue);
         }
 
         /**
@@ -109,7 +104,11 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
          * - Regular account/contract with small code
          */
         private static CustomMessageCallContext createProxyOrCodeDelegationContext(
-                @NonNull final MessageFrame frame, @NonNull final OperationTracer tracer, @NonNull final Account contractAccount, @NonNull final Bytes code, final boolean transfersValue) {
+                @NonNull final MessageFrame frame,
+                @NonNull final OperationTracer tracer,
+                @NonNull final Account contractAccount,
+                @NonNull final Bytes code,
+                final boolean transfersValue) {
             final Address executableCodeAddress;
             final boolean isCodeDelegation;
 
@@ -134,7 +133,12 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             }
 
             return new CustomMessageCallContext(
-                    frame, tracer, Optional.of(contractAccount), executableCodeAddress, isCodeDelegation, transfersValue);
+                    frame,
+                    tracer,
+                    Optional.of(contractAccount),
+                    executableCodeAddress,
+                    isCodeDelegation,
+                    transfersValue);
         }
     }
 
