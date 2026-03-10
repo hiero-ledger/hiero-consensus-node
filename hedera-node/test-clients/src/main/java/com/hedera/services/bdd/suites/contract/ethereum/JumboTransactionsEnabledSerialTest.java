@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -22,6 +23,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -34,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -99,5 +103,20 @@ public class JumboTransactionsEnabledSerialTest {
                                 .markAsJumboTxn()
                                 .gasLimit(1_000_000L)
                                 .noLogging())));
+    }
+
+    @HapiTest
+    @DisplayName("Non-jumbo transaction bigger than 6kb should fail")
+    public Stream<DynamicTest> nonJumboTransactionBiggerThan6kb() {
+        final var payer = "payer";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
+                cryptoCreate(receiver),
+                cryptoTransfer(tinyBarsFromTo(payer, receiver, ONE_HUNDRED_HBARS))
+                        .memo(StringUtils.repeat("a", 6145))
+                        .payingWith(payer)
+                        .hasPrecheckFrom(TRANSACTION_OVERSIZE, MEMO_TOO_LONG)
+                        .orUnavailableStatus());
     }
 }

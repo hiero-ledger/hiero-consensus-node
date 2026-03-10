@@ -4,12 +4,19 @@ package com.hedera.services.bdd.suites.contract.hapi;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
+import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
+import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -29,13 +36,19 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -102,7 +115,9 @@ public class ContractCreateSerialSuite {
                 getContractInfo(initCreateContract)
                         .has(contractWith().maxAutoAssociations(0))
                         .logged(),
-                getContractInfo(multiPurpose).has(contractWith().maxAutoAssociations(3)).logged(),
+                getContractInfo(multiPurpose)
+                        .has(contractWith().maxAutoAssociations(3))
+                        .logged(),
                 getContractInfo(slotUserContract)
                         .has(contractWith().maxAutoAssociations(5))
                         .logged(),
@@ -141,7 +156,8 @@ public class ContractCreateSerialSuite {
                 sourcing(() -> getContractInfo(String.valueOf(secondStickId.get()))
                         .has(contractWith().immutableContractKey(String.valueOf(secondStickId.get())))
                         .logged()),
-                sourcing(() -> getContractInfo(String.valueOf(thirdStickId.get())).logged()),
+                sourcing(() ->
+                        getContractInfo(String.valueOf(thirdStickId.get())).logged()),
                 contractCall(contract, "light").via("lightTxn"),
                 sourcing(() -> getContractInfo(String.valueOf(firstStickId.get()))
                         .has(contractWith().isDeleted())),
@@ -149,5 +165,47 @@ public class ContractCreateSerialSuite {
                         .has(contractWith().isDeleted())),
                 sourcing(() -> getContractInfo(String.valueOf(thirdStickId.get()))
                         .has(contractWith().isDeleted())));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
+        final var justSendContract = "JustSend";
+        final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
+        final var beneficiary = "civilian";
+        final var totalToSend = 1_000L;
+        final var origKey = KeyShape.threshOf(1, SIMPLE, CONTRACT);
+        final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
+        final var newKey = "delegateContractKey";
+        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
+        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
+
+        return hapiTest(
+                uploadInitCode(justSendContract, sendInternalAndDelegateContract),
+                contractCreate(justSendContract)
+                        .gas(300_000L)
+                        .exposingContractIdTo(justSendContractId::set)
+                        .refusingEthConversion(),
+                contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
+                cryptoCreate(beneficiary)
+                        .balance(0L)
+                        .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
+                        .receiverSigRequired(true)
+                        .exposingCreatedIdTo(beneficiaryAccountId::set),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
+                getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
+                newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
+                cryptoUpdate(beneficiary).key(newKey),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
+                getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 }

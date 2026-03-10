@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -33,7 +32,6 @@ import org.junit.jupiter.api.Tag;
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
 

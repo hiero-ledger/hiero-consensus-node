@@ -76,7 +76,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
@@ -88,7 +87,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 public class HelloWorldEthereumSuite {
     public static final long depositAmount = 20_000L;
 
@@ -369,45 +367,6 @@ public class HelloWorldEthereumSuite {
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> customizedEvmValuesAreCustomized() {
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via("autoAccount"),
-                getTxnRecord("autoAccount").andAllChildRecords(),
-                uploadInitCode(BLOCKQUERIES_CONTRACT),
-                contractCreate(BLOCKQUERIES_CONTRACT).adminKey(THRESHOLD),
-                // Blobbasefee set correctly initially:
-                ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFee")
-                        .via("callTxn1")
-                        .hasKnownStatus(SUCCESS),
-                // Blobbasefee propagates to child frames correctly:
-                ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFeeR", BigInteger.TEN)
-                        .via("callTxn2")
-                        .hasKnownStatus(SUCCESS),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        getTxnRecord("callTxn1")
-                                .logged()
-                                .hasPriority(recordWith()
-                                        .contractCallResult(resultWith()
-                                                .logs(inOrder(logWith()
-                                                        .longAtBytes(1L /* i.e., 1 Wei */, 24)
-                                                        .withTopicsInOrder(
-                                                                List.of(eventSignatureOf("Info(uint256)"))))))),
-                        getTxnRecord("callTxn2")
-                                .logged()
-                                .hasPriority(recordWith()
-                                        .contractCallResult(resultWith()
-                                                .logs(inOrder(logWith()
-                                                        .longAtBytes(1L /* i.e., 1 Wei */, 24)
-                                                        .withTopicsInOrder(
-                                                                List.of(eventSignatureOf("Info(uint256)"))))))))));
     }
 
     @HapiTest
