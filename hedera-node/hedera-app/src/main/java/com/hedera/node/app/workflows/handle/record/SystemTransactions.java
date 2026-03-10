@@ -621,14 +621,13 @@ public class SystemTransactions {
         if (minNodeReward > 0 && !inactiveNodeAccountIds.isEmpty()) {
             log.info(
                     "Found inactive node accounts {} that will receive minimum node reward {}",
-                inactiveNodeAccountIds,
+                    inactiveNodeAccountIds,
                     minNodeReward);
         }
         // Check if rewardAccountBalance is enough to distribute rewards. If the balance is not enough, distribute
         // rewards to active nodes only. If the balance is enough, distribute rewards to both active and inactive nodes.
         final long activeTotal = activeNodeAccountIds.size() * perNodeReward;
-        final long inactiveTotal =
-                minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
+        final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
         if (rewardAccountBalance <= activeTotal) {
             final long activeNodeReward = activeNodeAccountIds.isEmpty() ? 0 : rewardAccountBalance / activeNodeAccountIds.size();
@@ -637,20 +636,21 @@ public class SystemTransactions {
                 dispatchSynthNodeRewards(systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward);
             }
         } else {
-            final long activeNodeReward = activeNodeAccountIds.isEmpty()
-                    ? 0
-                    : activeTotal / activeNodeAccountIds.size();
+            final long activeNodeReward = activeNodeAccountIds.isEmpty() ? 0 : activeTotal / activeNodeAccountIds.size();
             final long totalInactiveNodesReward =
                     Math.min(Math.max(0, rewardAccountBalance - activeTotal), inactiveTotal);
-            final long inactiveNodeReward = inactiveNodeAccountIds.isEmpty()
-                    ? 0
-                    : totalInactiveNodesReward / inactiveNodeAccountIds.size();
+            final long inactiveNodeReward =
+                    inactiveNodeAccountIds.isEmpty() ? 0 : totalInactiveNodesReward / inactiveNodeAccountIds.size();
             log.info(
                     "Paying active nodes {} tinybars each, inactive nodes {} tinybars each",
                     activeNodeReward,
                     inactiveNodeReward);
             dispatchSynthNodeRewards(
-                    systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward, inactiveNodeReward);
+                    systemContext,
+                    nodeGroups,
+                    nodeRewardsAccountId,
+                    activeNodeReward,
+                    inactiveNodeReward);
         }
     }
 

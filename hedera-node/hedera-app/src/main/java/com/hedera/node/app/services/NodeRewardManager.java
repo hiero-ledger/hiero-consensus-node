@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NO
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toMap;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -22,6 +23,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
@@ -40,6 +42,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -109,15 +112,15 @@ public class NodeRewardManager {
      * @param nodeFeesCollected the fees collected into node accounts in the block
      */
     public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
-        NodesConfig nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
+        final NodesConfig nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
         // If node rewards are enabled, we need to update the node rewards state with the current round and missed
         // judge counts.
         if (nodesConfig.nodeRewardsEnabled()) {
             updateNodeRewardState(state, nodeFeesCollected);
             final var nodeRewardStore = new ReadableNodeRewardsStoreImpl(state.getWritableStates(TokenService.NAME));
-            final var candidates = getRewardCandidates(getRosterEntries(state));
-            final var nodeGroups = NodeRewardGroups.from(candidates, nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
-            updateNodeMetrics(nodeGroups);
+            final var nodeActivities =
+                    buildNodeActivities(getRosterEntries(state), nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
+            updateNodeMetrics(nodeActivities);
         }
     }
 
@@ -212,10 +215,13 @@ public class NodeRewardManager {
         // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD && !currentRoster.isEmpty()) {
             log.info("Considering paying node rewards for the last staking period at {}", asTimestamp(now));
-            final var candidates = getRewardCandidates(currentRoster);
-            final var nodeGroups = NodeRewardGroups.from(candidates, nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
-            // Update metrics for the nodes that were active in the last staking period
-            updateNodeMetrics(nodeGroups);
+            // Build activities for all known roster nodes (includes declining nodes)
+            final var nodeActivities =
+                    buildNodeActivities(currentRoster, nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
+            // Update metrics for all nodes (active, inactive, and declining)
+            updateNodeMetrics(nodeActivities);
+            // Exclude declining nodes and partition the remainder into active/inactive groups for reward dispatch
+            final var nodeGroups = NodeRewardGroups.from(excludeNodesDecliningRewards(nodeActivities));
 
             // And pay whatever rewards the network can afford
             final var rewardsAccountId = entityIdFactory.newAccountId(
@@ -268,11 +274,11 @@ public class NodeRewardManager {
         return requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
     }
 
-    private void updateNodeMetrics(final NodeRewardGroups nodeGroups) {
-        metrics.registerNodeMetrics(nodeGroups.allNodeIds());
-        nodeGroups.allNodeActivities().forEach(activity -> {
-            metrics.updateNodeActiveMetrics(activity.nodeId(), activity.activePercent());
-        });
+    private void updateNodeMetrics(@NonNull final Collection<NodeRewardActivity> activities) {
+        final var nodeIds =
+                activities.stream().map(NodeRewardActivity::nodeId).collect(toCollection(HashSet::new));
+        metrics.registerNodeMetrics(nodeIds);
+        activities.forEach(activity -> metrics.updateNodeActiveMetrics(activity.nodeId(), activity.activePercent()));
     }
 
     /**
@@ -335,22 +341,53 @@ public class NodeRewardManager {
     }
 
     /**
-     * Builds the list of reward-eligible node candidates from the given roster entries.
-     * Nodes with null network info or that decline rewards are excluded.
+     * Builds the list of node reward activities from the given roster entries and node rewards
+     * state. Nodes not found in the network info (unknown nodes) are excluded. Both reward-eligible
+     * and declining-reward nodes are included; use {@link #excludeNodesDecliningRewards} to filter
+     * out declining nodes before reward dispatch.
      *
-     * @param rosterEntries the roster entries to evaluate
-     * @return the list of eligible candidates
+     * @param rosterEntries           the roster entries to evaluate
+     * @param nodeRewards             the node rewards state containing missed judge counts
+     * @param minJudgeRoundPercentage the minimum percentage of judge rounds for a node to be active
+     * @return the list of node reward activities for all known roster nodes
      */
     @VisibleForTesting
-    List<NodeRewardGroups.NodeRewardCandidate> getRewardCandidates(
-            @NonNull final List<RosterEntry> rosterEntries) {
+    List<NodeRewardActivity> buildNodeActivities(
+            @NonNull final List<RosterEntry> rosterEntries,
+            @NonNull final NodeRewards nodeRewards,
+            final int minJudgeRoundPercentage) {
+        final long roundsLastPeriod = nodeRewards.numRoundsInStakingPeriod();
+        final var missedJudgesByNode = nodeRewards.nodeActivities().stream()
+                .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+
         return rosterEntries.stream()
                 .map(entry -> {
                     final var nodeInfo = networkInfo.nodeInfo(entry.nodeId());
-                    if (nodeInfo == null || nodeInfo.declineReward()) return null;
-                    return new NodeRewardGroups.NodeRewardCandidate(entry.nodeId(), nodeInfo.accountId());
+                    if (nodeInfo == null) {
+                        return null;
+                    }
+                    final long missedJudges = missedJudgesByNode.getOrDefault(entry.nodeId(), 0L);
+                    return new NodeRewardActivity(
+                            entry.nodeId(), nodeInfo.accountId(), missedJudges, roundsLastPeriod, minJudgeRoundPercentage);
                 })
                 .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Filters out activities for nodes that are declining rewards, returning only reward-eligible
+     * activities. Nodes not found in the network info are also excluded.
+     *
+     * @param activities the full list of node activities (may include declining nodes)
+     * @return the filtered list containing only reward-eligible node activities
+     */
+    @VisibleForTesting
+    List<NodeRewardActivity> excludeNodesDecliningRewards(@NonNull final List<NodeRewardActivity> activities) {
+        return activities.stream()
+                .filter(activity -> {
+                    final var nodeInfo = networkInfo.nodeInfo(activity.nodeId());
+                    return nodeInfo != null && !nodeInfo.declineReward();
+                })
                 .toList();
     }
 

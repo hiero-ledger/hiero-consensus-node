@@ -35,7 +35,7 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.NodeRewardGroups;
-import com.hedera.node.app.service.token.NodeRewardGroups.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;

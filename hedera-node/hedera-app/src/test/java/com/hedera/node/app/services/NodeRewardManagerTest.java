@@ -21,7 +21,6 @@ import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
@@ -55,7 +54,7 @@ import com.hedera.node.app.metrics.NodeMetrics;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.roster.RosterService;
-import com.hedera.node.app.service.token.NodeRewardGroups.NodeRewardCandidate;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -303,51 +302,81 @@ class NodeRewardManagerTest {
     }
 
     @Test
-    void testGetRewardCandidatesExcludesNullNodeInfo() {
+    void testBuildNodeActivitiesExcludesUnknownNodes() {
         givenNotFoundNode(0L);
         givenNotFoundNode(1L);
 
-        final var candidates = nodeRewardManager.getRewardCandidates(List.of(rosterEntry(0L), rosterEntry(1L)));
+        final var nodeRewards = NodeRewards.newBuilder()
+                .numRoundsInStakingPeriod(100L)
+                .nodeActivities(List.of())
+                .build();
+        final var activities = nodeRewardManager.buildNodeActivities(
+                List.of(rosterEntry(0L), rosterEntry(1L)), nodeRewards, 80);
 
-        assertTrue(candidates.isEmpty());
+        assertTrue(activities.isEmpty());
     }
 
     @Test
-    void testGetRewardCandidatesExcludesDecliningNodes() {
-        givenDecliningNode(0L);
-        givenNotFoundNode(1L);
-
-        final var candidates = nodeRewardManager.getRewardCandidates(List.of(rosterEntry(0L), rosterEntry(1L)));
-
-        assertTrue(candidates.isEmpty());
-    }
-
-    @Test
-    void testGetRewardCandidatesIncludesEligibleNodes() {
+    void testBuildNodeActivitiesIncludesAllKnownNodes() {
+        // buildNodeActivities includes both declining and eligible nodes — declining filter is separate
         final var accountId0 = AccountID.newBuilder().accountNum(800L).build();
         final var accountId1 = AccountID.newBuilder().accountNum(801L).build();
-        givenEligibleNode(0L, accountId0);
-        givenNotFoundNode(1L);
-        givenEligibleNode(2L, accountId1);
+        givenNodeWithAccount(0L, accountId0);
+        givenNodeWithAccount(1L, accountId1);
+        givenNotFoundNode(2L);
 
-        final var candidates = nodeRewardManager.getRewardCandidates(
-                List.of(rosterEntry(0L), rosterEntry(1L), rosterEntry(2L)));
+        final var nodeRewards = NodeRewards.newBuilder()
+                .numRoundsInStakingPeriod(100L)
+                .nodeActivities(List.of(
+                        NodeActivity.newBuilder().nodeId(0L).numMissedJudgeRounds(10L).build()))
+                .build();
+        final var activities = nodeRewardManager.buildNodeActivities(
+                List.of(rosterEntry(0L), rosterEntry(1L), rosterEntry(2L)), nodeRewards, 80);
 
-        assertThat(candidates)
-                .containsExactly(new NodeRewardCandidate(0L, accountId0), new NodeRewardCandidate(2L, accountId1));
+        assertThat(activities).hasSize(2);
+        final var activity0 = activities.stream().filter(a -> a.nodeId() == 0L).findFirst().orElseThrow();
+        assertEquals(accountId0, activity0.accountId());
+        assertEquals(10L, activity0.numMissedRounds());
+        assertEquals(100L, activity0.roundsInPeriod());
+
+        // Node 1 has no entry in nodeActivities → defaults to 0 missed judges
+        final var activity1 = activities.stream().filter(a -> a.nodeId() == 1L).findFirst().orElseThrow();
+        assertEquals(accountId1, activity1.accountId());
+        assertEquals(0L, activity1.numMissedRounds());
     }
 
     @Test
-    void testGetRewardCandidatesMixedEligibility() {
-        final var accountId = AccountID.newBuilder().accountNum(802L).build();
-        givenEligibleNode(0L, accountId);
-        givenDecliningNode(1L);
+    void testExcludeNodesDecliningRewardsFiltersOut() {
+        final var accountId0 = AccountID.newBuilder().accountNum(800L).build();
+        final var accountId1 = AccountID.newBuilder().accountNum(801L).build();
+        givenNodeDeclinesReward(0L, true);
+        givenNodeDeclinesReward(1L, false);
+
+        final var activities = List.of(
+                new NodeRewardActivity(0L, accountId0, 5, 100, 80),
+                new NodeRewardActivity(1L, accountId1, 5, 100, 80));
+        final var eligible = nodeRewardManager.excludeNodesDecliningRewards(activities);
+
+        assertThat(eligible).containsExactly(new NodeRewardActivity(1L, accountId1, 5, 100, 80));
+    }
+
+    @Test
+    void testExcludeNodesDecliningRewardsMixedNodes() {
+        final var accountId0 = AccountID.newBuilder().accountNum(802L).build();
+        final var accountId1 = AccountID.newBuilder().accountNum(803L).build();
+        final var accountId2 = AccountID.newBuilder().accountNum(804L).build();
+        givenNodeDeclinesReward(0L, false);
+        givenNodeDeclinesReward(1L, true);
         givenNotFoundNode(2L);
 
-        final var candidates = nodeRewardManager.getRewardCandidates(
-                List.of(rosterEntry(0L), rosterEntry(1L), rosterEntry(2L)));
+        final var activities = List.of(
+                new NodeRewardActivity(0L, accountId0, 0, 100, 80),
+                new NodeRewardActivity(1L, accountId1, 0, 100, 80),
+                new NodeRewardActivity(2L, accountId2, 0, 100, 80));
+        final var eligible = nodeRewardManager.excludeNodesDecliningRewards(activities);
 
-        assertThat(candidates).containsExactly(new NodeRewardCandidate(0L, accountId));
+        // Node 0 is eligible, node 1 declines, node 2 is unknown (null nodeInfo → excluded)
+        assertThat(eligible).containsExactly(new NodeRewardActivity(0L, accountId0, 0, 100, 80));
     }
 
 
@@ -367,8 +396,8 @@ class NodeRewardManagerTest {
                                 .build()))
                 .build();
         givenSetup(initialRewards, platformStateWithFreezeTime(null), null);
-        givenEligibleNode(0L, AccountID.newBuilder().accountNum(800L).build());
-        givenEligibleNode(1L, AccountID.newBuilder().accountNum(801L).build());
+        givenNodeWithAccount(0L, AccountID.newBuilder().accountNum(800L).build());
+        givenNodeWithAccount(1L, AccountID.newBuilder().accountNum(801L).build());
         final var metrics = mock(NodeMetrics.class);
         nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, networkInfo, metrics);
         nodeRewardManager.onOpenBlock(state);
@@ -528,16 +557,17 @@ class NodeRewardManagerTest {
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
     }
 
-    private void givenEligibleNode(long nodeId, @NonNull AccountID accountId) {
+    /** Stubs networkInfo to return a node with the given account ID (used by buildNodeActivities). */
+    private void givenNodeWithAccount(long nodeId, @NonNull AccountID accountId) {
         final var nodeInfo = mock(NodeInfo.class);
-        given(nodeInfo.declineReward()).willReturn(false);
         given(nodeInfo.accountId()).willReturn(accountId);
         given(networkInfo.nodeInfo(nodeId)).willReturn(nodeInfo);
     }
 
-    private void givenDecliningNode(long nodeId) {
+    /** Stubs networkInfo to return a node with the given declineReward flag (used by excludeNodesDecliningRewards). */
+    private void givenNodeDeclinesReward(long nodeId, boolean declines) {
         final var nodeInfo = mock(NodeInfo.class);
-        given(nodeInfo.declineReward()).willReturn(true);
+        given(nodeInfo.declineReward()).willReturn(declines);
         given(networkInfo.nodeInfo(nodeId)).willReturn(nodeInfo);
     }
 
