@@ -18,7 +18,7 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private static final Logger logger = LogManager.getLogger(ParallelTopToBottomTraversalOrder.class);
 
-    private static final int DEFAULT_MAX_IN_FLIGHT = 1 << 16;
+    private static final int DEFAULT_MAX_IN_FLIGHT = 1 << 18;
 
     private volatile boolean simpleMode = false;
 
@@ -61,10 +61,10 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         lastLeafRank = Path.getRank(lastLeafPath);
         chunkLastRank = firstLeafRank;
 
-        if (firstLeafRank < 20) {
+        if (firstLeafRank < 21) {
             simpleMode = true;
         } else {
-            chunkRootRank = firstLeafRank - 18;
+            chunkRootRank = firstLeafRank - 20;
             chunkRootPath = Path.getGrandParentPath(firstLeafPath, firstLeafRank - chunkRootRank);
 //            internals.add(chunkRootPath);
             addInitialChunkInternals(chunkRootPath);
