@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -45,35 +46,37 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
      * Dispatches a synthetic node reward crypto transfer for active nodes.
      *
      * @param systemContext        The system context.
-     * @param activeNodeAccountIds The list of node account ids.
+     * @param nodeGroups           The node reward groups.
      * @param payerId              The payer account id.
      * @param activeNodeCredit     The credit per active node.
      */
     public static void dispatchSynthNodeRewards(
             @NonNull final SystemContext systemContext,
-            @NonNull final List<AccountID> activeNodeAccountIds,
+            @NonNull final NodeRewardGroups nodeGroups,
             @NonNull final AccountID payerId,
             final long activeNodeCredit) {
-        dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, payerId, activeNodeCredit, List.of(), 0L);
+        dispatchSynthNodeRewards(systemContext, nodeGroups, payerId, activeNodeCredit, 0L);
     }
 
     /**
      * Dispatches a synthetic node reward crypto transfer for active and inactive nodes.
      *
-     * @param systemContext          The system context.
-     * @param activeNodeAccountIds   The list of node account ids.
-     * @param payerId                The payer account id.
-     * @param activeNodeCredit       The credit per active node.
-     * @param inactiveNodeAccountIds The list of inactive node account ids.
-     * @param inactiveNodeCredit     The credit for inactive nodes, which will be the minimum node reward.
+     * @param systemContext        The system context.
+     * @param nodeGroups           The node reward groups.
+     * @param payerId              The payer account id.
+     * @param activeNodeCredit     The credit per active node.
+     * @param inactiveNodeCredit   The credit for inactive nodes, which will be the minimum node reward.
      */
     public static void dispatchSynthNodeRewards(
             @NonNull final SystemContext systemContext,
-            @NonNull final List<AccountID> activeNodeAccountIds,
+            @NonNull final NodeRewardGroups nodeGroups,
             @NonNull final AccountID payerId,
             final long activeNodeCredit,
-            @NonNull final List<AccountID> inactiveNodeAccountIds,
             final long inactiveNodeCredit) {
+        final var activeNodeAccountIds =
+                nodeGroups.activeNodeAccountIds().stream().toList();
+        final var inactiveNodeAccountIds =
+                nodeGroups.inactiveNodeAccountIds().stream().toList();
         if (activeNodeCredit <= 0L && inactiveNodeCredit <= 0L) {
             return;
         }

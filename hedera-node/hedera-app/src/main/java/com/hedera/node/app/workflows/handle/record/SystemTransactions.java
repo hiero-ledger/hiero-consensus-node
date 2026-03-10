@@ -68,6 +68,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -617,40 +618,28 @@ public class SystemTransactions {
      *
      * @param state The state.
      * @param now The current time.
-     * @param activeNodeIds The list of active node ids.
+     * @param nodeGroups The node groups.
      * @param perNodeReward The per node reward.
      * @param nodeRewardsAccountId The node rewards account id.
      * @param rewardAccountBalance The reward account balance.
      * @param minNodeReward The minimum node reward.
-     * @param rosterEntries The list of roster entries.
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
             @NonNull final Instant now,
-            @NonNull final List<Long> activeNodeIds,
+            @NonNull final NodeRewardGroups nodeGroups,
             final long perNodeReward,
             @NonNull final AccountID nodeRewardsAccountId,
             final long rewardAccountBalance,
-            final long minNodeReward,
-            @NonNull final List<RosterEntry> rosterEntries) {
+            final long minNodeReward) {
         requireNonNull(state);
         requireNonNull(now);
-        requireNonNull(activeNodeIds);
+        requireNonNull(nodeGroups);
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        final var activeNodeAccountIds = activeNodeIds.stream()
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
-        final var inactiveNodeAccountIds = rosterEntries.stream()
-                .map(RosterEntry::nodeId)
-                .filter(id -> !activeNodeIds.contains(id))
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
+        final List<AccountID> activeNodeAccountIds = nodeGroups.activeNodeAccountIds();
+        final List<AccountID> inactiveNodeAccountIds = nodeGroups.inactiveNodeAccountIds();
         if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
             // No eligible rewards to distribute
             return;
@@ -668,10 +657,11 @@ public class SystemTransactions {
         final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
         if (rewardAccountBalance <= activeTotal) {
-            final long activeNodeReward = rewardAccountBalance / activeNodeAccountIds.size();
+            final long activeNodeReward =
+                    activeNodeAccountIds.isEmpty() ? 0 : rewardAccountBalance / activeNodeAccountIds.size();
             log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
             if (activeNodeReward > 0) {
-                dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, activeNodeReward);
+                dispatchSynthNodeRewards(systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward);
             }
         } else {
             final long activeNodeReward =
@@ -685,12 +675,7 @@ public class SystemTransactions {
                     activeNodeReward,
                     inactiveNodeReward);
             dispatchSynthNodeRewards(
-                    systemContext,
-                    activeNodeAccountIds,
-                    nodeRewardsAccountId,
-                    activeNodeReward,
-                    inactiveNodeAccountIds,
-                    inactiveNodeReward);
+                    systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward, inactiveNodeReward);
         }
     }
 

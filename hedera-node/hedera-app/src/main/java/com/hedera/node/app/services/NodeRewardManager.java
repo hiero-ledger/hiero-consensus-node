@@ -12,6 +12,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -23,12 +24,15 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.token.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNodeRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNodeRewardsStoreImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
@@ -39,8 +43,10 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -64,6 +70,7 @@ public class NodeRewardManager {
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
     private final ExchangeRateManager exchangeRateManager;
+    private final NetworkInfo networkInfo;
 
     // The number of rounds so far in the staking period
     private long roundsThisStakingPeriod = 0;
@@ -77,11 +84,13 @@ public class NodeRewardManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ExchangeRateManager exchangeRateManager,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final NodeMetrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.metrics = metrics;
+        this.networkInfo = requireNonNull(networkInfo);
     }
 
     public void onOpenBlock(@NonNull final State state) {
@@ -104,13 +113,15 @@ public class NodeRewardManager {
      * @param nodeFeesCollected the fees collected into node accounts in the block
      */
     public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
+        final NodesConfig nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
         // If node rewards are enabled, we need to update the node rewards state with the current round and missed
-        // judge counts
-        if (configProvider.getConfiguration().getConfigData(NodesConfig.class).nodeRewardsEnabled()) {
+        // judge counts.
+        if (nodesConfig.nodeRewardsEnabled()) {
             updateNodeRewardState(state, nodeFeesCollected);
-            final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var nodeRewardStore = new ReadableNodeRewardsStoreImpl(state.getWritableStates(TokenService.NAME));
-            updateNodeMetrics(requireNonNull(rosterStore.getActiveRoster()).rosterEntries(), nodeRewardStore);
+            final var nodeActivities = buildNodeActivities(
+                    getRosterEntries(state), nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
+            updateNodeMetrics(nodeActivities);
         }
     }
 
@@ -158,7 +169,7 @@ public class NodeRewardManager {
      * Checks if the last time node rewards were paid was a different staking period.
      *
      * @param state the state
-     * @param now the current time
+     * @param now   the current time
      * @return whether the last time node rewards were paid was a different staking period
      */
     private LastNodeRewardsPaymentTime classifyLastNodeRewardsPaymentTime(
@@ -180,8 +191,8 @@ public class NodeRewardManager {
     /**
      * If the consensus time just crossed a stake period, rewards sufficiently active nodes for the previous period.
      *
-     * @param state the state
-     * @param now the current consensus time
+     * @param state              the state
+     * @param now                the current consensus time
      * @param systemTransactions the system transactions
      * @return whether the node rewards were paid
      */
@@ -198,19 +209,22 @@ public class NodeRewardManager {
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.CURRENT_PERIOD) {
             return false;
         }
+
         final var writableStates = state.getWritableStates(TokenService.NAME);
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
+        final var currentRoster = getRosterEntries(state);
+        Preconditions.checkArgument(!currentRoster.isEmpty(), "roster cannot be empty.");
+
         // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
             log.info("Considering paying node rewards for the last staking period at {}", asTimestamp(now));
-            // Identify the nodes active in the last staking period
-            final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-            final var currentRoster =
-                    requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
-            final var activeNodeIds =
-                    nodeRewardStore.getActiveNodeIds(currentRoster, nodesConfig.activeRoundsPercent());
-            // Update metrics for the nodes that were active in the last staking period
-            updateNodeMetrics(currentRoster, nodeRewardStore);
+            // Build activities for all known roster nodes (includes declining nodes)
+            final var nodeActivities =
+                    buildNodeActivities(currentRoster, nodeRewardStore.get(), nodesConfig.activeRoundsPercent());
+            // Update metrics for all nodes (active, inactive, and declining)
+            updateNodeMetrics(nodeActivities);
+            // Exclude declining nodes and partition the remainder into active/inactive groups for reward dispatch
+            final var nodeGroups = NodeRewardGroups.from(excludeNodesDecliningRewards(nodeActivities));
 
             // And pay whatever rewards the network can afford
             final var rewardsAccountId = entityIdFactory.newAccountId(
@@ -239,12 +253,11 @@ public class NodeRewardManager {
             systemTransactions.dispatchNodeRewards(
                     state,
                     now,
-                    activeNodeIds,
+                    nodeGroups,
                     perActiveNodeReward,
                     rewardsAccountId,
                     rewardAccountBalance,
-                    minimumRewardInTinycents,
-                    rosterStore.getActiveRoster().rosterEntries());
+                    minimumRewardInTinycents);
         }
         // Record this as the last time node rewards were paid
         final var rewardsStore = new WritableNetworkStakingRewardsStore(writableStates);
@@ -259,19 +272,15 @@ public class NodeRewardManager {
         return true;
     }
 
-    private void updateNodeMetrics(
-            final List<RosterEntry> rosterEntries, final ReadableNodeRewardsStoreImpl nodeRewardStore) {
-        final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
-        metrics.registerNodeMetrics(rosterEntries);
-        final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
-                .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
-        rosterEntries.forEach(node -> {
-            final var nodeId = node.nodeId();
-            final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
-            final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
-            final var activePercent = roundsLastPeriod == 0 ? 0.0 : ((double) activeRounds * 100.0) / roundsLastPeriod;
-            metrics.updateNodeActiveMetrics(nodeId, activePercent);
-        });
+    private static @NonNull List<RosterEntry> getRosterEntries(@NonNull State state) {
+        final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+        return requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+    }
+
+    private void updateNodeMetrics(@NonNull final Collection<NodeRewardActivity> activities) {
+        final var nodeIds = activities.stream().map(NodeRewardActivity::nodeId).collect(toCollection(HashSet::new));
+        metrics.registerNodeMetrics(nodeIds);
+        activities.forEach(activity -> metrics.updateNodeActiveMetrics(activity.nodeId(), activity.activePercent()));
     }
 
     /**
@@ -292,7 +301,7 @@ public class NodeRewardManager {
      * This method updates the number of rounds in the staking period and the number of missed judge rounds for
      * each node.
      *
-     * @param state the state to update
+     * @param state             the state to update
      * @param nodeFeesCollected the fees collected into reward-eligible node accounts
      */
     private void updateNodeRewardState(@NonNull final State state, final long nodeFeesCollected) {
@@ -330,6 +339,61 @@ public class NodeRewardManager {
         return requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
                 .map(RosterEntry::nodeId)
                 .filter(nodeId -> !judges.contains(nodeId))
+                .toList();
+    }
+
+    /**
+     * Builds the list of node reward activities from the given roster entries and node rewards
+     * state. Nodes not found in the network info (unknown nodes) are excluded. Both reward-eligible
+     * and declining-reward nodes are included; use {@link #excludeNodesDecliningRewards} to filter
+     * out declining nodes before reward dispatch.
+     *
+     * @param rosterEntries           the roster entries to evaluate
+     * @param nodeRewards             the node rewards state containing missed judge counts
+     * @param minJudgeRoundPercentage the minimum percentage of judge rounds for a node to be active
+     * @return the list of node reward activities for all known roster nodes
+     */
+    @VisibleForTesting
+    List<NodeRewardActivity> buildNodeActivities(
+            @NonNull final List<RosterEntry> rosterEntries,
+            @NonNull final NodeRewards nodeRewards,
+            final int minJudgeRoundPercentage) {
+        final long roundsLastPeriod = nodeRewards.numRoundsInStakingPeriod();
+        final var missedJudgesByNode = nodeRewards.nodeActivities().stream()
+                .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+
+        return rosterEntries.stream()
+                .map(entry -> {
+                    final var nodeInfo = networkInfo.nodeInfo(entry.nodeId());
+                    if (nodeInfo == null) {
+                        return null;
+                    }
+                    final long missedJudges = missedJudgesByNode.getOrDefault(entry.nodeId(), 0L);
+                    return new NodeRewardActivity(
+                            entry.nodeId(),
+                            nodeInfo.accountId(),
+                            missedJudges,
+                            roundsLastPeriod,
+                            minJudgeRoundPercentage);
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Filters out activities for nodes that are declining rewards, returning only reward-eligible
+     * activities. Nodes not found in the network info are also excluded.
+     *
+     * @param activities the full list of node activities (may include declining nodes)
+     * @return the filtered list containing only reward-eligible node activities
+     */
+    @VisibleForTesting
+    List<NodeRewardActivity> excludeNodesDecliningRewards(@NonNull final List<NodeRewardActivity> activities) {
+        return activities.stream()
+                .filter(activity -> {
+                    final var nodeInfo = networkInfo.nodeInfo(activity.nodeId());
+                    return nodeInfo != null && !nodeInfo.declineReward();
+                })
                 .toList();
     }
 

@@ -3,10 +3,21 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -14,7 +25,6 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -24,6 +34,8 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -45,11 +57,13 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -268,13 +282,16 @@ class SystemTransactionsTest {
     @Test
     void testDispatchNodeRewardsWithEmptyActiveNodes() {
         final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(
-                RosterEntry.newBuilder().nodeId(0L).build(),
-                RosterEntry.newBuilder().nodeId(1L).build());
 
         // All nodes are inactive (not in activeNodeIds)
         // And minNodeReward is 0, so no rewards should be dispatched
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
+        final var nodeGroups = nodeRewardGroups(
+                List.of(),
+                List.of(
+                        AccountID.newBuilder().accountNum(0L).build(),
+                        AccountID.newBuilder().accountNum(1L).build()));
+
+        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
 
         // Should not dispatch anything when no active nodes and minNodeReward is 0
         verifyNoInteractions(parentTxnFactory);
@@ -287,8 +304,7 @@ class SystemTransactionsTest {
 
         assertThrows(
                 NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        null, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+                () -> subject.dispatchNodeRewards(null, NOW, emptyNodeGroups(), 100L, nodeRewardsAccountId, 1000L, 0L));
     }
 
     @Test
@@ -298,75 +314,34 @@ class SystemTransactionsTest {
         assertThrows(
                 NullPointerException.class,
                 () -> subject.dispatchNodeRewards(
-                        state, null, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+                        state, null, emptyNodeGroups(), 100L, nodeRewardsAccountId, 1000L, 0L));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullActiveNodeIds() {
+    void testDispatchNodeRewardsWithNullNodeGroups() {
         final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
 
         assertThrows(
                 NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, null, 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+                () -> subject.dispatchNodeRewards(state, NOW, null, 100L, nodeRewardsAccountId, 1000L, 0L));
     }
 
     @Test
     void testDispatchNodeRewardsWithNullNodeRewardsAccountId() {
         assertThrows(
                 NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, null, 1000L, 0L, List.of()));
+                () -> subject.dispatchNodeRewards(state, NOW, emptyNodeGroups(), 100L, null, 1000L, 0L));
     }
 
     @Test
     void testDispatchNodeRewardsWithActiveNodesButAllDeclineReward() {
         final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
 
-        // Mock node info that declines reward
-        final var nodeInfo = mock(NodeInfo.class);
-        given(nodeInfo.declineReward()).willReturn(true);
-        given(networkInfo.nodeInfo(0L)).willReturn(nodeInfo);
+        final var nodeGroups = emptyNodeGroups();
 
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
+        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
 
-        // Should not dispatch anything when all active nodes decline reward
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithNullNodeInfo() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
-
-        // Mock null node info
-        given(networkInfo.nodeInfo(0L)).willReturn(null);
-
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when node info is null
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithNullRosterEntries() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, null));
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithEmptyRosterEntriesAndEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        // Empty active nodes and empty roster entries - no rewards to distribute
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, List.of());
-
-        // Should not dispatch anything
+        // Should not dispatch anything when all active nodes decline reward (meaning eligible sets are empty)
         verifyNoInteractions(parentTxnFactory);
         verifyNoInteractions(dispatchProcessor);
     }
@@ -374,18 +349,12 @@ class SystemTransactionsTest {
     @Test
     void testDispatchNodeRewardsWithInactiveNodesAndMinRewardZero() {
         final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        // Node 1 is in roster but not in active list
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(1L).build());
 
-        // Mock node info for inactive node
-        final var inactiveNodeInfo = mock(NodeInfo.class);
-        given(inactiveNodeInfo.declineReward()).willReturn(false);
-        given(inactiveNodeInfo.accountId())
-                .willReturn(AccountID.newBuilder().accountNum(4L).build());
-        given(networkInfo.nodeInfo(1L)).willReturn(inactiveNodeInfo);
+        final var nodeGroups = nodeRewardGroups(
+                List.of(), List.of(AccountID.newBuilder().accountNum(4L).build()));
 
         // minNodeReward is 0, so inactive nodes should not receive rewards
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
+        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
 
         // Should not dispatch anything when no active nodes and minNodeReward is 0
         verifyNoInteractions(parentTxnFactory);
@@ -790,5 +759,19 @@ class SystemTransactionsTest {
         assertEquals(migrationLeafCount, updatedBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         // Verify commit() was called after put()
         verify(blockInfoSingleton).commit();
+    }
+
+    private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {
+        return new NodeRewardGroups(
+                active.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 0, 100, 0))
+                        .collect(Collectors.toList()),
+                inactive.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 101, 100, 0))
+                        .collect(Collectors.toList()));
+    }
+
+    private static @NonNull NodeRewardGroups emptyNodeGroups() {
+        return nodeRewardGroups(List.of(), List.of());
     }
 }
