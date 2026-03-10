@@ -18,7 +18,7 @@ categories:
     managers: [netopyr]
   otter-tests:
     artifact-pattern: "Otter Tests*"
-    managers: [Jeffrey-morgan34]
+    managers: [netopyr]
   chaos-otter-tests:
     artifact-pattern: "Chaos Otter*"
     managers: [Jeffrey-morgan34]

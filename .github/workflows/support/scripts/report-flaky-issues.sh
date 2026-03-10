@@ -116,7 +116,7 @@ for i in $(seq 0 $((count - 1))); do
     artifact_name=$(echo "${entry}" | jq -r '.artifactName')
 
     # Build canonical title
-    TITLE="[Flaky Test] ${module} - ${class}#${method}"
+    TITLE="[Flaky Test] ${class}#${method}"
     echo "Processing: ${TITLE}"
 
     # Look up existing issues from the pre-fetched cache (exact title match)

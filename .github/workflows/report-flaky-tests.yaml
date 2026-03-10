@@ -148,7 +148,7 @@ jobs:
             body += '| Test | Ticket |\n';
             body += '|------|--------|\n';
             for (const test of flakyIssues) {
-              const testName = `\`${test.module} - ${test.class}#${test.method}\``;
+              const testName = `\`${test.class}#${test.method}\``;
               if (hasNew) {
                 const status = test.is_new ? '🆕 New' : '🔁 Existing';
                 body += `| ${testName} | #${test.issue_number} (${status}) |\n`;
@@ -178,9 +178,9 @@ jobs:
             echo ""
 
             if [[ -f "flaky-issues.json" ]]; then
-              echo "| Test | Ticket | Status |"
-              echo "|------|--------|--------|"
-              jq -r '.[] | "| `\(.module) - \(.class)#\(.method)` | #\(.issue_number) | [\(if .is_new then "🆕 New" else "Existing" end)](\(.issue_url)) |"' flaky-issues.json
+              echo "| Test | Ticket |"
+              echo "|------|--------|"
+              jq -r '.[] | "| `\(.class)#\(.method)` | #\(.issue_number) |"' flaky-issues.json
             else
               echo "| Test |"
               echo "|------|"
