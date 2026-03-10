@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.GENESIS_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
@@ -57,7 +57,7 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
                 getExternalPath(RECORD_STREAMS_DIR).getParent().toString());
         System.setProperty(
                 "blockStream.blockFileDir",
-                getExternalPath(BLOCK_STREAMS_DIR).getParent().toString());
+                getExternalPath(BLOCK_STREAMS_PARENT_DIR).toString());
         System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 getExternalPath(DATA_CONFIG_DIR).toAbsolutePath().toString());
