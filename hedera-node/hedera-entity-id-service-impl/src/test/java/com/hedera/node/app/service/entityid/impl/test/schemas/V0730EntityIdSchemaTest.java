@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.entityid.impl.test.schemas;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_KEY;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_KEY;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -72,7 +72,7 @@ class V0730EntityIdSchemaTest {
                 .toList();
 
         final var nodeIdDef = sortedResult.getFirst();
-        assertThat(nodeIdDef.stateKey()).isEqualTo(NODE_ID_KEY);
+        assertThat(nodeIdDef.stateKey()).isEqualTo(HIGHEST_NODE_ID_KEY);
         assertThat(nodeIdDef.valueCodec()).isEqualTo(NodeId.PROTOBUF);
         assertThat(nodeIdDef.singleton()).isTrue();
     }
@@ -80,7 +80,7 @@ class V0730EntityIdSchemaTest {
     @Test
     @DisplayName("NODE_ID_STATE_ID should match SingletonType ordinal")
     void testNodeIdStateId() {
-        assertThat(NODE_ID_STATE_ID).isPositive();
+        assertThat(HIGHEST_NODE_ID_STATE_ID).isPositive();
     }
 
     @Test
@@ -102,7 +102,7 @@ class V0730EntityIdSchemaTest {
 
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.newStates()).willReturn(newStates);
-        given(newStates.getSingleton(NODE_ID_STATE_ID)).willReturn(highestNodeIdState);
+        given(newStates.getSingleton(HIGHEST_NODE_ID_STATE_ID)).willReturn(highestNodeIdState);
         given(ctx.previousStates()).willReturn(previousStates);
         given(previousStates.getSingleton(ENTITY_COUNTS_STATE_ID)).willReturn(entityCountsState);
         given(entityCountsState.get()).willReturn(entityCounts);

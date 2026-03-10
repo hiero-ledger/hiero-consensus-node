@@ -5,8 +5,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -68,9 +68,9 @@ class ReadableStakingInfoStoreImplTest {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().build(),
                         c -> {}),
-                NODE_ID_STATE_ID,
+                HIGHEST_NODE_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
 
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID)).willReturn(readableStakingNodes);
 
@@ -119,10 +119,10 @@ class ReadableStakingInfoStoreImplTest {
                                 .numStakingInfos(21)
                                 .build(),
                         c -> {}),
-                NODE_ID_STATE_ID,
+                HIGHEST_NODE_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        NODE_ID_STATE_ID,
-                        NODE_ID_STATE_LABEL,
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
                         () -> NodeId.newBuilder().id(21).build(),
                         c -> {}))));
 

@@ -814,7 +814,7 @@ enum SingletonType {
   /**
    * A state identifier for the highest node identifier allocated so far. Singleton state.
    */
-  EntityIdService_I_NODE_ID = 57;
+  EntityIdService_I_HIGHEST_NODE_ID = 57;
 
   // Queue metadata
 

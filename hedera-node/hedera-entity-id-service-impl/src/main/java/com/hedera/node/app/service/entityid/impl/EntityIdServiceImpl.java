@@ -3,7 +3,7 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -48,7 +48,7 @@ public class EntityIdServiceImpl extends EntityIdService {
         writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID).put(EntityCounts.DEFAULT);
         // First node id should be 0, so init the state with -1
         writableStates
-                .<NodeId>getSingleton(NODE_ID_STATE_ID)
+                .<NodeId>getSingleton(HIGHEST_NODE_ID_STATE_ID)
                 .put(NodeId.newBuilder().id(-1).build());
         return true;
     }

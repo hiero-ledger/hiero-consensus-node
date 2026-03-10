@@ -6,8 +6,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -797,8 +797,8 @@ class NodeFeeManagerTest {
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
 
-        final var nodeIdState =
-                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {});
+        final var nodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {});
 
         // Set up accounts
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
@@ -829,7 +829,7 @@ class NodeFeeManagerTest {
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
-                NODE_ID_STATE_ID, nodeIdState,
+                HIGHEST_NODE_ID_STATE_ID, nodeIdState,
                 ACCOUNTS_STATE_ID, accounts,
                 ALIASES_STATE_ID, aliases));
 
@@ -867,8 +867,8 @@ class NodeFeeManagerTest {
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
 
-        final var nodeIdState =
-                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {});
+        final var nodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {});
 
         // Set up accounts with a deleted account
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
@@ -902,7 +902,7 @@ class NodeFeeManagerTest {
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
-                NODE_ID_STATE_ID, nodeIdState,
+                HIGHEST_NODE_ID_STATE_ID, nodeIdState,
                 ACCOUNTS_STATE_ID, accounts,
                 ALIASES_STATE_ID, aliases));
 
@@ -939,8 +939,8 @@ class NodeFeeManagerTest {
                 c -> {});
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
-        final var nodeIdState =
-                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {});
+        final var nodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {});
 
         // Set up accounts with specific node reward balance
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
@@ -970,7 +970,7 @@ class NodeFeeManagerTest {
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
-                NODE_ID_STATE_ID, nodeIdState,
+                HIGHEST_NODE_ID_STATE_ID, nodeIdState,
                 ACCOUNTS_STATE_ID, accounts,
                 ALIASES_STATE_ID, aliases));
 
@@ -1008,8 +1008,8 @@ class NodeFeeManagerTest {
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
 
-        final var nodeIdState =
-                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {});
+        final var nodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {});
 
         // Set up accounts WITHOUT the missing account
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
@@ -1040,7 +1040,7 @@ class NodeFeeManagerTest {
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
-                NODE_ID_STATE_ID, nodeIdState,
+                HIGHEST_NODE_ID_STATE_ID, nodeIdState,
                 ACCOUNTS_STATE_ID, accounts,
                 ALIASES_STATE_ID, aliases));
 
@@ -1076,8 +1076,8 @@ class NodeFeeManagerTest {
                 c -> {});
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
-        final var nodeIdState =
-                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {});
+        final var nodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {});
 
         // Set up accounts for multiple nodes
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
@@ -1113,7 +1113,7 @@ class NodeFeeManagerTest {
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
-                NODE_ID_STATE_ID, nodeIdState,
+                HIGHEST_NODE_ID_STATE_ID, nodeIdState,
                 ACCOUNTS_STATE_ID, accounts,
                 ALIASES_STATE_ID, aliases));
 
