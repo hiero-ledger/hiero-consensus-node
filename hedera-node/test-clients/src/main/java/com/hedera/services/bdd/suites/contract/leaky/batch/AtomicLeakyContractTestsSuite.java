@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -111,10 +112,9 @@ import com.google.protobuf.BytesValue;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
@@ -149,16 +149,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of LeakyContractTestsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 @HapiTestLifecycle
-class AtomicLeakyContractTestsSuite {
+public class AtomicLeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
@@ -199,8 +197,7 @@ class AtomicLeakyContractTestsSuite {
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
-    @HapiTest
-    @Order(27)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferErc20TokenFromErc721TokenFails() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -241,8 +238,7 @@ class AtomicLeakyContractTestsSuite {
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords());
     }
 
-    @Order(35)
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES)
     final Stream<DynamicTest> getErc20TokenNameExceedingLimits() {
         final var REDUCED_NETWORK_FEE = 1L;
         final var REDUCED_NODE_FEE = 1L;
@@ -292,8 +288,7 @@ class AtomicLeakyContractTestsSuite {
                                         .gasUsed(4_000_000))));
     }
 
-    @HapiTest
-    @Order(2)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> payerCannotOverSendValue() {
         final var payerBalance = 666 * ONE_HBAR;
         final var overdraftAmount = payerBalance + ONE_HBAR;
@@ -323,8 +318,7 @@ class AtomicLeakyContractTestsSuite {
                         .logged());
     }
 
-    @HapiTest
-    @Order(0)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferToCaller() {
         final var transferTxn = TRANSFER_TXN;
         final var sender = "sender";
@@ -366,8 +360,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(contractWith().balance(10_000L - 10L))));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
-    @Order(14)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> maxRefundIsMaxGasRefundConfiguredWhenTXGasPriceIsSmaller() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "5"),
@@ -391,7 +386,9 @@ class AtomicLeakyContractTestsSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    @LeakyHapiTest(overrides = {"ledger.autoRenewPeriod.maxDuration", "entities.maxLifetime"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.autoRenewPeriod.maxDuration", "entities.maxLifetime"})
     final Stream<DynamicTest> contractCreationStoragePriceMatchesFinalExpiry() {
         final var toyMaker = "ToyMaker";
         final var createIndirectly = "CreateIndirectly";
@@ -432,7 +429,9 @@ class AtomicLeakyContractTestsSuite {
                         .payingWith(longLivedPayer)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxGasPerTransaction"})
     final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
         return hapiTest(
                 uploadInitCode(SIMPLE_UPDATE_CONTRACT),
@@ -448,8 +447,7 @@ class AtomicLeakyContractTestsSuite {
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasPrecheck(MAX_GAS_LIMIT_EXCEEDED));
     }
 
-    @HapiTest
-    @Order(5)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferZeroHbarsToCaller() {
         final var transferTxn = TRANSFER_TXN;
         return hapiTest(
@@ -494,8 +492,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(1)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> resultSizeAffectsFees() {
         final var contract = "VerboseDeposit";
         final var TRANSFER_AMOUNT = 1_000L;
@@ -544,8 +543,7 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @HapiTest
-    @Order(8)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> autoAssociationSlotsAppearsInInfo() {
         final int maxAutoAssociations = 100;
         final String CONTRACT = "Multipurpose";
@@ -562,8 +560,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(ContractInfoAsserts.contractWith().maxAutoAssociations(maxAutoAssociations)));
     }
 
-    @Order(16)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> createMaxRefundIsMaxGasRefundConfiguredWhenTXGasPriceIsSmaller() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "5"),
@@ -585,8 +584,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(11)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> createMinChargeIsTXGasUsedByContractCreate() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
@@ -608,8 +608,7 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @HapiTest
-    @Order(3)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> propagatesNestedCreations() {
         final var call = "callTxn";
         final var creation = "createTxn";
@@ -678,7 +677,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> temporarySStoreRefundTest() {
         final var contract = "TemporarySStoreRefund";
         return hapiTest(
@@ -718,7 +719,9 @@ class AtomicLeakyContractTestsSuite {
     }
 
     @Disabled
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCall() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
@@ -834,7 +837,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords", "contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"consensus.handle.maxFollowingRecords", "contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCallTooManyCreatesFails() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
@@ -876,8 +881,9 @@ class AtomicLeakyContractTestsSuite {
                 emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
     }
 
-    @Order(30)
-    @LeakyHapiTest(overrides = {"contracts.nonces.externalization.enabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.nonces.externalization.enabled"})
     final Stream<DynamicTest> shouldReturnNullWhenContractsNoncesExternalizationFlagIsDisabled() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";
@@ -902,8 +908,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(31)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721GetApprovedScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -1021,8 +1028,9 @@ class AtomicLeakyContractTestsSuite {
                                                                 spec.registry().getAccountID(A_CIVILIAN)))))))));
     }
 
-    @Order(33)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721BalanceOfScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -1105,8 +1113,9 @@ class AtomicLeakyContractTestsSuite {
                                                 .withBalance(0)))));
     }
 
-    @Order(32)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721OwnerOfScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -1207,8 +1216,9 @@ class AtomicLeakyContractTestsSuite {
                                                                 spec.registry().getAccountID(A_CIVILIAN)))))))));
     }
 
-    @Order(34)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
@@ -1237,8 +1247,7 @@ class AtomicLeakyContractTestsSuite {
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))));
     }
 
-    @Order(38)
-    @LeakyHapiTest
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> invalidContractCallFailsInV038() {
         final var function = getABIFor(FUNCTION, "getIndirect", "CreateTrivial");
 
