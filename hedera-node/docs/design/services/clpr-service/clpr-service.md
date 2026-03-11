@@ -477,12 +477,14 @@ the message stream, ensuring total ordering with data messages. This eliminates 
 a message that is valid under the config it has seen but would be rejected under a config change it hasn't learned
 about yet. Spam is naturally deterred: each enqueue costs a transaction fee, and duplicate config timestamps are no-ops.
 
-**Ongoing endpoint updates.** Endpoint roster changes are propagated **out-of-band** — via Control Messages during the
-sync protocol (§3.1.4) under normal operation, and via the verifier contract proof mechanism (§3.1.3) as a recovery
-path. Endpoint roster changes do not affect message validity (adding or removing an endpoint never invalidates an
-in-flight message), so out-of-band delivery is always safe. This out-of-band path is also the recovery lever: if the
-queue becomes stuck because all known endpoints have gone offline, the endpoint roster can be updated independently to
-restore sync capability, after which pending in-band Config Update Control Messages will propagate normally.
+**Ongoing endpoint updates.** Endpoint roster changes are normally propagated **in-band** as `EndpointJoin` and
+`EndpointLeave` Control Messages in the message queue (see §3.1.2), sequenced alongside data messages and config
+updates. Because endpoint roster changes do not affect message validity (adding or removing an endpoint never
+invalidates an in-flight message), their in-band ordering is for consistency, not correctness. As a **recovery path**,
+endpoint roster updates can also be submitted **out-of-band** via the verifier contract proof mechanism (§3.1.3) — this
+is necessary when the queue is stuck (e.g., all known endpoints have gone offline and no sync can occur to deliver
+in-band Control Messages). Once out-of-band endpoint updates restore connectivity, pending in-band Control Messages
+(including any queued config updates) propagate normally.
 
 **Manual bootstrap and recovery** is necessary in two scenarios: when first establishing a Connection between two
 ledgers that have never communicated, and when the automatic sync breaks down (for example, if one ledger completely
@@ -542,10 +544,11 @@ the new config. No race conditions are possible because config changes and data 
 *Out-of-band: Endpoints and Verifier.* Two categories of changes are propagated out-of-band:
 
 1. **Endpoint roster changes** — Adding or removing endpoints does not affect whether any message is valid, so there is
-   no ordering dependency with the message stream. Endpoint changes are propagated via Control Messages during sync
-   (§3.1.4) under normal operation, and via the verifier contract proof mechanism (§3.1.3) as a recovery path when the
-   queue is stuck (e.g., all known endpoints have gone offline or the endpoint set has fully rotated). Because endpoint
-   roster changes never invalidate in-flight messages, out-of-band delivery is always safe.
+   no ordering dependency with the message stream. Endpoint changes are normally propagated **in-band** as
+   `EndpointJoin`/`EndpointLeave` Control Messages in the queue (see §3.1.2). As a **recovery path**, endpoint roster
+   updates can also be submitted out-of-band via the verifier contract proof mechanism (§3.1.3) when the queue is stuck
+   (e.g., all known endpoints have gone offline). Because endpoint roster changes never invalidate in-flight messages,
+   out-of-band delivery is always safe.
 
 2. **Verifier contract updates** — Updating the Connection's verifier is always out-of-band (via
    `updateConnectionVerifier` with a ZK proof), because the verifier authenticates the queue. A "use this new verifier"
@@ -797,10 +800,12 @@ renegotiation — the `running_hash` fields are opaque `bytes`, so no wire forma
 Each queued entry contains:
 
 - **Payload** — One of:
-    - **Message** — An initiating message containing opaque byte data. The encoding and semantics are defined by
-      higher-level protocol layers (middleware and application).
-    - **Message Reply** — A reply to a previously received message, containing the original message ID and opaque reply
-      bytes.
+    - **Data Message** — An initiating message containing routing metadata (Connector, target application, sender) and
+      opaque byte data. The encoding and semantics of the payload are defined by higher-level protocol layers.
+    - **Response Message** — A reply to a previously received Data Message, containing the original message ID, a
+      structured status (`ClprMessageReplyStatus`), and opaque reply bytes.
+    - **Control Message** — A protocol-level message carrying an endpoint roster update (`EndpointJoin`/`EndpointLeave`)
+      or a configuration update (`ClprConfigUpdate`). See §3.1.2 and §3.1.3.
 - **Running Hash After Processing** — The cumulative hash computed from the prior running hash and this message's
   payload. When this message is the last one in a bundle, this hash must match the state-proven value, enabling
   verification without requiring the entire queue history.
@@ -983,12 +988,13 @@ types. All are processed in order, but each type is handled differently: initiat
 Payment and Routing layer (§3.3.3), while responses are delivered back to the originating application and trigger
 cleanup.
 
-**Response cleanup and ordering verification.** Initiating messages in the outbound queue are retained after
-acknowledgement because they serve as the ordered reference list for verifying responses. When responses arrive from the
-peer, the source ledger walks its queue of unresponded initiating messages in order and matches each incoming response
-to the next expected initiating message. If Rb1 matches Ma1 (the oldest unresponded initiating message), the order is
-correct and Ma1 can be deleted. Then Rb2 is matched against Ma2, and so on. If a response arrives that does not match
-the next expected initiating message, the peer ledger has violated the ordering guarantee.
+**Response cleanup and ordering verification.** Initiating Data Messages in the outbound queue are retained after
+acknowledgement because they serve as the ordered reference list for verifying responses. Control Messages and Response
+Messages in the queue do not produce responses and are **skipped** during this walk — they are deleted on ack per the
+normal rules. When responses arrive from the peer, the source ledger walks its queue of unresponded Data Messages in
+order and matches each incoming response to the next expected Data Message. If Rb1 matches Ma1 (the oldest unresponded
+Data Message), the order is correct and Ma1 can be deleted. Then Rb2 is matched against Ma2, and so on. If a response
+arrives that does not match the next expected Data Message, the peer ledger has violated the ordering guarantee.
 
 Response messages in the outbound queue, by contrast, are deleted on ack — since responses do not generate responses,
 once the peer confirms receipt there is nothing left to verify.
@@ -1328,11 +1334,6 @@ message ClprConfigUpdate {
   ClprLedgerConfiguration configuration = 1;
 }
 
-message ClprLocalLedgerMetadata {
-  string chain_id = 1;       // CAIP-2 identifier for the local ledger
-  bytes roster_hash = 2;
-  int32 next_ledger_short_id = 3;
-}
 ```
 
 ## 4.2 gRPC Service
@@ -1432,6 +1433,11 @@ message ClprConnection {
   // Endpoints are seeded at connection registration and updated via
   // ClprEndpointJoin / ClprEndpointLeave control messages (see §3.1.2).
 
+  // --- Connection State (see §3.1.3) ---
+
+  uint64 deposit = 6;                    // locked deposit amount (returned on graceful close, slashable)
+  ClprConnectionStatus status = 7;       // current operational state
+
   // --- Message Queue Metadata (see §3.2.1) ---
 
   uint64 received_message_id = 10;
@@ -1440,12 +1446,21 @@ message ClprConnection {
   bytes sent_running_hash = 13;
   uint64 next_message_id = 14;
 }
+
+enum ClprConnectionStatus {
+  ACTIVE = 0;    // normal operation
+  PAUSED = 1;    // temporarily halted by admin (see §3.1.3)
+  SEVERED = 2;   // permanently closed by admin (see §3.1.3)
+  HALTED = 3;    // halted due to response ordering violation (see §3.2.7)
+}
 ```
 
 ## 4.5 Connector
 
 ```protobuf
 // A Connector registered on a specific Connection. See §3.3.1.
+// Note: balance and stake field widths are platform-specific. On Hiero, uint64 (tinybar)
+// is sufficient. On EVM chains, the Solidity implementation uses uint256 (wei).
 message ClprConnector {
   string chain_id = 1;                // \
   bytes service_address = 2;          // / Connection this Connector operates on
