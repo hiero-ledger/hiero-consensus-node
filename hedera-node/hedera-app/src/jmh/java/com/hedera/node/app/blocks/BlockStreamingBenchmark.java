@@ -409,7 +409,7 @@ public class BlockStreamingBenchmark {
             public void setSelfNodeAccountId(final AccountID accountId) {}
         };
         writer = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), bufferService, connectionManager);
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), bufferService);
     }
 
     /**

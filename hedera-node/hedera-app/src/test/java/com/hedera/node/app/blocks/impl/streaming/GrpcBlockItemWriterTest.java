@@ -69,15 +69,15 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
     void testOpenBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         grpcBlockItemWriter.openBlock(0);
 
@@ -86,8 +86,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
@@ -95,8 +95,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePbjItemAndBytes() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -110,8 +110,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePbjItem() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -125,8 +125,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testCompleteBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.closeCompleteBlock();
@@ -143,8 +143,8 @@ class GrpcBlockItemWriterTest {
                 .build());
         when(blockBufferService.getBlockState(blockNumber)).thenReturn(blockState);
 
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         grpcBlockItemWriter.openBlock(blockNumber);
         grpcBlockItemWriter.flushPendingBlock(PendingProof.newBuilder()
                 .block(blockNumber)

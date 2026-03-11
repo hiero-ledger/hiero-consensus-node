@@ -33,33 +33,44 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private static final String COMPLETE_PENDING_EXTENSION = ".pnd.gz";
     private final BlockBufferService blockBufferService;
-    private final BlockNodeConnectionManager blockNodeConnectionManager;
-    private final Path nodeScopedBlockDir;
+    private final ConfigProvider configProvider;
+    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
+    private final FileSystem fileSystem;
     private long blockNumber;
 
     /**
      * Construct a new GrpcBlockItemWriter.
      *
+     * @param configProvider configuration provider
+     * @param selfNodeAccountIdManager information about the current node
+     * @param fileSystem the file system to use for writing block files
      * @param blockBufferService the block stream state manager that maintains the state of the block
      */
     public GrpcBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
-        requireNonNull(configProvider, "configProvider must not be null");
-        requireNonNull(selfNodeAccountIdManager, "selfNodeAccountIdManager must not be null");
-        requireNonNull(fileSystem, "fileSystem must not be null");
+            @NonNull final BlockBufferService blockBufferService) {
+        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+        this.selfNodeAccountIdManager =
+                requireNonNull(selfNodeAccountIdManager, "selfNodeAccountIdManager must not be null");
+        this.fileSystem = requireNonNull(fileSystem, "fileSystem must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-        this.blockNodeConnectionManager =
-                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
+    }
+
+    /**
+     * Creates the node-scoped block directory path dynamically from the current configuration
+     * and self node account ID.
+     *
+     * @return the path to the node-scoped block directory
+     */
+    @NonNull
+    private Path nodeScopedBlockDir() {
         final var blockDir = fileSystem.getPath(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .blockFileDir());
-        this.nodeScopedBlockDir =
-                blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
+        return blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
     }
 
     /**
@@ -130,25 +141,27 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             return;
         }
         try {
-            Files.createDirectories(nodeScopedBlockDir);
-            final var contentsPath = pendingContentsPath(blockNumber);
+            final var blockDir = nodeScopedBlockDir();
+            Files.createDirectories(blockDir);
+            final var contentsPath = pendingContentsPath(blockDir, blockNumber);
             try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
                 out.write(Block.PROTOBUF.toBytes(new Block(items)).toByteArray());
             }
-            Files.writeString(pendingProofPath(blockNumber), PendingProof.JSON.toJSON(pendingProof));
-            logger.info("Flushed pending block #{} ({}, {})", blockNumber, contentsPath, pendingProofPath(blockNumber));
+            final var proofPath = pendingProofPath(blockDir, blockNumber);
+            Files.writeString(proofPath, PendingProof.JSON.toJSON(pendingProof));
+            logger.info("Flushed pending block #{} ({}, {})", blockNumber, contentsPath, proofPath);
         } catch (IOException e) {
             logger.error("Error flushing pending block #{}", blockNumber, e);
         }
     }
 
-    private Path pendingContentsPath(final long blockNumber) {
+    private Path pendingContentsPath(@NonNull final Path blockDir, final long blockNumber) {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return nodeScopedBlockDir.resolve(baseName + COMPLETE_PENDING_EXTENSION);
+        return blockDir.resolve(baseName + COMPLETE_PENDING_EXTENSION);
     }
 
-    private Path pendingProofPath(final long blockNumber) {
+    private Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return nodeScopedBlockDir.resolve(baseName + ".pnd.json");
+        return blockDir.resolve(baseName + ".pnd.json");
     }
 }

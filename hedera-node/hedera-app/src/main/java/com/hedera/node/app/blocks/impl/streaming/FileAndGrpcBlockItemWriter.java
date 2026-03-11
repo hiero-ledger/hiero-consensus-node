@@ -33,11 +33,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+            @NonNull final BlockBufferService blockBufferService) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(
-                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService, blockNodeConnectionManager);
+        this.grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
