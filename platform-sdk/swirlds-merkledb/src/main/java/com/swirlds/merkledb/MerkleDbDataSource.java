@@ -42,6 +42,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -482,7 +484,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         dbId = ID_GENERATOR.getAndIncrement();
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
-        System.out.println("Opening dbId=" + dbId);
+        // FIXME: remove
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "Opening dbId=" + dbId + ", stacktrace: " + getStackTraceAsString(new Throwable()));
         new Exception().printStackTrace();
 
         chunkStoreScanner = new GarbageScanner(
@@ -503,6 +508,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 storageDir,
                 this.initialCapacity,
                 this.hashChunkHeight);
+    }
+
+    // FIXME: remove
+    public String getStackTraceAsString(Throwable t) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        t.printStackTrace(pw);
+        pw.close();
+        return sw.toString();
     }
 
     private void rebuildHashChunks(
@@ -963,8 +977,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     // updated count of open databases
                     COUNT_OF_OPEN_DATABASES.decrement();
                     // FIXME: remove
-                    System.out.println("Closing dbId=" + dbId);
-                    new Exception().printStackTrace();
+                    logger.info(
+                            MERKLE_DB.getMarker(),
+                            "Closing dbId=" + dbId + ", stacktrace: " + getStackTraceAsString(new Throwable()));
                     // Delete the data dir
                     if (!keepData) {
                         DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
