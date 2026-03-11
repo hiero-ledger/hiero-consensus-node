@@ -456,7 +456,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
             // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
-            if (index == 2 || index == 4 || index == 26 || index == 27) {
+            if (index == 2 || index == 4 || index == 25 || index == 26) {
                 continue;
             }
             assertThatThrownBy(() -> {

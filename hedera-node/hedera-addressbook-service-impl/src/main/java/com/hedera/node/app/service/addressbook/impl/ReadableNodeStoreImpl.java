@@ -58,7 +58,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
      * @return the next available node ID
      */
     @Override
-    public long peekAtNewNodeId() {
+    public long peekAtNextNodeId() {
         return entityIdStore.peekAtNextNodeId();
     }
 

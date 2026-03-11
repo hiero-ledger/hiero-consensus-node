@@ -61,14 +61,18 @@ public class WritableNodeStore extends ReadableNodeStoreImpl {
     }
 
     /**
-     * Updates the highest node ID tracked in state to match the given node's ID,
-     * but only if it is greater than the current highest. This is needed for
+     * Persists a new {@link Node} into the state. Increments the {@link EntityType#NODE}
+     * entity type count. Updates the highest node ID tracked in state to match the
+     * given node's ID, but only if it is greater than the current highest. This is needed for
      * system-dispatched node creations (e.g. transplant) where the node ID is
      * explicitly provided and may exceed the sequentially incremented highest ID.
      *
      * @param node the node whose ID may become the new highest
      */
-    public void updateHighestNodeIdIfLarger(@NonNull final Node node) {
+    public void putWithExplicitId(@NonNull final Node node) {
+        requireNonNull(node);
+        put(node);
+        writableEntityIdStore.incrementEntityTypeCount(EntityType.NODE);
         writableEntityIdStore.updateHighestNodeIdIfLarger(node.nodeId());
     }
 

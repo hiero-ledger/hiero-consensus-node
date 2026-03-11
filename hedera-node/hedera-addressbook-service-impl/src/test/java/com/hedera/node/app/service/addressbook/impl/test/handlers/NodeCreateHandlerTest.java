@@ -548,7 +548,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         setupHandle(config);
 
         // newNodeId() will generate the next ID based on the current highest node ID in state
-        final long expectedNodeId = writableStore.peekAtNewNodeId();
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
 
         given(handleContext.attributeValidator()).willReturn(validator);
         final var stack = mock(HandleContext.SavepointStack.class);
@@ -734,7 +734,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         setupHandle(config);
 
         // newNodeId() will generate the next ID based on the current highest node ID in state
-        final long expectedNodeId = writableStore.peekAtNewNodeId();
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
 
         given(handleContext.attributeValidator()).willReturn(validator);
         final var stack = mock(HandleContext.SavepointStack.class);

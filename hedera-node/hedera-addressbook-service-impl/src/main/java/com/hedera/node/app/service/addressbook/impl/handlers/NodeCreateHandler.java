@@ -134,14 +134,12 @@ public class NodeCreateHandler implements TransactionHandler {
             if (maybeNodeIsInStateForSystemTxn) {
                 nodeStore.put(node);
             } else {
-                // put and increment the count and the highest node id
-                nodeStore.putAndIncrement(node);
-                // but if the explicit node id from metadata is larger, update the highest node id
-                nodeStore.updateHighestNodeIdIfLarger(node);
+                // Increment the nodes count. Update the highest node ID if needed.
+                nodeStore.putWithExplicitId(node);
             }
         } else {
             // Assign node id using the store to avoid reuse
-            nextNodeId = nodeStore.peekAtNewNodeId();
+            nextNodeId = nodeStore.peekAtNextNodeId();
             node = nodeBuilder.nodeId(nextNodeId).build();
             nodeStore.putAndIncrement(node);
         }

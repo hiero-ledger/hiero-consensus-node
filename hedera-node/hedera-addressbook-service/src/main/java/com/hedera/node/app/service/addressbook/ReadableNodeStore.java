@@ -42,7 +42,7 @@ public interface ReadableNodeStore {
      *
      * @return the next available node ID
      */
-    long peekAtNewNodeId();
+    long peekAtNextNodeId();
 
     /**
      * Returns the number of nodes in the state.
