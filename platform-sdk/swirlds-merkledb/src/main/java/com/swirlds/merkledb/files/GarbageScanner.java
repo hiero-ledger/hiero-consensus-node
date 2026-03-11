@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,14 +23,14 @@ import org.apache.logging.log4j.Logger;
  * this to the total number of items recorded in the file's metadata. The ratio of dead items
  * to total items is the garbage ratio.
  *
- * <p>For {@link MemoryIndexDiskKeyValueStore}-backed stores (HashStoreDisk, PathToKeyValue),
+ * <p>For {@link MemoryIndexDiskKeyValueStore}-backed stores (IdToHashChunk, PathToKeyValue),
  * each index entry corresponds to a single data item, so the garbage ratio reflects individual
- * item liveness. For {@link HalfDiskHashMap}-backed store (ObjectKeyToPath), each index entry
- * corresponds to a bucket that may contain multiple keys. In this case, the garbage ratio
- * reflects bucket-level liveness, which is a reasonable approximation of file-level garbage
- * since bucket sizes are roughly uniform. This may slightly underestimate garbage (an alive
- * bucket can contain stale entries internally), which is a safe direction for compaction
- * decisions.
+ * item liveness. For the {@link HalfDiskHashMap}-backed store (ObjectKeyToPath), each index
+ * entry corresponds to a bucket that may contain multiple keys. The garbage ratio is therefore
+ * computed at bucket granularity: a bucket is "alive" if the index still points to it, and
+ * "dead" otherwise. This may slightly underestimate garbage, since an alive bucket can
+ * internally contain stale key entries that have migrated to other buckets. Underestimating
+ * garbage is a safe direction for compaction decisions.
  */
 public class GarbageScanner {
 
@@ -61,7 +62,7 @@ public class GarbageScanner {
      * <p>This method is intended to be called from a single background thread. It is read-only
      * with respect to both the index and the data files — no data is copied or modified.
      *
-     * @return a map from file index to garbage statistics for that file
+     * @return a map from level to a list of files that should be compacted at that level
      */
     public Map<Integer, List<DataFileReader>> scan() {
         final long start = System.currentTimeMillis();
@@ -136,13 +137,8 @@ public class GarbageScanner {
     }
 
     private Map<Integer, GarbageFileStats> createStatsByFileIndexMap() {
-        final List<DataFileReader> allFiles = dataFileCollection.getAllCompletedFiles();
-        final Map<Integer, GarbageFileStats> statsByFileIndex = new HashMap<>(allFiles.size());
-        for (final DataFileReader fileReader : allFiles) {
-            final GarbageFileStats stats = new GarbageFileStats(fileReader);
-            statsByFileIndex.put(stats.fileIndex(), stats);
-        }
-        return statsByFileIndex;
+        return dataFileCollection.getAllCompletedFiles().stream()
+                .collect(Collectors.toMap(DataFileReader::getIndex, GarbageFileStats::new));
     }
 
     /**
@@ -172,20 +168,12 @@ public class GarbageScanner {
             this.aliveItems = aliveItems;
         }
 
-        public int fileIndex() {
-            return fileReader.getIndex();
-        }
-
         public int compactionLevel() {
             return fileReader.getMetadata().getCompactionLevel();
         }
 
         public long totalItems() {
             return fileReader.getMetadata().getItemsCount();
-        }
-
-        public DataFileReader fileReader() {
-            return fileReader;
         }
 
         public long aliveItems() {
