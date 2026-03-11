@@ -4,7 +4,6 @@ package com.swirlds.benchmark;
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import java.util.Arrays;
@@ -40,13 +39,7 @@ public class HalfDiskMapBench extends BaseBench {
 
         final var store = new HalfDiskHashMap(configuration, maxKey, getTestDir(), storeName, null, false);
         final var dataFileCompactor = new DataFileCompactor(
-                storeName,
-                store.getFileCollection(),
-                store.getBucketIndexToBucketLocation(),
-                null,
-                null,
-                null,
-                null);
+                storeName, store.getFileCollection(), store.getBucketIndexToBucketLocation(), null, null, null, null);
         System.out.println();
 
         // Write files

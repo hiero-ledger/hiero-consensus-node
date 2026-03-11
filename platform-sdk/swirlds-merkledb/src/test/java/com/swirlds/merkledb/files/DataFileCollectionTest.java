@@ -613,8 +613,7 @@ class DataFileCollectionTest {
 
     private static DataFileCompactor createFileCompactor(
             String storeName, DataFileCollection fileCollection, FilesTestType testType) {
-        return new DataFileCompactor(
-                storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
+        return new DataFileCompactor(storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
     }
 
     @Order(203)
@@ -734,8 +733,8 @@ class DataFileCollectionTest {
         final DataFileCollection fileCollection = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
         final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
-        final DataFileCompactor compactor = new DataFileCompactor(
-                storeName, fileCollection, storedOffsets, null, null, null, null);
+        final DataFileCompactor compactor =
+                new DataFileCompactor(storeName, fileCollection, storedOffsets, null, null, null, null);
         populateDataFileCollection(FilesTestType.fixed, fileCollection, storedOffsets);
 
         final Thread thread = new Thread(() -> {

@@ -88,7 +88,7 @@ public class GarbageScanner {
         for (GarbageFileStats value : statsByFileIndex.values()) {
             if (isToBeCompacted(value, sizeByLevel)) {
                 result.computeIfAbsent(value.compactionLevel(), level -> new ArrayList<>())
-                      .add(value.fileReader);
+                        .add(value.fileReader);
             }
             sizeByLevel[value.compactionLevel()] += value.fileReader.getSize();
         }
