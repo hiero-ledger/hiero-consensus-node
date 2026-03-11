@@ -161,6 +161,12 @@ public class AdditionalHip1064Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(2)
     final Stream<DynamicTest> nodeWithCompleteInactivityReceivesNoReward() {
+        // Captures consensus time after the mutation so the assertion ignores earlier records.
+        // In CI, previous test classes may have set lastNodeRewardsPaymentTime, causing the first
+        // waitUntilStartOfNextStakingPeriod to distribute rewards from 801 to still-active nodes.
+        // The FileAlterationMonitor can race with the assertion subscription,
+        // delivering those old reward records as "new" and causing a false failure.
+        final AtomicReference<Instant> mutationTime = new AtomicReference<>();
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
@@ -192,14 +198,19 @@ public class AdditionalHip1064Tests {
                                         .numMissedJudgeRounds(Integer.MAX_VALUE)
                                         .build()) // 0% active
                         .build()),
+                doingContextual(spec -> mutationTime.set(spec.consensusTime())),
                 waitUntilStartOfNextStakingPeriod(1),
 
-                // Expect no rewards since nodes are completely inactive
+                // Expect no rewards since nodes are completely inactive; filter by consensus time
+                // to ignore any legitimate reward distributions from before the mutation
                 recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                .anyMatch(aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L))),
+                                        .anyMatch(
+                                                aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)
+                                && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                        .isAfter(mutationTime.get()))),
                 cryptoCreate("nobody").payingWith(GENESIS));
     }
 
