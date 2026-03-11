@@ -121,20 +121,18 @@ cannot be included directly as a new release candidate as it contains features f
 
 At this point `build-00004` would be the new `release.current` and `build-00003` becomes `release.previous`
 
-In this scenario, we will need to [create a patch bump](#creating-a-patch-bump). The developers would need to reach out to `@hashgraph/platform-ci`
-or `@hashgraph/release-engineering-managers` in order to facilitate adding a new release branch and for manual tagging efforts.
+In this scenario, we will need to [create a patch bump](#creating-a-patch-bump). The developers would need to reach out to `@hhiero-ledger/github-maintainers` in order to facilitate adding a new release branch and for manual tagging efforts.
 
 **Note**: Development would split into a `release.previous` line with patch bumps and `main` (the new `release.current`).
 
 ## Creating a patch bump
 
-:warning: Contact `@hashgraph/platform-ci` or `@hashgraph/release-engineering-managers` prior to attempting to create a 
+:warning: Contact `@hiero-ledger/github-maintainers` prior to attempting to create a 
 patch bump release.
 
 :rotating_light: Attempting to cut a patch release where the history from the prior release contains a feature or 
 breaking change will result in an unintentional minor bump. This could take several days to redact the incorrect release
-and will prevent the next minor release from shipping. Requires intervention from `@hashgraph/platform-ci` and
-`@hashgraph/release-engineering-managers`.
+and will prevent the next minor release from shipping. Requires intervention from `@hiero-ledger/github-maintainers`.
 
 It is possible to create a patch bump after a build candidate has been released via the `[Main] Create New Release`
 workflow. The release managers will need to select a new build candidate from the list of available builds. The selected
@@ -164,5 +162,5 @@ There are also commit types that will not affect the version at all. These commi
 - `ci:`
 
 **Note**: If any `feat` commits or breaking change indicators have been added between passing builds the 
-@hashgraph/release-engineering-managers and @hashgraph/platform-ci teams must be contacted and coordinated with in order
+@hiero-ledger/github-maintainers team must be contacted and coordinated with in order
 to generate a new patch release.
