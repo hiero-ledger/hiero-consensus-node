@@ -144,7 +144,6 @@ class HalfDiskHashMapTest {
         // create map
         try (HalfDiskHashMap map = createNewTempMap("multipleWriteBatchesAndMerge", 10_000)) {
             final DataFileCompactor dataFileCompactor = new DataFileCompactor(
-                    CONFIGURATION.getConfigData(MerkleDbConfig.class),
                     "HalfDiskHashMapTest",
                     map.getFileCollection(),
                     map.getBucketIndexToBucketLocation(),
