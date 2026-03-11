@@ -160,13 +160,9 @@ software; on Ethereum it is a smart contract deployed on-chain.
   message execution on arrival). The CLPR Service is the custodian of these funds and the sole authority for releasing
   or slashing them.
 
-**Logic owned by the CLPR Service:**
-
-The CLPR Service contains all protocol logic across all layers. This includes delegating proof verification to verifier
-contracts, processing and routing message bundles, dispatching messages to application contracts, charging Connectors,
-reimbursing endpoint nodes, enforcing misbehavior penalties, and managing endpoint roster updates via Control Messages.
-Connections hold state while the CLPR Service holds the logic that acts on that state.
-
+Connections hold state; the CLPR Service holds all protocol logic that acts on that state — proof verification
+delegation, bundle processing, application dispatch, Connector charging, endpoint reimbursement, and misbehavior
+enforcement.
 
 > 💡 **Hiero:** The CLPR Service is a native Hedera service, co-located with the node software. State is stored in the
 Merkle state tree alongside other Hiero state (accounts, tokens, etc.), making it directly provable via Hiero state
@@ -407,12 +403,6 @@ entries in the source ledger's `ApprovedVerifiers`. If the fingerprint matches a
 threshold, the Connection is created: the peer's configuration is stored, the verifier contract address and fingerprint
 are recorded, the seed endpoints are saved, and the deposit is locked.
 
-**Why permissionless.** The ZK proof of endorsement eliminates the need for admin vetting. The source ledger's own
-`ApprovedVerifiers` configuration serves as the trust anchor — the source ledger's admin has endorsed the verifier
-implementation, and the ZK proof cryptographically proves that endorsement. A rogue verifier cannot pass this check
-because its code hash will not match any endorsed fingerprint. This design gives each ledger full control over how its
-proofs are verified on other chains, without requiring any administrative action on the receiving chain.
-
 **Initial acceptance criteria.** The ZK proof submitted during registration carries the peer's full
 `ClprLedgerConfiguration`, including all acceptance-criteria parameters (`maxMessagePayloadBytes`,
 `maxMessagesPerBundle`, `maxGasPerMessage`, throttles). These values take effect immediately on the new Connection and
@@ -429,11 +419,6 @@ This is an emergency power — it immediately stops all message processing on th
 and returns deposits. Severing is appropriate when a peer ledger is compromised, when a verifier is found to be buggy,
 or when the Connection is being used for abuse. The admin can also **pause** a Connection (temporarily halt processing
 without closing it) to investigate issues before deciding whether to sever.
-
-**Bootstrap.** The caller SHOULD include at least one seed endpoint for the remote peer. This seed roster is stored
-immediately and enables the Connection to begin syncing without waiting for an `EndpointJoin` Control Message. The seed
-endpoints do not need to be exhaustive — additional endpoints will be learned via Control Messages as the Connection
-operates.
 
 Configuration proofs include a monotonically increasing timestamp; newer proofs supersede older ones once verified. Only
 one honest and reachable endpoint on each side is required for the Connection to function.
@@ -469,28 +454,15 @@ verifier's implementation fingerprint. The CLPR Service verifies the proof, chec
 verifier on the Connection. This allows verifier upgrades without re-establishing the Connection and without admin
 involvement on the destination.
 
-**Ongoing configuration updates.** Once a Connection exists, configuration changes (throttles, max payload size,
-`ApprovedVerifiers`, etc.) are propagated as **Config Update Control Messages** in the message queue (see §3.2.3).
-When the local admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message on
-**every active Connection**, so that all peers learn about the change. The peer processes it at a well-defined point in
-the message stream, ensuring total ordering with data messages. This eliminates race conditions where a source enqueues
-a message that is valid under the config it has seen but would be rejected under a config change it hasn't learned
-about yet. Spam is naturally deterred: each enqueue costs a transaction fee, and duplicate config timestamps are no-ops.
-
-**Ongoing endpoint updates.** Endpoint roster changes are normally propagated **in-band** as `EndpointJoin` and
-`EndpointLeave` Control Messages in the message queue (see §3.1.2), sequenced alongside data messages and config
-updates. Because endpoint roster changes do not affect message validity (adding or removing an endpoint never
-invalidates an in-flight message), their in-band ordering is for consistency, not correctness. As a **recovery path**,
-endpoint roster updates can also be submitted **out-of-band** via the verifier contract proof mechanism (§3.1.3) — this
-is necessary when the queue is stuck (e.g., all known endpoints have gone offline and no sync can occur to deliver
-in-band Control Messages). Once out-of-band endpoint updates restore connectivity, pending in-band Control Messages
-(including any queued config updates) propagate normally.
-
-**Manual bootstrap and recovery** is necessary in two scenarios: when first establishing a Connection between two
-ledgers that have never communicated, and when the automatic sync breaks down (for example, if one ledger completely
-rotates its endpoint set and none of the new endpoints are known to the peer). In the first case, anyone registers the
-Connection. In the second case, endpoint roster updates are submitted out-of-band via the verifier contract proof
-mechanism to restore connectivity.
+**Ongoing endpoint and configuration updates.** Once a Connection exists, endpoint roster changes are propagated as
+Control Messages in the message queue (see §3.1.2 for the full endpoint update and recovery mechanism). Configuration
+changes — throttles, payload limits, `ApprovedVerifiers`, and any other parameter that affects message acceptance — are
+likewise propagated as **Config Update Control Messages** in the queue, sequenced with data messages. When the local
+admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message on **every active
+Connection**. The peer processes it at a well-defined point in the message stream, ensuring total ordering: messages
+enqueued before the control message were valid under the old config and MUST be accepted; messages enqueued after it
+comply with the new config. No race conditions are possible because config changes and data messages share a single
+ordered stream.
 
 > 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The built-in ZK verifier is part of the
 node software. The CLPR Service admin (governing council) can sever or pause any Connection via privileged HAPI
@@ -530,32 +502,11 @@ The two sides exchange:
 - **Message bundles** — Any pending messages that the peer has not yet acknowledged. Extracted and verified by the
   verifier contract.
 
-**Configuration propagation uses two channels, determined by ordering requirements.**
-
-*In-band: Config Update Control Messages.* All configuration changes that affect message acceptance criteria — throttle
-limits, `maxMessagePayloadBytes`, `maxMessagesPerBundle`, `maxGasPerMessage`, `ApprovedVerifiers`, and any other
-parameter that could cause a valid-under-old-config message to be rejected under new config — MUST be delivered as
-**Config Update Control Messages** in the queue, sequenced with data messages. When a ledger changes such a parameter,
-it enqueues a Config Update Control Message. The peer processes this control message at a well-defined point in the
-message stream and applies the new value to all subsequent operations. This guarantees total ordering: messages enqueued
-before the control message were valid under the old config and MUST be accepted; messages enqueued after it comply with
-the new config. No race conditions are possible because config changes and data messages share a single ordered stream.
-
-*Out-of-band: Endpoints and Verifier.* Two categories of changes are propagated out-of-band:
-
-1. **Endpoint roster changes** — Adding or removing endpoints does not affect whether any message is valid, so there is
-   no ordering dependency with the message stream. Endpoint changes are normally propagated **in-band** as
-   `EndpointJoin`/`EndpointLeave` Control Messages in the queue (see §3.1.2). As a **recovery path**, endpoint roster
-   updates can also be submitted out-of-band via the verifier contract proof mechanism (§3.1.3) when the queue is stuck
-   (e.g., all known endpoints have gone offline). Because endpoint roster changes never invalidate in-flight messages,
-   out-of-band delivery is always safe.
-
-2. **Verifier contract updates** — Updating the Connection's verifier is always out-of-band (via
-   `updateConnectionVerifier` with a ZK proof), because the verifier authenticates the queue. A "use this new verifier"
-   instruction cannot be delivered through a channel that requires the new verifier to read.
-
-If the queue becomes stuck, the recovery sequence is: update the endpoint roster out-of-band (restoring sync
-capability), then allow normal in-band Control Messages to propagate any pending config changes.
+**What travels in-band vs. out-of-band.** Configuration changes and endpoint roster updates are delivered as Control
+Messages in the message queue, sequenced with data messages (see §3.1.3). Verifier contract updates are the sole
+exception — they are always out-of-band (via `updateConnectionVerifier` with a ZK proof), because the verifier
+authenticates the queue and a "use this new verifier" instruction cannot be delivered through a channel that requires
+the new verifier to read.
 
 The queue metadata exchange is the mechanism by which acknowledgements are communicated — the peer's reported
 `received_message_id` becomes the sender's `acked_message_id`, enabling deletion of acknowledged response messages and
@@ -600,14 +551,9 @@ JSON-RPC, but communicates with peer endpoints over gRPC.
 
 ### 3.1.5 Verifier Contracts
 
-Verifier contracts are the trust mechanism that underpins all of CLPR. Every piece of information exchanged between
-ledgers — configurations, queue metadata, message bundles — is verified by a verifier contract whose implementation
-was endorsed by the source ledger's `ApprovedVerifiers` and proven via ZK proof at connection registration (§3.1.3).
-CLPR itself is **proof-system-agnostic** — all cryptographic verification is delegated to verifier contracts, and the
-protocol never interprets proof bytes directly.
-
-A verifier contract is a smart contract (on Ethereum or other EVM chains) or a system contract / native callback (on
-Hiero) that implements two methods:
+CLPR is **proof-system-agnostic** — all cryptographic verification is delegated to verifier contracts, and the protocol
+never interprets proof bytes directly. A verifier contract is a smart contract (on EVM chains) or a system contract /
+native callback (on Hiero) that implements two methods:
 
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
   verification is appropriate for the source ledger, and returns a verified configuration. Used during connection
@@ -622,11 +568,9 @@ system. CLPR does not constrain or even inspect the proof format — it only req
 verified data.
 
 **Trust model.** CLPR trusts the verifier contract's output — if the verifier lies, the Connection is compromised.
-The verifier's legitimacy is established at Connection creation via ZK proof of the source ledger's endorsement (§3.1.3),
-not by admin vetting. Additionally, CLPR independently verifies properties it can check without understanding the proof
-format: running hash chain integrity, message ID sequencing, and response ordering. These checks catch data corruption
-or protocol violations when the verifier is honest but the source ledger has a bug — they do **not** protect against a
-compromised or malicious verifier, which would return fabricated data with matching hashes.
+The verifier's legitimacy is established at Connection creation via ZK proof of endorsement (§3.1.3). CLPR independently
+verifies running hash chain integrity, message ID sequencing, and response ordering (§3.2.4) — these checks catch
+verifier bugs but not a compromised verifier, which would return fabricated data with matching hashes.
 
 **Finality and reorg risk.** For ledgers without instant finality (e.g., Ethereum), the commitment level at which the
 verifier accepts proofs determines the reorg risk. A verifier that accepts proofs at `latest` commitment level is
@@ -757,10 +701,8 @@ Each Connection tracks the following queue state:
   increasing. Stored as `uint64`; at 1 million messages per second this would take ~584,000 years to overflow, so
   wraparound is not a practical concern.
 - **Acknowledged Message ID** (`acked_message_id`) — The ID of the most recent outgoing message confirmed received by
-  the peer. This value is updated when the peer reports its `received_message_id` during queue metadata exchange in the
-  sync protocol (§3.1.4) — it is a transport-level acknowledgement, distinct from application-level responses. Response
-  messages in the outbound queue can be deleted on ack; initiating messages must be retained until their corresponding
-  response arrives (see §3.2.6).
+  the peer. Updated when the peer reports its `received_message_id` during sync (§3.1.4). This is a transport-level
+  acknowledgement, distinct from application-level responses — see §3.2.7 for the full lifecycle.
 - **Sent Running Hash** (`sent_running_hash`) — A cumulative hash over all enqueued outgoing messages. Used by the peer
   to verify message integrity and ordering.
 - **Received Message ID** (`received_message_id`) — The ID of the most recent message received from the peer. This is
@@ -897,15 +839,12 @@ outright, regardless of whether the verifier accepted the proof. This check is p
 is the authoritative defense against replay attacks; it holds even if the verifier is buggy and accepts stale proofs.
 
 Then, the CLPR Service **verifies the running hash chain**. Starting from the Connection's current
-`received_running_hash`, the service recomputes the hash by applying `SHA-256(prev_hash ‖ payload)` for each message
-payload returned by the verifier, sequentially. The final computed hash is compared against the `sent_running_hash`
-from the verifier-returned `ClprQueueMetadata`. If they do not match, the bundle is rejected — something is wrong with
-the message ordering or content. This check is performed by the CLPR Service itself,
-independently of the verifier contract. Note that this check defends against **verifier bugs** (e.g., a verifier that
-correctly authenticates a proof but returns garbled or misordered messages) — it does **not** defend against a
-compromised verifier, which would return fabricated messages with a matching fabricated hash. Defense against verifier
-compromise depends on the verifier's legitimacy, which is established via ZK proof of endorsement at connection
-registration (§3.1.3) and ultimately on the security of the source ledger's CLPR Service admin.
+`received_running_hash`, it recomputes the cumulative hash over each message in the bundle (see §3.2.2 for the hash
+formula) and compares the result against the `sent_running_hash` from the verifier-returned `ClprQueueMetadata`. A
+mismatch means the message ordering or content is corrupt, and the bundle is rejected. This check is performed by the
+CLPR Service independently of the verifier contract and defends against **verifier bugs** (e.g., a verifier that
+authenticates a proof but returns garbled messages). It does **not** defend against a compromised verifier, which would
+return fabricated messages with a matching fabricated hash.
 
 Once both verification stages pass, the service dispatches each message in order to the Payment and Routing layer for
 Connector validation, charging, and application delivery (see §3.3.3).
@@ -932,19 +871,16 @@ a message whose payload exceeds `clpr.maxMessagePayloadBytes` — this is the au
 what the source allowed. This prevents oversized payloads from bloating on-chain state, inflating proof sizes, and
 creating disproportionate verification costs.
 
-These limits are configured per Connection. See §5 for the relevant configuration parameters.
+These limits are configured per Connection. See the [CLPR Service Specification](clpr-service-spec.md) for the relevant
+configuration parameters.
 
 ### 3.2.6 Message Lifecycle and Redaction
 
-The outbound queue contains both initiating messages and response messages, and their deletion rules differ. **Response
-messages** can be deleted as soon as the peer acknowledges them (i.e., `acked_message_id` advances past them), because
-responses do not themselves generate responses — once B confirms receipt, no further action is needed. **Initiating
-messages** must be retained even after acknowledgement, because they serve as the ordering reference for verifying that
-responses arrive in the correct sequence (see §3.2.7). An initiating message is only deleted when its corresponding
-response has been received and matched. The running hash chain preserves integrity verification without the original
-data in both cases.
+**Response messages** in the outbound queue can be deleted as soon as the peer acknowledges them. **Initiating Data
+Messages** must be retained after acknowledgement because they serve as the ordering reference for response verification
+(see §3.2.7); they are deleted only when their corresponding response has been received and matched.
 
-Separately, CLPR supports **redaction** of message payloads that are still in the queue and have not yet been delivered.
+CLPR also supports **redaction** of message payloads that are still in the queue and have not yet been delivered.
 This is intended for situations where illegal or inappropriate content has been placed into the queue — for example, on
 a permissioned chain where an authority determines that a message must not be transmitted. When a message is redacted,
 the payload is removed but the message slot and its stored `running_hash_after_processing` are retained. The message
@@ -959,18 +895,11 @@ and should only be used in exceptional circumstances.
 
 ### 3.2.7 Response Ordering and Correlation
 
-CLPR distinguishes between two kinds of confirmation. An **acknowledgement** (ack) is a transport-level signal: during
-every sync, the peer reports how far it has progressed through the inbound queue via its `received_message_id`. This
-tells the sender that the peer has received and processed those queue entries. For response messages in the outbound
-queue, ack authorizes immediate deletion. For initiating messages, ack confirms delivery but the message must be
-retained until its corresponding response arrives, because it serves as the ordering reference (see below). An ack says
-nothing about the application-level outcome — only that the message was delivered.
-
-A **response** is an application-level result. When the destination ledger processes an incoming message, it generates a
-`ClprMessageReply` containing the outcome (success, application error, or Connector failure) and enqueues it in its own
-outbound queue for eventual delivery back to the source. If the destination has a large backlog of outbound messages,
-the response may not arrive for some time — but the source ledger already knows from the ack that the original message
-was received.
+CLPR distinguishes between two kinds of confirmation. An **acknowledgement** (ack) is a transport-level signal: the
+peer's `received_message_id`, reported during every sync, tells the sender which queue entries have been delivered. Ack
+authorizes deletion of Response Messages in the outbound queue but not Data Messages — those must be retained until
+their corresponding response arrives (see below). A **response** is an application-level result: when the destination
+processes a Data Message, it generates a `ClprMessageReply` and enqueues it for return to the source.
 
 Because the destination ledger processes each incoming message sequentially (§3.3.3), responses are generated in the
 same order as the originating messages arrived. If Ledger A sends messages M1, M2, M3 to Ledger B, the responses R1, R2,
@@ -1014,7 +943,7 @@ resumes, the Connection unblocks and normal operation continues.
 
 **Throughput implication.** Because messages are processed sequentially on the destination, a single slow-processing
 message (e.g., one that triggers an expensive contract call) delays response generation for every message behind it in
-the bundle. The `clpr.maxGasPerMessage` configuration parameter (§5) mitigates this by capping per-message computation,
+the bundle. The `clpr.maxGasPerMessage` configuration parameter mitigates this by capping per-message computation,
 but this sequential-processing constraint is an inherent throughput consideration for bundle sizing.
 
 ---
@@ -1104,12 +1033,9 @@ funds to pay for handling the eventual response.
 When a verified bundle's messages are dispatched by the messaging layer (see §3.2.4), each message is processed
 sequentially. The processing path depends on the message type (see `ClprMessagePayload` oneof in the [CLPR Service Specification](clpr-service-spec.md)):
 
-**Control Messages** (endpoint roster changes and config updates) are processed directly by the CLPR Service. No
-Connector is involved, no application is dispatched to, and no response is generated. The CLPR Service applies the
-change (updating the peer endpoint roster or storing the new config values) and advances the Connection's
-`received_message_id` and `received_running_hash`. The cost of processing Control Messages is absorbed by the
-submitting endpoint as part of the bundle submission cost — this is acceptable because Control Messages are infrequent
-and lightweight.
+**Control Messages** are processed directly by the CLPR Service — no Connector is involved, no application is
+dispatched to, and no response is generated. The cost is absorbed by the submitting endpoint as part of the bundle
+submission.
 
 **Data Messages** are processed by the Payment and Routing layer. For each Data Message, the CLPR Service resolves the
 source-chain `connector_id` to a local Connector using the cross-chain mapping (see §3.3.1).
@@ -1139,10 +1065,9 @@ and MUST follow the checks-effects-interactions pattern: update all Connection s
 Connector charges) **before** dispatching to the application. Application callbacks should be called with a fixed gas
 stipend to bound execution cost.
 
-**Response Messages** arriving in a bundle are delivered back to the originating application and trigger ordering
-verification and cleanup as described in §3.2.7. The CLPR Service inspects the `ClprMessageReplyStatus` to determine
-whether to slash the source Connector (see §3.3.4). No Connector is charged on the receiving side for processing
-responses — the cost is absorbed by the submitting endpoint as part of the bundle.
+**Response Messages** are delivered back to the originating application and trigger ordering verification and cleanup
+(§3.2.7). The `ClprMessageReplyStatus` determines whether to slash the source Connector (§3.3.4). No Connector is
+charged for processing responses.
 
 Critically, a failure on one message does not stop processing of the remaining messages in the bundle. Each message is
 handled independently. This ensures that a single bad message (e.g., referencing a missing Connector) does not block an
@@ -1200,23 +1125,7 @@ burst of messages, and drain endpoints of more execution cost than the slash can
 must be calibrated to this worst-case exposure. This is an unresolved economic design parameter that must be quantified
 before production deployment.
 
-### 3.3.5 Design Principles
-
-Several principles underpin this design:
-
-**No nodes need accounts on remote ledgers.** Nodes submit transactions on their own ledger and get reimbursed on their
-own ledger. The Connectors handle the cross-ledger economics.
-
-**Every accepted message produces a deterministic outcome.** Whether the Connector pays or does not, the message is
-processed and a response is generated. There are no silent failures or messages that disappear into a void.
-
-**No new token.** All incentives, penalties, and payments use the native tokens of each ledger. Connectors hold HBAR on
-Hedera and ETH on Ethereum (or whatever the native token is on each side).
-
-**Connectors internalize risk.** If a Connector is underfunded, mispriced, or poorly managed, the Connector bears the
-cost — not the nodes, not the applications, not the protocol. The slashing mechanism ensures this.
-
-**Receive-side economics only.** Endpoint nodes are compensated only when they submit bundles on the destination
+**Receive-side economics.** Endpoint nodes are compensated only when they submit bundles on the destination
 ledger — there is no direct payment for the work of sending bundles (constructing state proofs, transmitting data,
 initiating sync calls). This creates a potential free-rider problem: a node could refuse to send and only receive,
 hoping other nodes will do the sending work. The mitigation is **peer preference** — destination-side endpoints should
@@ -1227,7 +1136,7 @@ acknowledged limitation: on a ledger that is predominantly sending and rarely re
 insufficient to incentivize endpoint participation. Future protocol revisions may introduce a sending-side incentive
 mechanism if this proves to be a practical problem.
 
-### 3.3.6 Open Economic Design Issues
+### 3.3.5 Open Economic Design Issues
 
 > ‼️ **Queue monopolization (DoS vector).** A single Connector could authorize a large volume of messages to fill the
 queue to `maxQueueDepth`, blocking all other Connectors on the Connection from sending. This is a denial-of-service
@@ -1238,11 +1147,7 @@ Connector can occupy; (c) priority pricing, where queue slots become more expens
 does not support state rent, escrowed capital is the natural alternative to rent-based models. This is an unresolved
 design issue that must be addressed before production deployment.
 
-> ❓ **Connection creation deposits.** How should Connection creation deposits work to protect nodes from non-functional
-Connectors? (See also §5.2.)
-
-> ❓ **Application-Connector agreements.** How do applications formalize agreements with Connectors? What interfaces and
-registration mechanisms are needed? (See also §5.2.)
+See also §5.2 for additional open economic questions (Connection deposits, application-Connector agreements).
 
 ---
 
@@ -1303,27 +1208,24 @@ algorithms, and configuration parameters are defined in the companion
 
 1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
    ordering?
-2. ~~What processes the reply of messages, and do we need to retain the initial message to support reply processing?~~
-   *Resolved in §3.2.7: responses are processed by the source ledger's CLPR Service; initiating messages are retained
-   until their corresponding response arrives for ordering verification.*
-3. How should Connection creation deposits work to protect nodes from non-functional Connectors?
-4. How do applications formalize agreements with Connectors?
-5. What is the format for application-level error propagation (e.g., releasing locked assets on cross-ledger transfer
+2. How should Connection creation deposits work to protect nodes from non-functional Connectors?
+3. How do applications formalize agreements with Connectors?
+4. What is the format for application-level error propagation (e.g., releasing locked assets on cross-ledger transfer
    failure)?
-6. Should endpoint reputation or scoring be added to help nodes preferentially select reliable peers?
-7. How should protocol overhead costs (configuration updates, queue metadata sync, bundle transmission) be funded — can
+5. Should endpoint reputation or scoring be added to help nodes preferentially select reliable peers?
+6. How should protocol overhead costs (configuration updates, queue metadata sync, bundle transmission) be funded — can
    they be made "free" from the user's perspective?
-8. Should CLPR message enqueueing use child transaction dispatch or direct Java API invocation?
-9. **Multiple Connections per peer with different commitment levels.** Since Connections are keyed by
+7. Should CLPR message enqueueing use child transaction dispatch or direct Java API invocation?
+8. **Multiple Connections per peer with different commitment levels.** Since Connections are keyed by
    `(ChainID, ServiceAddress)` and verifier selection is per-Connection, a ledger could maintain multiple Connections
    to the same peer — each using a different verifier with a different commitment level (e.g., `latest`, `safe`,
    `finalized`). Applications could then choose which Connection to use based on their latency vs. finality tradeoff.
    A DEX might use `latest` for price feeds, while a token bridge uses `finalized` for asset transfers. This is already
    architecturally supported but the implications for endpoint resource allocation, Connector management, and message
    routing across parallel Connections need further design.
-10. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
-    and it can never produce correctly ordered responses, the Connection is stuck (§3.2.7). Severing the Connection
-    leaves in-flight messages in an ambiguous state — the source cannot determine which messages were processed on the
-    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
-    properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
-    may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
+9. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
+   and it can never produce correctly ordered responses, the Connection is stuck (§3.2.7). Severing the Connection
+   leaves in-flight messages in an ambiguous state — the source cannot determine which messages were processed on the
+   destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
+   properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
+   may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
