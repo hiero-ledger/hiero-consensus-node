@@ -75,7 +75,12 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
                 if (signedBytes.length() == 0) {
                     final var bytes = transaction.bodyBytes();
                     this.body = TransactionBody.PROTOBUF.parse(bytes);
-                    numTxnSignatures = 0;
+                    if (transaction.hasSigMap()) {
+                        var sigmap = transaction.sigMap();
+                        numTxnSignatures = sigmap.sigPair().size();
+                    } else {
+                        numTxnSignatures = 0;
+                    }
                 } else {
                     final var signedTransaction =
                             SignedTransaction.PROTOBUF.parse(BufferedData.wrap(signedBytes.toByteArray()));
