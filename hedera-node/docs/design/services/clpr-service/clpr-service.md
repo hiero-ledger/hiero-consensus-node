@@ -230,7 +230,7 @@ but also the **admin of the peer ledger's CLPR Service**. The CLPR Service admin
 are endorsed in `ApprovedVerifiers`. If the admin is compromised or malicious, they can endorse a fraudulent verifier
 that returns fabricated data — and the ZK proof of endorsement will faithfully prove that fraudulent endorsement. On
 Hedera, the CLPR Service admin is the governing council (strong security). On Ethereum, it is whoever controls the CLPR
-Service contract (which should use multisig governance — see §7). On a private HashSphere, it is whoever deployed the
+Service contract (which should use multisig governance). On a private HashSphere, it is whoever deployed the
 network. **Before connecting to any peer ledger, evaluate the security of its CLPR Service admin, not just its consensus.**
 
 ---
@@ -294,8 +294,8 @@ roster is managed separately.
 
 Each ledger specifies two throttle values in its configuration: `MaxMessagesPerSync` and `MaxSyncsPerSec`.
 
-`MaxMessagesPerSync` is a hard capability limit. It reflects the maximum number of messages that can be included in a
-single sync transaction without exceeding the receiving ledger's gas or execution budget. Sending endpoints MUST respect
+`MaxMessagesPerBundle` is a hard capability limit. It reflects the maximum number of messages that can be included in a
+single bundle without exceeding the receiving ledger's gas or execution budget. Sending endpoints MUST respect
 this limit.
 
 `MaxSyncsPerSec` is an advisory hint and not enforced by the protocol. It exists to help well-behaved sending endpoints
@@ -409,6 +409,12 @@ are recorded, the seed endpoints are saved, and the deposit is locked.
 implementation, and the ZK proof cryptographically proves that endorsement. A rogue verifier cannot pass this check
 because its code hash will not match any endorsed fingerprint. This design gives each ledger full control over how its
 proofs are verified on other chains, without requiring any administrative action on the receiving chain.
+
+**Initial acceptance criteria.** The ZK proof submitted during registration carries the peer's full
+`ClprLedgerConfiguration`, including all acceptance-criteria parameters (`maxMessagePayloadBytes`,
+`maxMessagesPerBundle`, `maxGasPerMessage`, throttles). These values take effect immediately on the new Connection and
+govern message enqueuing from the first message onward. Subsequent changes to these parameters are delivered as in-band
+Config Update Control Messages (§3.1.4), preserving ordering with data messages.
 
 **Why a deposit.** Permissionless creation means anyone can create a Connection, which creates ongoing work for the
 receiving ledger's nodes (state storage, sync overhead, proof verification). The deposit prices in this cost and
@@ -883,14 +889,15 @@ outright, regardless of whether the verifier accepted the proof. This check is p
 is the authoritative defense against replay attacks; it holds even if the verifier is buggy and accepts stale proofs.
 
 Then, the CLPR Service **verifies the running hash chain**. Starting from the Connection's current
-`received_running_hash`, the service recomputes the hash by walking through each message payload returned by the
-verifier sequentially. If the final computed hash does not match the verifier-returned value, the bundle is
-rejected — something is wrong with the message ordering or content. This check is performed by the CLPR Service itself,
+`received_running_hash`, the service recomputes the hash by applying `SHA-256(prev_hash ‖ payload)` for each message
+payload returned by the verifier, sequentially. The final computed hash is compared against the `sent_running_hash`
+from the verifier-returned `ClprQueueMetadata`. If they do not match, the bundle is rejected — something is wrong with
+the message ordering or content. This check is performed by the CLPR Service itself,
 independently of the verifier contract. Note that this check defends against **verifier bugs** (e.g., a verifier that
 correctly authenticates a proof but returns garbled or misordered messages) — it does **not** defend against a
 compromised verifier, which would return fabricated messages with a matching fabricated hash. Defense against verifier
 compromise depends on the verifier's legitimacy, which is established via ZK proof of endorsement at connection
-registration (§3.1.3) and ultimately on the security of the source ledger's CLPR Service admin (see §7).
+registration (§3.1.3) and ultimately on the security of the source ledger's CLPR Service admin.
 
 Once both verification stages pass, the service dispatches each message in order to the Payment and Routing layer for
 Connector validation, charging, and application delivery (see §3.3.3).
@@ -931,10 +938,13 @@ data in both cases.
 
 Separately, CLPR supports **redaction** of message payloads that are still in the queue and have not yet been delivered.
 This is intended for situations where illegal or inappropriate content has been placed into the queue — for example, on
-a permissioned chain where an authority determines that a message must not be transmitted. In that case, the authorized
-party can replace the message payload with its hash, preserving the running hash chain's integrity while removing the
-offending content. The message slot remains in the queue (so sequence numbering is unaffected) but the payload is no
-longer readable.
+a permissioned chain where an authority determines that a message must not be transmitted. When a message is redacted,
+the payload is removed but the message slot and its stored `running_hash_after_processing` are retained. The message
+slot remains in the queue (so sequence numbering and ID assignment are unaffected) and the running hash chain remains
+verifiable: verification skips over redacted slots by using the stored `running_hash_after_processing` directly rather
+than recomputing from the (now absent) payload. On the destination side, a redacted message is delivered as an empty
+payload with a protocol-level "redacted" indicator — the destination generates a deterministic response and processing
+continues normally.
 
 Redaction is a governance tool, not a storage optimization mechanism. It requires appropriate authority on the ledger
 and should only be used in exceptional circumstances.
@@ -1256,8 +1266,10 @@ message ClprLedgerConfiguration {
 // state at a specific contract address) and stored on the Connection.
 
 message ClprThrottles {
-  uint32 max_messages_per_sync = 1;  // hard cap: max messages in a single bundle
-  uint32 max_syncs_per_sec = 2;      // advisory: suggested max sync frequency
+  uint32 max_messages_per_bundle = 1;  // hard cap: max messages in a single bundle (see §3.2.5)
+  uint32 max_syncs_per_sec = 2;       // advisory: suggested max sync frequency
+  uint32 max_message_payload_bytes = 3; // max payload size in bytes for a single message (see §3.2.5)
+  uint64 max_gas_per_message = 4;      // max gas (or ops budget) per message execution (see §3.2.5)
 }
 
 // Endpoint roster entry. Maintained in state separately from the configuration,
@@ -1315,10 +1327,6 @@ service ClprService {
   // Requires a new ZK proof that the source ledger endorses the new verifier's fingerprint.
   rpc updateConnectionVerifier(proto.Transaction) returns (proto.TransactionResponse);
 
-  // Permissionless: submit proof bytes through an existing Connection's verifier
-  // to update the peer's configuration.
-  rpc updatePeerConfiguration(proto.Transaction) returns (proto.TransactionResponse);
-
   // Admin: sever (permanently close) a Connection. Returns deposits.
   rpc severConnection(proto.Transaction) returns (proto.TransactionResponse);
 
@@ -1340,13 +1348,6 @@ message ClprUpdateConnectionVerifierRequest {
   bytes service_address = 2;                    // / compound key identifying the Connection
   bytes verifier_contract = 3;                  // new verifier contract address
   bytes zk_proof = 4;                           // ZK proof that source ledger endorses new verifier's fingerprint
-}
-
-// Included in updatePeerConfiguration transactions.
-message ClprUpdatePeerConfigurationRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-  bytes proof_bytes = 3;                        // opaque proof bytes passed to verifier_contract.verifyConfig()
 }
 
 // Included in severConnection and pauseConnection transactions.
@@ -1374,7 +1375,7 @@ message ClprConnection {
   // Note: the peer endpoint roster is stored separately in state, keyed by
   // (chain_id, service_address, account_id). It is NOT embedded in the Connection object.
   // Endpoints are seeded at connection registration and updated via
-  // ClprEndpointJoin / ClprEndpointLeave control messages (see §3.1.1).
+  // ClprEndpointJoin / ClprEndpointLeave control messages (see §3.1.2).
 
   // --- Message Queue Metadata (see §3.2.1) ---
 
@@ -1390,8 +1391,9 @@ message ClprConnection {
 
 ```protobuf
 message ClprMessageKey {
-  string chain_id = 1;   // CAIP-2 identifier for the peer ledger
-  uint64 message_id = 2;
+  string chain_id = 1;       // \
+  bytes service_address = 2; // / compound key identifying the Connection (see §3.1.1)
+  uint64 message_id = 3;
 }
 
 message ClprMessageValue {
@@ -1423,8 +1425,9 @@ message ClprMessageReply {
 // the Connection's verifier contract, which returns verified queue metadata
 // and messages. See §3.1.5.
 message ClprSyncPayload {
-  string chain_id = 1;                  // CAIP-2 identifier for the source ledger
-  bytes proof_bytes = 2;               // opaque proof bytes for the verifier contract
+  string chain_id = 1;                  // \
+  bytes service_address = 2;            // / compound key identifying the source CLPR Service (see §3.1.1)
+  bytes proof_bytes = 3;               // opaque proof bytes for the verifier contract
 }
 message ClprQueueMetadata {
   uint64 next_message_id = 1;
@@ -1472,7 +1475,9 @@ per-Connection are set independently for each peer relationship.
 
 1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
    ordering?
-2. What processes the reply of messages, and do we need to retain the initial message to support reply processing?
+2. ~~What processes the reply of messages, and do we need to retain the initial message to support reply processing?~~
+   *Resolved in §3.2.7: responses are processed by the source ledger's CLPR Service; initiating messages are retained
+   until their corresponding response arrives for ordering verification.*
 3. How should Connection creation deposits work to protect nodes from non-functional Connectors?
 4. How do applications formalize agreements with Connectors?
 5. What is the format for application-level error propagation (e.g., releasing locked assets on cross-ledger transfer
