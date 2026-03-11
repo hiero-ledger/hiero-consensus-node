@@ -530,6 +530,40 @@ public interface HapiPropertySource {
     }
 
     /**
+     * Interprets the given string as a general service endpoint in the format
+     * {@code addr:port[:description][:tls]}, returning a {@link RegisteredServiceEndpoint}
+     * with a {@code GeneralServiceEndpoint} type set.
+     * <p>
+     * The {@code addr} may be an IPv4 address or FQDN. If the last segment (case-insensitive)
+     * equals {@code "tls"}, the endpoint will have {@code requires_tls = true}. All remaining
+     * segments after port (excluding the trailing {@code tls} flag) are rejoined with {@code ":"}
+     * to form the description, which allows colons inside the description text.
+     *
+     * @param v the string to interpret
+     * @return the parsed {@link RegisteredServiceEndpoint}
+     */
+    static RegisteredServiceEndpoint asGeneralServiceEndpoint(@NonNull final String v) {
+        requireNonNull(v);
+        final String[] parts = v.split(":");
+        final var builder = RegisteredServiceEndpoint.newBuilder();
+        setAddress(builder, parts[0]);
+        builder.setPort(Integer.parseInt(parts[1]));
+        boolean requiresTls = false;
+        int descEnd = parts.length;
+        if (descEnd > 2 && parts[descEnd - 1].equalsIgnoreCase("tls")) {
+            requiresTls = true;
+            descEnd--;
+        }
+        final var descBuilder = RegisteredServiceEndpoint.GeneralServiceEndpoint.newBuilder();
+        if (descEnd > 2) {
+            descBuilder.setDescription(String.join(":", java.util.Arrays.copyOfRange(parts, 2, descEnd)));
+        }
+        builder.setRequiresTls(requiresTls);
+        builder.setGeneralService(descBuilder.build());
+        return builder.build();
+    }
+
+    /**
      * Parses a simple endpoint string in the format {@code addr:port[:tls]} and returns
      * a partially-built {@link RegisteredServiceEndpoint.Builder} with address, port, and
      * TLS flag set. Callers must set the endpoint type and call {@code build()}.

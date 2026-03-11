@@ -145,6 +145,33 @@ public class RegisteredNodesCommandsTest {
     }
 
     /**
+     * Creates a registered node with a single general service endpoint using a description.
+     */
+    @HapiTest
+    final Stream<DynamicTest> createWithGeneralServiceEndpoint() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_general_svc.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--generalServiceEndpoint",
+                                            "indexer.example.com:9090:Custom indexer service",
+                                            "-d",
+                                            "General service node")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
+    }
+
+    /**
      * Creates a registered node with a TLS-enabled block node endpoint.
      * Uses FQDN + SUBSCRIBE_STREAM API, which is a realistic production-like configuration
      * for a block node that clients stream blocks from.
@@ -273,8 +300,8 @@ public class RegisteredNodesCommandsTest {
     }
 
     /**
-     * Creates a registered node that exposes all three service types: block node, mirror node,
-     * and RPC relay — all with TLS. Represents a full-service Hiero infrastructure node.
+     * Creates a registered node that exposes all four service types: block node, mirror node,
+     * RPC relay, and general service — all with TLS. Represents a full-service Hiero infrastructure node.
      */
     @HapiTest
     final Stream<DynamicTest> createWithAllEndpointTypes() {
@@ -297,8 +324,10 @@ public class RegisteredNodesCommandsTest {
                                             "infra.example.com:5443:tls",
                                             "--rpcRelayEndpoint",
                                             "infra.example.com:7443:tls",
+                                            "--generalServiceEndpoint",
+                                            "infra.example.com:9443:Custom indexer:tls",
                                             "-d",
-                                            "Full-service registered node: block, mirror, and RPC relay")
+                                            "Full-service registered node: block, mirror, RPC relay, and general")
                                     .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
                     assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
                 }));

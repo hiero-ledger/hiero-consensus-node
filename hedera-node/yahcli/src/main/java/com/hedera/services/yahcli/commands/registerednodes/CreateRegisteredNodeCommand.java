@@ -2,6 +2,7 @@
 package com.hedera.services.yahcli.commands.registerednodes;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asBlockNodeEndpoint;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asGeneralServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asMirrorNodeEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asRpcRelayEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
@@ -49,6 +50,12 @@ public class CreateRegisteredNodeCommand implements Callable<Integer> {
     List<String> rpcRelayEndpoints;
 
     @CommandLine.Option(
+            names = {"--generalServiceEndpoint"},
+            paramLabel = "general service endpoint, format: addr:port[:description][:tls]",
+            arity = "0..*")
+    List<String> generalServiceEndpoints;
+
+    @CommandLine.Option(
             names = {"-k", "--adminKey"},
             paramLabel = "path to the admin key to use",
             required = true)
@@ -78,11 +85,17 @@ public class CreateRegisteredNodeCommand implements Callable<Integer> {
                 endpoints.add(asRpcRelayEndpoint(s));
             }
         }
+        if (generalServiceEndpoints != null) {
+            for (final var s : generalServiceEndpoints) {
+                endpoints.add(asGeneralServiceEndpoint(s));
+            }
+        }
 
         if (endpoints.isEmpty()) {
             throw new CommandLine.ParameterException(
                     yahcli.getSpec().commandLine(),
-                    "At least one endpoint (--blockNodeEndpoint, --mirrorNodeEndpoint, or --rpcRelayEndpoint) is required");
+                    "At least one endpoint (--blockNodeEndpoint, --mirrorNodeEndpoint, --rpcRelayEndpoint,"
+                            + " or --generalServiceEndpoint) is required");
         }
 
         final var delegate = new CreateRegisteredNodeSuite(config, description, endpoints, adminKeyPath);

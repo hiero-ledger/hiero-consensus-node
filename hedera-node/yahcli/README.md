@@ -877,13 +877,14 @@ The `--associatedRegisteredNode` option can be used to associate one or more reg
 
 To create a new registered node, you can use the `registeredNodes create` command. The required options are:
 1. A path to a _.pem_, _.words_, or _.hex_ file containing an admin key for the registered node (`-k/--adminKey`).
-2. At least one endpoint: `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, or `--rpcRelayEndpoint`.
+2. At least one endpoint: `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, or `--generalServiceEndpoint`.
 
 The optional `-d/--description` argument provides a description for the new registered node.
 
 Endpoint formats:
 - Block node endpoints are given in the form `addr:port:blockNodeApi[:tls]`.
 - Mirror node and RPC relay endpoints are given in the form `addr:port[:tls]`.
+- General service endpoints are given in the form `addr:port[:description][:tls]`.
 
 Multiple endpoints of each type can be specified by repeating the option.
 
@@ -892,7 +893,8 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
   --adminKey adminKey.pem \
   --description 'My block node' \
   --blockNodeEndpoint 10.0.0.1:8080:PUBLISH:tls \
-  --mirrorNodeEndpoint mirror.example.com:443:tls
+  --mirrorNodeEndpoint mirror.example.com:443:tls \
+  --generalServiceEndpoint indexer.example.com:9090:Custom indexer service:tls
 ```
 
 # Updating a registered node
@@ -901,7 +903,7 @@ To update a registered node, you can use the `registeredNodes update` command. T
 
 Optional arguments include:
 - `-d/--description` to update the description.
-- `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint` to update endpoints.
+- `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, `--generalServiceEndpoint` to update endpoints.
 - `-k/--adminKey` to provide the current admin key (can be omitted if the yahcli payer key is the same as the admin key).
 - `-nk/--newAdminKey` to rotate to a new admin key.
 

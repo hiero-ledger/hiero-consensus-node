@@ -2,6 +2,7 @@
 package com.hedera.services.yahcli.commands.registerednodes;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asBlockNodeEndpoint;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asGeneralServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asMirrorNodeEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asRpcRelayEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
@@ -60,6 +61,13 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
     List<String> rpcRelayEndpoints;
 
     @CommandLine.Option(
+            names = {"--generalServiceEndpoint"},
+            paramLabel = "updated general service endpoint, format: addr:port[:description][:tls]",
+            arity = "0..*")
+    @Nullable
+    List<String> generalServiceEndpoints;
+
+    @CommandLine.Option(
             names = {"-k", "--adminKey"},
             paramLabel = "path to the current admin key to use")
     @Nullable
@@ -103,7 +111,10 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
 
     @Nullable
     private List<RegisteredServiceEndpoint> buildEndpoints() {
-        if (blockNodeEndpoints == null && mirrorNodeEndpoints == null && rpcRelayEndpoints == null) {
+        if (blockNodeEndpoints == null
+                && mirrorNodeEndpoints == null
+                && rpcRelayEndpoints == null
+                && generalServiceEndpoints == null) {
             return null;
         }
         final List<RegisteredServiceEndpoint> endpoints = new ArrayList<>();
@@ -120,6 +131,11 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
         if (rpcRelayEndpoints != null) {
             for (final var s : rpcRelayEndpoints) {
                 endpoints.add(asRpcRelayEndpoint(s));
+            }
+        }
+        if (generalServiceEndpoints != null) {
+            for (final var s : generalServiceEndpoints) {
+                endpoints.add(asGeneralServiceEndpoint(s));
             }
         }
         return endpoints;
