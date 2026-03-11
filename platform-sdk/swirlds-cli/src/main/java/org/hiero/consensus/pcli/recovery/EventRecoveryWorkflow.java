@@ -16,6 +16,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -24,6 +27,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -32,15 +36,22 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.platform.util.HederaUtils;
+import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -64,6 +75,7 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.RoundCalculationUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -259,8 +271,25 @@ public final class EventRecoveryWorkflow {
         notificationEngine.register(
                 NewRecoveredStateListener.class,
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
-        System.out.println("roster service states");
-        System.out.println(initialState.getReadableStates("RosterService").stateIds());
+
+
+        try {
+            Method initializeStatesApi = appMain.getClass().getMethod("initializeStatesApi",
+                    State.class, InitTrigger.class, Configuration.class);
+            initializeStatesApi.invoke(appMain, initialState, InitTrigger.EVENT_STREAM_RECOVERY, configuration);
+        } catch (IllegalAccessException e) {
+            System.out.println("error " + e);
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            System.out.println("error " + e);
+            throw new RuntimeException(e);
+        } catch (NoSuchMethodException e) {
+            System.out.println("error " + e);
+            throw new RuntimeException(e);
+        }
+        System.out.println("doing register service state");
+        registerServiceState(initialState, new V0490EntityIdSchema(), EntityIdService.NAME);
+        registerServiceState(initialState, new V0590EntityIdSchema(), "EntityIdService");
         consensusStateEventHandler.onStateInitialized(
                 initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
 
@@ -492,4 +521,23 @@ public final class EventRecoveryWorkflow {
                 .consensusTimestamp(toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
                 .build();
     }
+
+    private static void registerServiceState(
+            @NonNull final VirtualMapState state,
+            @NonNull final Schema<SemanticVersion> schema,
+            @NonNull final String name) {
+        schema.statesToCreate().stream()
+                .sorted(Comparator.comparing(StateDefinition::stateKey))
+                .forEach(def -> {
+                    final var md = new StateMetadata<>(name, def);
+                    System.out.println("registering def " + def);
+                    if (def.singleton() || def.keyValue()) {
+                        state.initializeState(md);
+                    } else {
+                        throw new IllegalStateException(
+                                "Only singletons and keyValue virtual maps are supported as stub states");
+                    }
+                });
+    }
+
 }
