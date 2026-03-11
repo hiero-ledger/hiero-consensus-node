@@ -86,17 +86,16 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         }
         internalsInFlight.decrementAndGet();
         if (isClean) {
-            final int r = Path.getRank(path);
-            if (chunkRootPath == Path.getGrandParentPath(path, r - chunkRootRank)) {
-                if (!cleanPaths.contains(Path.getParentPath(path))) {
-                    cleanPaths.add(path);
-                }
-            }
+            assert !cleanPaths.contains(Path.getParentPath(path));
+            cleanPaths.add(path);
         } else {
+            final long lastChunkInternal = Math.min(firstLeafPath - 1, Path.getParentPath(chunkLastLeafPath));
             final long left = Path.getLeftChildPath(path);
-            if (left < firstLeafPath) {
+            if (left <= lastChunkInternal) {
                 internals.add(left);
-                final long right = Path.getRightChildPath(path);
+            }
+            final long right = Path.getRightChildPath(path);
+            if (right <= lastChunkInternal) {
                 internals.add(right);
             } else {
                 someDirtyPaths.add(path);
