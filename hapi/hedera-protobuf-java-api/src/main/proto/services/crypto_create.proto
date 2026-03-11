@@ -204,4 +204,11 @@ message CryptoCreateTransactionBody {
      * Details of hooks to add immediately after creating this account.
      */
     repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 19;
+
+    /**
+     * The delegated contract address for the account.
+     * If this field is set, a call to the account's address within a smart contract will
+     * result in the code of the authorized contract being executed.
+     */
+    bytes delegation_address = 20;
 }

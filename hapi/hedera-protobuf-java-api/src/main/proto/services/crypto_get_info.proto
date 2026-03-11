@@ -269,6 +269,11 @@ message CryptoGetInfoResponse {
          * Staking information for this account.
          */
         StakingInfo staking_info = 22;
+
+        /**
+         * Delegation address if a EIP-7702 code delegation is set for the account.
+         */
+        bytes delegation_address = 23;
     }
 
     /**
