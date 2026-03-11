@@ -480,6 +480,44 @@ class AddressBookValidatorTest {
                 new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
     }
 
+    @Test
+    void registeredEndpointAcceptsGeneralServiceType() {
+        final var endpoint = generalServiceEndpoint(new byte[] {10, 0, 0, 1}, "Custom API");
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointAcceptsGeneralServiceWithEmptyDescription() {
+        final var endpoint = generalServiceEndpoint(new byte[] {10, 0, 0, 1}, "");
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointRejectsGeneralServiceDescriptionExceedingMaxBytes() {
+        // maxGeneralServiceDescriptionUtf8Bytes defaults to 100; use 101 ASCII chars to exceed
+        final var endpoint = generalServiceEndpoint(new byte[] {10, 0, 0, 1}, "x".repeat(101));
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointAcceptsGeneralServiceDescriptionAtExactlyMaxBytes() {
+        final var endpoint = generalServiceEndpoint(new byte[] {10, 0, 0, 1}, "x".repeat(100));
+        assertDoesNotThrow(() ->
+                new AddressBookValidator().validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+    }
+
+    @Test
+    void registeredEndpointRejectsGeneralServiceDescriptionWithNullByte() {
+        final var endpoint = generalServiceEndpoint(new byte[] {10, 0, 0, 1}, "valid\0hidden");
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
+    }
+
     // --- Associated registered node validation tests ---
 
     @Test
@@ -557,6 +595,16 @@ class AddressBookValidatorTest {
                 .ipAddress(Bytes.wrap(ip))
                 .port(443)
                 .blockNode(blockNodeEndpointType())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint generalServiceEndpoint(final byte[] ip, final String description) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(ip))
+                .port(443)
+                .generalService(RegisteredServiceEndpoint.GeneralServiceEndpoint.newBuilder()
+                        .description(description)
+                        .build())
                 .build();
     }
 

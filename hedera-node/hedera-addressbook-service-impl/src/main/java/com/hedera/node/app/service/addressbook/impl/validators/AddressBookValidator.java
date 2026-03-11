@@ -302,9 +302,21 @@ public class AddressBookValidator {
         }
 
         // oneof endpoint_type is REQUIRED
+        final var endpointTypeKind = endpoint.endpointType().kind();
         validateTrue(
-                endpoint.endpointType().kind() != RegisteredServiceEndpoint.EndpointTypeOneOfType.UNSET,
+                endpointTypeKind != RegisteredServiceEndpoint.EndpointTypeOneOfType.UNSET,
                 INVALID_REGISTERED_ENDPOINT_TYPE);
+
+        // Type-specific validation
+        if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.GENERAL_SERVICE) {
+            final var desc = endpoint.generalServiceOrThrow().description();
+            if (desc != null && !desc.isEmpty()) {
+                final var raw = desc.getBytes(StandardCharsets.UTF_8);
+                validateFalse(
+                        raw.length > nodesConfig.maxGeneralServiceDescriptionUtf8Bytes(), INVALID_REGISTERED_ENDPOINT);
+                validateFalse(containsZeroByte(raw), INVALID_REGISTERED_ENDPOINT);
+            }
+        }
     }
 
     private boolean isValidAsciiFqdn(@Nullable final String domain, final int maxFqdnSize) {

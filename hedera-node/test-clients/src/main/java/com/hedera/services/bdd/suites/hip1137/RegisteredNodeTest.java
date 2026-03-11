@@ -368,26 +368,43 @@ public class RegisteredNodeTest {
                         .hasKnownStatus(INVALID_REGISTERED_ENDPOINT_ADDRESS));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.maxRegisteredServiceEndpoint"})
+    @HapiTest
     @DisplayName("create fails when exceeding max registered endpoints")
     final Stream<DynamicTest> createWithTooManyEndpointsFails() {
-        // Lower the limit to 2 and try to create with 3
-        final var threeEndpoints = List.of(
-                blockNodeEndpoint(
-                        "a.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS),
-                blockNodeEndpoint(
-                        "b.example.com", 8081, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH),
-                blockNodeEndpoint(
-                        "c.example.com",
-                        8082,
-                        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.SUBSCRIBE_STREAM));
+        final var tooManyEndpoints = java.util.stream.IntStream.rangeClosed(1, 51)
+                .mapToObj(i -> blockNodeEndpoint(
+                        "node" + i + ".example.com",
+                        8080 + i,
+                        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS))
+                .toList();
         return hapiTest(
-                overriding("nodes.maxRegisteredServiceEndpoint", "2"),
                 newKeyNamed(ADMIN_KEY),
                 registeredNodeCreate(REGISTERED_NODE)
                         .adminKey(ADMIN_KEY)
-                        .serviceEndpoints(threeEndpoints)
+                        .serviceEndpoints(tooManyEndpoints)
                         .hasKnownStatus(REGISTERED_ENDPOINTS_EXCEEDED_LIMIT));
+    }
+
+    @HapiTest
+    @DisplayName("create fails when general-service description exceeds max bytes")
+    final Stream<DynamicTest> createWithGeneralServiceDescriptionTooLong() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(List.of(generalServiceEndpoint("svc.example.com", 8443, "x".repeat(101))))
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+    }
+
+    @HapiTest
+    @DisplayName("create fails when general-service description contains null byte")
+    final Stream<DynamicTest> createWithGeneralServiceDescriptionNullByte() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(List.of(generalServiceEndpoint("svc.example.com", 8443, "valid\0hidden")))
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
     }
 
     // ─── Endpoint type happy paths ────────────────────────────────
@@ -415,13 +432,26 @@ public class RegisteredNodeTest {
     }
 
     @HapiTest
+    @DisplayName("create registered node with general-service endpoint")
+    final Stream<DynamicTest> createWithGeneralServiceEndpoint() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(
+                                List.of(generalServiceEndpoint("service.example.com", 8443, "Custom indexer")))
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
     @DisplayName("create registered node with mixed endpoint types")
     final Stream<DynamicTest> createWithMixedEndpointTypes() {
         final var mixedEndpoints = List.of(
                 blockNodeEndpoint(
                         "block.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS),
                 mirrorNodeEndpoint("mirror.example.com", 443),
-                rpcRelayEndpoint("relay.example.com", 443));
+                rpcRelayEndpoint("relay.example.com", 443),
+                generalServiceEndpoint("custom.example.com", 9090, "Custom service"));
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 registeredNodeCreate(REGISTERED_NODE)
@@ -450,32 +480,31 @@ public class RegisteredNodeTest {
 
     // ─── Associated registered node limit ─────────────────────────
 
-    @LeakyHapiTest(overrides = {"nodes.maxAssociatedRegisteredNodes"})
+    @HapiTest
     @DisplayName("consensus node create fails when exceeding associated registered node limit")
     final Stream<DynamicTest> consensusNodeExceedsAssociatedRegisteredNodeLimit() throws CertificateEncodingException {
-        return hapiTest(
-                overriding("nodes.maxAssociatedRegisteredNodes", "1"),
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate(NODE_ACCOUNT),
-                registeredNodeCreate("rn1")
-                        .adminKey(ADMIN_KEY)
-                        .serviceEndpoints(DEFAULT_ENDPOINTS)
-                        .hasKnownStatus(SUCCESS),
-                registeredNodeCreate("rn2")
-                        .adminKey(ADMIN_KEY)
-                        .serviceEndpoints(DEFAULT_ENDPOINTS)
-                        .hasKnownStatus(SUCCESS),
-                // Try to associate 2 registered nodes when limit is 1
-                withOpContext((spec, opLog) -> {
-                    final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
-                            .adminKey(ADMIN_KEY)
-                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                            .associatedRegisteredNode(List.of(
-                                    spec.registry().getRegisteredNodeId("rn1"),
-                                    spec.registry().getRegisteredNodeId("rn2")))
-                            .hasKnownStatus(MAX_REGISTERED_NODES_EXCEEDED);
-                    allRunFor(spec, create);
-                }));
+        // Default maxAssociatedRegisteredNodes is 20; create 21 registered nodes and try to associate all
+        final var ops = new java.util.ArrayList<com.hedera.services.bdd.spec.SpecOperation>();
+        ops.add(newKeyNamed(ADMIN_KEY));
+        ops.add(cryptoCreate(NODE_ACCOUNT));
+        for (int i = 1; i <= 21; i++) {
+            ops.add(registeredNodeCreate("rn" + i)
+                    .adminKey(ADMIN_KEY)
+                    .serviceEndpoints(DEFAULT_ENDPOINTS)
+                    .hasKnownStatus(SUCCESS));
+        }
+        ops.add(withOpContext((spec, opLog) -> {
+            final var ids = java.util.stream.IntStream.rangeClosed(1, 21)
+                    .mapToObj(i -> spec.registry().getRegisteredNodeId("rn" + i))
+                    .toList();
+            final var create = nodeCreate(TEST_NODE, NODE_ACCOUNT)
+                    .adminKey(ADMIN_KEY)
+                    .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                    .associatedRegisteredNode(ids)
+                    .hasKnownStatus(MAX_REGISTERED_NODES_EXCEEDED);
+            allRunFor(spec, create);
+        }));
+        return hapiTest(ops.toArray(com.hedera.services.bdd.spec.SpecOperation[]::new));
     }
 
     // ─── AtomicBatch ───────────────────────────────────────────────
@@ -623,6 +652,17 @@ public class RegisteredNodeTest {
                 .setDomainName(domain)
                 .setPort(port)
                 .setRpcRelay(RegisteredServiceEndpoint.RpcRelayEndpoint.getDefaultInstance())
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint generalServiceEndpoint(
+            final String domain, final int port, final String description) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setDomainName(domain)
+                .setPort(port)
+                .setGeneralService(RegisteredServiceEndpoint.GeneralServiceEndpoint.newBuilder()
+                        .setDescription(description)
+                        .build())
                 .build();
     }
 }

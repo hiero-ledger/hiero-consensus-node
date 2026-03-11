@@ -23,6 +23,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param activeRoundsPercent A percentage value relating to active nodes
  * @param maxRegisteredFqdnSize The maximum FQDN size for registered service endpoints
  * @param maxAssociatedRegisteredNodes The maximum number of associated registered nodes a consensus node may reference
+ * @param maxGeneralServiceDescriptionUtf8Bytes The maximum number of UTF-8 bytes for a general service endpoint description
  */
 @ConfigData("nodes")
 public record NodesConfig(
@@ -85,4 +86,7 @@ public record NodesConfig(
         int maxRegisteredFqdnSize,
 
         @ConfigProperty(defaultValue = "20") @NetworkProperty
-        int maxAssociatedRegisteredNodes) {}
+        int maxAssociatedRegisteredNodes,
+
+        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        int maxGeneralServiceDescriptionUtf8Bytes) {}
