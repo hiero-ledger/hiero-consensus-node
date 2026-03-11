@@ -482,11 +482,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
-    }
-
     /**
      * Get the path for a block file with the block number.
      *

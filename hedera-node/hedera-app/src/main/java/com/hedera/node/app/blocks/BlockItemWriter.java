@@ -41,11 +41,4 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    void jumpToBlockAfterFreeze(final long blockNumber);
 }

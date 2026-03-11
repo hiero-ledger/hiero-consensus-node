@@ -87,17 +87,4 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     * This method only affects the gRPC writer, not the file writer.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
-        }
-    }
 }

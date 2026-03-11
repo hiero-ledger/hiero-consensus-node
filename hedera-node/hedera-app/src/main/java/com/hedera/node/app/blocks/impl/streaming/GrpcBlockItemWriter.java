@@ -111,14 +111,6 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
-        // no-op
-    }
-
-    /**
-     * No-op implementation as pending proofs are handled differently in the gRPC streaming context.
-     */
-    @Override
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof, "pendingProof must not be null");
         final var blockState = blockBufferService.getBlockState(blockNumber);

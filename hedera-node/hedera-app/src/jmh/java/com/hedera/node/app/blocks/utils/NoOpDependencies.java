@@ -120,9 +120,6 @@ public final class NoOpDependencies {
 
         @Override
         public void flushPendingBlock(@NonNull PendingProof pendingProof) {}
-
-        @Override
-        public void jumpToBlockAfterFreeze(long blockNumber) {}
     }
 
     /** No-op StoreMetricsService - can be used with real BoundaryStateChangeListener */
