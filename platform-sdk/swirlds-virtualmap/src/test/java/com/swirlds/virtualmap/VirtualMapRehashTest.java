@@ -2,24 +2,24 @@
 package com.swirlds.virtualmap;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -31,12 +31,10 @@ import org.junit.jupiter.api.Test;
 class VirtualMapRehashTest extends VirtualTestBase {
 
     private InMemoryBuilder builder;
-    private InMemoryDataSource dataSource;
 
     @BeforeEach
     void setUp() {
         builder = new InMemoryBuilder();
-        dataSource = builder.build("state", null, false, false);
     }
 
     @Test
@@ -53,26 +51,41 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is skipped if first leaf hash matches")
     void testRehashSkippedIfHashMatches() throws IOException {
-        // Prepare data in data source
-        VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
-        Hash hash1 = hash(leaf1);
-        dataSource.saveRecords(
-                1, 1, Stream.of(new VirtualHashRecord(1, hash1)), Stream.of(leaf1), Stream.empty(), false);
+        final int chunkHeight =
+                CONFIGURATION.getConfigData(VirtualMapConfig.class).hashChunkHeight();
 
         VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(1);
         metadata.setFirstLeafPath(1);
+
+        final VirtualDataSource dataSource = vm.getDataSource();
+        // Prepare data in data source
+        VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
+        Hash hash1 = hash(leaf1);
+        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+        chunk0.setHashAtPath(1, hash1);
+        dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
+
         vm.fullLeafRehashIfNecessary();
 
         // Hash should still be the same
-        assertEquals(hash1, dataSource.loadHash(1));
+        assertEquals(hash1, vm.getRecords().findHash(1));
         vm.release();
     }
 
     @Test
     @DisplayName("Test rehash is triggered if first leaf hash does not match")
-    void testRehashTriggeredIfHashMismatches() throws IOException, ExecutionException, InterruptedException {
+    void testRehashTriggeredIfHashMismatches() throws IOException {
+        final int chunkHeight =
+                CONFIGURATION.getConfigData(VirtualMapConfig.class).hashChunkHeight();
+
+        VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMapMetadata metadata = vm.getMetadata();
+        metadata.setLastLeafPath(2);
+        metadata.setFirstLeafPath(1);
+
+        final VirtualDataSource dataSource = vm.getDataSource();
         // Prepare data in a data source with a wrong hash
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
         Hash correctHash = hash(leaf1);
@@ -84,27 +97,22 @@ class VirtualMapRehashTest extends VirtualTestBase {
         VirtualLeafBytes<TestValue> leaf2 = bananaLeaf(2);
         Hash correctHash2 = hash(leaf2);
 
+        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+        chunk0.setHashAtPath(1, wrongHash);
+        chunk0.setHashAtPath(2, wrongHash);
         // Save with wrong hashes. Using a separate dataSource instance and builder to avoid any caching issues.
-        dataSource.saveRecords(
-                1,
-                2,
-                Stream.of(new VirtualHashRecord(1, wrongHash), new VirtualHashRecord(2, wrongHash)),
-                Stream.of(leaf1, leaf2),
-                Stream.empty(),
-                false);
-
-        VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
-        VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setLastLeafPath(2);
-        metadata.setFirstLeafPath(1);
+        dataSource.saveRecords(1, 2, Stream.of(chunk0), Stream.of(leaf1, leaf2), Stream.empty(), false);
 
         vm.fullLeafRehashIfNecessary();
 
-        assertEquals(correctHash, dataSource.loadHash(1), "Hash for leaf 1 should be corrected");
-        assertEquals(correctHash2, dataSource.loadHash(2), "Hash for leaf 2 should be corrected");
+        assertEquals(correctHash, vm.getRecords().findHash(1), "Hash for leaf 1 should be corrected");
+        assertEquals(correctHash2, vm.getRecords().findHash(2), "Hash for leaf 2 should be corrected");
 
         // Internal node (path 0) should also be hashed
-        assertNotNull(dataSource.loadHash(0), "Root hash should be computed");
+        assertEquals(
+                VirtualHasher.hashInternal(correctHash, correctHash2),
+                vm.getRecords().rootHash(),
+                "Root hash should be computed");
 
         vm.release();
     }
@@ -118,19 +126,21 @@ class VirtualMapRehashTest extends VirtualTestBase {
         wrongHashBytes[0] = 1;
         Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
 
-        dataSource.saveRecords(
-                1, 1, Stream.of(new VirtualHashRecord(1, wrongHash)), Stream.of(leaf1), Stream.empty(), false);
-
         // Configuration with 0ms timeout to ensure it times out
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(VirtualMapConfig.class)
                 .withValue("virtualMap.fullRehashTimeoutMs", "0")
                 .build();
-
         VirtualMap vm = new VirtualMap(builder, configuration);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(1);
         metadata.setFirstLeafPath(1);
+
+        final VirtualDataSource dataSource = vm.getDataSource();
+        final int chunkHeight = dataSource.getHashChunkHeight();
+        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+        chunk0.setHashAtPath(1, wrongHash);
+        dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
 
         // This should throw MerkleSynchronizationException caused by TimeoutException
         final MerkleSynchronizationException exception =

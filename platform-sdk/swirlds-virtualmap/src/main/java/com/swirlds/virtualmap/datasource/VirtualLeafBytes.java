@@ -10,13 +10,11 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -166,13 +164,7 @@ public class VirtualLeafBytes<V> {
             // times, but always to the same value
             if (value != null) {
                 assert (valueCodec != null);
-                final byte[] vb = new byte[valueCodec.measureRecord(value)];
-                try {
-                    valueCodec.write(value, BufferedData.wrap(vb));
-                    valueBytes = Bytes.wrap(vb);
-                } catch (final IOException e) {
-                    throw new RuntimeException("Failed to serialize a value to bytes", e);
-                }
+                valueBytes = valueCodec.toBytes(value);
             }
         }
         return valueBytes;
@@ -240,9 +232,11 @@ public class VirtualLeafBytes<V> {
 
     public int getSizeInBytes() {
         int size = 0;
-        // Path is FIXED64
-        size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
-        size += Long.BYTES;
+        if (path != 0) {
+            // Path is FIXED64
+            size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
+            size += Long.BYTES;
+        }
         size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()));
         final int valueBytesLen;
         // Don't call valueBytes() as it may trigger value serialization to Bytes
@@ -267,8 +261,10 @@ public class VirtualLeafBytes<V> {
      */
     public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
-        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
-        out.writeLong(path);
+        if (path != 0) {
+            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
+            out.writeLong(path);
+        }
         final Bytes kb = keyBytes();
         // ProtoWriterTools.writeDelimited() is not used to avoid using kb::writeTo method handle
         ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
