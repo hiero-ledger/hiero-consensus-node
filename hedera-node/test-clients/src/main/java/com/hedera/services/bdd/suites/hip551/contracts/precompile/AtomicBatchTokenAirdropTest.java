@@ -46,7 +46,6 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
-// @OrderedInIsolation
 @HapiTestLifecycle
 class AtomicBatchTokenAirdropTest {
 

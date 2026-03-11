@@ -40,7 +40,6 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of Hip17UnhappyAccountsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-// @OrderedInIsolation
 @Tag(ATOMIC_BATCH)
 class AtomicHip17UnhappyAccountsSuite {
 
