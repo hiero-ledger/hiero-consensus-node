@@ -19,13 +19,13 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
-import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
@@ -2000,10 +2000,8 @@ public class CryptoTransferSimpleFeesTest {
                 }
 
                 @HapiTest
-                @DisplayName(
-                        "Crypto Transfer - Custom Fee Token to ED25519 Alias with Auto-Creation - extras charging")
-                final Stream<DynamicTest>
-                        cryptoTransferCustomFeeToken_ED25519_AutoAccountCreation_ExtrasCharging() {
+                @DisplayName("Crypto Transfer - Custom Fee Token to ED25519 Alias with Auto-Creation - extras charging")
+                final Stream<DynamicTest> cryptoTransferCustomFeeToken_ED25519_AutoAccountCreation_ExtrasCharging() {
                     final var feeCollector = "feeCollector";
                     return hapiTest(flattened(
                             createAccountsAndKeys(),
@@ -2070,7 +2068,10 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkHollow = getAliasedAccountInfo(alias)
                                         .isHollow()
-                                        .has(accountWith().hasEmptyKey().noAlias().maxAutoAssociations(-1));
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .maxAutoAssociations(-1));
 
                                 allRunFor(spec, createHollowOp, checkCreateFee, checkHollow);
 
@@ -2113,8 +2114,7 @@ public class CryptoTransferSimpleFeesTest {
                 }
 
                 @HapiTest
-                @DisplayName(
-                        "Crypto Transfer - Auto-Create one account and Auto-Associate another in same transfer")
+                @DisplayName("Crypto Transfer - Auto-Create one account and Auto-Associate another in same transfer")
                 final Stream<DynamicTest> cryptoTransferAutoCreationAndAutoAssociationInSameTransfer() {
                     return hapiTest(flattened(
                             createAccountsAndKeys(),

@@ -23,9 +23,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -33,13 +33,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNode
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.math.BigInteger;
@@ -194,10 +193,7 @@ public class ScheduleServiceSimpleFeesTest {
                 validateChargedUsd("signTxn", 0.001, SCHEDULE_FEE_TOLERANCE),
                 // Verify auto-created account exists and has the HBAR
                 getAliasedAccountInfo(alias)
-                        .has(accountWith()
-                                .key(alias)
-                                .alias(alias)
-                                .maxAutoAssociations(-1)),
+                        .has(accountWith().key(alias).alias(alias).maxAutoAssociations(-1)),
                 // Verify inner execution succeeded
                 withOpContext((spec, log) -> {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
@@ -267,10 +263,7 @@ public class ScheduleServiceSimpleFeesTest {
                 cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(supplyKey),
-                tokenCreate(token)
-                        .supplyKey(supplyKey)
-                        .treasury(treasury)
-                        .initialSupply(100L),
+                tokenCreate(token).supplyKey(supplyKey).treasury(treasury).initialSupply(100L),
                 // Schedule a mint of 50 tokens
                 scheduleCreate("mintSchedule", mintToken(token, 50))
                         .designatingPayer(schedulePayer)
@@ -312,10 +305,7 @@ public class ScheduleServiceSimpleFeesTest {
                 cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(supplyKey),
-                tokenCreate(token)
-                        .supplyKey(supplyKey)
-                        .treasury(treasury)
-                        .initialSupply(100L),
+                tokenCreate(token).supplyKey(supplyKey).treasury(treasury).initialSupply(100L),
                 // Schedule a burn of 30 tokens
                 scheduleCreate("burnSchedule", burnToken(token, 30))
                         .designatingPayer(schedulePayer)
