@@ -609,7 +609,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(registeredNodeStore.get(999L)).willReturn(null);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test
@@ -701,7 +701,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.attributeValidator()).willReturn(validator);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test

@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -45,7 +45,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         requireNonNull(txn, "txn must not be null");
 
         final var op = txn.registeredNodeUpdateOrThrow();
-        validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_NODE_ID);
+        validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_REGISTERED_NODE_ID);
         if (op.hasAdminKey()) {
             addressBookValidator.validateAdminKey(op.adminKey());
         }
@@ -57,7 +57,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         final var op = context.body().registeredNodeUpdateOrThrow();
         final var store = context.createStore(ReadableRegisteredNodeStore.class);
         final var existing = store.get(op.registeredNodeId());
-        validateFalsePreCheck(existing == null, INVALID_NODE_ID);
+        validateFalsePreCheck(existing == null, INVALID_REGISTERED_NODE_ID);
 
         context.requireKeyOrThrow(existing.adminKey(), INVALID_ADMIN_KEY);
         if (op.hasAdminKey()) {
@@ -81,7 +81,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 
         final var existing = registeredNodeStore.get(op.registeredNodeId());
-        validateFalse(existing == null, INVALID_NODE_ID);
+        validateFalse(existing == null, INVALID_REGISTERED_NODE_ID);
 
         final var builder = updateRegisteredNode(op, existing);
         registeredNodeStore.put(builder.build());

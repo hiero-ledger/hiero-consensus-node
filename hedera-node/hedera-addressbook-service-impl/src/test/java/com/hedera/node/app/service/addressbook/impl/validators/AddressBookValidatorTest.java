@@ -3,10 +3,10 @@ package com.hedera.node.app.service.addressbook.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FQDN_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
@@ -589,7 +589,7 @@ class AddressBookValidatorTest {
         final var store = mock(ReadableRegisteredNodeStore.class);
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateAssociatedRegisteredNodes(List.of(-1L), store, newNodesConfig()));
-        assertEquals(INVALID_NODE_ID, e.getStatus());
+        assertEquals(INVALID_REGISTERED_NODE_ID, e.getStatus());
     }
 
     @Test
@@ -598,7 +598,7 @@ class AddressBookValidatorTest {
         given(store.get(999L)).willReturn(null);
         final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
                 .validateAssociatedRegisteredNodes(List.of(999L), store, newNodesConfig()));
-        assertEquals(INVALID_NODE_ID, e.getStatus());
+        assertEquals(INVALID_REGISTERED_NODE_ID, e.getStatus());
     }
 
     @Test

@@ -21,10 +21,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
@@ -149,14 +149,14 @@ public class RegisteredNodeTest {
     }
 
     @HapiTest
-    @DisplayName("update of non-existent registered node fails with INVALID_NODE_ID")
+    @DisplayName("update of non-existent registered node fails with INVALID_REGISTERED_NODE_ID")
     final Stream<DynamicTest> updateNonExistentNodeFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 registeredNodeUpdate(() -> NON_EXISTENT_ID)
                         .description("ghost")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_NODE_ID));
+                        .hasPrecheck(INVALID_REGISTERED_NODE_ID));
     }
 
     @HapiTest
@@ -193,7 +193,7 @@ public class RegisteredNodeTest {
                         .adminKey(ADMIN_KEY)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .associatedRegisteredNode(List.of(NON_EXISTENT_ID))
-                        .hasKnownStatus(INVALID_NODE_ID));
+                        .hasKnownStatus(INVALID_REGISTERED_NODE_ID));
     }
 
     @HapiTest
@@ -302,13 +302,13 @@ public class RegisteredNodeTest {
     // ─── Delete negatives ──────────────────────────────────────────
 
     @HapiTest
-    @DisplayName("delete non-existent registered node fails with INVALID_NODE_ID")
+    @DisplayName("delete non-existent registered node fails with INVALID_REGISTERED_NODE_ID")
     final Stream<DynamicTest> deleteNonExistentRegisteredNodeFails() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 registeredNodeDelete(() -> NON_EXISTENT_ID)
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_NODE_ID));
+                        .hasPrecheck(INVALID_REGISTERED_NODE_ID));
     }
 
     @HapiTest

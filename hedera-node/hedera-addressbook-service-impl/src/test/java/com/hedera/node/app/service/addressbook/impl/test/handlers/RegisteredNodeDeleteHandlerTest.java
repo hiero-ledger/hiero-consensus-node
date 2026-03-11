@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,7 +96,7 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         final var txn = txnWithOp(opBuilder().registeredNodeId(-1).build());
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(INVALID_NODE_ID, msg.responseCode());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.responseCode());
     }
 
     @Test
@@ -169,7 +169,7 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         given(readableRegisteredNodeStore.get(registeredNodeId)).willReturn(null);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(ctx));
-        assertEquals(INVALID_NODE_ID, msg.responseCode());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.responseCode());
     }
 
     @Test
@@ -253,7 +253,7 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(null);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(INVALID_NODE_ID, msg.getStatus());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test

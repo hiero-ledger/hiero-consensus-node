@@ -3,10 +3,10 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -97,7 +97,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         final var txn = txnWithOp(opBuilder().registeredNodeId(-1).build());
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(INVALID_NODE_ID, msg.responseCode());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.responseCode());
     }
 
     @Test
@@ -196,7 +196,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         given(readableRegisteredNodeStore.get(registeredNodeId)).willReturn(null);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(ctx));
-        assertEquals(INVALID_NODE_ID, msg.responseCode());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.responseCode());
     }
 
     // ========== handle — validation failure tests ==========
@@ -212,7 +212,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         given(writableRegisteredNodeStore.get(registeredNodeId)).willReturn(null);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(INVALID_NODE_ID, msg.getStatus());
+        assertEquals(INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test

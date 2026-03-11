@@ -931,7 +931,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(registeredNodeStore.get(99L)).willReturn(null);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test
@@ -956,7 +956,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         setupMinimalHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
     }
 
     @Test

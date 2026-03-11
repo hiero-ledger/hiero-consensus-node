@@ -13,10 +13,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
@@ -202,8 +202,8 @@ public class AddressBookValidator {
                 associatedRegisteredNodeIds.size() <= nodesConfig.maxAssociatedRegisteredNodes(),
                 MAX_REGISTERED_NODES_EXCEEDED);
         for (final var registeredNodeId : associatedRegisteredNodeIds) {
-            validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
-            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
+            validateTrue(registeredNodeId >= 0, INVALID_REGISTERED_NODE_ID);
+            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_REGISTERED_NODE_ID);
         }
     }
 

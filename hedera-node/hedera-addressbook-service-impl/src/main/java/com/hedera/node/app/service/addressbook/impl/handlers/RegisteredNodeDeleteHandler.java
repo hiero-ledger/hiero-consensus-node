@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -42,7 +42,7 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         requireNonNull(txn, "txn must not be null");
 
         final var op = txn.registeredNodeDeleteOrThrow();
-        validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_NODE_ID);
+        validateFalsePreCheck(op.registeredNodeId() < 0, INVALID_REGISTERED_NODE_ID);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var store = context.createStore(ReadableRegisteredNodeStore.class);
         final var existing = store.get(op.registeredNodeId());
-        validateFalsePreCheck(existing == null, INVALID_NODE_ID);
+        validateFalsePreCheck(existing == null, INVALID_REGISTERED_NODE_ID);
 
         final var payerNum = context.payer().accountNum();
         if (payerNum != accountConfig.treasury()
@@ -76,7 +76,7 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
 
         final var registeredNodeId = op.registeredNodeId();
         final var existingNode = registeredNodeStore.get(registeredNodeId);
-        validateFalse(existingNode == null, INVALID_NODE_ID);
+        validateFalse(existingNode == null, INVALID_REGISTERED_NODE_ID);
 
         // Forbid deletion while associated by any consensus node.
         final var isAssociated = nodeStore.keys().stream()
