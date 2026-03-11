@@ -361,7 +361,7 @@ large enough to make Sybil attacks economically infeasible. An attacker who regi
 honest endpoints — controlling which bundles get submitted and enabling censorship or selective delay. The bond size
 should be calibrated so that controlling a majority of endpoints costs more than the value that could be extracted
 through censorship. Additionally, peer endpoint selection during sync should incorporate randomization to prevent
-persistent pairing, and endpoint reputation scoring (see §6.2) can help honest endpoints preferentially select reliable
+persistent pairing, and endpoint reputation scoring (see §5.2) can help honest endpoints preferentially select reliable
 peers. On Hiero, where all consensus nodes are automatically endpoints, Sybil resistance is inherited from the
 network's stake-weighted consensus.
 
@@ -1102,7 +1102,7 @@ funds to pay for handling the eventual response.
 ### 3.3.3 Receiving, Routing, and Paying
 
 When a verified bundle's messages are dispatched by the messaging layer (see §3.2.4), each message is processed
-sequentially. The processing path depends on the message type (see `ClprMessagePayload` oneof in §4.6):
+sequentially. The processing path depends on the message type (see `ClprMessagePayload` oneof in the [CLPR Service Specification](clpr-service-spec.md)):
 
 **Control Messages** (endpoint roster changes and config updates) are processed directly by the CLPR Service. No
 Connector is involved, no application is dispatched to, and no response is generated. The CLPR Service applies the
@@ -1150,7 +1150,7 @@ entire batch of otherwise valid messages behind it.
 
 > ⚠️ **Sender authentication.** CLPR is a transport layer. When a message arrives on the destination, the CLPR Service
 > authenticates that it came from a specific peer ledger (via the Connection and verifier) and was authorized by a
-> specific Connector. Each message also carries a `sender` field (see `ClprMessage` in §4.6) that is stamped by the
+> specific Connector. Each message also carries a `sender` field (see `ClprMessage` in the [CLPR Service Specification](clpr-service-spec.md)) that is stamped by the
 > source ledger's CLPR Service at enqueue time — it contains the on-chain address of the account that submitted the
 > message on the source ledger. This field is trustworthy (it is set by the CLPR Service, not by the caller), but it is
 > a **source-chain address** that may not be meaningful on the destination chain (e.g., a Solana address has no inherent
@@ -1175,7 +1175,7 @@ entire batch of otherwise valid messages behind it.
 
 ### 3.3.4 Failure Consequences and Slashing
 
-When a response arrives on the source ledger, the CLPR Service inspects its `ClprMessageReplyStatus` (see §4.6). Only
+When a response arrives on the source ledger, the CLPR Service inspects its `ClprMessageReplyStatus` (see the [CLPR Service Specification](clpr-service-spec.md)). Only
 **Connector-attributable failures** trigger slashing: `CONNECTOR_NOT_FOUND` and `CONNECTOR_UNDERFUNDED`. Application
 errors (`APPLICATION_ERROR`) do not result in slashing — the Connector fulfilled its obligation to pay; the application
 simply reverted. `SUCCESS` and `REDACTED` are non-penalized outcomes. The source Connector is penalized because it
@@ -1239,10 +1239,10 @@ does not support state rent, escrowed capital is the natural alternative to rent
 design issue that must be addressed before production deployment.
 
 > ❓ **Connection creation deposits.** How should Connection creation deposits work to protect nodes from non-functional
-Connectors? (See also §6.2.)
+Connectors? (See also §5.2.)
 
 > ❓ **Application-Connector agreements.** How do applications formalize agreements with Connectors? What interfaces and
-registration mechanisms are needed? (See also §6.2.)
+registration mechanisms are needed? (See also §5.2.)
 
 ---
 
@@ -1278,294 +1278,17 @@ rather than smart contract proxies.
 
 ---
 
-# 4. Protobuf Reference
+# 4. Specification Reference
 
-All protobuf definitions for CLPR are consolidated here for reference. These types are defined in
-`hapi/hedera-protobuf-java-api/src/main/proto/interledger/*`.
-
-## 4.1 Ledger Identity
-
-```protobuf
-// The static configuration for a ledger. Does not include the endpoint roster,
-// which is managed separately via control messages (see §3.1.2).
-message ClprLedgerConfiguration {
-  string chain_id = 1;                                // CAIP-2 identifier, e.g. "hedera:mainnet"
-  map<string, bytes> approved_verifiers = 2;           // VerifierType → implementation fingerprint (code hash)
-  proto.Timestamp timestamp = 3;
-  ClprThrottles throttles = 4;
-}
-// Note: the peer's service_address is not part of the configuration — it is
-// extracted from the ZK proof during registerConnection (the proof attests to
-// state at a specific contract address) and stored on the Connection.
-
-message ClprThrottles {
-  uint32 max_messages_per_bundle = 1;  // hard cap: max messages in a single bundle (see §3.2.5)
-  uint32 max_syncs_per_sec = 2;       // advisory: suggested max sync frequency
-  uint32 max_message_payload_bytes = 3; // max payload size in bytes for a single message (see §3.2.5)
-  uint64 max_gas_per_message = 4;      // max gas (or ops budget) per message execution (see §3.2.5)
-}
-
-// Endpoint roster entry. Maintained in state separately from the configuration,
-// propagated via EndpointJoin / EndpointLeave control messages.
-message ClprEndpoint {
-  proto.ServiceEndpoint service_endpoint = 1;  // optional; omit for private networks
-  bytes signing_certificate = 2;               // DER-encoded RSA public certificate
-  bytes account_id = 3;                        // on-ledger account (20 or 32 bytes)
-}
-
-// Control message payload variants.
-message ClprControlMessage {
-  oneof payload {
-    ClprEndpointJoin endpoint_join = 1;
-    ClprEndpointLeave endpoint_leave = 2;
-    ClprConfigUpdate config_update = 3;
-  }
-}
-
-message ClprEndpointJoin {
-  ClprEndpoint endpoint = 1;
-}
-
-message ClprEndpointLeave {
-  bytes account_id = 1;  // identifies the departing endpoint
-}
-
-message ClprConfigUpdate {
-  ClprLedgerConfiguration configuration = 1;
-}
-
-```
-
-## 4.2 gRPC Service
-
-```protobuf
-service ClprService {
-  // Admin: set this ledger's local configuration (ChainID, ApprovedVerifiers, Throttles).
-  rpc setLedgerConfiguration(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Query: download this ledger's configuration.
-  rpc getLedgerConfiguration(proto.Query) returns (proto.Response);
-
-  // Permissionless: register a new Connection. Requires a locally deployed verifier
-  // contract, a ZK proof that the source ledger's ApprovedVerifiers endorses the
-  // verifier's implementation fingerprint, a deposit, and seed endpoints. See §3.1.3.
-  rpc registerConnection(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Permissionless: update the verifier contract on an existing Connection.
-  // Requires a new ZK proof that the source ledger endorses the new verifier's fingerprint.
-  rpc updateConnectionVerifier(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Admin: sever (permanently close) a Connection. Returns deposits.
-  rpc severConnection(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Admin: pause/unpause a Connection (temporarily halt processing).
-  rpc pauseConnection(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Register a Connector on a Connection. Requires initial balance and stake. See §3.3.1.
-  rpc registerConnector(proto.Transaction) returns (proto.TransactionResponse);
-
-  // Send a cross-ledger message via a Connector. See §3.3.2.
-  rpc sendMessage(proto.Transaction) returns (proto.TransactionResponse);
-}
-
-// Included in registerConnection transactions.
-message ClprRegisterConnectionRequest {
-  bytes verifier_contract = 1;                  // address of the locally deployed verifier contract
-  bytes zk_proof = 2;                           // ZK proof of source ledger's ApprovedVerifiers endorsement
-  uint64 deposit = 3;                           // deposit in native tokens (must meet clpr.connectionDeposit minimum)
-  repeated ClprEndpoint seed_endpoints = 4;     // initial peer endpoints (at least one)
-}
-
-// Included in updateConnectionVerifier transactions.
-message ClprUpdateConnectionVerifierRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-  bytes verifier_contract = 3;                  // new verifier contract address
-  bytes zk_proof = 4;                           // ZK proof that source ledger endorses new verifier's fingerprint
-}
-
-// Included in severConnection and pauseConnection transactions.
-message ClprConnectionAdminRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-}
-
-// Included in sendMessage transactions. See §3.3.2.
-message ClprSendMessageRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the destination Connection
-  bytes connector_id = 3;                       // Connector to authorize and pay for this message
-  bytes target_application = 4;                 // destination app address
-  bytes message_data = 5;                       // opaque application payload
-}
-```
-
-## 4.3 Endpoint-to-Endpoint Service
-
-```protobuf
-// gRPC service exposed by every CLPR endpoint. This is the endpoint-to-endpoint
-// protocol described in §3.1.4 — separate from the on-ledger CLPR Service API (§4.2).
-service ClprEndpointService {
-  // Bidirectional sync: exchange pre-computed payloads with a peer endpoint.
-  // Each side sends its SyncPayload; each side then submits the received payload
-  // to its own ledger as a native transaction. See §3.1.4.
-  rpc sync(ClprSyncPayload) returns (ClprSyncPayload);
-}
-```
-
-## 4.4 Connection
-
-```protobuf
-message ClprConnection {
-  // --- Peer Identity (compound key: chain_id + service_address) ---
-
-  string chain_id = 1;                     // CAIP-2 identifier for the peer chain
-  bytes service_address = 2;               // on-ledger address of the peer's CLPR Service
-  proto.Timestamp peer_config_timestamp = 3;
-
-  // --- Verifier Contract (see §3.1.5) ---
-
-  bytes verifier_contract = 4;             // address of the locally deployed verifier for this Connection
-  bytes verifier_fingerprint = 5;          // implementation fingerprint (code hash) endorsed by peer
-
-  // Note: the peer endpoint roster is stored separately in state, keyed by
-  // (chain_id, service_address, account_id). It is NOT embedded in the Connection object.
-  // Endpoints are seeded at connection registration and updated via
-  // ClprEndpointJoin / ClprEndpointLeave control messages (see §3.1.2).
-
-  // --- Connection State (see §3.1.3) ---
-
-  uint64 deposit = 6;                    // locked deposit amount (returned on graceful close, slashable)
-  ClprConnectionStatus status = 7;       // current operational state
-
-  // --- Message Queue Metadata (see §3.2.1) ---
-
-  uint64 received_message_id = 10;
-  uint64 acked_message_id = 11;
-  bytes received_running_hash = 12;
-  bytes sent_running_hash = 13;
-  uint64 next_message_id = 14;
-}
-
-enum ClprConnectionStatus {
-  ACTIVE = 0;    // normal operation
-  PAUSED = 1;    // temporarily halted by admin (see §3.1.3)
-  SEVERED = 2;   // permanently closed by admin (see §3.1.3)
-  HALTED = 3;    // halted due to response ordering violation (see §3.2.7)
-}
-```
-
-## 4.5 Connector
-
-```protobuf
-// A Connector registered on a specific Connection. See §3.3.1.
-// Note: balance and stake field widths are platform-specific. On Hiero, uint64 (tinybar)
-// is sufficient. On EVM chains, the Solidity implementation uses uint256 (wei).
-message ClprConnector {
-  string chain_id = 1;                // \
-  bytes service_address = 2;          // / Connection this Connector operates on
-  bytes source_connector_address = 3; // address of the counterpart Connector on the source ledger
-  bytes admin = 4;                    // admin authority (can top up, adjust, shut down)
-  uint64 balance = 5;                 // available funds for message execution (native tokens)
-  uint64 locked_stake = 6;            // stake locked against misbehavior (slashable)
-}
-
-// Included in registerConnector transactions.
-message ClprRegisterConnectorRequest {
-  string chain_id = 1;                // \
-  bytes service_address = 2;          // / Connection this Connector will serve
-  bytes source_connector_address = 3; // address of the counterpart Connector on the source ledger
-  uint64 initial_balance = 4;         // initial funds for message execution
-  uint64 stake = 5;                   // stake to lock against misbehavior
-}
-```
-
-## 4.6 Message Queue
-
-```protobuf
-message ClprMessageKey {
-  string chain_id = 1;       // \
-  bytes service_address = 2; // / compound key identifying the Connection (see §3.1.1)
-  uint64 message_id = 3;
-}
-
-message ClprMessageValue {
-  ClprMessagePayload payload = 1;
-  bytes running_hash_after_processing = 3;
-}
-
-// All three message classes share the same queue, running hash chain,
-// and bundle transport. The oneof distinguishes them at processing time.
-message ClprMessagePayload {
-  oneof payload {
-    ClprMessage message = 1;              // Data Message — application content
-    ClprMessageReply message_reply = 2;   // Response Message — outcome of a Data Message
-    ClprControlMessage control = 3;       // Control Message — protocol management
-  }
-}
-
-message ClprMessage {
-  bytes connector_id = 1;       // Connector that authorized this message (see §3.3.1)
-  bytes target_application = 2; // destination app address to dispatch to
-  bytes sender = 3;             // source-chain address of the caller, stamped by CLPR Service at enqueue
-  bytes message_data = 4;       // opaque application payload
-}
-
-enum ClprMessageReplyStatus {
-  SUCCESS = 0;               // application processed the message successfully
-  APPLICATION_ERROR = 1;     // application reverted — not the Connector's fault, no slash
-  CONNECTOR_NOT_FOUND = 2;   // Connector missing on destination — slash source Connector
-  CONNECTOR_UNDERFUNDED = 3; // Connector couldn't pay — slash source Connector
-  REDACTED = 4;              // message was redacted before delivery (see §3.2.6)
-}
-
-message ClprMessageReply {
-  uint64 message_id = 1;                  // ID of the originating message this responds to
-  ClprMessageReplyStatus status = 2;      // structured outcome — determines slash decision on source
-  bytes message_reply_data = 3;           // opaque application response (empty on protocol errors)
-}
-
-// SyncPayload is the complete package exchanged in one direction of a sync.
-// The proof_bytes field is opaque to the protocol — it is passed directly to
-// the Connection's verifier contract, which returns verified queue metadata
-// and messages. See §3.1.5.
-message ClprSyncPayload {
-  string chain_id = 1;                  // \
-  bytes service_address = 2;            // / compound key identifying the source CLPR Service (see §3.1.1)
-  bytes proof_bytes = 3;               // opaque proof bytes for the verifier contract
-}
-message ClprQueueMetadata {
-  uint64 next_message_id = 1;
-  uint64 acked_message_id = 2;
-  bytes sent_running_hash = 3;
-  uint64 received_message_id = 4;
-  bytes received_running_hash = 5;
-}
-```
+Protobuf definitions, gRPC service definitions, verifier and Connector authorization interfaces, state transition
+algorithms, and configuration parameters are defined in the companion
+[CLPR Service Specification](clpr-service-spec.md).
 
 ---
 
-# 5. Configuration and Observability
+# 5. Known Risks and Open Questions
 
-The following table lists the configuration parameters referenced throughout this document. Parameters marked as
-per-Connection are set independently for each peer relationship.
-
-| **Config Key**                   | **Default** | **Scope**      | **Description**                                                                                                                                                                                                                              |
-|----------------------------------|-------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `clpr.clprEnabled`               | `false`     | Global         | Master enable switch for the CLPR Service.                                                                                                                                                                                                   |
-| `clpr.connectionFrequency`       | `5000` ms   | Global         | How frequently endpoints initiate sync calls to peers.                                                                                                                                                                                       |
-| `clpr.publicizeNetworkAddresses` | `true`      | Global         | Whether to include service endpoint addresses in the Configuration. Set to `false` for private networks.                                                                                                                                     |
-| `clpr.connectionDeposit`         | TBD         | Global         | Minimum deposit (in native tokens) required to register a new Connection. Returned on graceful closure, slashable on abuse (see §3.1.3).                                                                                                    |
-| `clpr.maxQueueDepth`             | TBD         | Per-Connection | Maximum number of unacknowledged messages allowed in the outbound queue before new messages are rejected (see §3.2.1).                                                                                                                       |
-| `clpr.maxMessagePayloadBytes`    | TBD         | Per-Connection | Maximum payload size (in bytes) for a single message. Advertised in the ledger's configuration; enforced by both source (at enqueue) and destination (at bundle verification). See §3.2.5.                                                   |
-| `clpr.maxMessagesPerBundle`      | TBD         | Per-Connection | Maximum number of messages a single bundle may contain (see §3.2.5).                                                                                                                                                                         |
-| `clpr.maxGasPerMessage`          | TBD         | Per-Connection | Maximum gas (or ops/sec budget on Hiero) allocated to processing a single message within a bundle (see §3.2.5).                                                                                                                              |
-
----
-
-# 6. Known Risks and Open Questions
-
-## 6.1 Risks
+## 5.1 Risks
 
 - **Time to market.** Some HashSphere customers are already turning to existing solutions (LayerZero, Wormhole, etc.).
 - **Testing complexity.** Requires multiple concurrent networks in the same test environment; new test drivers and
@@ -1576,7 +1299,7 @@ per-Connection are set independently for each peer relationship.
 - **Multi-team coordination.** Development requires contributions from Execution, Smart Contracts, Block Node, Mirror
   Node, SDK, Release Engineering, Performance, Security, Docs, DevRel, and Product.
 
-## 6.2 Open Questions
+## 5.2 Open Questions
 
 1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
    ordering?
