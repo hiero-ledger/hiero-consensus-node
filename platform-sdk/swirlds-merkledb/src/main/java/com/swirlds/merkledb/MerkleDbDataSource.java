@@ -5,9 +5,6 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
-import static com.swirlds.merkledb.files.DataFileCompactor.ID_TO_HASH_CHUNK;
-import static com.swirlds.merkledb.files.DataFileCompactor.OBJECT_KEY_TO_PATH;
-import static com.swirlds.merkledb.files.DataFileCompactor.PATH_TO_KEY_VALUE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
@@ -69,6 +66,9 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
+    public static final String ID_TO_HASH_CHUNK = "IdToHashChunk";
+    public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
+    public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
     private static final Logger logger = LogManager.getLogger(MerkleDbDataSource.class);
 
     /** Label for database component used in logging, stats, etc. */
@@ -1368,8 +1368,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newHashChunkStoreCompactor() {
         return new DataFileCompactor(
-                merkleDbConfig,
-                tableName + "_" + DataFileCompactor.ID_TO_HASH_CHUNK,
+                tableName + "_" + ID_TO_HASH_CHUNK,
                 hashChunkStore.getFileCollection(),
                 idToDiskLocationHashChunks,
                 statisticsUpdater::setHashesStoreCompactionTimeMs,
@@ -1386,7 +1385,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyValueStoreCompactor() {
         return new DataFileCompactor(
-                merkleDbConfig,
                 tableName + "_" + PATH_TO_KEY_VALUE,
                 keyValueStore.getFileCollection(),
                 pathToDiskLocationLeafNodes,
@@ -1404,7 +1402,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyToPathCompactor() {
         return new DataFileCompactor(
-                merkleDbConfig,
                 tableName + "_" + OBJECT_KEY_TO_PATH,
                 keyToPath.getFileCollection(),
                 keyToPath.getBucketIndexToBucketLocation(),

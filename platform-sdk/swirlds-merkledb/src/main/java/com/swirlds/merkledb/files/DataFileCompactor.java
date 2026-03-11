@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -42,16 +41,10 @@ public class DataFileCompactor {
 
     private static final Logger logger = LogManager.getLogger(DataFileCompactor.class);
 
-    public static final String ID_TO_HASH_CHUNK = "IdToHashChunk";
-    public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
-    public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
-
     /**
      * This is the compaction level that non-compacted files have.
      */
     public static final int INITIAL_COMPACTION_LEVEL = 0;
-
-    private final MerkleDbConfig dbConfig;
 
     /**
      * Name of the file store to compact. This is used for logging and metrics.
@@ -149,7 +142,6 @@ public class DataFileCompactor {
     private volatile boolean interruptFlag = false;
 
     /**
-     * @param dbConfig                           MerkleDb config
      * @param storeName                          name of the store to compact
      * @param dataFileCollection                 data file collection to compact
      * @param index                              index to update during compaction
@@ -159,7 +151,6 @@ public class DataFileCompactor {
      * @param updateTotalStatsFunction           updates statistics of total disk and off-heap usage
      */
     public DataFileCompactor(
-            final MerkleDbConfig dbConfig,
             final String storeName,
             final DataFileCollection dataFileCollection,
             CASableLongIndex index,
@@ -167,7 +158,6 @@ public class DataFileCompactor {
             @Nullable final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction,
             @Nullable Runnable updateTotalStatsFunction) {
-        this.dbConfig = dbConfig;
         this.storeName = storeName;
         this.dataFileCollection = dataFileCollection;
         this.index = index;

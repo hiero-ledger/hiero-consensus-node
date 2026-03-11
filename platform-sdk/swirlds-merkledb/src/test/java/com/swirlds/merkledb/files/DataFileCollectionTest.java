@@ -614,7 +614,7 @@ class DataFileCollectionTest {
     private static DataFileCompactor createFileCompactor(
             String storeName, DataFileCollection fileCollection, FilesTestType testType) {
         return new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
+                storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
     }
 
     @Order(203)
@@ -664,7 +664,7 @@ class DataFileCollectionTest {
         // reopen
         final DataFileCollection fileCollection2 = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
         final DataFileCompactor fileCompactor = new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
+                storeName, fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
         fileCollectionMap.put(testType, fileCollection2);
         // check 10 files were opened and data is correct
         assertSame(10, fileCollection2.getAllCompletedFiles().size(), "Should be 10 files");
@@ -735,7 +735,7 @@ class DataFileCollectionTest {
         final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         final DataFileCompactor compactor = new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsets, null, null, null, null);
+                storeName, fileCollection, storedOffsets, null, null, null, null);
         populateDataFileCollection(FilesTestType.fixed, fileCollection, storedOffsets);
 
         final Thread thread = new Thread(() -> {

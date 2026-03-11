@@ -176,7 +176,6 @@ class MemoryIndexDiskKeyValueStoreTest {
         final MemoryIndexDiskKeyValueStore store =
                 new MemoryIndexDiskKeyValueStore(dbConfig, tempDir, storeName, null, null, index);
         final DataFileCompactor dataFileCompactor = new DataFileCompactor(
-                dbConfig,
                 storeName,
                 store.fileCollection,
                 index,

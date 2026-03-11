@@ -211,7 +211,7 @@ class MerkleDbCompactionCoordinator {
      * traverses the in-memory index and stores the results in {@link #scanResultsByStore},
      * where compaction tasks read them at execution time.
      *
-     * @param storeName store name (e.g. {@link DataFileCompactor#ID_TO_HASH_CHUNK})
+     * @param storeName store name (e.g. {@link MerkleDbDataSource#ID_TO_HASH_CHUNK})
      * @param scanner   the scanner task to run
      */
     synchronized void submitScanIfNotRunning(final String storeName, final GarbageScanner scanner) {
@@ -237,7 +237,7 @@ class MerkleDbCompactionCoordinator {
      * reads the file list, groups by level, and submits tasks. The evaluation and
      * compaction work happens asynchronously when the task executes.
      *
-     * @param storeName        store name (e.g. {@link DataFileCompactor#ID_TO_HASH_CHUNK})
+     * @param storeName        store name (e.g. {@link MerkleDbDataSource#ID_TO_HASH_CHUNK})
      * @param compactorFactory creates a fresh {@link DataFileCompactor} per compaction task
      * @param config           MerkleDb config with threshold parameters
      */
@@ -271,7 +271,7 @@ class MerkleDbCompactionCoordinator {
      * This checks all levels — if any level has a queued or active task, this returns
      * {@code true}.
      *
-     * @param storeName store name (e.g. {@link DataFileCompactor#OBJECT_KEY_TO_PATH})
+     * @param storeName store name (e.g. {@link MerkleDbDataSource#OBJECT_KEY_TO_PATH})
      * @return {@code true} if any compaction for this store is submitted or running
      */
     synchronized boolean isCompactionRunning(final String storeName) {

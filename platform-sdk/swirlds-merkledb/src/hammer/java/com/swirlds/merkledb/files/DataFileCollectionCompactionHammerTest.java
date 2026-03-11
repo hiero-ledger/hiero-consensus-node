@@ -60,7 +60,7 @@ class DataFileCollectionCompactionHammerTest {
             final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
             final var coll = new DataFileCollection(
                     dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
-            final var compactor = new DataFileCompactor(dbConfig, storeName, coll, index, null, null, null, null);
+            final var compactor = new DataFileCompactor(storeName, coll, index, null, null, null, null);
 
             final Random rand = new Random(777);
             for (int i = 0; i < numFiles; i++) {
@@ -124,7 +124,7 @@ class DataFileCollectionCompactionHammerTest {
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var coll = new DataFileCollection(
                 dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
-        final var compactor = new DataFileCompactor(dbConfig, storeName, coll, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(storeName, coll, index, null, null, null, null);
 
         final Random rand = new Random(777);
         final AtomicBoolean stop = new AtomicBoolean(false);

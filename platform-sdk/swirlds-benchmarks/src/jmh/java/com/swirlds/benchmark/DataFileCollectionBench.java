@@ -52,7 +52,7 @@ public class DataFileCollectionBench extends BaseBench {
                     }
                 };
         store.updateValidKeyRange(0, maxKey);
-        final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
         System.out.println();
 
         // Write files

@@ -83,13 +83,12 @@ public class GarbageScanner {
             return Map.of();
         }
 
-        final Map<Integer, List<DataFileReader>> filteredStatsByCompactionLevel = new HashMap<>();
+        final Map<Integer, List<DataFileReader>> result = new HashMap<>();
         final long[] sizeByLevel = new long[maxCompactionLevel + 1];
         for (GarbageFileStats value : statsByFileIndex.values()) {
             if (isToBeCompacted(value, sizeByLevel)) {
-                filteredStatsByCompactionLevel
-                        .computeIfAbsent(value.compactionLevel(), level -> new ArrayList<>())
-                        .add(value.fileReader);
+                result.computeIfAbsent(value.compactionLevel(), level -> new ArrayList<>())
+                      .add(value.fileReader);
             }
             sizeByLevel[value.compactionLevel()] += value.fileReader.getSize();
         }
@@ -99,7 +98,7 @@ public class GarbageScanner {
         final long tookMillis = System.currentTimeMillis() - start;
         logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
-        return filteredStatsByCompactionLevel;
+        return result;
     }
 
     private boolean isToBeCompacted(GarbageFileStats value, long[] sizeByLevel) {

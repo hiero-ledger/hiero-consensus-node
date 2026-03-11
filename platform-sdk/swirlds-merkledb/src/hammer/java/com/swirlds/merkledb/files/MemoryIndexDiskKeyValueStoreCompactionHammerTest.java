@@ -120,7 +120,7 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
 
         // Start a thread for merging files together. The future will throw an exception if one
         // occurs on the thread.
-        final Compactor compactor = new Compactor(dbConfig, store, storeIndex);
+        final Compactor compactor = new Compactor(store, storeIndex);
         final Future<Void> mergeFuture = executor.submit(compactor);
 
         // We need to terminate the test if an error occurs in fail-fast manner. So we will keep a
@@ -458,9 +458,9 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
         private int iteration = 1;
         private final DataFileCompactor compactor;
 
-        Compactor(final MerkleDbConfig dbConfig, final MemoryIndexDiskKeyValueStore coll, LongListOffHeap storeIndex) {
+        Compactor(final MemoryIndexDiskKeyValueStore coll, LongListOffHeap storeIndex) {
             compactor = new DataFileCompactor(
-                    dbConfig, "megaMergeHammerTest", coll.getFileCollection(), storeIndex, null, null, null, null);
+                    "megaMergeHammerTest", coll.getFileCollection(), storeIndex, null, null, null, null);
         }
 
         @Override
