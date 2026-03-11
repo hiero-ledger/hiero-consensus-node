@@ -75,27 +75,27 @@ are in development environments, where it can be invaluable for testing.)
 
 ### Authorization privileges for special transactions
 
-|                                            Payer                                            | `Freeze` | `SystemDelete` | `SystemUndelete` | `UncheckedSubmit` |
-|---------------------------------------------------------------------------------------------|:--------:|:--------------:|:----------------:|:-----------------:|
-| `accounts.treasury=2`                                                                       |    X     |       X        |        X         |         X         |
-| `accounts.systemAdmin=50`                                                                   |    X     |       X        |        X         |         X         |
-| `accounts.freezeAdmin=58`                                                                   |    X     |                |                  |                   |
-| `accounts.systemDeleteAdmin=59`                                                             |          |       X        |                  |                   |
-| `accounts.systemUndeleteAdmin=60`                                                           |          |                |        X         |                   |
+|               Payer               | `Freeze` | `SystemDelete` | `SystemUndelete` | `UncheckedSubmit` |
+|-----------------------------------|:--------:|:--------------:|:----------------:|:-----------------:|
+| `accounts.treasury=2`             |    X     |       X        |        X         |         X         |
+| `accounts.systemAdmin=50`         |    X     |       X        |        X         |         X         |
+| `accounts.freezeAdmin=58`         |    X     |                |                  |                   |
+| `accounts.systemDeleteAdmin=59`   |          |       X        |                  |                   |
+| `accounts.systemUndeleteAdmin=60` |          |                |        X         |                   |
 
 ### Authorization privileges for file updates and appends
 
 Next we consider `FileUpdate` and `FileAppend` transactions when targeting one of the system files.
 
-|                                            Payer                                            | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.feeSchedules=111` / `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
-|---------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------:|
-| `accounts.treasury=2`                                                                       |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
-| `accounts.systemAdmin=50`                                                                   |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
-| `accounts.softwareUpdateAdmin=54`                                                           |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
-| `accounts.addressBookAdmin=55`                                                              |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                                                                    |                                                                                     |                                                                                         |                                             X                                             |
-| `accounts.feeSchedulesAdmin=56`                                                             |                                                                                                                                                                     |                                                                                                                                                                               |                                         X                                          |                                                                                     |                                                                                         |                                                                                           |
-| `accounts.exchangeRatesAdmin=57`                                                            |                                                                                                                                                                     |                                                                                       X                                                                                       |                                                                                    |                                          X                                          |                                                                                         |                                             X                                             |
-| `accounts.freezeAdmin=58`                                                                   |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
+|               Payer               | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.feeSchedules=111` / `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
+|-----------------------------------|:-------------------------------------------------:|:-----------------------------------------------------------:|:----------------------------------------------------------:|:-------------------------:|:-----------------------------------:|:-------------------------------:|
+| `accounts.treasury=2`             |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |
+| `accounts.systemAdmin=50`         |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |
+| `accounts.softwareUpdateAdmin=54` |                                                   |                                                             |                                                            |                           |                  X                  |                                 |
+| `accounts.addressBookAdmin=55`    |                         X                         |                              X                              |                                                            |                           |                                     |                X                |
+| `accounts.feeSchedulesAdmin=56`   |                                                   |                                                             |                             X                              |                           |                                     |                                 |
+| `accounts.exchangeRatesAdmin=57`  |                                                   |                              X                              |                                                            |             X             |                                     |                X                |
+| `accounts.freezeAdmin=58`         |                                                   |                                                             |                                                            |                           |                  X                  |                                 |
 
 ### Authorization for crypto updates
 
@@ -105,9 +105,9 @@ requires an authorized payer is the treasury account, `accounts.treasury=2`.
 authorized payer. Since 0.10.0 it has been possible to, for example, update `0.0.88` with
 `0.0.12345` as the payer, as long as the key for `0.0.88` signs the transaction.)
 
-|                                      Payer                                      | `accounts.treasury=2` |
-|---------------------------------------------------------------------------------|:-------------------------------------------------------------------------------:|
-| `accounts.treasury=2`                                                           |                                        X                                        |
+|         Payer         | `accounts.treasury=2` |
+|-----------------------|:---------------------:|
+| `accounts.treasury=2` |           X           |
 
 ## Waived signing requirements
 
@@ -140,18 +140,18 @@ as below.
 treasury account. In particular, a `CryptoUpdate` that changes the key on the
 treasury account always requires the new key to sign.
 
-|                                        Payer                                        | Accounts after `accounts.treasury=2` and up to `ledger.numReservedSystemEntities=750` |
-|-------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| `accounts.treasury=2`                                                               |                                                                                                     X                                                                                                      |
-| `accounts.systemAdmin=50`                                                           |                                                                                                     X                                                                                                      |
+|           Payer           | Accounts after `accounts.treasury=2` and up to `ledger.numReservedSystemEntities=750` |
+|---------------------------|:-------------------------------------------------------------------------------------:|
+| `accounts.treasury=2`     |                                           X                                           |
+| `accounts.systemAdmin=50` |                                           X                                           |
 
 ## Increased transaction size limit
 
 This class of privileges applies to all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive. These privileges waive the enforced standard limit of 6KB for the transaction size and increase it to 130KB.
 
-|                                                   Payer                                                   | All transaction types have their size limit increased to 130KB |
-|-----------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
-| `governanceTransactions.accountsRange=2,42-799`                                                           |                               X                                |
+|                      Payer                      | All transaction types have their size limit increased to 130KB |
+|-------------------------------------------------|:--------------------------------------------------------------:|
+| `governanceTransactions.accountsRange=2,42-799` |                               X                                |
 
 # Miscellanea
 
