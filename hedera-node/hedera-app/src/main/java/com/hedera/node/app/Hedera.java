@@ -28,6 +28,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTim
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -785,6 +786,10 @@ public final class Hedera
         logger.info("Initializing Hedera app with HederaNode#{}", selfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
+
+        // It is possible a network interrupt could make a node reconnect in a window where
+        // the hinTS signing scheme was ; so we clear the cached assets just-in-case
+        HintsLibraryBridge.getInstance().resetCache();
     }
 
     /**

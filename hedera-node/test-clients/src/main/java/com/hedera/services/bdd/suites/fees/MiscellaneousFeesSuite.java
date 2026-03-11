@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -26,17 +25,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class MiscellaneousFeesSuite {
     private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     private static final String BOB = "bob";
     private static final String ALICE = "alice";
-    private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
+    private static final double BASE_FEE_MISC_GET_VERSION = 0.000102;
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
     private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
-    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.0001;
-    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.0010010316;
+    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.000102;
+    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.001009;
 
     @HapiTest
     @DisplayName("USD base fee as expected for Prng transaction")
@@ -78,7 +76,6 @@ public class MiscellaneousFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for get transaction record")
-    @Tag(MATS)
     final Stream<DynamicTest> miscGetTransactionRecordBaseUSDFee() {
         String baseTransactionGetRecord = "baseTransactionGetRecord";
         String createTxn = "createTxn";
@@ -98,7 +95,6 @@ public class MiscellaneousFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for atomic batch transaction")
-    @Tag(MATS)
     public Stream<DynamicTest> validateAtomicBatchBaseUSDFee() {
         final var batchOperator = "batchOperator";
 

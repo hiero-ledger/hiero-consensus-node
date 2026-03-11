@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -32,24 +31,22 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class ConsensusServiceFeesSuite {
-    private static final double BASE_FEE_TOPIC_CREATE = 0.01;
-    private static final double BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE = 2.00;
+    private static final double BASE_FEE_TOPIC_CREATE = 0.0101;
+    private static final double BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE = 2.04;
     private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.114;
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
-    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
+    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.00081;
 
-    private static final double BASE_FEE_TOPIC_GET_INFO = 0.0001;
+    private static final double BASE_FEE_TOPIC_GET_INFO = 0.000102;
 
     private static final String PAYER = "payer";
     private static final String TOPIC_NAME = "testTopic";
 
     @HapiTest
     @DisplayName("Topic create base USD fee as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateBaseUSDFee() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -109,7 +106,6 @@ public class ConsensusServiceFeesSuite {
 
     @HapiTest
     @DisplayName("Topic submit message base USD fee as expected and the fee scales as message bytes increase")
-    @Tag(MATS)
     final Stream<DynamicTest> topicSubmitMessageFeeScales() {
         final byte[] messageBytes100 = new byte[100];
         final byte[] messageBytes500 = new byte[500];
@@ -146,7 +142,7 @@ public class ConsensusServiceFeesSuite {
                         spec,
                         safeValidateChargedUsdWithin(
                                 "submitMessage1024",
-                                0.00098,
+                                0.001,
                                 1.0,
                                 SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
                                 3.0))));

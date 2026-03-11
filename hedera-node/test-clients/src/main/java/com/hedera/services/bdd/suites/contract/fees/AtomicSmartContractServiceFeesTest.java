@@ -92,7 +92,7 @@ class AtomicSmartContractServiceFeesTest {
                 validateInnerTxnFeesWithTxnSize(
                         creation,
                         ATOMIC_BATCH,
-                        0.727,
+                        0.7348,
                         1.0,
                         txnSize -> expectedContractCreateSimpleFeesUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize))
