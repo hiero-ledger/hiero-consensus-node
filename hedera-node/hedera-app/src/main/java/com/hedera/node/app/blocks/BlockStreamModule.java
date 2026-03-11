@@ -81,7 +81,13 @@ public interface BlockStreamModule {
 
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
-            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+            case GRPC ->
+                () -> new GrpcBlockItemWriter(
+                        configProvider,
+                        selfNodeAccountIdManager,
+                        fileSystem,
+                        blockBufferService,
+                        blockNodeConnectionManager);
             case FILE_AND_GRPC ->
                 () -> new FileAndGrpcBlockItemWriter(
                         configProvider,
