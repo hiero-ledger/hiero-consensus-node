@@ -37,7 +37,6 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.NetworkUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
@@ -79,11 +78,11 @@ import org.apache.logging.log4j.Logger;
  * stopping and restarting.
  */
 public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetwork {
-    private static final String SPEC_NAME = "<STARTUP>";
     private static final Logger log = LogManager.getLogger(SubProcessNetwork.class);
 
     public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     public static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
+    private static final Duration LEDGER_ID_RETRY_BACKOFF = Duration.ofMillis(100);
 
     // 3 gRPC ports, 2 gossip ports, 1 Prometheus
     private static final int PORTS_PER_NODE = 6;
@@ -114,7 +113,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
     private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
     private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
-    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
@@ -281,18 +279,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         .orTimeout(30, TimeUnit.MINUTES))
                         .join());
                 this.clients = HapiClients.clientsFor(this);
-                // TODO - repeat until status is not WAITING_FOR_LEDGER_ID or LEDGER_ID_TIMEOUT is reached
-                boolean needsRetry = false;
-                try {
-                    final var accountId = fromPbj(nodes.getFirst().getAccountId());
-                    final var response = this.clients
-                            .getCryptoSvcStub(accountId, false, false)
-                            .cryptoTransfer(Transaction.getDefaultInstance());
-                    final var status = response.getNodeTransactionPrecheckCode();
-                    needsRetry = status == WAITING_FOR_LEDGER_ID;
-                } catch (Throwable t) {
-                    throw new IllegalStateException(t);
-                }
+                awaitLedgerIdReady(deadline);
             });
             // We only need one thread to wait for readiness
             if (ready.compareAndSet(null, deferredRun)) {
@@ -302,6 +289,42 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         }
         ready.get().futureOrThrow().join();
+    }
+
+    /**
+     * Wait for the ledger id to be set on the target network.
+     * @param timeout the maximum time to wait for the ledger id to be set
+     */
+    public void awaitLedgerId(@NonNull final Duration timeout) {
+        awaitLedgerIdReady(Instant.now().plus(timeout));
+    }
+
+    private void awaitLedgerIdReady(@NonNull final Instant deadline) {
+        final var accountId = fromPbj(nodes.getFirst().getAccountId());
+        final var ledgerIdDeadline = earlierOf(deadline, Instant.now().plus(LEDGER_ID_TIMEOUT));
+        var status = WAITING_FOR_LEDGER_ID;
+        while (!Instant.now().isAfter(ledgerIdDeadline)) {
+            try {
+                status = requireNonNull(this.clients)
+                        .getCryptoSvcStub(accountId, false, false)
+                        .cryptoTransfer(Transaction.getDefaultInstance())
+                        .getNodeTransactionPrecheckCode();
+            } catch (Throwable t) {
+                throw new IllegalStateException("Unable to probe ledger-id readiness for network '" + name() + "'", t);
+            }
+            if (status != WAITING_FOR_LEDGER_ID) {
+                return;
+            }
+            abortAndThrowIfInterrupted(
+                    () -> TimeUnit.MILLISECONDS.sleep(LEDGER_ID_RETRY_BACKOFF.toMillis()),
+                    "Interrupted while waiting for ledger id readiness");
+        }
+        throw new IllegalStateException(
+                "Network '" + name() + "' remained in " + WAITING_FOR_LEDGER_ID + " until " + ledgerIdDeadline);
+    }
+
+    private static @NonNull Instant earlierOf(@NonNull final Instant first, @NonNull final Instant second) {
+        return first.isBefore(second) ? first : second;
     }
 
     /**

@@ -1431,10 +1431,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         spec.finalizeSetupProperties();
     }
 
-    public HapiSpec(String name, SpecOperation op) {
-        this(name, new SpecOperation[] {op});
-    }
-
     public HapiSpec(String name, SpecOperation[] ops) {
         this(
                 name,

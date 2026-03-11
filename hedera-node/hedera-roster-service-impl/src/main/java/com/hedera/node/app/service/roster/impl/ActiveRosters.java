@@ -70,13 +70,15 @@ public class ActiveRosters {
      * @param historyEnabled whether TSS history is enabled
      * @param activeHintsInProgress a supplier that returns whether there are active TSS hints in progress
      * @param activeProofInProgress if applicable, a supplier that returns whether there is an active TSS
+     * @param ledgerId the ledger ID, if known
      * @return the active rosters for the given roster store
      */
     public static ActiveRosters from(
             @NonNull final ReadableRosterStore rosterStore,
             final boolean historyEnabled,
             @NonNull final BooleanSupplier activeHintsInProgress,
-            @Nullable final BooleanSupplier activeProofInProgress) {
+            @Nullable final BooleanSupplier activeProofInProgress,
+            @Nullable final Bytes ledgerId) {
         requireNonNull(activeHintsInProgress);
         final var currentRosterHash = requireNonNull(rosterStore.getCurrentRosterHash());
         var candidateRosterHash = rosterStore.getCandidateRosterHash();
@@ -88,7 +90,8 @@ public class ActiveRosters {
             }
         }
         if (candidateRosterHash == null) {
-            if (rosterStore.getPreviousRosterHash() == null) {
+            final boolean needsCutoverLedgerId = historyEnabled && ledgerId == null;
+            if (rosterStore.getPreviousRosterHash() == null || needsCutoverLedgerId) {
                 return new ActiveRosters(Phase.BOOTSTRAP, currentRosterHash, currentRosterHash, rosterStore::get);
             } else {
                 return new ActiveRosters(Phase.HANDOFF, null, currentRosterHash, rosterStore::get);
