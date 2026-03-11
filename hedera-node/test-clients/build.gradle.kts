@@ -76,6 +76,7 @@ val basePrCheckTags =
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
+        "hapiTestWraps" to "WRAPS",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
@@ -86,7 +87,7 @@ val basePrCheckTags =
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial")
+    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial", "hapiTestWraps")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -125,6 +126,7 @@ val prCheckStartPorts =
         put("hapiTestSmartContract", "25800")
         put("hapiTestNDReconnect", "26000")
         put("hapiTestTimeConsuming", "26200")
+        put("hapiTestWraps", "26300")
         put("hapiTestIss", "26400")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
@@ -166,6 +168,10 @@ val prCheckPropOverrides =
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
+            "hapiTestWraps",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8,staking.periodMins=16",
+        )
+        put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
@@ -190,8 +196,9 @@ val prCheckPrepareUpgradeOffsets =
             if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
-// Note: no MATS variants needed for history proofs
-val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
+val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps")
+// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be in CI and set it here
+val prCheckTssLibWrapsArtifactsPaths = mapOf("hapiTestWraps" to "/Users/michaeltinker/misc/wraps-v0.2.0")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
@@ -275,13 +282,17 @@ tasks.register<Test>("testSubprocess") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -394,13 +405,17 @@ tasks.register<Test>("testSubprocessConcurrent") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -478,13 +493,17 @@ tasks.register<Test>("testRemote") {
         )
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames

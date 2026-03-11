@@ -787,7 +787,7 @@ public final class Hedera
         }
 
         // It is possible a network interrupt could make a node reconnect in a window where
-        // the hinTS signing scheme was ; so we clear the cached assets just-in-case
+        // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         HintsLibraryBridge.getInstance().resetCache();
     }
 
