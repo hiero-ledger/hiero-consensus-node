@@ -57,6 +57,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -76,6 +77,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Count of open database instances */
     private static final LongAdder COUNT_OF_OPEN_DATABASES = new LongAdder();
+
+    // FIXME: remove
+    private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
+    private final int dbId;
 
     /** Data source metadata fields */
     private static final FieldDefinition FIELD_DSMETADATA_MINVALIDKEY =
@@ -474,8 +479,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             enableBackgroundCompaction();
         }
 
+        dbId = ID_GENERATOR.getAndIncrement();
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
+        System.out.println("Opening dbId=" + dbId);
+        new Exception().printStackTrace();
 
         chunkStoreScanner = new GarbageScanner(
                 idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
@@ -954,6 +962,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 } finally {
                     // updated count of open databases
                     COUNT_OF_OPEN_DATABASES.decrement();
+                    // FIXME: remove
+                    System.out.println("Closing dbId=" + dbId);
+                    new Exception().printStackTrace();
                     // Delete the data dir
                     if (!keepData) {
                         DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);

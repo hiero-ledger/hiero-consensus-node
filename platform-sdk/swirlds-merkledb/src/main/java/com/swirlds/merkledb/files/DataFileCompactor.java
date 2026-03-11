@@ -18,8 +18,10 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -186,6 +188,7 @@ public class DataFileCompactor {
      */
     public boolean compactSingleLevel(final List<DataFileReader> filesToCompact, final int targetLevel)
             throws IOException, InterruptedException {
+        assert filesToCompactBelongToCollection(filesToCompact);
         if (filesToCompact.isEmpty()) {
             logger.debug(MERKLE_DB.getMarker(), "[{}] No need to compact, as the files list is empty", storeName);
             return false;
@@ -245,6 +248,16 @@ public class DataFileCompactor {
             updateTotalStatsFunction.run();
         }
 
+        return true;
+    }
+
+    private boolean filesToCompactBelongToCollection(List<DataFileReader> filesToCompact) {
+        Set<DataFileReader> allFileReaders = new HashSet<>(dataFileCollection.getAllCompletedFiles());
+        for (DataFileReader dataFileReader : filesToCompact) {
+            if (!allFileReaders.contains(dataFileReader)) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -500,31 +513,6 @@ public class DataFileCompactor {
     // A helper method to avoid using a lambda in compactFiles()
     public boolean notInterrupted() {
         return !interruptFlag;
-    }
-
-    /**
-     * @return true if compaction is currently running, false otherwise.
-     */
-    public boolean isCompactionRunning() {
-        snapshotCompactionLock.lock();
-        try {
-            return currentCompactionStartTime.get() != null;
-        } finally {
-            snapshotCompactionLock.unlock();
-        }
-    }
-
-    /**
-     * @return true if compaction was started and now is complete (successfully or
-     * exceptionally), false otherwise.
-     */
-    public boolean isCompactionComplete() {
-        snapshotCompactionLock.lock();
-        try {
-            return (currentCompactionStartTime.get() == null) && !newCompactedFiles.isEmpty();
-        } finally {
-            snapshotCompactionLock.unlock();
-        }
     }
 
     private void reportFileSizeByLevel(List<DataFileReader> allCompletedFiles) {
