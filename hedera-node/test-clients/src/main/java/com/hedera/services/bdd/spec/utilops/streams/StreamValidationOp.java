@@ -225,6 +225,10 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 result.add(block);
                 continue;
             }
+            if (items.isEmpty()) {
+                result.add(block);
+                continue;
+            }
             // Incomplete block found; lazily build the fallback map on first occurrence
             if (fallbackCandidates == null) {
                 log.warn("Found incomplete blocks; falling back to cross-node assembly");
@@ -233,12 +237,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             final var blockNumber = items.getFirst().blockHeaderOrThrow().number();
             final var candidates = fallbackCandidates.get(blockNumber);
             final var replacement = candidates != null ? findFirstCompleteBlock(candidates) : null;
-            if (replacement != null) {
-                result.add(replacement);
-            } else {
-                log.warn("No node has complete block {}; truncating at {} blocks", blockNumber, result.size());
-                break;
-            }
+            // Use the replacement if found, otherwise keep the incomplete block as-is;
+            // validators already handle incomplete blocks at the end of the list
+            result.add(replacement != null ? replacement : block);
         }
         return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
