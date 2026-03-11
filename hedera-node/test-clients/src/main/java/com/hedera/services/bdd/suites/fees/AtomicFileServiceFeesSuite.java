@@ -37,7 +37,6 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of FileServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 class AtomicFileServiceFeesSuite {
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";

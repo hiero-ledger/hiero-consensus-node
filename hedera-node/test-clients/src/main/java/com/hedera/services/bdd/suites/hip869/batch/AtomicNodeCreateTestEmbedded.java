@@ -67,19 +67,9 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 class AtomicNodeCreateTestEmbedded {
 
-    public static final String ED_25519_KEY = "ed25519Alias";
-    public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_FQDNS = Arrays.asList(
-            ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build(),
-            ServiceEndpoint.newBuilder().setDomainName("test2.com").setPort(123).build());
-    public static List<ServiceEndpoint> SERVICES_ENDPOINTS_FQDNS = List.of(ServiceEndpoint.newBuilder()
-            .setDomainName("service.com")
-            .setPort(234)
-            .build());
-    public static final ServiceEndpoint GRPC_PROXY_ENDPOINT_FQDN = endpointFor("grpc.web.proxy.com", 123);
-    public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_IPS =
+    private static final List<ServiceEndpoint> GOSSIP_ENDPOINTS_IPS =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
-    public static List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = List.of(endpointFor("192.168.1.205", 234));
-    public static final ServiceEndpoint GRPC_PROXY_ENDPOINT_IP = endpointFor("192.168.1.255", 123);
+    private static final List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = List.of(endpointFor("192.168.1.205", 234));
     private static List<X509Certificate> gossipCertificates;
     private static final String BATCH_OPERATOR = "batchOperator";
 
@@ -122,17 +112,17 @@ class AtomicNodeCreateTestEmbedded {
                 .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                 // The web proxy endpoint can never be an IP address
-                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN);
+                .grpcWebProxyEndpoint(AtomicNodeCreateTest.GRPC_PROXY_ENDPOINT_FQDN);
 
         return hapiTest(
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                newKeyNamed(AtomicNodeCreateTest.ED_25519_KEY).shape(KeyShape.ED25519),
                 cryptoCreate(nodeAccount),
                 atomicBatch(nodeCreate.batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
                 verifyCanonicalCreate(nodeCreate),
                 viewNode("nodeCreate", node -> {
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_IPS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS_IPS, node.serviceEndpoint());
-                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
+                    assertEqualServiceEndpoint(AtomicNodeCreateTest.GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
                 }));
     }
 
@@ -150,14 +140,14 @@ class AtomicNodeCreateTestEmbedded {
 
         return hapiTest(
                 overriding("nodes.gossipFqdnRestricted", "false"),
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                newKeyNamed(AtomicNodeCreateTest.ED_25519_KEY).shape(KeyShape.ED25519),
                 cryptoCreate(nodeAccount),
                 atomicBatch(nodeCreate.batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
                 verifyCanonicalCreate(nodeCreate),
                 viewNode("nodeCreate", node -> {
-                    assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_FQDNS, node.gossipEndpoint());
-                    assertEqualServiceEndpoints(SERVICES_ENDPOINTS_FQDNS, node.serviceEndpoint());
-                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
+                    assertEqualServiceEndpoints(AtomicNodeCreateTest.GOSSIP_ENDPOINTS_FQDNS, node.gossipEndpoint());
+                    assertEqualServiceEndpoints(AtomicNodeCreateTest.SERVICES_ENDPOINTS_FQDNS, node.serviceEndpoint());
+                    assertEqualServiceEndpoint(AtomicNodeCreateTest.GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
                 }));
     }
 
@@ -209,14 +199,14 @@ class AtomicNodeCreateTestEmbedded {
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                newKeyNamed(AtomicNodeCreateTest.ED_25519_KEY).shape(KeyShape.ED25519),
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
                 cryptoCreate(nodeAccount),
                 // Submit to a different node so ingest check is skipped
                 atomicBatch(nodeCreate("ntb", nodeAccount)
-                                .adminKey(ED_25519_KEY)
+                                .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                                 .payingWith("payer")
                                 .signedBy("payer")
                                 .sigMapPrefixes(uniqueWithFullPrefixesFor("payer"))
@@ -238,7 +228,7 @@ class AtomicNodeCreateTestEmbedded {
                                 NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed"),
                                 3))),
                 atomicBatch(nodeCreate("ntb", nodeAccount)
-                                .adminKey(ED_25519_KEY)
+                                .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                                 .fee(ONE_HBAR)
                                 .gossipCaCertificate(
                                         gossipCertificates.getFirst().getEncoded())
@@ -252,7 +242,7 @@ class AtomicNodeCreateTestEmbedded {
 
                 // Submit with several signatures and the price should increase
                 atomicBatch(nodeCreate("ntb", nodeAccount)
-                                .adminKey(ED_25519_KEY)
+                                .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                                 .payingWith("payer")
                                 .signedBy("payer", "randomAccount", "testKey")
                                 .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
@@ -285,14 +275,14 @@ class AtomicNodeCreateTestEmbedded {
         final var nodeAccount = "nodeAccount";
         final String description = "His vorpal blade went snicker-snack!";
         return hapiTest(
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                newKeyNamed(AtomicNodeCreateTest.ED_25519_KEY).shape(KeyShape.ED25519),
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
                 cryptoCreate(nodeAccount),
                 // Submit to a different node so ingest check is skipped
                 atomicBatch(nodeCreate("ntb", nodeAccount)
-                                .adminKey(ED_25519_KEY)
+                                .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                                 .payingWith("payer")
                                 .signedBy("payer")
                                 .description(description)
@@ -305,7 +295,7 @@ class AtomicNodeCreateTestEmbedded {
                         .hasPrecheck(INSUFFICIENT_TX_FEE)
                         .payingWith(BATCH_OPERATOR),
                 nodeCreate("ntb", nodeAccount)
-                        .adminKey(ED_25519_KEY)
+                        .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                         .description(description)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .via("nodeCreation"),
@@ -316,7 +306,7 @@ class AtomicNodeCreateTestEmbedded {
 
                 // Submit with several signatures and the price should increase
                 atomicBatch(nodeCreate("ntb", nodeAccount)
-                                .adminKey(ED_25519_KEY)
+                                .adminKey(AtomicNodeCreateTest.ED_25519_KEY)
                                 .payingWith("payer")
                                 .signedBy("payer", "randomAccount", "testKey")
                                 .description(description)

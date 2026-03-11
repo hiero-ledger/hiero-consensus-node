@@ -68,10 +68,7 @@ class AtomicNodeCreateTest {
             .setPort(234)
             .build());
     public static final ServiceEndpoint GRPC_PROXY_ENDPOINT_FQDN = endpointFor("grpc.web.proxy.com", 123);
-    public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_IPS =
-            Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
-    public static List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = List.of(endpointFor("192.168.1.205", 234));
-    public static final ServiceEndpoint GRPC_PROXY_ENDPOINT_IP = endpointFor("192.168.1.255", 123);
+    private static final ServiceEndpoint GRPC_PROXY_ENDPOINT_IP = endpointFor("192.168.1.255", 123);
     private static List<X509Certificate> gossipCertificates;
     private static final String BATCH_OPERATOR = "batchOperator";
 

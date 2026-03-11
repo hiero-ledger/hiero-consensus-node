@@ -115,7 +115,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 public class AtomicBatchNegativeTest {
 
     @Nested

@@ -44,7 +44,6 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of PermissionSemanticsSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 class AtomicPermissionSemanticsSpec {
 
     public static final String NEVER_TO_BE_USED = "neverToBeUsed";
