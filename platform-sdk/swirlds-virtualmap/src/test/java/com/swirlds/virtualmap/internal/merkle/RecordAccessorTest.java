@@ -2,7 +2,8 @@
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -11,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -30,7 +31,6 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,6 @@ public class RecordAccessorTest {
     private static final long CHANGED_LEAF_PATH = 5;
     private static final long CHANGED_LEAF_KEY = 11;
     private static final long UNCHANGED_LEAF_PATH = 7;
-    private static final long DELETED_INTERNAL_PATH = 5;
     private static final long OLD_DELETED_INTERNAL_PATH = 13; // This is bogus in the real world but OK for this test
     private static final long DELETED_LEAF_PATH = 12;
     private static final long BOGUS_LEAF_PATH = 22;
@@ -56,10 +55,12 @@ public class RecordAccessorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        VirtualMapMetadata state = new VirtualMapMetadata();
-        VirtualNodeCache cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
+        final VirtualMapMetadata state = new VirtualMapMetadata();
         dataSource = new BreakableDataSource();
-        records = new RecordAccessor(state, cache, dataSource);
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
+        records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
 
         // Prepopulate the database with some records
         final VirtualHashRecord root = internal(0);
@@ -79,27 +80,21 @@ public class RecordAccessorTest {
         dataSource.saveRecords(
                 6,
                 12,
-                Stream.of(root, left, right, leftLeft, leftRight, rightLeft),
+                createHashChunkStream(hashChunkHeight, left, right, leftLeft, leftRight, rightLeft),
                 Stream.of(firstLeaf, secondLeaf, thirdLeaf, fourthLeaf, fifthLeaf, sixthLeaf, seventhLeaf),
                 Stream.empty(),
                 false);
 
         // Prepopulate the cache with some of those records. Some will be deleted, some will be modified, some will
         // not be in the cache.
-        final var rootChanged =
-                new VirtualHashRecord(0, CRYPTO.digestSync("0 changed".getBytes(StandardCharsets.UTF_8)));
-        final var rightChanged = new VirtualHashRecord(
-                CHANGED_INTERNAL_PATH, CRYPTO.digestSync("2 changed".getBytes(StandardCharsets.UTF_8)));
         var sixthLeafMoved = leaf(11);
         sixthLeafMoved = sixthLeafMoved.withPath(CHANGED_LEAF_PATH);
         final var seventhLeafGone = leaf(DELETED_LEAF_PATH);
 
         cache.putLeaf(sixthLeafMoved);
         cache.deleteLeaf(seventhLeafGone);
-        mutableRecords = new RecordAccessor(state, cache.copy(), dataSource);
+        mutableRecords = new RecordAccessor(state, dataSource.getHashChunkHeight(), cache.copy(), dataSource);
         cache.prepareForHashing();
-        cache.putHash(rootChanged);
-        cache.putHash(rightChanged);
 
         // Set up the state for a 6 leaf in memory tree
         state.setLastLeafPath(10);
@@ -119,29 +114,11 @@ public class RecordAccessorTest {
     }
 
     @Test
-    @DisplayName("findHash in cache returns same instance")
-    void findHashInCacheReturnsSameInstance() {
-        final var hash = records.findHash(CHANGED_INTERNAL_PATH);
-        assertNotNull(hash, "Did not find record");
-        assertSame(hash, records.findHash(CHANGED_INTERNAL_PATH), "Did not find the same in memory instance!");
-    }
-
-    @Test
     @DisplayName("findHash of record on disk works")
     void findHashOnDiskReturns() {
         final var hash = records.findHash(UNCHANGED_INTERNAL_PATH);
         assertNotNull(hash, "Did not find record");
         assertEquals(hash, records.findHash(UNCHANGED_INTERNAL_PATH), "Did not find the same hash on disk");
-    }
-
-    @Test
-    @DisplayName("findHash of record with broken data source throws")
-    void findHashOnDiskWhenBrokenThrows() {
-        dataSource.throwExceptionOnLoadHashByPath = true;
-        assertThrows(
-                UncheckedIOException.class,
-                () -> records.findHash(UNCHANGED_INTERNAL_PATH),
-                " Should have thrown UncheckedIOException");
     }
 
     @Test
@@ -272,7 +249,7 @@ public class RecordAccessorTest {
         private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);
         boolean throwExceptionOnLoadLeafRecordByKey = false;
         boolean throwExceptionOnLoadLeafRecordByPath = false;
-        boolean throwExceptionOnLoadHashByPath = false;
+        boolean throwExceptionOnLoadHashChunk = false;
 
         @Override
         public VirtualLeafBytes<?> loadLeafRecord(final Bytes key) throws IOException {
@@ -296,18 +273,18 @@ public class RecordAccessorTest {
         }
 
         @Override
-        public Hash loadHash(final long path) throws IOException {
-            if (throwExceptionOnLoadHashByPath) {
-                throw new IOException("Thrown by loadInternalRecord");
+        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+            if (throwExceptionOnLoadHashChunk) {
+                throw new IOException("Thrown by loadHashChunk");
             }
-            return delegate.loadHash(path);
+            return delegate.loadHashChunk(chunkId);
         }
 
         @Override
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                 final boolean isReconnectContext)
@@ -315,7 +292,7 @@ public class RecordAccessorTest {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    pathHashRecordsToUpdate,
+                    hashChunksToUpdate,
                     leafRecordsToAddOrUpdate,
                     leafRecordsToDelete,
                     isReconnectContext);
@@ -355,6 +332,11 @@ public class RecordAccessorTest {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override
