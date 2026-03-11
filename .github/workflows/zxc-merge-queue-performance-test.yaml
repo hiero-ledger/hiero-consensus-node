@@ -91,7 +91,10 @@ jobs:
     runs-on: hl-cn-mqpt-lin-lg
     strategy:
       matrix:
-        cluster: [Dallas_n10, Dallas_n11, Dallas_n12]
+        cluster:
+          - Dallas_n10
+          - Dallas_n11
+          - Dallas_n12
       fail-fast: false
     concurrency:
       group: deploy-${{ matrix.cluster }}
