@@ -292,7 +292,7 @@ roster is managed separately.
 
 **Throttles**
 
-Each ledger specifies two throttle values in its configuration: `MaxMessagesPerSync` and `MaxSyncsPerSec`.
+Each ledger specifies two throttle values in its configuration: `MaxMessagesPerBundle` and `MaxSyncsPerSec`.
 
 `MaxMessagesPerBundle` is a hard capability limit. It reflects the maximum number of messages that can be included in a
 single bundle without exceeding the receiving ledger's gas or execution budget. Sending endpoints MUST respect
@@ -346,7 +346,10 @@ recovery call — it is not a privileged operation.
 
 > 💡 **Hiero:** Every consensus node is automatically a CLPR endpoint. When CLPR is first enabled, the node software
 reads the active roster and registers all nodes as local endpoints. From that point forward, any roster change — a node
-joining, leaving, or upgrading — automatically updates the local endpoint set. No manual management is required.
+joining, leaving, or upgrading — automatically updates the local endpoint set. No manual management is required. On
+Hiero, misbehavior penalties (§3.1.6) are enforced through the node's existing stake — a misbehaving endpoint node's
+stake can be slashed or the node can be removed from the active roster by governance action. No separate CLPR-specific
+bond is required because Hiero consensus nodes already have significant stake at risk.
 
 > 💡 **Ethereum:** There are no local endpoints by default. Validators opt in as CLPR endpoints by calling a
 registration method on the CLPR Service contract and posting a bond (ETH locked in escrow against misbehavior). They can
@@ -468,11 +471,11 @@ involvement on the destination.
 
 **Ongoing configuration updates.** Once a Connection exists, configuration changes (throttles, max payload size,
 `ApprovedVerifiers`, etc.) are propagated as **Config Update Control Messages** in the message queue (see §3.2.3).
-When the local admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message.
-The peer processes it at a well-defined point in the message stream, ensuring total ordering with data messages. This
-eliminates race conditions where a source enqueues a message that is valid under the config it has seen but would be
-rejected under a config change it hasn't learned about yet. Spam is naturally deterred: each enqueue costs a transaction
-fee, and duplicate config timestamps are no-ops.
+When the local admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message on
+**every active Connection**, so that all peers learn about the change. The peer processes it at a well-defined point in
+the message stream, ensuring total ordering with data messages. This eliminates race conditions where a source enqueues
+a message that is valid under the config it has seen but would be rejected under a config change it hasn't learned
+about yet. Spam is naturally deterred: each enqueue costs a transaction fee, and duplicate config timestamps are no-ops.
 
 **Ongoing endpoint updates.** Endpoint roster changes are propagated **out-of-band** — via Control Messages during the
 sync protocol (§3.1.4) under normal operation, and via the verifier contract proof mechanism (§3.1.3) as a recovery
@@ -605,7 +608,7 @@ Hiero) that implements two methods:
 
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
   verification is appropriate for the source ledger, and returns a verified configuration. Used during connection
-  registration and configuration updates (§3.1.3).
+  registration and verifier updates (§3.1.3).
 - **`verifyBundle(bytes) → (ClprQueueMetadata, ClprMessagePayload[])`** — Accepts opaque proof bytes, performs
   verification, and returns verified queue metadata and messages. Used during bundle processing (§3.2.4).
 
@@ -1061,6 +1064,14 @@ A Connector must exist on **both** ledgers in a Connection — one side authoriz
 pays for their execution on arrival. Multiple Connectors may serve the same Connection, and the same Connector operator
 may run Connectors across multiple Connections.
 
+**Cross-ledger identity.** When a Connector registers on the destination ledger, it specifies the address of its
+counterpart on the source ledger. The CLPR Service maintains an index mapping
+`(Connection, source_connector_address) → local_connector` so that when a message arrives with a `connector_id`
+stamped on the source chain, the destination can resolve it to the local Connector that will pay for execution. On
+ledger pairs that share an address format (e.g., Hiero and Ethereum both use EVM addresses), the source and destination
+Connectors MAY share the same address — but this is a convenience, not a requirement. The explicit mapping is the
+authoritative mechanism and works across any chain combination.
+
 ### 3.3.2 Sending a Message
 
 When an application wants to send a cross-ledger message, it does not interact with the Connection directly. Instead, it
@@ -1085,8 +1096,17 @@ funds to pay for handling the eventual response.
 ### 3.3.3 Receiving, Routing, and Paying
 
 When a verified bundle's messages are dispatched by the messaging layer (see §3.2.4), each message is processed
-sequentially by the Payment and Routing layer. For each message, the CLPR Service looks up the Connector identified in
-the message metadata.
+sequentially. The processing path depends on the message type (see `ClprMessagePayload` oneof in §4.6):
+
+**Control Messages** (endpoint roster changes and config updates) are processed directly by the CLPR Service. No
+Connector is involved, no application is dispatched to, and no response is generated. The CLPR Service applies the
+change (updating the peer endpoint roster or storing the new config values) and advances the Connection's
+`received_message_id` and `received_running_hash`. The cost of processing Control Messages is absorbed by the
+submitting endpoint as part of the bundle submission cost — this is acceptable because Control Messages are infrequent
+and lightweight.
+
+**Data Messages** are processed by the Payment and Routing layer. For each Data Message, the CLPR Service resolves the
+source-chain `connector_id` to a local Connector using the cross-chain mapping (see §3.3.1).
 
 If the Connector exists and has sufficient funds, the Connector is charged for the cost of handling the message plus a
 margin. This margin is the sole mechanism by which CLPR endpoint nodes are compensated — there is no payment to nodes on
@@ -1113,19 +1133,23 @@ and MUST follow the checks-effects-interactions pattern: update all Connection s
 Connector charges) **before** dispatching to the application. Application callbacks should be called with a fixed gas
 stipend to bound execution cost.
 
+**Response Messages** arriving in a bundle are delivered back to the originating application and trigger ordering
+verification and cleanup as described in §3.2.7. The CLPR Service inspects the `ClprMessageReplyStatus` to determine
+whether to slash the source Connector (see §3.3.4). No Connector is charged on the receiving side for processing
+responses — the cost is absorbed by the submitting endpoint as part of the bundle.
+
 Critically, a failure on one message does not stop processing of the remaining messages in the bundle. Each message is
 handled independently. This ensures that a single bad message (e.g., referencing a missing Connector) does not block an
 entire batch of otherwise valid messages behind it.
 
 > ⚠️ **Sender authentication.** CLPR is a transport layer. When a message arrives on the destination, the CLPR Service
 > authenticates that it came from a specific peer ledger (via the Connection and verifier) and was authorized by a
-> specific Connector, but it does **not** authenticate the original sender's identity on the source ledger. The message
-> payload is opaque bytes — any sender identity embedded within it is application-layer data that CLPR does not inspect
-> or verify. Applications that need authenticated sender identity MUST implement their own verification within the
-> message payload (e.g., including the sender's signature over the payload, or using a middleware layer that attests to
-> the sender's on-chain identity). This is a deliberate design choice: cross-ledger identity is inherently
-> application-specific (an Ethereum address means nothing on Hiero and vice versa), so CLPR avoids imposing a
-> particular identity model.
+> specific Connector. Each message also carries a `sender` field (see `ClprMessage` in §4.6) that is stamped by the
+> source ledger's CLPR Service at enqueue time — it contains the on-chain address of the account that submitted the
+> message on the source ledger. This field is trustworthy (it is set by the CLPR Service, not by the caller), but it is
+> a **source-chain address** that may not be meaningful on the destination chain (e.g., a Solana address has no inherent
+> meaning on an EVM chain). Applications that need cross-chain identity resolution MUST implement their own mapping at
+> the application layer.
 
 > ⚠️ **Untrusted payloads.** Both messages and responses carry opaque application-layer payloads. A malicious
 > destination application could return a crafted response designed to exploit the source application (e.g., triggering
@@ -1145,10 +1169,13 @@ entire batch of otherwise valid messages behind it.
 
 ### 3.3.4 Failure Consequences and Slashing
 
-When a failure response makes it back to the source ledger, the source Connector is penalized. After all, it approved
-the message and implicitly promised that the destination side would pay. If the destination side could not or did not
-pay, that is the source Connector's fault — either it was not monitoring its counterpart's balance, or it was being
-reckless.
+When a response arrives on the source ledger, the CLPR Service inspects its `ClprMessageReplyStatus` (see §4.6). Only
+**Connector-attributable failures** trigger slashing: `CONNECTOR_NOT_FOUND` and `CONNECTOR_UNDERFUNDED`. Application
+errors (`APPLICATION_ERROR`) do not result in slashing — the Connector fulfilled its obligation to pay; the application
+simply reverted. `SUCCESS` and `REDACTED` are non-penalized outcomes. The source Connector is penalized because it
+approved the message and implicitly promised that the destination side would pay. If the destination side could not or
+did not pay, that is the source Connector's fault — either it was not monitoring its counterpart's balance, or it was
+being reckless.
 
 Penalties escalate. A single failure results in a fine drawn from the Connector's locked stake, with the proceeds going
 to the endpoint that was stuck with the unpaid execution cost. Repeated failures may result in the Connector being
@@ -1332,6 +1359,12 @@ service ClprService {
 
   // Admin: pause/unpause a Connection (temporarily halt processing).
   rpc pauseConnection(proto.Transaction) returns (proto.TransactionResponse);
+
+  // Register a Connector on a Connection. Requires initial balance and stake. See §3.3.1.
+  rpc registerConnector(proto.Transaction) returns (proto.TransactionResponse);
+
+  // Send a cross-ledger message via a Connector. See §3.3.2.
+  rpc sendMessage(proto.Transaction) returns (proto.TransactionResponse);
 }
 
 // Included in registerConnection transactions.
@@ -1355,9 +1388,31 @@ message ClprConnectionAdminRequest {
   string chain_id = 1;                          // \
   bytes service_address = 2;                    // / compound key identifying the Connection
 }
+
+// Included in sendMessage transactions. See §3.3.2.
+message ClprSendMessageRequest {
+  string chain_id = 1;                          // \
+  bytes service_address = 2;                    // / compound key identifying the destination Connection
+  bytes connector_id = 3;                       // Connector to authorize and pay for this message
+  bytes target_application = 4;                 // destination app address
+  bytes message_data = 5;                       // opaque application payload
+}
 ```
 
-## 4.3 Connection
+## 4.3 Endpoint-to-Endpoint Service
+
+```protobuf
+// gRPC service exposed by every CLPR endpoint. This is the endpoint-to-endpoint
+// protocol described in §3.1.4 — separate from the on-ledger CLPR Service API (§4.2).
+service ClprEndpointService {
+  // Bidirectional sync: exchange pre-computed payloads with a peer endpoint.
+  // Each side sends its SyncPayload; each side then submits the received payload
+  // to its own ledger as a native transaction. See §3.1.4.
+  rpc sync(ClprSyncPayload) returns (ClprSyncPayload);
+}
+```
+
+## 4.4 Connection
 
 ```protobuf
 message ClprConnection {
@@ -1387,7 +1442,30 @@ message ClprConnection {
 }
 ```
 
-## 4.4 Message Queue
+## 4.5 Connector
+
+```protobuf
+// A Connector registered on a specific Connection. See §3.3.1.
+message ClprConnector {
+  string chain_id = 1;                // \
+  bytes service_address = 2;          // / Connection this Connector operates on
+  bytes source_connector_address = 3; // address of the counterpart Connector on the source ledger
+  bytes admin = 4;                    // admin authority (can top up, adjust, shut down)
+  uint64 balance = 5;                 // available funds for message execution (native tokens)
+  uint64 locked_stake = 6;            // stake locked against misbehavior (slashable)
+}
+
+// Included in registerConnector transactions.
+message ClprRegisterConnectorRequest {
+  string chain_id = 1;                // \
+  bytes service_address = 2;          // / Connection this Connector will serve
+  bytes source_connector_address = 3; // address of the counterpart Connector on the source ledger
+  uint64 initial_balance = 4;         // initial funds for message execution
+  uint64 stake = 5;                   // stake to lock against misbehavior
+}
+```
+
+## 4.6 Message Queue
 
 ```protobuf
 message ClprMessageKey {
@@ -1412,12 +1490,24 @@ message ClprMessagePayload {
 }
 
 message ClprMessage {
-  bytes message_data = 1;
+  bytes connector_id = 1;       // Connector that authorized this message (see §3.3.1)
+  bytes target_application = 2; // destination app address to dispatch to
+  bytes sender = 3;             // source-chain address of the caller, stamped by CLPR Service at enqueue
+  bytes message_data = 4;       // opaque application payload
+}
+
+enum ClprMessageReplyStatus {
+  SUCCESS = 0;               // application processed the message successfully
+  APPLICATION_ERROR = 1;     // application reverted — not the Connector's fault, no slash
+  CONNECTOR_NOT_FOUND = 2;   // Connector missing on destination — slash source Connector
+  CONNECTOR_UNDERFUNDED = 3; // Connector couldn't pay — slash source Connector
+  REDACTED = 4;              // message was redacted before delivery (see §3.2.6)
 }
 
 message ClprMessageReply {
-  uint64 message_id = 2;
-  bytes message_reply_data = 1;
+  uint64 message_id = 1;                  // ID of the originating message this responds to
+  ClprMessageReplyStatus status = 2;      // structured outcome — determines slash decision on source
+  bytes message_reply_data = 3;           // opaque application response (empty on protocol errors)
 }
 
 // SyncPayload is the complete package exchanged in one direction of a sync.
@@ -1493,3 +1583,9 @@ per-Connection are set independently for each peer relationship.
    A DEX might use `latest` for price feeds, while a token bridge uses `finalized` for asset transfers. This is already
    architecturally supported but the implications for endpoint resource allocation, Connector management, and message
    routing across parallel Connections need further design.
+10. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
+    and it can never produce correctly ordered responses, the Connection is stuck (§3.2.7). Severing the Connection
+    leaves in-flight messages in an ambiguous state — the source cannot determine which messages were processed on the
+    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
+    properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
+    may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
