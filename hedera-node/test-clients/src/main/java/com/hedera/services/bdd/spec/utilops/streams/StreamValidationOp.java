@@ -40,12 +40,16 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -191,43 +195,95 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        List<Block> bestComplete = null;
-        List<Block> bestBySize = null;
-        final var blockPaths = spec.getNetworkNodes().stream()
+        final var blockStreamDirs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        for (final var path : blockPaths) {
+        // Try each node directory, pick the one with the most blocks
+        List<Block> best = null;
+        for (final var dir : blockStreamDirs) {
             try {
-                log.info("Trying to read blocks from {}", path);
-                final var blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
-                log.info("Read {} blocks from {}", blocks.size(), path);
-                if (bestBySize == null || blocks.size() > bestBySize.size()) {
-                    bestBySize = blocks;
-                }
-                if (hasValidLastBlockProof(blocks) && (bestComplete == null || blocks.size() > bestComplete.size())) {
-                    bestComplete = blocks;
+                final var blocks = BLOCK_STREAM_ACCESS.readBlocks(dir);
+                if (best == null || blocks.size() > best.size()) {
+                    best = blocks;
                 }
             } catch (Exception ignore) {
                 // We will try to read the next node's streams
             }
         }
-        if (bestComplete == null && bestBySize != null) {
-            log.warn(
-                    "No node had a complete block set with final proof; using largest set of {} blocks",
-                    bestBySize.size());
+        if (best == null || best.isEmpty()) {
+            return Optional.empty();
         }
-        return Optional.ofNullable(bestComplete != null ? bestComplete : bestBySize);
+        // Walk the primary block list; complete blocks are added directly, incomplete ones
+        // are substituted from other node directories via a lazily-built fallback map
+        TreeMap<Long, List<Path>> fallbackCandidates = null;
+        final var result = new ArrayList<Block>(best.size());
+        for (final var block : best) {
+            final var items = block.items();
+            if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                result.add(block);
+                continue;
+            }
+            // Incomplete block found; lazily build the fallback map on first occurrence
+            if (fallbackCandidates == null) {
+                log.warn("Found incomplete blocks; falling back to cross-node assembly");
+                fallbackCandidates = collectBlockFilePaths(blockStreamDirs);
+            }
+            final var blockNumber = items.getFirst().blockHeaderOrThrow().number();
+            final var candidates = fallbackCandidates.get(blockNumber);
+            final var replacement = candidates != null ? findFirstCompleteBlock(candidates) : null;
+            if (replacement != null) {
+                result.add(replacement);
+            } else {
+                log.warn("No node has complete block {}; truncating at {} blocks", blockNumber, result.size());
+                break;
+            }
+        }
+        return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 
-    private static boolean hasValidLastBlockProof(@NonNull final List<Block> blocks) {
-        if (blocks.isEmpty()) {
-            return false;
+    /**
+     * Collects block file paths from all node directories, keyed by block number. Used as a
+     * fallback when the primary node has incomplete blocks that need substitution.
+     */
+    private static TreeMap<Long, List<Path>> collectBlockFilePaths(@NonNull final List<Path> blockStreamDirs) {
+        final var candidatesByNumber = new TreeMap<Long, List<Path>>();
+        for (final var dir : blockStreamDirs) {
+            try (final var stream = Files.walk(dir)) {
+                stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(p -> {
+                    final var blockNumber = BlockStreamAccess.extractBlockNumber(p);
+                    if (blockNumber >= 0) {
+                        candidatesByNumber
+                                .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                                .add(p);
+                    }
+                });
+            } catch (IOException e) {
+                log.warn("Failed to walk block stream directory {}", dir, e);
+            }
         }
-        final var lastBlock = blocks.getLast();
-        final var items = lastBlock.items();
-        return !items.isEmpty() && items.getLast().hasBlockProof();
+        return candidatesByNumber;
+    }
+
+    /**
+     * Tries candidate file paths for a given block number, returning the first that parses
+     * to a structurally complete block (one whose last item is a block proof).
+     */
+    @Nullable
+    private static Block findFirstCompleteBlock(@NonNull final List<Path> candidates) {
+        for (final var path : candidates) {
+            try {
+                final var block = BlockStreamAccess.blockFrom(path);
+                final var items = block.items();
+                if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                    return block;
+                }
+            } catch (Exception ignore) {
+                // Try the next candidate
+            }
+        }
+        return null;
     }
 
     private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
