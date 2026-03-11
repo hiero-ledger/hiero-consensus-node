@@ -4,11 +4,6 @@ name: "ZXC: [CITR] Merge Queue Performance Test"
 on:
   workflow_call:
     inputs:
-      test-asset:
-        required: true
-        default: "Dallas_n10"
-        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
-        type: string
       ref:
         required: true
         default: "main"
@@ -94,6 +89,13 @@ jobs:
   merge-queue-performance-tests-start:
     name: Start
     runs-on: hl-cn-mqpt-lin-lg
+    strategy:
+      matrix:
+        cluster: [Dallas_n10, Dallas_n11, Dallas_n12]
+      fail-fast: false
+    concurrency:
+      group: deploy-${{ matrix.cluster }}
+      cancel-in-progress: false
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -121,7 +123,7 @@ jobs:
         run: |
           K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
           grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+          if [[ "${{ matrix.cluster }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
             grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
@@ -210,7 +212,7 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
-          namespaceId="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(\w+[^\d])(\d+)$/')"
+          namespaceId="$(echo "${{ matrix.cluster }}" | perl -ne 'print "$2\n" if /^(\w+[^\d])(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_STEP_SUMMARY}"
@@ -241,7 +243,7 @@ jobs:
 
       - name: Print parameters
         run: |
-          echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "matrix.cluster=${{ matrix.cluster }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -291,7 +293,7 @@ jobs:
 
       - name: Deploy with Solo
         env:
-          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          NAMESPACE_ALIAS: ${{ matrix.cluster }}
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
@@ -374,8 +376,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
           cp -r "podlog_${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ matrix.cluster }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ matrix.cluster }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -398,7 +400,7 @@ jobs:
 
       - name: Prepare NLG parameters
         env:
-          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          NAMESPACE_ALIAS: ${{ matrix.cluster }}
         run: |
           set +x
           set +e
@@ -753,8 +755,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ matrix.cluster }}_${{ github.run_number }}/report/MQPT"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ matrix.cluster }}_${{ github.run_number }}/report/MQPT"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
@@ -854,7 +856,7 @@ jobs:
       - name: Build Rootly Summary
         id: summary
         run: |
-          title="The Merge Queue Performance Test Report failed (MQPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Merge Queue Performance Test Report failed (MQPT ${{ needs.merge-queue-performance-tests-start.outputs.kubernetes-cluster }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
