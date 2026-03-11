@@ -566,13 +566,19 @@ tasks.register<Test>("testRemote") {
 }
 
 val embeddedTasks =
-    setOf("hapiTestCryptoEmbedded", "hapiTestMiscEmbedded", "hapiEmbeddedSimpleFees")
+    setOf(
+        "hapiTestCryptoEmbedded",
+        "hapiTestMiscEmbedded",
+        "hapiEmbeddedSimpleFees",
+        "hapiTestAtomicBatchEmbedded",
+    )
 
 val embeddedBaseTags =
     mapOf(
-        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
+        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO|ATOMIC_BATCH)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
+        "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
     )
 
 val prEmbeddedCheckTags =
