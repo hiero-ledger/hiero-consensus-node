@@ -11,6 +11,7 @@ The current defaults referenced in this document are defined in
 [`GovernanceTransactionsConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/GovernanceTransactionsConfig.java).
 Bootstrap-time configuration is assembled by
 [`BootstrapConfigProviderImpl`](../hedera-app/src/main/java/com/hedera/node/app/config/BootstrapConfigProviderImpl.java).
+The current default value is `ledger.numReservedSystemEntities=750`.
 See also [`system-entities.md`](system-entities.md) for a concise table of the current system account and file numbers.
 
 ## System account roles
@@ -139,7 +140,7 @@ as below.
 treasury account. In particular, a `CryptoUpdate` that changes the key on the
 treasury account always requires the new key to sign.
 
-|                                        Payer                                        | Accounts after `accounts.treasury=2` and up to `ledger.numReservedSystemEntities` |
+|                                        Payer                                        | Accounts after `accounts.treasury=2` and up to `ledger.numReservedSystemEntities=750` |
 |-------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
 | `accounts.treasury=2`                                                               |                                                                                                     X                                                                                                      |
 | `accounts.systemAdmin=50`                                                           |                                                                                                     X                                                                                                      |
