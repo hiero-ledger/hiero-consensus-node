@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
-import static com.hedera.services.bdd.junit.TestTags.WRAPS;
+import static com.hedera.services.bdd.junit.TestTags.CUTOVER;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -25,6 +25,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,17 +33,16 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Validates construction of genesis and incremental WRAPS proofs.
+ * Validates the expected handoff behaviors at an upgrade boundary that enables TSS for the first time.
  */
-@Tag(WRAPS)
+@Tag(CUTOVER)
 @HapiTestLifecycle
 @OrderedInIsolation
-public class WrapsHandoffsTest implements LifecycleTest {
+public class TssCutoverTest implements LifecycleTest {
+    private static final String LEDGER_ID_EXTERNALIZED = "Externalizing ledger id";
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
-    private static final String INCREMENTAL_WRAPS_PROOF_STARTED = "Constructing incremental WRAPS proof";
-    private static final String INCREMENTAL_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing incremental WRAPS proof";
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
-    private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(16);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -66,31 +66,26 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
+    final Stream<DynamicTest> upgradeToEnabledTssExternalizesLedgerIdAndCreatesGenesisWraps() {
         return hapiTest(sourcingContextual(spec -> {
             if (hasWrapsArtifactsPath()) {
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
-                                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
-                                        WRAPS_PROOF_TIMEOUT,
+                                        "tss.hintsEnabled = false",
+                                        Duration.ofMinutes(1),
                                         LOG_POLL_INTERVAL,
                                         () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
                                         })
                                 .loggingOff(),
+                        prepareFakeUpgrade(),
+                        upgradeToNextConfigVersion(Map.of(
+                                "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
-                                        INCREMENTAL_WRAPS_PROOF_STARTED,
-                                        STAKE_PERIOD_DURATION,
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
-                        untilHgcaaLogContainsText(
-                                        byNodeId(0),
-                                        INCREMENTAL_WRAPS_PROOF_CONSTRUCTED,
-                                        WRAPS_PROOF_TIMEOUT.plus(WRAPS_PROOF_TIMEOUT),
+                                        "tss.hintsEnabled = true",
+                                        Duration.ofMinutes(2),
                                         LOG_POLL_INTERVAL,
                                         () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
                                         })
