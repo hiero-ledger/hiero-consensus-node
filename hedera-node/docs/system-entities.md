@@ -1,14 +1,17 @@
 # System entities
 
-The Hedera network reserves the first
-[`ledger.numReservedSystemEntities=1000`](../hedera-mono-service/src/main/resources/bootstrap.properties)
-entity numbers for its own uses.
+The current default IDs for system accounts and files are defined in
+[`AccountsConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/AccountsConfig.java),
+[`FilesConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/FilesConfig.java),
+[`HederaConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/HederaConfig.java), and
+[`LedgerConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/LedgerConfig.java).
+Bootstrap-time configuration is assembled by
+[`BootstrapConfigProviderImpl`](../hedera-app/src/main/java/com/hedera/node/app/config/BootstrapConfigProviderImpl.java).
 
-An account with a number in the reserved range is called a **system account**.
-A file with a number in the reserved range is called a **system file**.
+An account with one of these reserved numbers is called a **system account**.
+A file with one of these reserved numbers is called a **system file**.
 
-The entity numbers for system accounts and files are fixed, for the network,
-in [`bootstrap.properties`](../hedera-mono-service/src/main/resources/bootstrap.properties).
+The tables below capture the current built-in defaults.
 
 See also [`privileged-transactions.md`](privileged-transactions.md) for the semantics of these system entities.
 
@@ -35,10 +38,11 @@ See also [`privileged-transactions.md`](privileged-transactions.md) for the sema
 | `0.0.102`            | `files.nodeDetails`                        |
 | `0.0.111`            | `files.feeSchedules`                       |
 | `0.0.112`            | `files.exchangeRates`                      |
+| `0.0.113`            | `files.simpleFeesSchedules`                |
 | `0.0.121`            | `files.networkProperties`                  |
 | `0.0.122`            | `files.hapiPermissions`                    |
 | `0.0.123`            | `files.throttleDefinitions`                |
-| `0.0.150`..`0.0.159` | `files.softwareUpdate` (range of 10 files) |
+| `0.0.150`..`0.0.159` | `files.softwareUpdateRange`                |
 
 ## System contract addresses
 

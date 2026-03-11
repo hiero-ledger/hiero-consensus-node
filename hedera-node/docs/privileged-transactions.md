@@ -1,16 +1,23 @@
 # System accounts and files
 
-The Hedera network reserves the first
-[`ledger.numReservedSystemEntities=1000`](../hedera-mono-service/src/main/resources/bootstrap.properties)
-entity numbers for its own uses.
-An account with a number in the reserved range is called a **system account**.
-A file with a number in the reserved range is called a **system file**.
+Hedera reserves a low-numbered range of entity IDs for its own uses.
+An account in this reserved range is called a **system account**.
+A file in this reserved range is called a **system file**.
+
+The current defaults referenced in this document are defined in
+[`AccountsConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/AccountsConfig.java),
+[`FilesConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/FilesConfig.java),
+[`LedgerConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/LedgerConfig.java), and
+[`GovernanceTransactionsConfig`](../hedera-config/src/main/java/com/hedera/node/config/data/GovernanceTransactionsConfig.java).
+Bootstrap-time configuration is assembled by
+[`BootstrapConfigProviderImpl`](../hedera-app/src/main/java/com/hedera/node/app/config/BootstrapConfigProviderImpl.java).
+See also [`system-entities.md`](system-entities.md) for a concise table of the current system account and file numbers.
 
 ## System account roles
 
 Certain system accounts have predefined roles in the network.
 
-For the purposes of this document, we care about the the following:
+For the purposes of this document, we care about the following:
 - The **treasury**, which upon network creation receives all minted ℏ except those
 explicitly designated for a network node account.
 - The **address book admin**, used to manage metadata on network nodes
@@ -31,12 +38,11 @@ system delete admin account under certain conditions.
 - The **system admin**, used primarily to manage the keys of the above admin accounts;
 or substitute for them in circumstances where they have been compromised or rendered
 unusable.
-- The **software update admin**, responsible for managing the contents of the software update file (`0.0.150`). Updating `0.0.150` itself does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the file stored in `0.0.150` at time of the freeze/upgrade submission.
+- The **software update admin**, responsible for managing the contents of the software update files (`0.0.150`..`0.0.159`). Updating these files does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the selected update file at the time of freeze/upgrade submission.
 
-The account number that plays each role is set, once, on network startup, by consulting
-the [_bootstrap.properties_](../hedera-node/src/main/resources/bootstrap.properties)
-resource. For example, using the mainnet configuration, the treasury account is account
-`0.0.2` because we have `accounts.treasury=2` in the _bootstrap.properties_.
+The account number that plays each role is set on network startup from the active
+bootstrap configuration. In the default configuration, the treasury account is `0.0.2`
+because `accounts.treasury=2`.
 
 # Privileged transactions
 
@@ -49,7 +55,7 @@ designated in the transaction's `TransactionID`.)
 There are three kinds of privileges,
 1. _Authorization_ - some transaction types, such as `Freeze`, require authorization to submit to the network. All such transactions will be rejected with the status `UNAUTHORIZED` unless they are privileged.
 2. _Waived signing requirements_ - all unprivileged `CryptoUpdate` and `FileUpdate` transactions must be signed with the target entity's key, or they will fail with status `INVALID_SIGNATURE`. The network waives this requirement for certain privileged updates.
-2. _Increased transaction size limit_ - all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive, will have their transaction size limit increased from 6KB to 130KB.
+3. _Increased transaction size limit_ - all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive, will have their transaction size limit increased from 6KB to 130KB.
 
 This document lists the privileged transactions recognized by the Hedera network.
 
@@ -70,37 +76,37 @@ are in development environments, where it can be invaluable for testing.)
 
 |                                            Payer                                            | `Freeze` | `SystemDelete` | `SystemUndelete` | `UncheckedSubmit` |
 |---------------------------------------------------------------------------------------------|:--------:|:--------------:|:----------------:|:-----------------:|
-| [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties)             |    X     |       X        |        X         |         X         |
-| [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties)         |    X     |       X        |        X         |         X         |
-| [`accounts.freezeAdmin=58`](../hedera-node/src/main/resources/bootstrap.properties)         |    X     |                |                  |                   |
-| [`accounts.systemDeleteAdmin=59`](../hedera-node/src/main/resources/bootstrap.properties)   |          |       X        |                  |                   |
-| [`accounts.systemUndeleteAdmin=60`](../hedera-node/src/main/resources/bootstrap.properties) |          |                |        X         |                   |
+| `accounts.treasury=2`                                                                       |    X     |       X        |        X         |         X         |
+| `accounts.systemAdmin=50`                                                                   |    X     |       X        |        X         |         X         |
+| `accounts.freezeAdmin=58`                                                                   |    X     |                |                  |                   |
+| `accounts.systemDeleteAdmin=59`                                                             |          |       X        |                  |                   |
+| `accounts.systemUndeleteAdmin=60`                                                           |          |                |        X         |                   |
 
 ### Authorization privileges for file updates and appends
 
 Next we consider `FileUpdate` and `FileAppend` transactions when targeting one of the system files.
 
-|                                            Payer                                            | [`files.addressBook=101`](../hedera-node/src/main/resources/bootstrap.properties)/[`files.nodeDetails=102`](../hedera-node/src/main/resources/bootstrap.properties) | [`files.networkProperties=121`](../hedera-node/src/main/resources/bootstrap.properties)/[`files.hapiPermissions=122`](../hedera-node/src/main/resources/bootstrap.properties) | [`files.feeSchedules=111`](../hedera-node/src/main/resources/bootstrap.properties) | [`files.exchangeRates=112`](../hedera-node/src/main/resources/bootstrap.properties) | [`files.softwareUpdateZip=150`](../hedera-node/src/main/resources/bootstrap.properties) | [`files.throttleDefinitions=123`](../hedera-node/src/main/resources/bootstrap.properties) |
+|                                            Payer                                            | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.feeSchedules=111` / `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
 |---------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------:|
-| [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties)             |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
-| [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties)         |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
-| [`accounts.softwareUpdateAdmin=54`](../hedera-node/src/main/resources/bootstrap.properties) |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
-| [`accounts.addressBookAdmin=55`](../hedera-node/src/main/resources/bootstrap.properties)    |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                                                                    |                                                                                     |                                                                                         |                                             X                                             |
-| [`accounts.feeSchedulesAdmin=56`](../hedera-node/src/main/resources/bootstrap.properties)   |                                                                                                                                                                     |                                                                                                                                                                               |                                         X                                          |                                                                                     |                                                                                         |                                                                                           |
-| [`accounts.exchangeRatesAdmin=57`](../hedera-node/src/main/resources/bootstrap.properties)  |                                                                                                                                                                     |                                                                                       X                                                                                       |                                                                                    |                                          X                                          |                                                                                         |                                             X                                             |
-| [`accounts.freezeAdmin=58`](../hedera-node/src/main/resources/bootstrap.properties)         |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
+| `accounts.treasury=2`                                                                       |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
+| `accounts.systemAdmin=50`                                                                   |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                         X                                          |                                          X                                          |                                            X                                            |                                             X                                             |
+| `accounts.softwareUpdateAdmin=54`                                                           |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
+| `accounts.addressBookAdmin=55`                                                              |                                                                                  X                                                                                  |                                                                                       X                                                                                       |                                                                                    |                                                                                     |                                                                                         |                                             X                                             |
+| `accounts.feeSchedulesAdmin=56`                                                             |                                                                                                                                                                     |                                                                                                                                                                               |                                         X                                          |                                                                                     |                                                                                         |                                                                                           |
+| `accounts.exchangeRatesAdmin=57`                                                            |                                                                                                                                                                     |                                                                                       X                                                                                       |                                                                                    |                                          X                                          |                                                                                         |                                             X                                             |
+| `accounts.freezeAdmin=58`                                                                   |                                                                                                                                                                     |                                                                                                                                                                               |                                                                                    |                                                                                     |                                            X                                            |                                                                                           |
 
 ### Authorization for crypto updates
 
 For the `CryptoUpdate` transaction, we have the minimal table below. The _only_ target account which
-requires an authorized payer is account number [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties).
+requires an authorized payer is the treasury account, `accounts.treasury=2`.
 (Note that before release 0.10.0, a `CryptoUpdate` targeting _any_ system account required an
 authorized payer. Since 0.10.0 it has been possible to, for example, update `0.0.88` with
 `0.0.12345` as the payer, as long as the key for `0.0.88` signs the transaction.)
 
-|                                      Payer                                      | [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties) |
+|                                      Payer                                      | `accounts.treasury=2` |
 |---------------------------------------------------------------------------------|:-------------------------------------------------------------------------------:|
-| [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties) |                                        X                                        |
+| `accounts.treasury=2`                                                           |                                        X                                        |
 
 ## Waived signing requirements
 
@@ -120,7 +126,7 @@ file.
 The waived signature privileges for `FileUpdate` and `FileAppend` are identical to
 the corresponding authorization privileges in the tables above.
 
-:tipping_hand_person:&nbps; This means that the keys attached to system files are
+:tipping_hand_person:&nbsp; This means that the keys attached to system files are
 purely ornamental, since only authorized payers can update these files---but all
 signing requirements are waived for authorized payers.
 
@@ -133,10 +139,10 @@ as below.
 treasury account. In particular, a `CryptoUpdate` that changes the key on the
 treasury account always requires the new key to sign.
 
-|                                        Payer                                        | Accounts after [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties) and up to [`ledger.numReservedSystemEntities=1000`](../hedera-node/src/main/resources/bootstrap.properties) |
+|                                        Payer                                        | Accounts after `accounts.treasury=2` and up to `ledger.numReservedSystemEntities` |
 |-------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties)     |                                                                                                     X                                                                                                      |
-| [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties) |                                                                                                     X                                                                                                      |
+| `accounts.treasury=2`                                                               |                                                                                                     X                                                                                                      |
+| `accounts.systemAdmin=50`                                                           |                                                                                                     X                                                                                                      |
 
 ## Increased transaction size limit
 
@@ -144,7 +150,7 @@ This class of privileges applies to all transactions that are paid by either the
 
 |                                                   Payer                                                   | All transaction types have their size limit increased to 130KB |
 |-----------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
-| [`governanceTransactions.accountsRange=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties) |                               X                                |
+| `governanceTransactions.accountsRange=2,42-799`                                                           |                               X                                |
 
 # Miscellanea
 
