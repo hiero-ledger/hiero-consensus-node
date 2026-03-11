@@ -459,6 +459,30 @@ class AddressBookValidatorTest {
     }
 
     @Test
+    void registeredEndpointRejectsDomainWithLeadingWhitespace() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName(" block.example.com")
+                .port(8080)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsDomainWithTrailingWhitespace() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .domainName("block.example.com ")
+                .port(8080)
+                .blockNode(blockNodeEndpointType())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT_ADDRESS, e.getStatus());
+    }
+
+    @Test
     void registeredEndpointAcceptsMirrorNodeType() {
         final var endpoint = RegisteredServiceEndpoint.newBuilder()
                 .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))

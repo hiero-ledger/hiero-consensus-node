@@ -320,32 +320,21 @@ public class AddressBookValidator {
     }
 
     private boolean isValidAsciiFqdn(@Nullable final String domain, final int maxFqdnSize) {
-        if (domain == null) {
+        if (domain == null || domain.isEmpty()) {
             return false;
         }
-        final var trimmed = domain.trim();
-        if (trimmed.isEmpty()) {
+        if (domain.length() > maxFqdnSize || domain.length() > 253) {
             return false;
-        }
-        if (trimmed.length() > maxFqdnSize) {
-            return false;
-        }
-        // ASCII only
-        for (int i = 0; i < trimmed.length(); i++) {
-            if (trimmed.charAt(i) < 0x20 || trimmed.charAt(i) > 0x7F) {
-                return false;
-            }
         }
 
-        // Basic DNS label rules: labels 1..63, overall <=253, only [A-Za-z0-9-], no leading/trailing '-'
-        if (trimmed.length() > 253) {
+        // Strip optional trailing dot (absolute FQDN notation) before label validation
+        final var toValidate = domain.endsWith(".") ? domain.substring(0, domain.length() - 1) : domain;
+        if (toValidate.isEmpty()) {
             return false;
         }
-        if (trimmed.endsWith(".")) {
-            // Allow a trailing dot by stripping it for label validation
-            return isValidAsciiFqdn(trimmed.substring(0, trimmed.length() - 1), maxFqdnSize);
-        }
-        final var labels = trimmed.split("\\.");
+
+        // DNS label rules: labels 1..63 chars, only [A-Za-z0-9-], no leading/trailing '-'
+        final var labels = toValidate.split("\\.");
         if (labels.length == 0) {
             return false;
         }
