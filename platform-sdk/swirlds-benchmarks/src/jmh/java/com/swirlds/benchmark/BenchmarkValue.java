@@ -79,7 +79,7 @@ public class BenchmarkValue {
 
     public static final class Builder {
 
-        private byte[] valueBytes;
+        private final byte[] valueBytes;
 
         public Builder(final BenchmarkValue value) {
             this.valueBytes = Arrays.copyOf(value.valueBytes, value.valueBytes.length);
@@ -93,7 +93,9 @@ public class BenchmarkValue {
         }
 
         public BenchmarkValue build() {
-            return new BenchmarkValue(valueBytes);
+            BenchmarkValue value = new BenchmarkValue();
+            value.valueBytes = valueBytes;
+            return value;
         }
     }
 }
