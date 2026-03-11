@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 public class HappyPathTest {
 
     @Test
-    void flakyTestA() {
+    void flakyTest1() {
         // This test is intentionally flaky to verify that the framework correctly reports flaky tests.
         // It will fail approximately 50% of the time.
         if (Math.random() < 0.5) {
@@ -34,7 +34,7 @@ public class HappyPathTest {
     }
 
     @Test
-    void flakyTestB() {
+    void flakyTest2() {
         // This test is intentionally flaky to verify that the framework correctly reports flaky tests.
         // It will fail approximately 50% of the time.
         if (Math.random() < 0.5) {
