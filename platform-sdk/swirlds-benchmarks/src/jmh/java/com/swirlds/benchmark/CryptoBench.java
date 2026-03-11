@@ -313,13 +313,13 @@ public class CryptoBench extends VirtualMapBench {
         });
     }
 
-    static class ParallelTask extends AbstractTask {
+    static class WarmupTask extends AbstractTask {
 
         VirtualMap currentMap;
         long key1, key2;
-        SequentialTask out;
+        TransferTask out;
 
-        ParallelTask(ForkJoinPool pool, VirtualMap currentMap, long key1, long key2, SequentialTask out) {
+        WarmupTask(ForkJoinPool pool, VirtualMap currentMap, long key1, long key2, TransferTask out) {
             super(pool, 1);
             this.currentMap = currentMap;
             this.key1 = key1;
@@ -343,18 +343,18 @@ public class CryptoBench extends VirtualMapBench {
         }
     }
 
-    class SequentialTask extends AbstractTask {
+    class TransferTask extends AbstractTask {
 
         VirtualMap currentMap;
         Bytes sender;
         Bytes receiver;
         long amount;
-        SequentialTask next;
+        TransferTask next;
 
-        SequentialTask(ForkJoinPool pool, VirtualMap currentMap, long amount) {
+        TransferTask(ForkJoinPool pool, VirtualMap currentMap) {
             super(pool, 3);
             this.currentMap = currentMap;
-            this.amount = amount;
+            this.amount = Utils.randomLong(MAX_AMOUNT);
         }
 
         void update(Bytes key, long amount) {
@@ -382,7 +382,7 @@ public class CryptoBench extends VirtualMapBench {
             t.printStackTrace();
         }
 
-        void send(SequentialTask next) {
+        void send(TransferTask next) {
             this.next = next;
             send();
         }
@@ -421,12 +421,15 @@ public class CryptoBench extends VirtualMapBench {
         long startTime = System.currentTimeMillis();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
-        SequentialTask prevTask = null;
-        SequentialTask currentTask = new SequentialTask(pool, virtualMap, Utils.randomLong(MAX_AMOUNT));
-        currentTask.send();
         for (int i = 1; i <= numFiles; ++i) {
             // Generate a new set of random keys
             generateKeySet(keys);
+
+            TransferTask prevTask = null;
+            TransferTask currentTask = new TransferTask(pool, virtualMap);
+            // This is the very first task in a daisy chain of sequential TransferTasks,
+            // emulate its resolved dependency from the non-existent previous task
+            currentTask.send();
 
             for (int j = 0; j < numRecords; ++j) {
                 long keyId1 = keys[j * KEYS_PER_RECORD];
@@ -439,16 +442,16 @@ public class CryptoBench extends VirtualMapBench {
                     map[FIXED_KEY_ID2] += 1;
                 }
 
-                new ParallelTask(pool, virtualMap, keyId1, keyId2, currentTask).send();
-                SequentialTask nextTask = new SequentialTask(pool, virtualMap, Utils.randomLong(MAX_AMOUNT));
+                new WarmupTask(pool, virtualMap, keyId1, keyId2, currentTask).send();
+                TransferTask nextTask = new TransferTask(pool, virtualMap);
                 currentTask.send(nextTask);
                 prevTask = currentTask;
                 currentTask = nextTask;
             }
+            // currentTask has no associated TransferTask, can be silently dropped
             prevTask.join();
 
             virtualMap = copyMap(virtualMap);
-            currentTask.currentMap = virtualMap;
 
             // Report TPS
             final long curTime = System.currentTimeMillis();
