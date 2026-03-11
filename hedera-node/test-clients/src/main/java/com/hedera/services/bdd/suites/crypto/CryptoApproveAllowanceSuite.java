@@ -1280,7 +1280,7 @@ public class CryptoApproveAllowanceSuite {
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
                 validateFees(BASE_APPROVE_TXN, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.050392, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)

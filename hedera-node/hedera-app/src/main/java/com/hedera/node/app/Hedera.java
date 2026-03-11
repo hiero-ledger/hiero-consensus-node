@@ -28,6 +28,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTim
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -64,6 +65,7 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
@@ -312,6 +314,13 @@ public final class Hedera
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+
+    /**
+     * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
+     * SystemTransactions (state write) via Dagger.
+     */
+    private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
+            new WrappedRecordBlockHashMigration();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -570,6 +579,13 @@ public final class Hedera
         return version;
     }
 
+    /**
+     * Returns the shared {@link WrappedRecordBlockHashMigration} instance.
+     */
+    public WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration() {
+        return wrappedRecordBlockHashMigration;
+    }
+
     /*==================================================================================================================
     *
     * Initialization Step 1: Create a new state (either genesis or restart, once per node).
@@ -770,6 +786,10 @@ public final class Hedera
         logger.info("Initializing Hedera app with HederaNode#{}", selfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
+
+        // It is possible a network interrupt could make a node reconnect in a window where
+        // the hinTS signing scheme was ; so we clear the cached assets just-in-case
+        HintsLibraryBridge.getInstance().resetCache();
     }
 
     /**
@@ -1272,6 +1292,7 @@ public final class Hedera
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
+                .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

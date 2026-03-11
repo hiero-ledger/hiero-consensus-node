@@ -61,5 +61,5 @@ message RecordFileSignature {
    * A unique node identifier.<br/>
    * This is the node id of the consensus node that created this signature.
    */
-  uint32 node_id = 2;
+  uint64 node_id = 2;
 }

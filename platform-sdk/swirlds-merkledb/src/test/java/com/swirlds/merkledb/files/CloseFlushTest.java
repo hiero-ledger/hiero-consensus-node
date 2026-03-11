@@ -14,7 +14,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -63,8 +62,9 @@ public class CloseFlushTest {
         final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
-            final VirtualDataSource dataSource =
-                    TestType.long_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, 0, false, true);
+            final VirtualDataSource dataSource = TestType.long_fixed
+                    .dataType()
+                    .createDataSource(CONFIGURATION, storeDir, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
@@ -141,7 +141,7 @@ public class CloseFlushTest {
                 public void saveRecords(
                         final long firstLeafPath,
                         final long lastLeafPath,
-                        @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                        @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
                         @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                         @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                         final boolean isReconnectContext) {
@@ -149,7 +149,7 @@ public class CloseFlushTest {
                         delegate.saveRecords(
                                 firstLeafPath,
                                 lastLeafPath,
-                                pathHashRecordsToUpdate,
+                                hashChunksToUpdate,
                                 leafRecordsToAddOrUpdate,
                                 leafRecordsToDelete,
                                 isReconnectContext);
@@ -174,8 +174,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public Hash loadHash(final long path) throws IOException {
-                    return delegate.loadHash(path);
+                public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+                    return delegate.loadHashChunk(chunkId);
                 }
 
                 @Override
@@ -193,12 +193,19 @@ public class CloseFlushTest {
                     delegate.registerMetrics(metrics);
                 }
 
+                @Override
                 public long getFirstLeafPath() {
                     return delegate.getFirstLeafPath();
                 }
 
+                @Override
                 public long getLastLeafPath() {
                     return delegate.getLastLeafPath();
+                }
+
+                @Override
+                public int getHashChunkHeight() {
+                    return delegate.getHashChunkHeight();
                 }
 
                 @Override
