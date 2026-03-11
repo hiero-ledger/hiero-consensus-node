@@ -21,6 +21,7 @@ public class TestTags {
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
+    public static final String CUTOVER = "CUTOVER";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
      * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.

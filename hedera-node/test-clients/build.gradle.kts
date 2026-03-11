@@ -77,6 +77,7 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestWraps" to "WRAPS",
+        "hapiTestCutover" to "CUTOVER",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
@@ -87,7 +88,7 @@ val basePrCheckTags =
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial", "hapiTestWraps")
+    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial", "hapiTestWraps", "hapiTestCutover")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -128,6 +129,7 @@ val prCheckStartPorts =
         put("hapiTestTimeConsuming", "26200")
         put("hapiTestWraps", "26300")
         put("hapiTestIss", "26400")
+        put("hapiTestCutover", "26600")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
@@ -172,6 +174,10 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8,staking.periodMins=16",
         )
         put(
+            "hapiTestCutover",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
+        )
+        put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
@@ -196,9 +202,10 @@ val prCheckPrepareUpgradeOffsets =
             if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
-val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps")
+val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be in CI and set it here
-val prCheckTssLibWrapsArtifactsPaths = mapOf("hapiTestWraps" to "/Users/michaeltinker/misc/wraps-v0.2.0")
+val prCheckTssLibWrapsArtifactsPaths =
+    mapOf("hapiTestWraps" to "", "hapiTestCutover" to "/Users/michaeltinker/misc/wraps-v0.2.0")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
