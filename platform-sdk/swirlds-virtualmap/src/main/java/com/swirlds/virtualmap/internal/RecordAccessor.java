@@ -6,6 +6,7 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -15,7 +16,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Utility class that provides access to virtual records. Recently updated virtual records
@@ -28,6 +28,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 public final class RecordAccessor {
 
     private final VirtualMapMetadata state;
+    private final int hashChunkHeight;
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
 
@@ -36,6 +37,8 @@ public final class RecordAccessor {
      *
      * @param state
      * 		The state. Cannot be null.
+     * @param hashChunkHeight
+     *      Hash chunk height
      * @param cache
      * 		The cache. Cannot be null.
      * @param dataSource
@@ -43,11 +46,35 @@ public final class RecordAccessor {
      */
     public RecordAccessor(
             @NonNull final VirtualMapMetadata state,
+            final int hashChunkHeight,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
+        this.hashChunkHeight = hashChunkHeight;
         this.cache = Objects.requireNonNull(cache);
         this.dataSource = dataSource;
+    }
+
+    public int getHashChunkHeight() {
+        return this.hashChunkHeight;
+    }
+
+    public Hash rootHash() {
+        VirtualHashChunk rootChunk = cache.lookupHashChunkById(0);
+        if (rootChunk == null) {
+            try {
+                rootChunk = dataSource.loadHashChunk(0);
+            } catch (final IOException e) {
+                throw new UncheckedIOException("Failed to read root hash chunk from data source", e);
+            }
+        }
+        assert rootChunk != null;
+        final long size = state.getSize();
+        if (size >= 1) {
+            return rootChunk.chunkRootHash(state.getFirstLeafPath(), state.getLastLeafPath());
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -64,38 +91,45 @@ public final class RecordAccessor {
      */
     @Nullable
     public Hash findHash(final long path) {
-        assert path >= 0;
-        final Hash hash = cache.lookupHashByPath(path);
-        if (hash != null) {
-            return hash;
+        assert path > 0;
+        if ((path <= 0) || (path > state.getLastLeafPath())) {
+            return null;
+        }
+        final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
+        if (hashChunk != null) {
+            return hashChunk.calcHash(path, state.getFirstLeafPath(), state.getLastLeafPath());
         }
         try {
-            return dataSource.loadHash(path);
+            hashChunk = dataSource.loadHashChunk(chunkId);
+            if (hashChunk != null) {
+                return hashChunk.calcHash(path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read node hash from data source by path", e);
         }
+        return null;
     }
 
     /**
-     * Looks up a virtual node hash for a given path. If the hash is found, writes it to a
-     * specified output stream.
-     *
-     * <p>Written bytes must be 100% identical to how hashes are serialized using {@link
-     * Hash#serialize(SerializableDataOutputStream)} method.
-     *
-     * @param path Virtual node path
-     * @param out Output stream to write the hash to
-     * @return If the hash is found and written to the stream
-     * @throws IOException If an I/O error occurred
+     * Looks up a virtual hash chunk at the given chunk path.
      */
-    public boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException {
-        assert path >= 0;
-        final Hash hash = cache.lookupHashByPath(path);
-        if (hash != null) {
-            hash.serialize(out);
-            return true;
+    public VirtualHashChunk findHashChunk(final long chunkPath) {
+        assert chunkPath >= 0;
+        if ((chunkPath < 0) || (chunkPath > state.getLastLeafPath())) {
+            return null;
         }
-        return dataSource.loadAndWriteHash(path, out);
+        final long chunkId = VirtualHashChunk.chunkPathToChunkId(chunkPath, hashChunkHeight);
+        VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
+        if (hashChunk != null) {
+            return hashChunk;
+        }
+        try {
+            hashChunk = dataSource.loadHashChunk(chunkId);
+            return hashChunk;
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to read node hash from data source by path", e);
+        }
     }
 
     /**
