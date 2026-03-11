@@ -118,7 +118,7 @@ going into upcoming release.
 #### As a developer, I would like to merge my feature branch or bug fix for the upcoming release
 
 Open a pull request (PR) from the feature branch to `main` branch and add `hiero-ledger/hiero-consensus-node-<team>-codeowners` as reviewers.
-Team is one of `[consensus, execution, foundatiaon, smart-contracts]`.
+Team is one of `[consensus, execution, foundation, smart-contracts]`.
 
 Also add the following labels on the PR :
 
