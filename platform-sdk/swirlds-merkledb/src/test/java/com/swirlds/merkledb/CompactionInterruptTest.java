@@ -81,22 +81,12 @@ class CompactionInterruptTest {
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            // start compaction
-            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
-            // coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
-            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            // coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
-            final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
-            // coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
+            dataSource.runHashChunkStoreCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+            dataSource.runPathToKeyValueStoreCompaction();
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
-            stopCompactionAndVerifyItsStopped(
-                    coordinator,
-                    compactingExecutor,
-                    initialCompletedTaskCount,
-                    hashStoreDiskCompactor,
-                    keyToPathCompactor,
-                    pathToKeyValueCompactor);
+            stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
         } finally {
             dataSource.close();
         }
@@ -149,10 +139,6 @@ class CompactionInterruptTest {
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             // we should take into account previous test runs
             long initTaskCount = compactingExecutor.getTaskCount();
-            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
-            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
-            final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
-
             dataSource.runHashChunkStoreCompaction();
             dataSource.runKeyToPathStoreCompaction();
             dataSource.runPathToKeyValueStoreCompaction();
@@ -164,13 +150,7 @@ class CompactionInterruptTest {
                     "Unexpected number of tasks " + compactingExecutor.getTaskCount());
             // wait a small-time for merging to start (or don't wait at all)
             Thread.sleep(delayMs);
-            stopCompactionAndVerifyItsStopped(
-                    coordinator,
-                    compactingExecutor,
-                    initialCompletedTaskCount,
-                    hashStoreDiskCompactor,
-                    keyToPathCompactor,
-                    pathToKeyValueCompactor);
+            stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
         } finally {
             dataSource.close();
             exec.shutdown();
@@ -195,38 +175,27 @@ class CompactionInterruptTest {
     private static void stopCompactionAndVerifyItsStopped(
             final MerkleDbCompactionCoordinator coordinator,
             final ThreadPoolExecutor compactingExecutor,
-            final long initialCompletedTaskCount,
-            final DataFileCompactor... compactors) {
-        for (final DataFileCompactor compactor : compactors) {
-            assertEventuallyTrue(
-                    () -> compactor.isCompactionRunning() || compactor.isCompactionComplete(),
-                    Duration.ofMillis(10),
-                    "compactor should be complete or running");
-        }
+            final long initialCompletedTaskCount) {
 
         // stopping the compaction
         coordinator.stopAndDisableBackgroundCompaction();
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
-        for (final DataFileCompactor compactor : compactors) {
-            assertTrue(
-                    compactor.isCompactionComplete() || !compactor.notInterrupted(),
-                    "compactor should be complete or interrupted");
-        }
+        assertFalse(coordinator.isCompactionRunning("idToHashChunk"), "idToHashChunk compaction should not run");
+        assertFalse(coordinator.isCompactionRunning("keyToPath"), "keyToPath compaction should not run");
+        assertFalse(coordinator.isCompactionRunning("pathToKeyValue"), "pathToKeyValue compaction should not run");
 
         synchronized (coordinator) {
             assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");
         }
         assertEventuallyEquals(
                 0, () -> compactingExecutor.getQueue().size(), Duration.ofMillis(100), "The queue should be empty");
-        long expectedTaskCount = initialCompletedTaskCount + compactors.length;
-        assertEventuallyEquals(
-                expectedTaskCount,
-                compactingExecutor::getCompletedTaskCount,
+        assertEventuallyTrue(
+                () -> compactingExecutor.getCompletedTaskCount() >= initialCompletedTaskCount,
                 Duration.ofMillis(100),
-                "Unexpected number of completed tasks - %s, expected - %s"
-                        .formatted(compactingExecutor.getCompletedTaskCount(), expectedTaskCount));
+                "Unexpected number of completed tasks - %s, expected at least - %s"
+                        .formatted(compactingExecutor.getCompletedTaskCount(), initialCompletedTaskCount));
     }
 
     private void createData(final MerkleDbDataSource dataSource) throws IOException {

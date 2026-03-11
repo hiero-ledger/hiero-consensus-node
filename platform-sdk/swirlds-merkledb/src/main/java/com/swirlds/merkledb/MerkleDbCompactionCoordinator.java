@@ -247,7 +247,11 @@ class MerkleDbCompactionCoordinator {
             return;
         }
 
-        final Set<Integer> levels = scanResultsByStore.get(storeName).keySet();
+        final Map<Integer, List<DataFileReader>> readersByLevel = scanResultsByStore.get(storeName);
+        if (readersByLevel == null || readersByLevel.isEmpty()) {
+            return;
+        }
+        final Set<Integer> levels = readersByLevel.keySet();
 
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
         for (final int level : levels) {
