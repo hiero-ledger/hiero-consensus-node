@@ -256,7 +256,10 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        final PlatformEvent platformEvent =
+                new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        platformEvent.setTimeReceived(time.now());
+        return platformEvent;
     }
 
     /**
@@ -319,6 +322,9 @@ public class TipsetEventCreator implements EventCreator {
         if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
+            if (selflessParent == null) {
+                return null;
+            }
             // if we already contain that event, everything is good
             if (!contains(chosenBestParents, selflessParent)) {
                 // otherwise, replace the least important parent with one we have chosen to reduce selfishness
@@ -363,7 +369,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @NonNull PlatformEvent selectParentToReduceSelfishness() {
+    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -546,7 +552,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        allParents.stream().map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(p -> p == selfParent ? p.getTimeCreated() : p.getTimeReceived()),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams
