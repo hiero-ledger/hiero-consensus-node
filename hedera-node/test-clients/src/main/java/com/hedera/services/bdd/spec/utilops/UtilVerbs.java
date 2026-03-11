@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.ex
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
+import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
@@ -822,6 +823,7 @@ public class UtilVerbs {
         return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), timeout, ACTIVE), doingContextual(spec -> {
             if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.refreshClients();
+                subProcessNetwork.awaitLedgerId(LEDGER_ID_TIMEOUT);
             }
         }));
     }

@@ -66,7 +66,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null, null);
 
         assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
@@ -110,7 +110,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null, null);
 
         assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
@@ -133,7 +133,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null, null);
 
         final var removedNodeIds = activeRosters.removedNodeIds().stream().toList();
         assertEquals(List.of(4L), removedNodeIds);
@@ -167,7 +167,21 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> true, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> true, null, null);
+
+        assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
+        assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
+        assertSame(A_ROSTER, activeRosters.targetRoster());
+    }
+
+    @Test
+    void detectsCutoverBootstrap() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> true, null, null);
 
         assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
@@ -182,7 +196,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
         BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
 
-        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> true);
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> true, Bytes.EMPTY);
 
         assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
@@ -194,7 +208,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
 
-        assertThrows(NullPointerException.class, () -> ActiveRosters.from(rosterStore, true, () -> false, null));
+        assertThrows(NullPointerException.class, () -> ActiveRosters.from(rosterStore, true, () -> false, null, null));
     }
 
     @Test
@@ -204,7 +218,7 @@ class ActiveRostersTest {
         BDDMockito.given(rosterStore.get(B_ROSTER_HASH)).willReturn(B_ROSTER);
         final var explicitSourceWeights = new TreeMap<Long, Long>(Map.of(1L, 11L, 2L, 22L));
 
-        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var activeRosters = ActiveRosters.from(rosterStore, false, () -> false, null, null);
         final var weights = activeRosters.transitionWeights(explicitSourceWeights);
 
         assertSame(explicitSourceWeights, weights.sourceNodeWeights());
