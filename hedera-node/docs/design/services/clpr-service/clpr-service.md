@@ -50,8 +50,9 @@ Hiero." When describing the public mainnet specifically, it uses "Hedera."
 - **Endpoint** — A node responsible for periodically communicating with peer ledger endpoints to exchange configurations
   and messages.
 - **Connection** — An on-ledger entity representing one side of a peer relationship between the local ledger and a
-  specific remote ledger. Maintains the queue of outbound messages that have not yet been acknowledged by the peer
-  ledger.
+  specific remote CLPR Service instance. Identified by the compound key `(ChainID, ServiceAddress)` — because multiple
+  CLPR Service instances may exist on the same chain. Maintains the queue of outbound messages that have not yet been
+  acknowledged by the peer.
 - **Connector** — An economic entity that provides access to a Connection. A Connector is a separate contract that holds
   balances of native tokens on each ledger, authorizes messages on the source ledger, and pays for message execution on
   the destination ledger. Multiple Connectors may serve the same Connection. Connectors are subject to slashing for
@@ -150,9 +151,11 @@ software; on Ethereum it is a smart contract deployed on-chain.
 
 - **Local configuration** — The `ClprLedgerConfiguration` describing this ledger: its `ChainID`, approved verifier
   contracts, and throttle parameters. There is exactly one local configuration per CLPR Service instance.
-- **Connections** — One `ClprConnection` per peer ledger. Each Connection holds the peer's `ChainID`, the peer's
-  last-known configuration timestamp, the verifier contract used to verify inbound proofs from that peer, all message
-  queue metadata, and the endpoint roster for that peer.
+- **Connections** — One `ClprConnection` per peer CLPR Service instance, keyed by the compound identity
+  `(ChainID, ServiceAddress)`. Multiple Connections may share a `ChainID` if they represent different CLPR Service
+  deployments on the same chain. Each Connection holds the peer's identity, the peer's last-known configuration
+  timestamp, the verifier contract used to verify inbound proofs from that peer, all message queue metadata, and the
+  endpoint roster for that peer.
 - **Locked funds** — Balances posted by endpoints (bonds held against misbehavior) and Connectors (funds held to pay for
   message execution on arrival). The CLPR Service is the custodian of these funds and the sole authority for releasing
   or slashing them.
@@ -193,8 +196,15 @@ guarantees authenticity regardless of who submits it.
 
 Every ledger is identified by its `ChainID`, which is
 a [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) chain identifier string of the form
-`namespace:reference`. This represents the ledger's public identity and is unique among all connections within a single
-CLPR Service.
+`namespace:reference`. This identifies the chain but does **not** uniquely identify a CLPR Service instance — multiple
+CLPR Service deployments may exist on the same chain (e.g., two competing CLPR Service contracts on Ethereum, both
+claiming `eip155:1`).
+
+A peer is uniquely identified by the compound key **`(ChainID, ServiceAddress)`**, where `ServiceAddress` is the
+on-ledger address of the peer's CLPR Service (a contract address on EVM chains, a well-known constant on Hiero where
+the CLPR Service is native). The `ChainID` comes from the configuration; the `ServiceAddress` is extracted from the
+ZK proof at connection registration (the proof attests to state at a specific contract address). Connections are keyed
+by this compound identity, and applications must specify both when targeting a specific peer.
 
 **Examples:**
 
@@ -210,38 +220,64 @@ For public networks, the namespace and reference SHOULD correspond to a register
 permissioned networks (e.g. HashSphere deployments), operators MAY self-assign a `ChainID` using an unregistered
 namespace; uniqueness within the deployment is the operator's responsibility.
 
-> ‼️ Anyone could maliciously construct a ledger configuration using any `ChainID` of their choosing. Either the CLPR
-Service requires an admin to vet new connections, or users of CLPR must vet those connections to make sure they are
-using the **correct** connection for their ledger of choice.
+> ‼️ Anyone could maliciously construct a ledger configuration using any `ChainID` of their choosing. Because Connection
+creation is permissionless (see §3.1.3), applications that use CLPR **must** independently verify that they are
+interacting with the correct Connection for their intended peer ledger. A Connection existing on a ledger does not mean
+the peer is legitimate — it only means someone posted a deposit and provided a valid ZK proof of verifier endorsement.
+
+> ‼️ **Trust model.** Connecting to a peer ledger via CLPR means trusting not only the peer ledger's consensus mechanism
+but also the **admin of the peer ledger's CLPR Service**. The CLPR Service admin controls which verifier implementations
+are endorsed in `ApprovedVerifiers`. If the admin is compromised or malicious, they can endorse a fraudulent verifier
+that returns fabricated data — and the ZK proof of endorsement will faithfully prove that fraudulent endorsement. On
+Hedera, the CLPR Service admin is the governing council (strong security). On Ethereum, it is whoever controls the CLPR
+Service contract (which should use multisig governance — see §7). On a private HashSphere, it is whoever deployed the
+network. **Before connecting to any peer ledger, evaluate the security of its CLPR Service admin, not just its consensus.**
 
 ---
 
 **ApprovedVerifiers**
 
-The `ApprovedVerifiers` field is a map from `ChainID` to a verifier contract address on that chain. It declares: "if
-you are on chain X and want to verify my proofs, use the verifier contract at this address." This field is part of the
-ledger's provable state.
+The `ApprovedVerifiers` field is a map from a **verifier type label** to an **implementation fingerprint** (a hash of
+the verifier's deployed code). It declares: "if you want to verify my proofs, deploy a verifier whose code matches one
+of these fingerprints." This field is part of the ledger's provable state.
+
+The verifier type label is a human-readable identifier for a platform-specific implementation — e.g.,
+`HederaProofs-EVM`, `HederaProofs-Hiero`, `HederaProofs-Solana`. All entries verify the **same proof format** (the
+source ledger generates one kind of proof); the label distinguishes implementations for different target platforms. It
+has no protocol-level semantics; the implementation fingerprint is what matters for verification.
+
+The implementation fingerprint is chain-agnostic in concept but chain-specific in mechanism. On EVM chains it is the
+`EXTCODEHASH` of the deployed verifier contract. On Hiero it is the hash of the system contract bytecode. On other
+platforms (e.g., Solana) it is whatever mechanism that platform provides to verify deployed program code against a known
+hash. The CLPR protocol requires only that the receiving ledger can verify "the deployed verifier's code matches the
+endorsed fingerprint" — the specific mechanism is a per-platform implementation detail.
 
 For example, Hedera's configuration might contain:
 
 ```
 ApprovedVerifiers {
-  "eip155:1":        "0xABC..."      // Ethereum mainnet: use this EVM contract to verify Hedera proofs
-  "eip155:11155111": "0xDEF..."      // Ethereum Sepolia: use this EVM contract to verify Hedera proofs
-  "hashsphere:example":  "0x123..."  // HashSphere: use this Hiero contract to verify Hedera Mainnet proofs
+  "HederaProofs-EVM":    0xA1B2C3...   // for EVM chains: verifies Hedera TSS proofs in Solidity
+  "HederaProofs-Hiero":  0xD4E5F6...   // for Hiero chains: verifies Hedera TSS proofs as native callback
+  "HederaProofs-Solana": 0x789ABC...   // for Solana: verifies Hedera TSS proofs as BPF program
 }
 ```
 
-Each entry represents a verifier contract that the source ledger has deployed (or endorses) on the target chain. The
-source ledger's admin is responsible for deploying these verifier contracts and registering their addresses in the
-configuration. This gives each ledger full control over how its proofs are verified on other chains — without requiring
-any administrative action on the receiving chain.
+Each entry represents a verifier *implementation* that the source ledger endorses for verifying its proofs. The source
+ledger's admin is responsible for building, auditing, and publishing these verifier implementations and registering
+their fingerprints in the configuration. Any peer ledger can independently deploy the endorsed code and use it — without
+requiring any administrative action on the receiving chain or any prior relationship between the two ledgers.
 
-When a Connection is registered on a receiving ledger, the verifier contract proves its own legitimacy: the proof bytes
-it verifies include the source ledger's configuration, and the CLPR Service checks that the configuration's
-`ApprovedVerifiers` map endorses the verifier contract's address on the local chain. A rogue verifier contract deployed
-by an unauthorized party cannot pass this check, because the source ledger's authentic state will not endorse it. See
-§3.1.3 for the full bootstrap flow.
+When a Connection is registered on a receiving ledger, the CLPR Service verifies the verifier's legitimacy via ZK
+proof: the proof attests that the source ledger's `ApprovedVerifiers` contains an entry whose implementation fingerprint
+matches the locally deployed verifier's code hash. A rogue verifier deployed by an unauthorized party cannot pass this
+check, because its code hash will not match any fingerprint in the source ledger's authentic state. See §3.1.3 for the
+full bootstrap flow.
+
+> 💡 **Private networks.** This design allows a private HashSphere to connect to Hedera Mainnet without any action by
+Hedera's governing council. The HashSphere admin deploys the endorsed Hedera verifier code locally, registers a
+Connection with a ZK proof of endorsement, and begins syncing. Hedera never needs to know the HashSphere exists. For the
+reverse direction (Hedera verifying HashSphere proofs), anyone can deploy the HashSphere's endorsed verifier on Hedera
+and register the Connection — again without council involvement.
 
 ---
 
@@ -267,7 +303,7 @@ avoid wasteful duplication. The problem it addresses is redundancy: on Ethereum,
 receiving the same sync simultaneously may each independently construct and submit a transaction to the mempool,
 potentially incurring gas costs even if duplicates are rejected. A sending ledger that respects `MaxSyncsPerSec` can
 pace its endpoints to reduce this. Endpoints that persistently violate this hint are subject to shunning and eviction —
-see §3.1.5.6.
+see §3.1.6.
 
 ### 3.1.2 Endpoint Roster
 
@@ -294,7 +330,7 @@ connection:
 - **EndpointJoin** — Announces a new endpoint joining the roster. Carries the endpoint's signing certificate, service
   endpoint, and account ID.
 - **EndpointLeave** — Announces an endpoint's departure. Carries the departing endpoint's account ID. Sent by the
-  protocol when an endpoint is removed due to confirmed misbehavior (§3.1.5.6) or by an authorized governance action on
+  protocol when an endpoint is removed due to confirmed misbehavior (§3.1.6) or by an authorized governance action on
   the ledger.
 
 Each receiving ledger's CLPR Service is responsible for applying these updates to its local copy of the peer roster and
@@ -317,90 +353,141 @@ registration method on the CLPR Service contract and posting a bond (ETH locked 
 remove themselves by calling a deregistration method. There is no automatic synchronization with the Ethereum validator
 set — endpoint participation is explicitly managed through contract calls.
 
+> ‼️ **Sybil resistance.** On ledgers where endpoint registration is open (e.g., Ethereum), the endpoint bond must be
+large enough to make Sybil attacks economically infeasible. An attacker who registers many cheap endpoints can eclipse
+honest endpoints — controlling which bundles get submitted and enabling censorship or selective delay. The bond size
+should be calibrated so that controlling a majority of endpoints costs more than the value that could be extracted
+through censorship. Additionally, peer endpoint selection during sync should incorporate randomization to prevent
+persistent pairing, and endpoint reputation scoring (see §6.2) can help honest endpoints preferentially select reliable
+peers. On Hiero, where all consensus nodes are automatically endpoints, Sybil resistance is inherited from the
+network's stake-weighted consensus.
+
 ### 3.1.3 Establishing and Updating Connections
+
+Connection creation is **permissionless**. Anyone can register a new Connection by deploying a verifier contract,
+posting a deposit, and providing a ZK proof that the source ledger endorses the verifier. No admin approval is required.
+The local admin retains the power to **sever** any Connection at any time (see below).
 
 ```mermaid
 sequenceDiagram
     participant User as Any User (Caller)
     participant VA as Verifier (on Ledger B, for A's proofs)
-    participant LA as Ledger A (CLPR Service)
+    participant ZK as Built-in ZK Verifier (Ledger B)
     participant LB as Ledger B (CLPR Service)
 
-    Note over User,LB: Precondition: Ledger A has deployed a verifier contract on Ledger B
-    Note over User,LB: and registered its address in A's ApprovedVerifiers config
+    Note over User,LB: Preconditions:
+    Note over User,LB: 1. Ledger A's ApprovedVerifiers contains fingerprint for this verifier type
+    Note over User,LB: 2. User has deployed matching verifier code on Ledger B
 
-    User->>LB: registerConnection(verifier_address, proof_bytes, seed_endpoints)
-    LB->>VA: verifyConfig(proof_bytes)
-    VA-->>LB: ConfigA (verified)
-    LB->>LB: check: ConfigA.ApprovedVerifiers[my_chain_id] == verifier_address?
-    LB->>LB: ✓ create Connection (store A's config, verifier, endpoints)
+    User->>LB: registerConnection(verifier_address, zk_proof, deposit, seed_endpoints)
+    LB->>ZK: verify zk_proof
+    ZK-->>LB: ConfigA (verified: chain_id, service_address, approved_verifiers, ...)
+    LB->>LB: check: EXTCODEHASH(verifier_address) ∈ ConfigA.ApprovedVerifiers values?
+    LB->>LB: check: deposit ≥ clpr.connectionDeposit?
+    LB->>LB: ✓ create Connection (store config, verifier, endpoints, lock deposit)
 
-    Note over User,LB: Repeat in reverse: B's verifier on A, register on A
-    Note over LA,LB: Connection established — automatic sync takes over
+    Note over User,LB: Repeat in reverse on Ledger A for bidirectional communication
 ```
 
-A Connection is established when the CLPR Service admin submits a `registerConnection` call. The call specifies
-the address of a **verifier contract** already deployed on the local ledger, opaque **proof bytes**, and at least one
-**seed endpoint** for the peer.
+**Registration flow.** The caller submits a `registerConnection` call specifying:
 
-The CLPR Service calls the verifier contract's `verifyConfig` method with the proof bytes. The verifier contract
-performs whatever cryptographic verification is appropriate for the source ledger (ZK proof verification, TSS signature
-checks, BLS aggregate signature validation, etc.) and returns a verified `ClprLedgerConfiguration`. If verification
-succeeds, the Connection is created with the peer's configuration, and the verifier contract address is recorded on the
-Connection for use in subsequent bundle verification and configuration updates.
+1. The address of a **verifier contract** already deployed on the local ledger.
+2. A **ZK proof** attesting to the source ledger's current `ClprLedgerConfiguration`. This proof is verified by a
+   **built-in ZK verifier** hardcoded into the CLPR Service (not the verifier contract itself — the bootstrap cannot
+   rely on a verifier whose legitimacy has not yet been established).
+3. A **deposit** of native tokens, which is locked for the lifetime of the Connection.
+4. At least one **seed endpoint** for the peer.
 
-**Why admin-gated.** Connection creation requires admin approval because the initial trust decision — "this verifier
-contract correctly verifies proofs from ledger X" — cannot be verified by the protocol alone. A malicious actor could
-deploy a fake verifier that returns fabricated configurations claiming to represent any ledger. Without an external
-trust anchor, the protocol cannot distinguish a legitimate verifier from a fraudulent one. The admin (or governance
-mechanism) provides that trust anchor by vetting the verifier contract before registering the Connection.
+The CLPR Service verifies the ZK proof using its built-in verifier, extracting the source ledger's configuration. It
+then checks that the locally deployed verifier contract's **implementation fingerprint** (code hash) matches one of the
+entries in the source ledger's `ApprovedVerifiers`. If the fingerprint matches and the deposit meets the minimum
+threshold, the Connection is created: the peer's configuration is stored, the verifier contract address and fingerprint
+are recorded, the seed endpoints are saved, and the deposit is locked.
 
-> 💡 **Future: trustless bootstrap via built-in ZK verification.** A future protocol extension could define a
-built-in ZK verification path that enables permissionless connection creation. In this model, the CLPR Service would
-include a hardcoded ZK verifier for a well-known proving scheme (e.g., Groth16). The source ledger would register its
-approved verifier contract address in its `ApprovedVerifiers` configuration (see §3.1.1), and the bootstrap proof
-would be a ZK proof that the source ledger's state contains the endorsement. The built-in verifier would verify the
-proof, extract the configuration, and confirm the `ApprovedVerifiers` endorsement — all without admin involvement. This
-would allow any ledger to connect to any other ledger by deploying a verifier contract and producing a valid ZK proof
-of endorsement. This extension is out of scope for the initial protocol but is a natural evolution that preserves the
-verifier contract architecture described here.
+**Why permissionless.** The ZK proof of endorsement eliminates the need for admin vetting. The source ledger's own
+`ApprovedVerifiers` configuration serves as the trust anchor — the source ledger's admin has endorsed the verifier
+implementation, and the ZK proof cryptographically proves that endorsement. A rogue verifier cannot pass this check
+because its code hash will not match any endorsed fingerprint. This design gives each ledger full control over how its
+proofs are verified on other chains, without requiring any administrative action on the receiving chain.
 
-**Bootstrap.** The initiating party SHOULD include at least one seed endpoint for the remote peer as part of the
-`registerConnection` call. This seed roster is stored immediately and enables the connection to begin syncing without
-waiting for an `EndpointJoin` Control Message to arrive. The seed endpoints do not need to be exhaustive — additional
-endpoints will be learned via Control Messages as the connection operates.
+**Why a deposit.** Permissionless creation means anyone can create a Connection, which creates ongoing work for the
+receiving ledger's nodes (state storage, sync overhead, proof verification). The deposit prices in this cost and
+prevents abuse — a deposit large enough to cover the fixed costs of maintaining a Connection makes it prohibitively
+expensive to create thousands of spurious Connections. The deposit is returned if the Connection is gracefully closed.
+
+**Severing connections.** The local CLPR Service admin can **sever** (permanently close) any Connection at any time.
+This is an emergency power — it immediately stops all message processing on the Connection, rejects new bundles,
+and returns deposits. Severing is appropriate when a peer ledger is compromised, when a verifier is found to be buggy,
+or when the Connection is being used for abuse. The admin can also **pause** a Connection (temporarily halt processing
+without closing it) to investigate issues before deciding whether to sever.
+
+**Bootstrap.** The caller SHOULD include at least one seed endpoint for the remote peer. This seed roster is stored
+immediately and enables the Connection to begin syncing without waiting for an `EndpointJoin` Control Message. The seed
+endpoints do not need to be exhaustive — additional endpoints will be learned via Control Messages as the Connection
+operates.
 
 Configuration proofs include a monotonically increasing timestamp; newer proofs supersede older ones once verified. Only
 one honest and reachable endpoint on each side is required for the Connection to function.
 
-**Verifier contract updates.** The admin can update the verifier contract on an existing Connection at any time. This
-allows verifier rotation (e.g., to upgrade ZK circuits or change verification strategies) without re-establishing the
-Connection.
+**Verifier contract updates.** All verifier implementations listed in a ledger's `ApprovedVerifiers` verify the **same
+proof format** — they are platform-specific implementations (one for EVM, one for Hiero, one for Solana, etc.) of the
+same verification logic. The source ledger generates one kind of proof, and every endorsed verifier knows how to verify
+it.
 
-**Ongoing configuration updates.** Once a Connection is established with a trusted verifier, configuration updates are
-permissionless. Any user can submit proof bytes through the Connection's existing verifier contract, and the CLPR
-Service will call the verifier, extract the updated configuration, and apply it if the timestamp is newer. The verifier
-contract ensures authenticity — admin approval is only needed for the initial trust decision (creating the Connection)
-and for changing the verifier itself.
+For a given Connection, there is exactly one active verifier — the one deployed on the local platform. If the source
+ledger upgrades its proof format, it must deploy new verifier implementations that support the new format, update
+`ApprovedVerifiers` with the new fingerprints, and then switch to generating proofs in the new format. During
+migration, new verifier implementations **MUST** support both old and new proof formats to avoid disrupting active
+Connections. The recommended migration sequence is:
 
-**Ongoing endpoint updates.** Endpoint roster changes are propagated automatically via Control Messages during the sync
-protocol (§3.1.4). When endpoints synchronize, they exchange queue metadata and message bundles. Endpoint roster updates
-flow as Control Messages within the sync. Under normal operation, no manual intervention is needed. The Connection stays
-current as endpoints come and go on either side.
+1. Deploy new verifier implementations (supporting both old and new proof formats) on all target platforms.
+2. Update `ApprovedVerifiers` to endorse the new implementations.
+3. Wait for destination ledgers to update their Connection verifiers (via `updateConnectionVerifier`).
+4. Switch source proof generation to the new format.
+5. After a grace period, remove old format support from verifier implementations.
+
+> ⚠️ **Race condition.** Bundles are in-flight between proof generation and on-chain verification. If a Connection's
+> verifier is updated (via `updateConnectionVerifier`) while a bundle proved under the old verifier is in transit, the
+> bundle will be rejected — the new verifier may not recognize the old proof format, or the old verifier contract is no
+> longer referenced by the Connection. This is **expected and safe**: the monotonic message ID check (§3.2.4) ensures no
+> messages are lost, and the endpoint will simply re-prove the same messages under the new verifier on the next sync
+> cycle. No special recovery is needed. The cost of the rejected bundle is borne by the submitting endpoint, which
+> incentivizes endpoints to monitor verifier changes and avoid submitting stale proofs.
+
+Any user can update the verifier on an existing Connection by deploying the new verifier code locally and submitting an
+`updateConnectionVerifier` call with a ZK proof showing the source ledger's `ApprovedVerifiers` endorses the new
+verifier's implementation fingerprint. The CLPR Service verifies the proof, checks the code hash, and replaces the
+verifier on the Connection. This allows verifier upgrades without re-establishing the Connection and without admin
+involvement on the destination.
+
+**Ongoing configuration updates.** Once a Connection exists, configuration changes (throttles, max payload size,
+`ApprovedVerifiers`, etc.) are propagated as **Config Update Control Messages** in the message queue (see §3.2.3).
+When the local admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message.
+The peer processes it at a well-defined point in the message stream, ensuring total ordering with data messages. This
+eliminates race conditions where a source enqueues a message that is valid under the config it has seen but would be
+rejected under a config change it hasn't learned about yet. Spam is naturally deterred: each enqueue costs a transaction
+fee, and duplicate config timestamps are no-ops.
+
+**Ongoing endpoint updates.** Endpoint roster changes are propagated **out-of-band** — via Control Messages during the
+sync protocol (§3.1.4) under normal operation, and via the verifier contract proof mechanism (§3.1.3) as a recovery
+path. Endpoint roster changes do not affect message validity (adding or removing an endpoint never invalidates an
+in-flight message), so out-of-band delivery is always safe. This out-of-band path is also the recovery lever: if the
+queue becomes stuck because all known endpoints have gone offline, the endpoint roster can be updated independently to
+restore sync capability, after which pending in-band Config Update Control Messages will propagate normally.
 
 **Manual bootstrap and recovery** is necessary in two scenarios: when first establishing a Connection between two
 ledgers that have never communicated, and when the automatic sync breaks down (for example, if one ledger completely
-rotates its endpoint set and none of the new endpoints are known to the peer). In the first case, the admin creates the
-Connection. In the second case, any user can submit proof bytes through the Connection's existing verifier contract to
-update the peer's configuration and endpoint roster.
+rotates its endpoint set and none of the new endpoints are known to the peer). In the first case, anyone registers the
+Connection. In the second case, endpoint roster updates are submitted out-of-band via the verifier contract proof
+mechanism to restore connectivity.
 
-> 💡 **Hiero:** Connection creation is a privileged HAPI transaction submitted by network admins. Subsequent
-configuration updates use a non-privileged HAPI transaction that includes opaque proof bytes. The CLPR Service calls
-the Connection's verifier contract, which extracts and returns the verified Configuration.
+> 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The built-in ZK verifier is part of the
+node software. The CLPR Service admin (governing council) can sever or pause any Connection via privileged HAPI
+transactions.
 
-> 💡 **Ethereum:** Connection creation is a privileged call on the CLPR Service contract from the designated admin
-account. Subsequent configuration updates can be submitted by any Ethereum account — the CLPR Service contract calls
-the Connection's verifier contract, which performs verification and returns the Configuration.
+> 💡 **Ethereum:** Connection creation is a non-privileged call on the CLPR Service contract. The built-in ZK verifier
+is a hardcoded verification function within the contract. The CLPR Service admin (contract governance) can sever or
+pause any Connection via admin-only contract functions.
 
 ### 3.1.4 Endpoint Communication Protocol
 
@@ -432,15 +519,31 @@ The two sides exchange:
 - **Message bundles** — Any pending messages that the peer has not yet acknowledged. Extracted and verified by the
   verifier contract.
 
-**Configuration is not part of the sync payload.** Configuration changes (to `ApprovedVerifiers`, `Throttles`, etc.) are
-infrequent administrative events, not transactional state that needs to be atomically ordered with messages. Nothing in
-the configuration is order-dependent with respect to message delivery. If throttles change and the peer doesn't know
-yet, it might send an oversized bundle that gets rejected — but there is no corruption or ordering violation, just
-wasted work that self-corrects on the next sync. Configuration updates are propagated through the mechanism described in
-§3.1.3: any user may submit proof bytes through the Connection's verifier contract to update the peer's configuration.
-Endpoints may include a lightweight configuration timestamp in the sync handshake so the peer can detect staleness and
-trigger an out-of-band configuration fetch, but the configuration data and its proof travel separately from the message
-sync path.
+**Configuration propagation uses two channels, determined by ordering requirements.**
+
+*In-band: Config Update Control Messages.* All configuration changes that affect message acceptance criteria — throttle
+limits, `maxMessagePayloadBytes`, `maxMessagesPerBundle`, `maxGasPerMessage`, `ApprovedVerifiers`, and any other
+parameter that could cause a valid-under-old-config message to be rejected under new config — MUST be delivered as
+**Config Update Control Messages** in the queue, sequenced with data messages. When a ledger changes such a parameter,
+it enqueues a Config Update Control Message. The peer processes this control message at a well-defined point in the
+message stream and applies the new value to all subsequent operations. This guarantees total ordering: messages enqueued
+before the control message were valid under the old config and MUST be accepted; messages enqueued after it comply with
+the new config. No race conditions are possible because config changes and data messages share a single ordered stream.
+
+*Out-of-band: Endpoints and Verifier.* Two categories of changes are propagated out-of-band:
+
+1. **Endpoint roster changes** — Adding or removing endpoints does not affect whether any message is valid, so there is
+   no ordering dependency with the message stream. Endpoint changes are propagated via Control Messages during sync
+   (§3.1.4) under normal operation, and via the verifier contract proof mechanism (§3.1.3) as a recovery path when the
+   queue is stuck (e.g., all known endpoints have gone offline or the endpoint set has fully rotated). Because endpoint
+   roster changes never invalidate in-flight messages, out-of-band delivery is always safe.
+
+2. **Verifier contract updates** — Updating the Connection's verifier is always out-of-band (via
+   `updateConnectionVerifier` with a ZK proof), because the verifier authenticates the queue. A "use this new verifier"
+   instruction cannot be delivered through a channel that requires the new verifier to read.
+
+If the queue becomes stuck, the recovery sequence is: update the endpoint roster out-of-band (restoring sync
+capability), then allow normal in-band Control Messages to propagate any pending config changes.
 
 The queue metadata exchange is the mechanism by which acknowledgements are communicated — the peer's reported
 `received_message_id` becomes the sender's `acked_message_id`, enabling deletion of acknowledged response messages and
@@ -486,9 +589,10 @@ JSON-RPC, but communicates with peer endpoints over gRPC.
 ### 3.1.5 Verifier Contracts
 
 Verifier contracts are the trust mechanism that underpins all of CLPR. Every piece of information exchanged between
-ledgers — configurations, queue metadata, message bundles — is verified by a verifier contract that the receiving
-ledger's admin has approved for the Connection. CLPR itself is **proof-system-agnostic** — all cryptographic
-verification is delegated to verifier contracts, and the protocol never interprets proof bytes directly.
+ledgers — configurations, queue metadata, message bundles — is verified by a verifier contract whose implementation
+was endorsed by the source ledger's `ApprovedVerifiers` and proven via ZK proof at connection registration (§3.1.3).
+CLPR itself is **proof-system-agnostic** — all cryptographic verification is delegated to verifier contracts, and the
+protocol never interprets proof bytes directly.
 
 A verifier contract is a smart contract (on Ethereum or other EVM chains) or a system contract / native callback (on
 Hiero) that implements two methods:
@@ -505,18 +609,31 @@ ZK proof that wraps the Ethereum consensus attestation. A verifier for a new cha
 system. CLPR does not constrain or even inspect the proof format — it only requires that the verifier return structured,
 verified data.
 
-**Trust model.** CLPR trusts the verifier contract's output — if the verifier lies, the Connection is compromised. This
-is why connection creation (which sets the verifier) is admin-gated. However, CLPR independently verifies properties it
-can check without understanding the proof format: running hash chain integrity, message ID sequencing, and response
-ordering. These checks catch data corruption or protocol violations even if the verifier is honest but the source
-ledger has a bug.
+**Trust model.** CLPR trusts the verifier contract's output — if the verifier lies, the Connection is compromised.
+The verifier's legitimacy is established at Connection creation via ZK proof of the source ledger's endorsement (§3.1.3),
+not by admin vetting. Additionally, CLPR independently verifies properties it can check without understanding the proof
+format: running hash chain integrity, message ID sequencing, and response ordering. These checks catch data corruption
+or protocol violations when the verifier is honest but the source ledger has a bug — they do **not** protect against a
+compromised or malicious verifier, which would return fabricated data with matching hashes.
+
+**Finality and reorg risk.** For ledgers without instant finality (e.g., Ethereum), the commitment level at which the
+verifier accepts proofs determines the reorg risk. A verifier that accepts proofs at `latest` commitment level is
+vulnerable to chain reorganizations: a message may be processed on the destination and then the source block is
+reverted, producing a "phantom message" that never actually existed on the source. For token bridges, this enables
+double-spending. The commitment level is a property of the verifier implementation — CLPR does not enforce or inspect
+it. Source ledger admins choosing which verifier to endorse, and applications choosing which Connections to use, must
+evaluate the verifier's commitment level relative to their risk tolerance. For high-value or irreversible operations,
+only verifiers that enforce `finalized` commitment (or equivalent) should be used. Ledgers with ABFT finality (e.g.,
+Hiero) do not have this concern — finality is instant and reorgs are not possible under honest supermajority.
 
 **Adding new chains.** Adding CLPR support for a new ledger does not require changes to the CLPR protocol or to existing
 implementations on other ledgers. It requires: (1) deploying a CLPR Service on the new ledger, (2) building a verifier
-contract that can verify that ledger's proofs and deploying it on each target peer ledger, and (3) having the peer
-ledger's admin register a Connection using that verifier. The source ledger's ecosystem is responsible for building and
-maintaining its verifier contracts — including proof generation, trust anchor tracking (e.g., validator set rotation,
-committee changes), and any internal state the verifier needs to maintain.
+contract that can verify that ledger's proofs, (3) registering the verifier's implementation fingerprint in the new
+ledger's `ApprovedVerifiers` configuration, and (4) anyone deploying the verifier on a target peer ledger and
+registering a Connection with a ZK proof of endorsement. No admin action on the peer ledger is required. The source
+ledger's ecosystem is responsible for building and maintaining its verifier contracts — including proof generation,
+trust anchor tracking (e.g., validator set rotation, committee changes), and any internal state the verifier needs to
+maintain.
 
 **Verifier contract examples.** The following are illustrative examples of verifier contracts that might be deployed for
 different ledger pairs. Each is a separate implementation; CLPR treats them identically.
@@ -525,12 +642,22 @@ different ledger pairs. Each is a separate implementation; CLPR treats them iden
   block proofs, and TSS signatures from the source network's consensus nodes. Provides the lowest-latency verification
   path: sub-second message delivery with ABFT guarantees inherited from both networks.
 - **Ethereum BLS Verifier** — For Ethereum-to-Hiero connections. Validates BLS aggregate signatures from Ethereum's
-  sync committee. Internally manages validator set tracking (committee rotation every ~27 hours) and supports
-  configurable commitment levels (`latest`, `safe`, `finalized`).
+  sync committee. Internally manages validator set tracking (committee rotation every ~27 hours). The commitment level
+  (e.g., `finalized` vs. `safe` vs. `latest`) is a property of the verifier implementation — different deployments may
+  enforce different levels depending on the source ledger's risk profile.
 - **ZK Verifier** — A universal adapter for any source ledger. Verifies a zero-knowledge proof (Groth16, PLONK, STARK,
   etc.) that wraps the source ledger's native consensus attestation. The source ledger's ecosystem builds the prover;
   the verifier contract only needs to check the proof. This is the natural choice when the receiving ledger cannot
   natively verify the source ledger's consensus mechanism.
+
+> ‼️ **Upgradeable verifier contracts.** Verifier contracts may be deployed behind upgradeable proxies (e.g., EIP-1967)
+to allow the source ledger to upgrade verification logic without requiring every Connection to run `updateConnectionVerifier`.
+When proxies are used, the implementation fingerprint in `ApprovedVerifiers` is the proxy's code hash (since that is
+what `EXTCODEHASH` returns), and the proxy owner can change the underlying implementation. This is acceptable **only if**
+the proxy's upgrade authority is controlled by the source ledger's CLPR Service admin (or equivalent governance). The
+verifier contract is an extension of the source ledger's CLPR Service running on a foreign chain — its upgrade authority
+must be the same trust boundary. A verifier whose upgrade key is controlled by a third party is a critical vulnerability:
+that third party could silently replace the verification logic, and the source ledger would have no recourse.
 
 > 💡 **Note:** Chain-specific verifier specifications (e.g., how to construct a Hiero TSS verifier for Ethereum, or how
 to build a ZK prover wrapping Ethereum sync committee consensus) are out of scope for this document. Each is a separate
@@ -615,7 +742,8 @@ the Connection with message queue metadata — the bookkeeping needed to send, r
 Each Connection tracks the following queue state:
 
 - **Next Message ID** (`next_message_id`) — The next sequence number to assign to an outgoing message. Strictly
-  increasing.
+  increasing. Stored as `uint64`; at 1 million messages per second this would take ~584,000 years to overflow, so
+  wraparound is not a practical concern.
 - **Acknowledged Message ID** (`acked_message_id`) — The ID of the most recent outgoing message confirmed received by
   the peer. This value is updated when the peer reports its `received_message_id` during queue metadata exchange in the
   sync protocol (§3.1.4) — it is a transport-level acknowledgement, distinct from application-level responses. Response
@@ -649,7 +777,13 @@ bundle transport — there is no separate response channel. The `ClprMessagePayl
 `message_id` for correlation.
 
 Messages are enqueued with an ID and a running hash that chains each message to the previous one, forming a verifiable
-log. This enables the receiving ledger to validate message integrity and ordering without trusting the relay.
+log. This enables the receiving ledger to validate message integrity and ordering without trusting the relay. The
+running hash uses **SHA-256**, computed as `SHA-256(previous_running_hash ‖ message_payload)` where `‖` denotes
+concatenation. SHA-256 is chosen for universal platform availability (EVM `sha256` precompile, Hiero native, Solana
+`sol_sha256` syscall) and consistency with Hiero's existing hash infrastructure. Under Grover's algorithm, SHA-256
+retains 128-bit preimage resistance, which remains adequate for the running hash chain's security requirements. Should
+post-quantum threat models evolve, the hash algorithm can be upgraded via a protocol version bump and connection
+renegotiation — the `running_hash` fields are opaque `bytes`, so no wire format change is needed.
 
 Each queued entry contains:
 
@@ -721,6 +855,10 @@ sequenceDiagram
     alt verification failed
         DST-->>DST: reject bundle — endpoint pays cost
     end
+    DST->>DST: check all message IDs > received_message_id (replay defense)
+    alt replay detected
+        DST-->>DST: reject bundle — endpoint pays cost
+    end
     DST->>DST: recompute running hash chain from received_running_hash
     alt hash mismatch
         DST-->>DST: reject bundle — endpoint pays cost
@@ -733,13 +871,26 @@ contract performs whatever cryptographic verification is appropriate for the sou
 metadata and messages. If the verifier contract rejects the proof (reverts, returns an error, or fails verification),
 the entire bundle is rejected. A legitimate endpoint would never produce a bad proof, so this is also a signal that the
 submitting endpoint may be misbehaving. The submitting node will have paid the transaction cost and will not be
-reimbursed.
+reimbursed. Repeated invalid proof submissions from the same endpoint constitute provable misbehavior (§3.1.6) and can
+lead to bond slashing and removal from the endpoint roster. On EVM chains, verifier contracts SHOULD fail fast on
+obviously malformed inputs (e.g., wrong proof length) before performing expensive cryptographic operations, to bound the
+computational cost of invalid submissions.
 
-Next, the CLPR Service **verifies the running hash chain**. Starting from the Connection's current
+Next, the CLPR Service **enforces monotonic message ordering** — the primary replay defense. Every message in the
+bundle MUST have an ID strictly greater than the Connection's current `received_message_id`, and message IDs within the
+bundle MUST be contiguous and ascending. Any bundle containing a message with an ID ≤ `received_message_id` is rejected
+outright, regardless of whether the verifier accepted the proof. This check is performed by the CLPR Service itself and
+is the authoritative defense against replay attacks; it holds even if the verifier is buggy and accepts stale proofs.
+
+Then, the CLPR Service **verifies the running hash chain**. Starting from the Connection's current
 `received_running_hash`, the service recomputes the hash by walking through each message payload returned by the
 verifier sequentially. If the final computed hash does not match the verifier-returned value, the bundle is
 rejected — something is wrong with the message ordering or content. This check is performed by the CLPR Service itself,
-independently of the verifier contract, providing defense-in-depth against data corruption.
+independently of the verifier contract. Note that this check defends against **verifier bugs** (e.g., a verifier that
+correctly authenticates a proof but returns garbled or misordered messages) — it does **not** defend against a
+compromised verifier, which would return fabricated messages with a matching fabricated hash. Defense against verifier
+compromise depends on the verifier's legitimacy, which is established via ZK proof of endorsement at connection
+registration (§3.1.3) and ultimately on the security of the source ledger's CLPR Service admin (see §7).
 
 Once both verification stages pass, the service dispatches each message in order to the Payment and Routing layer for
 Connector validation, charging, and application delivery (see §3.3.3).
@@ -755,6 +906,16 @@ bundle with 2M gas maximum per message, preserving enough gas for the CLPR Servi
 On Hiero networks, the configuration must be based on operations-per-second limits per message so that oversized bundles
 are rejected at ingest rather than during post-consensus handling. Once a bundle starts execution, it must be able to
 finish — a failure due to an ops/sec throttle post-consensus would be unacceptable.
+
+Additionally, each ledger advertises a **maximum message payload size** (`clpr.maxMessagePayloadBytes`) in its
+`ClprLedgerConfiguration`. This limit is set by the **destination** ledger — it declares the maximum payload size it is
+willing to accept. The source ledger's CLPR Service MUST reject any message submission whose payload exceeds the
+destination's advertised limit. The source ledger may also enforce its own lower limit (it may refuse to enqueue
+messages it considers too large even if the destination would accept them), but it MUST NOT enqueue a message that
+exceeds the destination's declared maximum. On the destination side, the CLPR Service MUST reject any bundle containing
+a message whose payload exceeds `clpr.maxMessagePayloadBytes` — this is the authoritative enforcement, regardless of
+what the source allowed. This prevents oversized payloads from bloating on-chain state, inflating proof sizes, and
+creating disproportionate verification costs.
 
 These limits are configured per Connection. See §5 for the relevant configuration parameters.
 
@@ -935,9 +1096,42 @@ produces a deterministic outcome. A failure response is generated — "connector
 and queued for return. The endpoint that submitted the bundle absorbs the execution cost for this particular message,
 but the slashing mechanism described in §3.3.4 ensures the endpoint is eventually made whole.
 
+> 💡 **Ethereum: reentrancy.** When the CLPR Service contract dispatches a message to the target application, the
+application receives execution control and can make arbitrary external calls — including calling back into the CLPR
+Service contract. The Ethereum CLPR Service implementation MUST use reentrancy guards on all state-modifying functions
+and MUST follow the checks-effects-interactions pattern: update all Connection state (message IDs, running hashes,
+Connector charges) **before** dispatching to the application. Application callbacks should be called with a fixed gas
+stipend to bound execution cost.
+
 Critically, a failure on one message does not stop processing of the remaining messages in the bundle. Each message is
 handled independently. This ensures that a single bad message (e.g., referencing a missing Connector) does not block an
 entire batch of otherwise valid messages behind it.
+
+> ⚠️ **Sender authentication.** CLPR is a transport layer. When a message arrives on the destination, the CLPR Service
+> authenticates that it came from a specific peer ledger (via the Connection and verifier) and was authorized by a
+> specific Connector, but it does **not** authenticate the original sender's identity on the source ledger. The message
+> payload is opaque bytes — any sender identity embedded within it is application-layer data that CLPR does not inspect
+> or verify. Applications that need authenticated sender identity MUST implement their own verification within the
+> message payload (e.g., including the sender's signature over the payload, or using a middleware layer that attests to
+> the sender's on-chain identity). This is a deliberate design choice: cross-ledger identity is inherently
+> application-specific (an Ethereum address means nothing on Hiero and vice versa), so CLPR avoids imposing a
+> particular identity model.
+
+> ⚠️ **Untrusted payloads.** Both messages and responses carry opaque application-layer payloads. A malicious
+> destination application could return a crafted response designed to exploit the source application (e.g., triggering
+> integer overflow, reentrancy, or unexpected state transitions). Similarly, a malicious source could send crafted
+> messages to exploit the destination. Applications MUST treat all cross-ledger payloads as **untrusted input** and
+> validate them defensively, just as they would validate input from an untrusted external caller. CLPR guarantees that
+> the payload was authentically produced on the peer ledger and has not been tampered with in transit, but it makes no
+> guarantees about the payload's semantic correctness or safety.
+
+> ⚠️ **No confidentiality.** CLPR provides **integrity** and **authenticity** but not **confidentiality**. Message
+> payloads are stored on-chain in plaintext on both the source and destination ledgers, and are visible to all
+> participants (validators, endpoints, and anyone with read access to the ledger state). Applications that require
+> confidentiality MUST encrypt payloads at the application layer before submitting them to CLPR. The protocol
+> deliberately avoids built-in encryption because on-chain storage of ciphertext still leaks metadata (timing, size,
+> sender/receiver, Connector identity), and key management for cross-ledger encryption is an application-specific
+> concern that CLPR cannot solve generically.
 
 ### 3.3.4 Failure Consequences and Slashing
 
@@ -954,6 +1148,14 @@ This mechanism is what keeps the system honest without requiring nodes to have a
 need to trust Connectors — they submit every message regardless, knowing that if the Connector does not pay, the
 Connector gets punished and the node gets compensated from the slash. The worst case for a node is a short-term float on
 execution costs while the failure response makes the round trip.
+
+> ‼️ **Stake-to-exposure invariant.** For this guarantee to hold, the Connector's locked stake on the source ledger must
+be sufficient to cover the worst-case endpoint losses: the maximum number of in-flight messages the Connector has
+authorized (bounded by the queue depth or per-Connector quota) multiplied by the maximum execution cost per message on
+the destination. If the stake is too small, a malicious actor can create a Connector with minimal stake, authorize a
+burst of messages, and drain endpoints of more execution cost than the slash can reimburse. The minimum Connector stake
+must be calibrated to this worst-case exposure. This is an unresolved economic design parameter that must be quantified
+before production deployment.
 
 ### 3.3.5 Design Principles
 
@@ -984,11 +1186,14 @@ mechanism if this proves to be a practical problem.
 
 ### 3.3.6 Open Economic Design Issues
 
-> ❓ **Queue monopolization.** A single Connector could authorize a large volume of messages to fill the queue,
-preventing other Connectors from being able to send anything. One mitigation is to require each message to escrow funds
-at send time, with those funds returned when the response arrives. This forces high-volume senders to commit capital
-proportional to their queue usage. Since Ethereum does not support state rent, a simple "pay more rent for more queue
-space" model is not viable — escrowed capital is the natural alternative.
+> ‼️ **Queue monopolization (DoS vector).** A single Connector could authorize a large volume of messages to fill the
+queue to `maxQueueDepth`, blocking all other Connectors on the Connection from sending. This is a denial-of-service
+attack on cross-ledger communication for the affected Connection. Mitigations under consideration: (a) require each
+message to escrow funds at send time, returned when the response arrives — this forces high-volume senders to commit
+capital proportional to their queue usage; (b) per-Connector queue quotas, limiting the fraction of the queue any single
+Connector can occupy; (c) priority pricing, where queue slots become more expensive as the queue fills. Since Ethereum
+does not support state rent, escrowed capital is the natural alternative to rent-based models. This is an unresolved
+design issue that must be addressed before production deployment.
 
 > ❓ **Connection creation deposits.** How should Connection creation deposits work to protect nodes from non-functional
 Connectors? (See also §6.2.)
@@ -1042,10 +1247,13 @@ All protobuf definitions for CLPR are consolidated here for reference. These typ
 // which is managed separately via control messages (see §3.1.2).
 message ClprLedgerConfiguration {
   string chain_id = 1;                                // CAIP-2 identifier, e.g. "hedera:mainnet"
-  map<string, bytes> approved_verifiers = 2;           // ChainID → verifier contract address on that chain
+  map<string, bytes> approved_verifiers = 2;           // VerifierType → implementation fingerprint (code hash)
   proto.Timestamp timestamp = 3;
   ClprThrottles throttles = 4;
 }
+// Note: the peer's service_address is not part of the configuration — it is
+// extracted from the ZK proof during registerConnection (the proof attests to
+// state at a specific contract address) and stored on the Connection.
 
 message ClprThrottles {
   uint32 max_messages_per_sync = 1;  // hard cap: max messages in a single bundle
@@ -1098,36 +1306,53 @@ service ClprService {
   // Query: download this ledger's configuration.
   rpc getLedgerConfiguration(proto.Query) returns (proto.Response);
 
-  // Admin: register a new Connection with a verifier contract.
-  // The verifier contract is called with the proof bytes to extract and verify
-  // the peer's configuration. See §3.1.3.
+  // Permissionless: register a new Connection. Requires a locally deployed verifier
+  // contract, a ZK proof that the source ledger's ApprovedVerifiers endorses the
+  // verifier's implementation fingerprint, a deposit, and seed endpoints. See §3.1.3.
   rpc registerConnection(proto.Transaction) returns (proto.TransactionResponse);
 
-  // Admin: update the verifier contract on an existing Connection.
+  // Permissionless: update the verifier contract on an existing Connection.
+  // Requires a new ZK proof that the source ledger endorses the new verifier's fingerprint.
   rpc updateConnectionVerifier(proto.Transaction) returns (proto.TransactionResponse);
 
   // Permissionless: submit proof bytes through an existing Connection's verifier
   // to update the peer's configuration.
   rpc updatePeerConfiguration(proto.Transaction) returns (proto.TransactionResponse);
+
+  // Admin: sever (permanently close) a Connection. Returns deposits.
+  rpc severConnection(proto.Transaction) returns (proto.TransactionResponse);
+
+  // Admin: pause/unpause a Connection (temporarily halt processing).
+  rpc pauseConnection(proto.Transaction) returns (proto.TransactionResponse);
 }
 
 // Included in registerConnection transactions.
 message ClprRegisterConnectionRequest {
-  bytes verifier_contract = 1;                  // address of the verifier contract on this ledger
-  bytes proof_bytes = 2;                        // opaque proof bytes passed to verifier_contract.verifyConfig()
-  repeated ClprEndpoint seed_endpoints = 3;     // initial peer endpoints (at least one)
+  bytes verifier_contract = 1;                  // address of the locally deployed verifier contract
+  bytes zk_proof = 2;                           // ZK proof of source ledger's ApprovedVerifiers endorsement
+  uint64 deposit = 3;                           // deposit in native tokens (must meet clpr.connectionDeposit minimum)
+  repeated ClprEndpoint seed_endpoints = 4;     // initial peer endpoints (at least one)
 }
 
 // Included in updateConnectionVerifier transactions.
 message ClprUpdateConnectionVerifierRequest {
-  string chain_id = 1;                          // identifies the Connection to update
-  bytes verifier_contract = 2;                  // new verifier contract address
+  string chain_id = 1;                          // \
+  bytes service_address = 2;                    // / compound key identifying the Connection
+  bytes verifier_contract = 3;                  // new verifier contract address
+  bytes zk_proof = 4;                           // ZK proof that source ledger endorses new verifier's fingerprint
 }
 
 // Included in updatePeerConfiguration transactions.
 message ClprUpdatePeerConfigurationRequest {
-  string chain_id = 1;                          // identifies the Connection to update
-  bytes proof_bytes = 2;                        // opaque proof bytes passed to verifier_contract.verifyConfig()
+  string chain_id = 1;                          // \
+  bytes service_address = 2;                    // / compound key identifying the Connection
+  bytes proof_bytes = 3;                        // opaque proof bytes passed to verifier_contract.verifyConfig()
+}
+
+// Included in severConnection and pauseConnection transactions.
+message ClprConnectionAdminRequest {
+  string chain_id = 1;                          // \
+  bytes service_address = 2;                    // / compound key identifying the Connection
 }
 ```
 
@@ -1135,17 +1360,19 @@ message ClprUpdatePeerConfigurationRequest {
 
 ```protobuf
 message ClprConnection {
-  // --- Peer Ledger Identity ---
+  // --- Peer Identity (compound key: chain_id + service_address) ---
 
-  string chain_id = 1;                     // CAIP-2 identifier for the peer ledger
-  proto.Timestamp peer_config_timestamp = 2;
+  string chain_id = 1;                     // CAIP-2 identifier for the peer chain
+  bytes service_address = 2;               // on-ledger address of the peer's CLPR Service
+  proto.Timestamp peer_config_timestamp = 3;
 
   // --- Verifier Contract (see §3.1.5) ---
 
-  bytes verifier_contract = 3;             // address of the verifier contract for this Connection
+  bytes verifier_contract = 4;             // address of the locally deployed verifier for this Connection
+  bytes verifier_fingerprint = 5;          // implementation fingerprint (code hash) endorsed by peer
 
   // Note: the peer endpoint roster is stored separately in state, keyed by
-  // (chain_id, account_id). It is NOT embedded in the Connection object.
+  // (chain_id, service_address, account_id). It is NOT embedded in the Connection object.
   // Endpoints are seeded at connection registration and updated via
   // ClprEndpointJoin / ClprEndpointLeave control messages (see §3.1.1).
 
@@ -1220,8 +1447,9 @@ per-Connection are set independently for each peer relationship.
 | `clpr.clprEnabled`               | `false`     | Global         | Master enable switch for the CLPR Service.                                                                                                                                                                                                   |
 | `clpr.connectionFrequency`       | `5000` ms   | Global         | How frequently endpoints initiate sync calls to peers.                                                                                                                                                                                       |
 | `clpr.publicizeNetworkAddresses` | `true`      | Global         | Whether to include service endpoint addresses in the Configuration. Set to `false` for private networks.                                                                                                                                     |
-| `clpr.devModeEnabled`            | `false`     | Global         | Enable dev-mode shortcuts for signatures and proofs. May be set to `true` for local development and testing only.                                                                                                                            |
+| `clpr.connectionDeposit`         | TBD         | Global         | Minimum deposit (in native tokens) required to register a new Connection. Returned on graceful closure, slashable on abuse (see §3.1.3).                                                                                                    |
 | `clpr.maxQueueDepth`             | TBD         | Per-Connection | Maximum number of unacknowledged messages allowed in the outbound queue before new messages are rejected (see §3.2.1).                                                                                                                       |
+| `clpr.maxMessagePayloadBytes`    | TBD         | Per-Connection | Maximum payload size (in bytes) for a single message. Advertised in the ledger's configuration; enforced by both source (at enqueue) and destination (at bundle verification). See §3.2.5.                                                   |
 | `clpr.maxMessagesPerBundle`      | TBD         | Per-Connection | Maximum number of messages a single bundle may contain (see §3.2.5).                                                                                                                                                                         |
 | `clpr.maxGasPerMessage`          | TBD         | Per-Connection | Maximum gas (or ops/sec budget on Hiero) allocated to processing a single message within a bundle (see §3.2.5).                                                                                                                              |
 
@@ -1253,3 +1481,10 @@ per-Connection are set independently for each peer relationship.
 7. How should protocol overhead costs (configuration updates, queue metadata sync, bundle transmission) be funded — can
    they be made "free" from the user's perspective?
 8. Should CLPR message enqueueing use child transaction dispatch or direct Java API invocation?
+9. **Multiple Connections per peer with different commitment levels.** Since Connections are keyed by
+   `(ChainID, ServiceAddress)` and verifier selection is per-Connection, a ledger could maintain multiple Connections
+   to the same peer — each using a different verifier with a different commitment level (e.g., `latest`, `safe`,
+   `finalized`). Applications could then choose which Connection to use based on their latency vs. finality tradeoff.
+   A DEX might use `latest` for price feeds, while a token bridge uses `finalized` for asset transfers. This is already
+   architecturally supported but the implications for endpoint resource allocation, Connector management, and message
+   routing across parallel Connections need further design.
