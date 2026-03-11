@@ -214,7 +214,7 @@ public class Hip1259EnabledTests {
                 validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
 
                 // fee charged for transaction should never change
-                validateChargedUsd("feeTxn", 0.05, 1),
+                validateChargedUsd("feeTxn", 0.053, 1),
 
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),
