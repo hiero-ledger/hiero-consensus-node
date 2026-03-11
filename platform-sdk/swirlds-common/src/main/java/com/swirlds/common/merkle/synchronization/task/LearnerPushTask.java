@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -27,10 +25,11 @@ public class LearnerPushTask {
     private static final String NAME = "learner-task";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<Lesson> in;
-    private final AsyncOutputStream<QueryResponse> out;
+    private final AsyncInputStream in;
+    private final AsyncOutputStream out;
     private final LearnerTreeView view;
-    private final ReconnectNodeCount nodeCount;
+
+    private final Runnable completeListener;
 
     private final ReconnectMapStats mapStats;
 
@@ -47,24 +46,22 @@ public class LearnerPushTask {
      * 		the output stream, this object is responsible for closing the stream when finished
      * @param view
      * 		a view used to interface with the subtree
-     * @param nodeCount
-     * 		an object used to keep track of the number of nodes sent during the reconnect
      * @param mapStats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushTask(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<Lesson> in,
-            final AsyncOutputStream<QueryResponse> out,
+            final AsyncInputStream in,
+            final AsyncOutputStream out,
             final LearnerTreeView view,
-            final ReconnectNodeCount nodeCount,
-            @NonNull final ReconnectMapStats mapStats) {
+            final ReconnectMapStats mapStats,
+            final Runnable completeListener) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.view = view;
-        this.nodeCount = nodeCount;
         this.mapStats = mapStats;
+        this.completeListener = completeListener;
     }
 
     public void start() {
@@ -100,8 +97,7 @@ public class LearnerPushTask {
      */
     private void handleQueries(
             final LearnerTreeView view,
-            final AsyncInputStream<Lesson> in,
-            final AsyncOutputStream<QueryResponse> out,
+            final AsyncOutputStream out,
             final List<Hash> queries,
             final Long originalParent,
             final Long newParent)
@@ -132,7 +128,6 @@ public class LearnerPushTask {
             view.recordHashStats(mapStats, newParent, childIndex, nodeAlreadyPresent);
 
             view.expectLessonFor(newParent, childIndex, originalChild, nodeAlreadyPresent);
-            in.anticipateMessage();
         }
     }
 
@@ -149,15 +144,9 @@ public class LearnerPushTask {
         }
 
         if (view.isInternal(newChild, false)) {
-            nodeCount.incrementInternalCount();
-            if (expectedLesson.isNodeAlreadyPresent()) {
-                nodeCount.incrementRedundantInternalCount();
-            }
+            mapStats.incrementInternalHashes(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         } else {
-            nodeCount.incrementLeafCount();
-            if (expectedLesson.isNodeAlreadyPresent()) {
-                nodeCount.incrementRedundantLeafCount();
-            }
+            mapStats.incrementLeafHashes(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         }
     }
 
@@ -167,22 +156,18 @@ public class LearnerPushTask {
     private void run() {
         boolean firstLesson = true;
 
-        try (in;
-                out;
-                view) {
-
+        final Supplier<Lesson> messageFactory = () -> new Lesson(view);
+        try {
             view.expectLessonFor(null, 0, 0L, false);
-            in.anticipateMessage();
 
-            while (view.hasNextExpectedLesson()) {
-
+            while (view.hasNextExpectedLesson() && !Thread.currentThread().isInterrupted()) {
                 final ExpectedLesson expectedLesson = view.getNextExpectedLesson();
-                final Lesson lesson = in.readAnticipatedMessage();
+                final Lesson lesson = in.readAnticipatedMessageSync(messageFactory);
                 mapStats.incrementTransfersFromTeacher();
 
                 final Long parent = expectedLesson.getParent();
 
-                final Long newChild = extractNodeFromLesson(expectedLesson, lesson, firstLesson);
+                final long newChild = extractNodeFromLesson(expectedLesson, lesson, firstLesson);
 
                 firstLesson = false;
 
@@ -194,19 +179,19 @@ public class LearnerPushTask {
 
                 if (lesson.hasQueries()) {
                     final List<Hash> queries = lesson.getQueries();
-                    handleQueries(view, in, out, queries, expectedLesson.getOriginalNode(), newChild);
+                    handleQueries(view, out, queries, expectedLesson.getOriginalNode(), newChild);
                 }
             }
 
+            completeListener.run();
             logger.info(RECONNECT.getMarker(), "learner thread finished the learning loop for the current subtree");
         } catch (final InterruptedException ex) {
-            logger.warn(RECONNECT.getMarker(), "learner thread interrupted");
+            logger.warn(RECONNECT.getMarker(), "Learner thread interrupted");
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
-            logger.error(EXCEPTION.getMarker(), "exception in the learner's receiving thread", ex);
-            throw new MerkleSynchronizationException("exception in the learner's receiving thread", ex);
+            workGroup.handleError(ex);
         }
 
-        logger.info(RECONNECT.getMarker(), "learner thread closed input, output, and view for the current subtree");
+        logger.info(RECONNECT.getMarker(), "Learner thread closed the view");
     }
 }

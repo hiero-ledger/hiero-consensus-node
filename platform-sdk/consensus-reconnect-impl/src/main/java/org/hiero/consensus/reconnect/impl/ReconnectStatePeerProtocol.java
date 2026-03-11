@@ -321,7 +321,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     stateLifecycleManager);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
-                            "Starting reconnect in role of the receiver.",
+                            "Starting reconnect in the role of the receiver",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -331,7 +331,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             final ReservedSignedState reservedSignedState = learner.execute();
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
-                            "Finished reconnect in the role of the receiver.",
+                            "Finished reconnect in the role of the receiver",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),

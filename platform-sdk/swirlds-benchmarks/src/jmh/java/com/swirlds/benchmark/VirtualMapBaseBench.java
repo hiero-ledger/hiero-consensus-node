@@ -5,7 +5,6 @@ import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -63,10 +62,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
 
     @Setup
     public void createLocal() {
-        final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
         // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
-        dataSourceBuilder =
-                new MerkleDbDataSourceBuilder(configuration, maxKey / 2, merkleDbConfig.hashesRamToDiskThreshold());
+        dataSourceBuilder = new MerkleDbDataSourceBuilder(configuration, maxKey / 2);
     }
 
     @TearDown
