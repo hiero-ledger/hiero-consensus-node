@@ -5,10 +5,10 @@
 Clone this repository:
 
 ```
-git clone https://github.com/hashgraph/hedera-services.git
+git clone https://github.com/hiero-ledger/hiero-consensus-node.git
 ```
 
-From IntelliJ, choose `File -> Open` the _hedera-services/_ directory you just cloned.
+From IntelliJ, choose `File -> Open` the _hiero-consensus-node/_ directory you just cloned.
 
 For more information, also refer to the
 [documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#build)
