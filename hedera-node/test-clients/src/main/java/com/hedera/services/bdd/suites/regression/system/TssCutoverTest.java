@@ -69,6 +69,7 @@ public class TssCutoverTest implements LifecycleTest {
     final Stream<DynamicTest> upgradeToEnabledTssExternalizesLedgerIdAndCreatesGenesisWraps() {
         return hapiTest(sourcingContextual(spec -> {
             if (hasWrapsArtifactsPath()) {
+                StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         untilHgcaaLogContainsText(
