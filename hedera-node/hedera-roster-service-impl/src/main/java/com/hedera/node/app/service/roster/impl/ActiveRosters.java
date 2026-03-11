@@ -90,8 +90,9 @@ public class ActiveRosters {
             }
         }
         if (candidateRosterHash == null) {
-            final boolean needsCutoverLedgerId = historyEnabled && ledgerId == null;
-            if (rosterStore.getPreviousRosterHash() == null || needsCutoverLedgerId) {
+            final boolean cutoverWorkRemaining =
+                    historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean();
+            if (rosterStore.getPreviousRosterHash() == null || cutoverWorkRemaining) {
                 return new ActiveRosters(Phase.BOOTSTRAP, currentRosterHash, currentRosterHash, rosterStore::get);
             } else {
                 return new ActiveRosters(Phase.HANDOFF, null, currentRosterHash, rosterStore::get);

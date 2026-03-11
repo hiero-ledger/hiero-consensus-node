@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class TssCutoverTest implements LifecycleTest {
     private static final String LEDGER_ID_EXTERNALIZED = "Externalizing ledger id";
+    private static final String GENESIS_WRAPS_PROOF_STARTED = "Constructing genesis WRAPS proof";
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
@@ -85,8 +86,24 @@ public class TssCutoverTest implements LifecycleTest {
                                 "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
-                                        "tss.hintsEnabled = true",
-                                        Duration.ofMinutes(2),
+                                        LEDGER_ID_EXTERNALIZED,
+                                        LEDGER_ID_TIMEOUT,
+                                        LOG_POLL_INTERVAL,
+                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
+                                        })
+                                .loggingOff(),
+                        untilHgcaaLogContainsText(
+                                        byNodeId(0),
+                                        GENESIS_WRAPS_PROOF_STARTED,
+                                        Duration.ofMinutes(1),
+                                        LOG_POLL_INTERVAL,
+                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
+                                        })
+                                .loggingOff(),
+                        untilHgcaaLogContainsText(
+                                        byNodeId(0),
+                                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
+                                        WRAPS_PROOF_TIMEOUT,
                                         LOG_POLL_INTERVAL,
                                         () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
                                         })
