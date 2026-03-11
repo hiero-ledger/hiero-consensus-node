@@ -48,4 +48,4 @@ merge:
     - "Merge Queue XTS Required Tests / SDK TCK Regression Panel / Merge Queue XTS: SDK TCK Regression"
 
     # Merge Queue Checks
-    - "MQ Performance Test / Start"
+    - "Merge Queue Performance Test / Start"

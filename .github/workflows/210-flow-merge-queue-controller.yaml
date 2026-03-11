@@ -50,8 +50,8 @@ jobs:
 #      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
 
   # Trigger the MQ Performance/Longevity Tests
-  trigger-merge-queue-performance-longevity-tests:
-    name: MQ Performance Test
+  trigger-merge-queue-performance-tests:
+    name: Merge Queue Performance Test
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ vars.MQPT_CLUSTER }}"
@@ -74,7 +74,7 @@ jobs:
   update-mqpt-cluster-variable:
     name: Update MQPT_CLUSTER Variable
     needs:
-      - trigger-merge-queue-performance-longevity-tests
+      - trigger-merge-queue-performance-tests
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
