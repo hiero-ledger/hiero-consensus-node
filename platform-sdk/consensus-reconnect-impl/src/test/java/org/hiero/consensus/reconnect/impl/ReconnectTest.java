@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -14,7 +13,6 @@ import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -29,8 +27,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -91,8 +87,6 @@ final class ReconnectTest {
     }
 
     private void executeReconnect(final ReconnectMetrics reconnectMetrics) throws InterruptedException, IOException {
-        Logger logger = LogManager.getLogger(MerkleDbDataSource.class);
-        logger.info(MERKLE_DB.getMarker(), "Starting executeReconnect");
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =
@@ -144,9 +138,7 @@ final class ReconnectTest {
             thread.join();
         } finally {
             TestStateUtils.destroyStateLifecycleManager(stateLifecycleManager);
-            logger.info(MERKLE_DB.getMarker(), "state");
         }
-        logger.info(MERKLE_DB.getMarker(), "Finishing executeReconnect");
     }
 
     private ReconnectStateTeacher buildSender(

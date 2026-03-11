@@ -14,7 +14,6 @@ testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
-    requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")

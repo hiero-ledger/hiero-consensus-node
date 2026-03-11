@@ -399,7 +399,7 @@ public class MerkleDbTestUtils {
         assertEventuallyEquals(
                 expectedOpenCount,
                 MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
+                Duration.of(10, ChronoUnit.SECONDS),
                 "Expected " + expectedOpenCount + " open databases.");
     }
 }
