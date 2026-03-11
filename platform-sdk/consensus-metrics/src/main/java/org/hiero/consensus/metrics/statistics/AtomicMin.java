@@ -7,11 +7,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * A minimum value that is updated atomically and is thread safe
  */
 public class AtomicMin {
-    /** default value to return if min is not initialized */
-    private static final long DEFAULT_UNINITIALIZED = Long.MAX_VALUE;
 
     private final AtomicLong min;
-    /** the value to return before any values update the max */
+    /** the value to return before any values update the min */
     private final long uninitializedValue;
 
     public AtomicMin(final long uninitializedValue) {
@@ -20,7 +18,7 @@ public class AtomicMin {
     }
 
     public AtomicMin() {
-        this(DEFAULT_UNINITIALIZED);
+        this(Long.MAX_VALUE);
     }
 
     public long get() {

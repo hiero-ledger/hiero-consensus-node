@@ -116,7 +116,8 @@ public class NetworkMetrics {
                 continue;
             }
             final NodeId nodeId = peer.nodeId();
-            recordPingTime(nodeId, 0);
+            getAverageAndMin(peer.nodeId());
+            getPingValue(peer.nodeId());
             getDisconnectMetric(nodeId);
             getAverageBytesPerSecondSentMetric(nodeId);
         }
@@ -145,24 +146,25 @@ public class NetworkMetrics {
         Objects.requireNonNull(node, "The node must not be null.");
 
         final long pingMicros = TimeUnit.NANOSECONDS.toMicros(pingNanos);
-        nodePingMetric
-                .computeIfAbsent(
-                        node,
-                        nodeId -> new AverageAndMin(
-                                metrics,
-                                PING_CATEGORY,
-                                String.format("ping_us_%02d", nodeId.id()),
-                                String.format(
-                                        "microseconds to send node %02d a ping message and receive a reply",
-                                        nodeId.id()),
-                                FloatFormats.FORMAT_10_2,
-                                PING_DECAY,
-                                9_999_999))
-                .update(pingMicros);
+        getAverageAndMin(node).update(pingMicros);
+        getPingValue(node).update(pingMicros);
+    }
 
-        nodePingValue
-                .computeIfAbsent(node, nodeId -> new AtomicAverage(PING_DECAY))
-                .update(pingMicros);
+    private AtomicAverage getPingValue(final NodeId node) {
+        return nodePingValue.computeIfAbsent(node, nodeId -> new AtomicAverage(PING_DECAY));
+    }
+
+    private AverageAndMin getAverageAndMin(final NodeId node) {
+        return nodePingMetric.computeIfAbsent(
+                node,
+                nodeId -> new AverageAndMin(
+                        metrics,
+                        PING_CATEGORY,
+                        String.format("ping_us_%02d", nodeId.id()),
+                        String.format("microseconds to send node %02d a ping message and receive a reply", nodeId.id()),
+                        FloatFormats.FORMAT_10_2,
+                        PING_DECAY,
+                        9_999_999));
     }
 
     /**

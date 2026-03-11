@@ -2,6 +2,7 @@
 package org.hiero.consensus.metrics.statistics;
 
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A metrics object to track an average and min number without history. This class uses an {@link AtomicAverage} and
@@ -20,11 +21,11 @@ public class AverageAndMin {
      *                      number
      */
     public AverageAndMin(
-            final Metrics metrics,
-            final String category,
-            final String name,
-            final String desc,
-            final String averageFormat) {
+            @NonNull final Metrics metrics,
+            @NonNull final String category,
+            @NonNull final String name,
+            @NonNull final String desc,
+            @NonNull final String averageFormat) {
         this(metrics, category, name, desc, averageFormat, AverageStat.WEIGHT_SMOOTH, Long.MAX_VALUE);
     }
 
@@ -39,11 +40,11 @@ public class AverageAndMin {
      * @param minCeiling    a default 'min' value, to avoid exploding metrics if value is never updated
      */
     public AverageAndMin(
-            final Metrics metrics,
-            final String category,
-            final String name,
-            final String desc,
-            final String averageFormat,
+            @NonNull final Metrics metrics,
+            @NonNull final String category,
+            @NonNull final String name,
+            @NonNull final String desc,
+            @NonNull final String averageFormat,
             final double weight,
             final long minCeiling) {
         averageStat = new AverageStat(metrics, category, name, desc, averageFormat, weight);

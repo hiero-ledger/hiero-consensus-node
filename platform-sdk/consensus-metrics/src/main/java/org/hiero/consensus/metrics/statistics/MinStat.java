@@ -32,11 +32,11 @@ public class MinStat {
         metrics.getOrCreate(new StatEntry.Config<>(category, name, Long.class, min::get)
                 .withDescription(desc)
                 .withFormat(format)
-                .withReset(this::resetMax)
+                .withReset(this::resetMin)
                 .withResetStatsStringSupplier(min::getAndReset));
     }
 
-    private void resetMax(final double unused) {
+    private void resetMin(final double unused) {
         min.reset();
     }
 
