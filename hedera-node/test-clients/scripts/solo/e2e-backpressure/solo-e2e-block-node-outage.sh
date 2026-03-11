@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eo pipefail
+set -Eeo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
@@ -18,7 +18,7 @@ LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
 GRAFANA_LOCAL_PORT="${GRAFANA_LOCAL_PORT:-3000}"
-OUTAGE_WAIT_SECONDS="${OUTAGE_WAIT_SECONDS:-120}"
+OUTAGE_WAIT_SECONDS="${OUTAGE_WAIT_SECONDS:-600}"
 RECOVERY_WAIT_SECONDS="${RECOVERY_WAIT_SECONDS:-60}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
@@ -31,24 +31,81 @@ APP_PROPS_FILE="${SCRIPT_DIR}/resources/application.properties"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
+ARTIFACT_DIR="${ARTIFACT_DIR:-${WORK_DIR}/artifacts}"
+RUN_LOG="${ARTIFACT_DIR}/run.log"
+SOLO_HOME="${SOLO_HOME:-${WORK_DIR}/solo-home}"
+DIAGNOSTICS_DIR="${ARTIFACT_DIR}/diagnostics"
+DIAGNOSTICS_COLLECTED="false"
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
 
+mkdir -p "${ARTIFACT_DIR}" "${SOLO_HOME}" "${DIAGNOSTICS_DIR}"
+export SOLO_HOME
+
+exec > >(tee -a "${RUN_LOG}") 2>&1
+
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+collect_diagnostics() {
+  if [[ "${DIAGNOSTICS_COLLECTED}" == "true" ]]; then
+    return
+  fi
+  DIAGNOSTICS_COLLECTED="true"
+
+  local kubectl_dir="${DIAGNOSTICS_DIR}/kubectl"
+  local solo_dir="${DIAGNOSTICS_DIR}/solo"
+  mkdir -p "${kubectl_dir}" "${solo_dir}"
+
+  log "Collecting diagnostics into ${DIAGNOSTICS_DIR}"
+  set +e
+
+  kubectl get pods -A -o wide > "${kubectl_dir}/pods-all-namespaces.txt" 2>&1 || true
+  kubectl get events -A --sort-by=.metadata.creationTimestamp > "${kubectl_dir}/events-all-namespaces.txt" 2>&1 || true
+  kubectl -n "${SOLO_NAMESPACE}" get all > "${kubectl_dir}/resources-${SOLO_NAMESPACE}.txt" 2>&1 || true
+  kubectl -n "${SOLO_NAMESPACE}" describe pods > "${kubectl_dir}/describe-pods-${SOLO_NAMESPACE}.txt" 2>&1 || true
+
+  while IFS= read -r pod_name; do
+    [[ -z "${pod_name}" ]] && continue
+    safe_pod_name="${pod_name//\//_}"
+    kubectl -n "${SOLO_NAMESPACE}" describe "${pod_name}" > "${kubectl_dir}/describe-${safe_pod_name}.txt" 2>&1 || true
+    containers="$(kubectl -n "${SOLO_NAMESPACE}" get "${pod_name}" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null || true)"
+    for container_name in ${containers}; do
+      kubectl -n "${SOLO_NAMESPACE}" logs "${pod_name}" -c "${container_name}" --since=24h --timestamps \
+        > "${kubectl_dir}/${safe_pod_name}-${container_name}.log" 2>&1 || true
+    done
+  done < <(kubectl -n "${SOLO_NAMESPACE}" get pods -o name 2>/dev/null || true)
+
+  solo deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" > "${solo_dir}/solo-diagnostics-logs.txt" 2>&1 \
+    || solo deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" > "${solo_dir}/solo-diagnostics-all.txt" 2>&1 \
+    || true
+
+  if [[ -d "${SOLO_HOME}/logs" ]]; then
+    cp -R "${SOLO_HOME}/logs" "${solo_dir}/solo-home-logs" >/dev/null 2>&1 || true
+  fi
+
+  cp "${CN_PORT_FORWARD_LOG}" "${ARTIFACT_DIR}/" >/dev/null 2>&1 || true
+  cp "${MIRROR_PORT_FORWARD_LOG}" "${ARTIFACT_DIR}/" >/dev/null 2>&1 || true
+  cp "${GRAFANA_PORT_FORWARD_LOG}" "${ARTIFACT_DIR}/" >/dev/null 2>&1 || true
+
+  log "Diagnostics collection complete"
 }
 
 cleanup() {
   local exit_code=$?
 
   if [[ ${exit_code} -ne 0 ]]; then
+    collect_diagnostics
+    log "Artifacts preserved at: ${ARTIFACT_DIR}"
     log "Script failed (exit=${exit_code}); preserving port-forwards and cluster for debugging"
     return
   fi
 
   if [[ "${KEEP_NETWORK}" == "true" ]]; then
+    log "Artifacts preserved at: ${ARTIFACT_DIR}"
     log "KEEP_NETWORK=true, leaving cluster, deployment, and port-forwards running"
     log "Consensus gRPC: 127.0.0.1:${CN_GRPC_LOCAL_PORT}"
     log "Mirror REST:    http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
@@ -420,3 +477,4 @@ log "Step 5: submitting crypto create after recovery; expecting success"
 node "${NODE_SCRIPT}" expect-success
 
 log "Scenario complete: PASS"
+log "Artifacts saved to: ${ARTIFACT_DIR}"

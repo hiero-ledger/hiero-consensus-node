@@ -270,6 +270,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      enable-e2e-regression-panel: "true"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -305,6 +306,7 @@ jobs:
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
+      enable-e2e-regression-panel: "true"
       enable-chaos-otter-test-suite: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}

@@ -394,7 +394,7 @@ solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases 
 log "Step 3: apply ${UPGRADE_072_RELEASE_TAG} application.properties overrides for cutover flow"
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_072_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${UPGRADE_072_RELEASE_TAG}"
 fix_consensus_metrics_scrape_config
-restart_mirror_importer
+#restart_mirror_importer
 
 log "Step 4: setup upgraded consensus node binaries after redeploy"
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}" --quiet-mode
