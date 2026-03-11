@@ -6,19 +6,19 @@
 categories:
   unit-tests:
     artifact-pattern: "Unit Test Report"
-    managers: [netopyr, poulok, Jeffrey-morgan34]
+    managers: [akdev, Ferparishuertas, Jeffrey-morgan34]
   integration-tests:
     artifact-pattern: "Integration Test Report"
     managers: [Jeffrey-morgan34]
   smart-contract-hapi-tests:
     artifact-pattern: "HAPI Test (Smart Contract) Report"
-    managers: [poulok]
+    managers: [Ferparishuertas]
   hapi-tests:
     artifact-pattern: "HAPI Test*"
-    managers: [netopyr]
+    managers: [akdev]
   otter-tests:
     artifact-pattern: "Otter Tests*"
-    managers: [netopyr]
+    managers: [Jeffrey-morgan34]
   chaos-otter-tests:
     artifact-pattern: "Chaos Otter*"
     managers: [Jeffrey-morgan34]
