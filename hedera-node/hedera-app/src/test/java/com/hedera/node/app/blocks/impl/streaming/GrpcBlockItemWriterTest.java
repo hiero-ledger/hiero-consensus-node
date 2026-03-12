@@ -21,7 +21,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,19 +52,6 @@ class GrpcBlockItemWriterTest {
 
     @TempDir
     Path tempDir;
-
-    @BeforeEach
-    void setUp() {
-        when(configProvider.getConfiguration()).thenReturn(configuration);
-        when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
-        when(selfNodeAccountIdManager.getSelfNodeAccountId())
-                .thenReturn(AccountID.newBuilder()
-                        .shardNum(0)
-                        .realmNum(0)
-                        .accountNum(3)
-                        .build());
-    }
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
@@ -141,6 +127,15 @@ class GrpcBlockItemWriterTest {
         blockState.addItem(BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(blockNumber).build())
                 .build());
+        when(configProvider.getConfiguration()).thenReturn(configuration);
+        when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+        when(selfNodeAccountIdManager.getSelfNodeAccountId())
+                .thenReturn(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3)
+                        .build());
         when(blockBufferService.getBlockState(blockNumber)).thenReturn(blockState);
 
         final GrpcBlockItemWriter grpcBlockItemWriter =
