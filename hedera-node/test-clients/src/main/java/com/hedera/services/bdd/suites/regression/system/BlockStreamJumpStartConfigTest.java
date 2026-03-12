@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.node.config.data.CutoverJumpstartConfig;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.List;
@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
-class CutoverJumpstartConfigTest {
+class BlockStreamJumpStartConfigTest {
 
     @LeakyEmbeddedHapiTest(
             reason = {NEEDS_STATE_ACCESS},
@@ -39,7 +39,7 @@ class CutoverJumpstartConfigTest {
                             .hedera()
                             .configProvider()
                             .getConfiguration()
-                            .getConfigData(CutoverJumpstartConfig.class);
+                            .getConfigData(BlockStreamJumpStartConfig.class);
                     assertEquals(42L, config.blockNum());
                     assertEquals(Bytes.fromHex("1234567890abcdef"), config.previousWrappedRecordBlockHash());
                     assertEquals(7L, config.streamingHasherLeafCount());
