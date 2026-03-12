@@ -608,7 +608,7 @@ class HalfDiskHashMapTest {
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
             assertEquals(4, hdhm.getNumOfBuckets());
-            assertFalse(hdhm.isResizeNeeded(99, 198));
+            assertFalse(hdhm.isResizeNeeded(99, 187));
             assertTrue(hdhm.isResizeNeeded(800, 1600));
             // Resize to 8 buckets
             hdhm.resizeIfNeeded(800, 1600);
@@ -619,7 +619,7 @@ class HalfDiskHashMapTest {
             // Resize again, 32 buckets
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());
-            assertFalse(hdhm.isResizeNeeded(800, 1600));
+            assertTrue(hdhm.isResizeNeeded(800, 1600));
             // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());

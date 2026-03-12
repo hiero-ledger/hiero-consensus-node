@@ -592,6 +592,7 @@ class MerkleDbDataSourceTest {
 
     @Test
     void skipKeyToPathCompactionWhenResizeNeeded() throws IOException {
+        // spotless:off
         createAndApplyDataSource(testDirectory, "skipKeyToPathCompactionWhenResizeNeeded", TestType.long_fixed, 1, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
             coordinator.stopAndDisableBackgroundCompaction();
@@ -617,6 +618,7 @@ class MerkleDbDataSourceTest {
             assertEquals(initialTaskCount, compactingExecutor.getTaskCount(), "No compaction task should be submitted");
             assertFalse(coordinator.isCompactionRunning(MerkleDbDataSource.OBJECT_KEY_TO_PATH));
         });
+        // spotless:on
     }
 
     @ParameterizedTest
