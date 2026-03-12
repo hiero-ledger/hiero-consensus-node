@@ -220,7 +220,7 @@ public class SlothApp implements ConsensusStateEventHandler {
      */
     @Override
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
-        return true;
+        return false;
     }
 
     /**
