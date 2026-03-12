@@ -16,7 +16,7 @@ import java.util.List;
  * @param streamingHasherSubtreeHashes the list of subtree hashes in the streaming hasher state
  */
 @ConfigData("blockStream.jumpstart")
-public record CutoverJumpstartConfig(
+public record BlockStreamJumpStartConfig(
         @ConfigProperty(defaultValue = "-1") @NetworkProperty
         long blockNum,
 
