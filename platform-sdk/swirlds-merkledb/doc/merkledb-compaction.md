@@ -240,12 +240,6 @@ This deferred evaluation model means that scanner-produced candidate lists are s
 tasks for the same store. The scanner runs once (per flush, at most), and all level tasks read from the same cached result.
 Since scanning is one to two orders of magnitude cheaper than compaction, the cost of a single scan amortized across multiple level tasks is negligible.
 
-Multiple compaction tasks may run concurrently for the same store, each compacting a different level.
-For example, level 0 and level 3 of IdToHashChunk may be compacted in parallel.
-This is safe because each task writes to a new output file and only deletes its own input files. The `DataFileCollection`
-uses atomic copy-on-write updates (`getAndUpdate` on an `AtomicReference<ImmutableIndexedObjectList>`) for adding and
-removing file readers, so concurrent modifications are handled correctly.
-
 ### Compaction Execution
 
 When a compaction task runs, it first evaluates cached scan results to decide whether compaction is needed for its level

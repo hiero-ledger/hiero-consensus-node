@@ -42,8 +42,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,7 +50,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -60,7 +57,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -80,12 +76,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Count of open database instances */
     private static final LongAdder COUNT_OF_OPEN_DATABASES = new LongAdder();
-
-    private static final Set<MerkleDbDataSource> registeredDatabases = ConcurrentHashMap.newKeySet();
-
-    // FIXME: remove
-    private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
-    private final int dbId;
 
     /** Data source metadata fields */
     private static final FieldDefinition FIELD_DSMETADATA_MINVALIDKEY =
@@ -484,15 +474,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             enableBackgroundCompaction();
         }
 
-        dbId = ID_GENERATOR.getAndIncrement();
-        // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
-        registeredDatabases.add(this);
-        // FIXME: remove
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "Opening dbId=" + dbId + ", stacktrace: " + getStackTraceAsString(new Throwable()));
-
         chunkStoreScanner = new GarbageScanner(
                 idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
 
@@ -612,15 +594,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    // FIXME: remove
-    public String getStackTraceAsString(Throwable t) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        t.printStackTrace(pw);
-        pw.close();
-        return sw.toString();
-    }
-
     /**
      * Enables background compaction process.
      */
@@ -644,14 +617,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public static long getCountOfOpenDatabases() {
         return COUNT_OF_OPEN_DATABASES.sum();
-    }
-
-    public static Set<MerkleDbDataSource> getRegisteredDatabases() {
-        return Set.copyOf(registeredDatabases);
-    }
-
-    public String getDbId() {
-        return String.valueOf(dbId);
     }
 
     /** Get the most recent first leaf path */
@@ -985,13 +950,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     logger.error(EXCEPTION.getMarker(), "Error while closing Data Source [{}]", tableName);
                     throw t;
                 } finally {
-                    registeredDatabases.remove(this);
                     // updated count of open databases
                     COUNT_OF_OPEN_DATABASES.decrement();
-                    // FIXME: remove
-                    logger.info(
-                            MERKLE_DB.getMarker(),
-                            "Closing dbId=" + dbId + ", stacktrace: " + getStackTraceAsString(new Throwable()));
                     // Delete the data dir
                     if (!keepData) {
                         DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
