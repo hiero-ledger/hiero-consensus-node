@@ -35,6 +35,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.val
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_INFO_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
@@ -42,6 +43,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -426,7 +428,7 @@ public class FileServiceSimpleFeesTest {
             Stream<DynamicTest> fileGetContentsLargeFileChargedByReturnedSize() {
                 final int size = LARGE_CONTENT_BYTES;
                 final double expected = FILE_GET_CONTENTS_QUERY_BASE_FEE_USD
-                        + Math.max(0, size - SERVICE_STATE_BYTES_THRESHOLD) * STATE_BYTES_FEE_USD;
+                        + Math.max(0, size - FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES) * PROCESSING_BYTES_FEE_USD;
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_MILLION_HBARS),
@@ -780,9 +782,7 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateInvalidFileIdTxn")
                                 .hasKnownStatus(INVALID_FILE_ID),
                         validateChargedUsdWithinWithTxnSize(
-                                "fileUpdateInvalidFileIdTxn",
-                                FileServiceSimpleFeesTest::expectedFileUpdateBaseOnlyFeeUsd,
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                "fileUpdateInvalidFileIdTxn", ignored -> 0.0, TRANSACTION_ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -790,9 +790,10 @@ public class FileServiceSimpleFeesTest {
             Stream<DynamicTest> fileUpdateDeletedFileFailsOnHandleAndChargesBaseFee() {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
+                        newKeyListNamed("wacl", List.of(PAYER_KEY)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         fileCreate(FILE)
-                                .key(PAYER_KEY)
+                                .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER),
@@ -814,9 +815,10 @@ public class FileServiceSimpleFeesTest {
             Stream<DynamicTest> fileDeleteDeletedFileFailsOnHandleAndChargesBaseFee() {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
+                        newKeyListNamed("wacl", List.of(PAYER_KEY)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         fileCreate(FILE)
-                                .key(PAYER_KEY)
+                                .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER),
@@ -837,9 +839,10 @@ public class FileServiceSimpleFeesTest {
             Stream<DynamicTest> fileAppendDeletedFileFailsOnHandleAndChargesBaseFee() {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
+                        newKeyListNamed("wacl", List.of(PAYER_KEY)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         fileCreate(FILE)
-                                .key(PAYER_KEY)
+                                .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER),
@@ -1002,7 +1005,7 @@ public class FileServiceSimpleFeesTest {
 
     private Stream<DynamicTest> fileGetContentsBoundaryWithExpectedFee(final int contentBytes, final String queryName) {
         final double expected = FILE_GET_CONTENTS_QUERY_BASE_FEE_USD
-                + Math.max(0, contentBytes - SERVICE_STATE_BYTES_THRESHOLD) * STATE_BYTES_FEE_USD;
+                + Math.max(0, contentBytes - FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES) * PROCESSING_BYTES_FEE_USD;
 
         return hapiTest(
                 newKeyNamed(PAYER_KEY),
