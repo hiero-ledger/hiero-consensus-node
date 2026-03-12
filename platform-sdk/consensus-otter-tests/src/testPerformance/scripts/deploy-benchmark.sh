@@ -165,9 +165,11 @@ ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF || BENCHMARK_EXIT=$?
 set -eo pipefail
 
 # Source profile to pick up JAVA_HOME and PATH in non-interactive SSH sessions
-for f in "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc" "/etc/profile"; do
+for f in "/etc/profile" "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc"; do
     [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
 done
+
+export JAVA_HOME=~/jdk-25.0.2
 
 # Verify Java is available
 if [[ -z "\$JAVA_HOME" ]] && ! command -v java &>/dev/null; then
