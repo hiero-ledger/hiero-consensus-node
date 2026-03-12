@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -39,7 +40,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class TssCutoverTest implements LifecycleTest {
-    private static final String LEDGER_ID_EXTERNALIZED = "Externalizing ledger id";
     private static final String GENESIS_WRAPS_PROOF_STARTED = "Constructing genesis WRAPS proof";
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
@@ -84,14 +84,12 @@ public class TssCutoverTest implements LifecycleTest {
                         prepareFakeUpgrade(),
                         upgradeToNextConfigVersion(Map.of(
                                 "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
-                        untilHgcaaLogContainsText(
-                                        byNodeId(0),
-                                        LEDGER_ID_EXTERNALIZED,
-                                        LEDGER_ID_TIMEOUT,
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
+                        withExternalizedLedgerIdFromHgcaaLog(
+                                byNodeId(0),
+                                LEDGER_ID_TIMEOUT,
+                                LOG_POLL_INTERVAL,
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
+                                this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
                                         GENESIS_WRAPS_PROOF_STARTED,
