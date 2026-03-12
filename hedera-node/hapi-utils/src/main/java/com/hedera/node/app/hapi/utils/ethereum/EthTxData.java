@@ -11,6 +11,7 @@ import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,6 +19,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
@@ -157,65 +160,61 @@ public record EthTxData(
             throw new IllegalStateException("Re-encoding access list is unsupported");
         }
         return switch (type) {
-            case LEGACY_ETHEREUM ->
-                RLPEncoder.list(
-                        Integers.toBytes(nonce),
-                        gasPrice,
-                        Integers.toBytes(gasLimit),
-                        to,
-                        Integers.toBytesUnsigned(value),
-                        callData,
-                        v,
-                        r,
-                        s);
-            case EIP2930 ->
-                RLPEncoder.sequence(
-                        Integers.toBytes(0x01),
-                        List.of(
-                                chainId,
-                                Integers.toBytes(nonce),
-                                gasPrice,
-                                Integers.toBytes(gasLimit),
-                                to,
-                                Integers.toBytesUnsigned(value),
-                                callData,
-                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
-                                Integers.toBytes(recId),
-                                r,
-                                s));
-            case EIP1559 ->
-                RLPEncoder.sequence(
-                        Integers.toBytes(0x02),
-                        List.of(
-                                chainId,
-                                Integers.toBytes(nonce),
-                                maxPriorityGas,
-                                maxGas,
-                                Integers.toBytes(gasLimit),
-                                to,
-                                Integers.toBytesUnsigned(value),
-                                callData,
-                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
-                                Integers.toBytes(recId),
-                                r,
-                                s));
-            case EIP7702 ->
-                RLPEncoder.sequence(
-                        Integers.toBytes(0x04),
-                        List.of(
-                                chainId,
-                                Integers.toBytes(nonce),
-                                maxPriorityGas,
-                                maxGas,
-                                Integers.toBytes(gasLimit),
-                                to,
-                                Integers.toBytesUnsigned(value),
-                                callData,
-                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
-                                authorizationListAsRlp() != null ? authorizationListAsRlp() : new Object[0],
-                                Integers.toBytes(recId),
-                                r,
-                                s));
+            case LEGACY_ETHEREUM -> RLPEncoder.list(
+                    Integers.toBytes(nonce),
+                    gasPrice,
+                    Integers.toBytes(gasLimit),
+                    to,
+                    Integers.toBytesUnsigned(value),
+                    callData,
+                    v,
+                    r,
+                    s);
+            case EIP2930 -> RLPEncoder.sequence(
+                    Integers.toBytes(0x01),
+                    List.of(
+                            chainId,
+                            Integers.toBytes(nonce),
+                            gasPrice,
+                            Integers.toBytes(gasLimit),
+                            to,
+                            Integers.toBytesUnsigned(value),
+                            callData,
+                            accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                            Integers.toBytes(recId),
+                            r,
+                            s));
+            case EIP1559 -> RLPEncoder.sequence(
+                    Integers.toBytes(0x02),
+                    List.of(
+                            chainId,
+                            Integers.toBytes(nonce),
+                            maxPriorityGas,
+                            maxGas,
+                            Integers.toBytes(gasLimit),
+                            to,
+                            Integers.toBytesUnsigned(value),
+                            callData,
+                            accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                            Integers.toBytes(recId),
+                            r,
+                            s));
+            case EIP7702 -> RLPEncoder.sequence(
+                    Integers.toBytes(0x04),
+                    List.of(
+                            chainId,
+                            Integers.toBytes(nonce),
+                            maxPriorityGas,
+                            maxGas,
+                            Integers.toBytes(gasLimit),
+                            to,
+                            Integers.toBytesUnsigned(value),
+                            callData,
+                            accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                            authorizationListAsRlp() != null ? authorizationListAsRlp() : new Object[0],
+                            Integers.toBytes(recId),
+                            r,
+                            s));
         };
     }
 
@@ -309,11 +308,11 @@ public record EthTxData(
         int result = Arrays.hashCode(rawTx);
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(chainId);
-        result = 31 * result + (int) (nonce ^ (nonce >>> 32));
+        result = 31 * result + Long.hashCode(nonce);
         result = 31 * result + Arrays.hashCode(gasPrice);
         result = 31 * result + Arrays.hashCode(maxPriorityGas);
         result = 31 * result + Arrays.hashCode(maxGas);
-        result = 31 * result + (int) (gasLimit ^ (gasLimit >>> 32));
+        result = 31 * result + Long.hashCode(gasLimit);
         result = 31 * result + Arrays.hashCode(to);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(callData);
@@ -328,6 +327,7 @@ public record EthTxData(
         return result;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
@@ -380,6 +380,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                //TODO Glib: why we are ignoring accessListAsRlp here?
                 null,
                 authorizationList,
                 authorizationListAsRlp,
@@ -404,6 +405,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                //TODO Glib: why we are ignoring accessListAsRlp here?
                 null,
                 authorizationList,
                 authorizationListAsRlp,
@@ -461,6 +463,52 @@ public record EthTxData(
                 newS);
     }
 
+    /**
+     * Parse <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a> Access Lists from its RLP bytes.
+     *
+     * @return parsed access lists
+     * @throws IllegalArgumentException qwe
+     */
+    @Nullable
+    public List<AccessList> extractAccessLists() throws IllegalArgumentException {
+        if (accessList != null) {
+            final List<AccessList> accessLists = new ArrayList<>();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList);
+            while (decoder.hasNext()) {
+                final var accessListItem = decoder.next();
+                if (!accessListItem.isList()) {
+                    throw new IllegalArgumentException("Access list item should be a list");
+                }
+                final var accessListElements = accessListItem.asRLPList().elements();
+                if (accessListElements.size() != 2) {
+                    throw new IllegalArgumentException(
+                            "Access list item does not contain expected number of elements");
+                }
+                final var address = accessListElements.getFirst().data();
+                final var storageKeysItem = accessListElements.get(1);
+                if (!storageKeysItem.isList()) {
+                    throw new IllegalArgumentException("Access list storage keys should be a list");
+                }
+                final var storageKeys = storageKeysItem.asRLPList().elements();
+                accessLists.add(new AccessList(
+                        address,
+                        storageKeys.stream().map(RLPItem::data).toList()
+
+                ));
+            }
+            return accessLists;
+        } else {
+            return null;
+        }
+    }
+
+
+    /**
+     * Parse authorization list for a code delegation <a href="https://eips.ethereum.org/EIPS/eip-7702">EIP-7702</a> transaction.
+     *
+     * @return parsed authorization lists
+     * @throws IllegalArgumentException if RLP list does not contain expected number of elements
+     */
     @NonNull
     public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
         final List<CodeDelegation> codeDelegations = new ArrayList<>();
@@ -469,6 +517,8 @@ public record EthTxData(
             while (decoder.hasNext()) {
                 final var rlpItem = decoder.next();
                 if (!rlpItem.isList()) {
+                    // TODO Glib if it is not a list, then skip. If there is wrong size of elements, throw exception.
+                    //  mb we should always skip or always throw?
                     return codeDelegations;
                 }
                 if (rlpItem.asRLPList().elements().size() != 6) {
@@ -483,7 +533,7 @@ public record EthTxData(
                         asByte(elements.get(3)), // yParity
                         elements.get(4).data(), // r
                         elements.get(5).data() // s
-                        ));
+                ));
             }
         }
         return codeDelegations;
@@ -539,7 +589,7 @@ public record EthTxData(
                 val,
                 rlpList.get(7).data(), // r
                 rlpList.get(8).data() // s
-                );
+        );
     }
 
     /**
@@ -579,7 +629,7 @@ public record EthTxData(
                 null, // v
                 rlpList.get(10).data(), // r
                 rlpList.get(11).data() // s
-                );
+        );
     }
 
     /**
@@ -619,7 +669,7 @@ public record EthTxData(
                 null, // v
                 rlpList.get(9).data(), // r
                 rlpList.get(10).data() // s
-                );
+        );
     }
 
     /**
@@ -661,7 +711,7 @@ public record EthTxData(
                 null, // v
                 rlpList.get(11).data(), // r
                 rlpList.get(12).data() // s
-                );
+        );
     }
 
     // before EIP155 the value of v in

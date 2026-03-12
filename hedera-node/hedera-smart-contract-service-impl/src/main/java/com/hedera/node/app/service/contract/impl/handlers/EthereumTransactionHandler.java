@@ -130,6 +130,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
             // Baseline cost is the gas used by access lists and code delegation authorizations.
             // Since we currently don't support access lists, we're just adding code authorizations cost.
+            // TODO Glib: access-list cost
             // TODO(access-list): add access list cost
             final var baselineCost = gasCalculator.delegateCodeGasCost(authorizationListSize);
             final var gasRequirements = gasCalculator.transactionGasRequirements(

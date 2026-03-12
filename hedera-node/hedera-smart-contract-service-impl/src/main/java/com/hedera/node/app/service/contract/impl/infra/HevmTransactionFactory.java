@@ -169,6 +169,7 @@ public class HevmTransactionFactory {
                 body,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -198,6 +199,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
+                null,
                 body);
     }
 
@@ -218,6 +220,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -225,6 +228,7 @@ public class HevmTransactionFactory {
             @NonNull final AccountID payerId, @NonNull final EthereumTransactionBody body) {
         final var ethTxData = assertValidEthTx(body);
         final var senderId = asAliasedSender(ethTxData);
+        // TODO Glib: parse access list in next factory methods
         return ethTxData.hasToAddress()
                 ? fromEthTxCall(payerId, senderId, ethTxData, body.maxGasAllowance())
                 : fromEthTxCreate(payerId, senderId, ethTxData, body.maxGasAllowance());
@@ -248,6 +252,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 null,
+                ethTxData.extractAccessLists(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);
@@ -270,6 +275,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                ethTxData.extractAccessLists(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);
@@ -317,6 +323,7 @@ public class HevmTransactionFactory {
                 gasLimit,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
                 null,
                 null,
                 exception,
