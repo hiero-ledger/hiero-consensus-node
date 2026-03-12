@@ -43,8 +43,8 @@ public class RpcPeerProtocolTests {
     private long lastSentSync;
     private Throwable foundException;
     private NodeId alreadyAsked = null;
-    private Connection otherConnection = null;
-    private Connection lastConnection = null;
+    private volatile Connection otherConnection = null;
+    private volatile Connection lastConnection = null;
 
     @Test
     public void testPeerProtocolFrequentDisconnections() throws Throwable {
@@ -211,6 +211,7 @@ public class RpcPeerProtocolTests {
             Thread.sleep(100);
             if (lastConnection != null) {
                 lastConnection.disconnect();
+                otherConnection.disconnect();
             }
             if (foundException != null) {
                 throw foundException;
@@ -220,6 +221,7 @@ public class RpcPeerProtocolTests {
         running.set(false);
         if (lastConnection != null) {
             lastConnection.disconnect();
+            otherConnection.disconnect();
         }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;
@@ -264,7 +266,6 @@ public class RpcPeerProtocolTests {
         }
         final Connection connection = otherConnection;
         alreadyAsked = null;
-        otherConnection = null;
         return connection;
     }
 }

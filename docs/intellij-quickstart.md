@@ -5,10 +5,10 @@
 Clone this repository:
 
 ```
-git clone https://github.com/hashgraph/hedera-services.git
+git clone https://github.com/hiero-ledger/hiero-consensus-node.git
 ```
 
-From IntelliJ, choose `File -> Open` the _hedera-services/_ directory you just cloned.
+From IntelliJ, choose `File -> Open` the _hiero-consensus-node/_ directory you just cloned.
 
 For more information, also refer to the
 [documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#build)
@@ -27,7 +27,7 @@ The following plugins add comfort features for working with certain parts of the
 
 The project is imported as a Gradle project. Before you can use all features reliably, make sure
 that Gradle is started with the JDK we use in the project, which currently is: **Eclipse Temurin,
-21.0.1**
+25.0.2**
 
 You can use IntelliJ to download the JDK if you do not have it installed.
 

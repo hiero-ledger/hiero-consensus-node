@@ -24,7 +24,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 
@@ -211,8 +213,9 @@ public class FileServiceSimpleFeesTest {
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
                         "getFileContentsBasic",
-                        BASE_FEE_FILE_GET_CONTENT + 500 * STATE_BYTES_FEE_USD,
-                        QUERY_ALLOWED_PERCENT_DIFF),
+                        BASE_FEE_FILE_GET_CONTENT
+                                + (1500 - FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES) * PROCESSING_BYTES_FEE_USD,
+                        1),
                 validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 

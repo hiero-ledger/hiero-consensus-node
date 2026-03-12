@@ -285,7 +285,7 @@
           "name": "FileGetContents",
           "baseFee": 84,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            { "name": "PROCESSING_BYTES", "includedCount": 1000}
           ]
         },
         {
@@ -739,7 +739,7 @@
           "baseFee": 499000000,
           "extras": [
             {
-              "name": "STATE_BYTES", "includedCount": 1000
+              "name": "PROCESSING_BYTES", "includedCount": 20000
             }
           ]
         },
