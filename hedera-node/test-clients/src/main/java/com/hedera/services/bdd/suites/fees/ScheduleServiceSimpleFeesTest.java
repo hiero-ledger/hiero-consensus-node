@@ -29,7 +29,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -38,11 +38,13 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -57,6 +59,7 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
     // Wider tolerance to accommodate fee variance between embedded and subprocess test modes
     private static final double SCHEDULE_FEE_TOLERANCE = 50.0;
+    private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -120,10 +123,25 @@ public class ScheduleServiceSimpleFeesTest {
                         BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER,
                         SCHEDULE_FEE_TOLERANCE),
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, SCHEDULE_FEE_TOLERANCE),
-                // Note: canonicalContractCall fee validation skipped — fee varies significantly
-                // between test modes (subprocess ~$0.1, embedded ~$0)
+                validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL, SCHEDULE_FEE_TOLERANCE),
                 validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, SCHEDULE_FEE_TOLERANCE),
-                validateNonZeroNodePaymentForQuery("getScheduleInfoBasic"));
+                validateNodePaymentAmountForQuery("getScheduleInfoBasic", EXPECTED_NODE_PAYMENT_TINYCENTS));
+    }
+
+    @HapiTest
+    @DisplayName("schedule get info - invalid schedule fails - no fee charged")
+    final Stream<DynamicTest> scheduleGetInfoInvalidScheduleFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                cryptoCreate(PAYING_SENDER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYING_SENDER).exposingBalanceTo(initialBalance::set),
+                getScheduleInfo("0.0.99999999").payingWith(PAYING_SENDER).hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getAccountBalance(PAYING_SENDER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
     }
 
     @HapiTest
