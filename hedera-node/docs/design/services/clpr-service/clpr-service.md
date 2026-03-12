@@ -373,7 +373,7 @@ large enough to make Sybil attacks economically infeasible. An attacker who regi
 honest endpoints — controlling which bundles get submitted and enabling censorship or selective delay. The bond size
 should be calibrated so that controlling a majority of endpoints costs more than the value that could be extracted
 through censorship. Additionally, peer endpoint selection during sync should incorporate randomization to prevent
-persistent pairing, and endpoint reputation scoring (see §5.2) can help honest endpoints preferentially select reliable
+persistent pairing, and endpoint reputation scoring (see §4.2) can help honest endpoints preferentially select reliable
 peers. On Hiero, where all consensus nodes are automatically endpoints, Sybil resistance is inherited from the
 network's stake-weighted consensus.
 
@@ -990,9 +990,9 @@ a Connector, a party must specify which Connections it operates on, provide an i
 for message handling when receiving messages), and lock a stake that can be slashed for misbehavior. The Connector also
 specifies an admin authority that can top up funds, adjust settings, or shut it down.
 
-A Connector must exist on **both** ledgers in a Connection — one side authorizes and enqueues messages, the other side
-pays for their execution on arrival. The relationship is many-to-many: multiple Connectors may serve the same
-Connection, and a single Connector may operate across multiple Connections.
+A Connector must exist on **both** ledgers — one side authorizes and enqueues messages, the other side pays for their
+execution on arrival, depending on the direction of message passing. The relationship is many-to-many: multiple
+Connectors may serve the same Connection, and a single Connector may operate across multiple Connections.
 
 **Cross-ledger identity.** When a Connector registers on the destination ledger, it specifies the address of its
 counterpart on the source ledger. The CLPR Service maintains an index mapping
@@ -1026,7 +1026,7 @@ funds to pay for handling the eventual response.
 ### 3.3.3 Receiving, Routing, and Paying
 
 When a verified bundle's messages are dispatched by the messaging layer (see §3.2.4), each message is processed
-sequentially. The processing path depends on the message type (see `ClprMessagePayload` oneof in the [CLPR Service Specification](clpr-service-spec.md)):
+sequentially. The processing path depends on the message type:
 
 **Control Messages** are processed directly by the CLPR Service — no Connector is involved, no application is
 dispatched to, and no response is generated. The cost is absorbed by the submitting endpoint as part of the bundle
@@ -1051,7 +1051,7 @@ message.
 If the Connector does not exist on the destination ledger, or exists but does not have enough funds, the message still
 produces a deterministic outcome. A failure response is generated — "connector not found" or "connector underfunded" —
 and queued for return. The endpoint that submitted the bundle absorbs the execution cost for this particular message,
-but the slashing mechanism described in §3.3.4 ensures the endpoint is eventually made whole.
+but the slashing mechanism described in §3.3.4 makes an intentional attack by the sender economically infeasible.
 
 > 💡 **Ethereum: reentrancy.** When the CLPR Service contract dispatches a message to the target application, the
 application receives execution control and can make arbitrary external calls — including calling back into the CLPR
@@ -1067,15 +1067,6 @@ charged for processing responses.
 Critically, a failure on one message does not stop processing of the remaining messages in the bundle. Each message is
 handled independently. This ensures that a single bad message (e.g., referencing a missing Connector) does not block an
 entire batch of otherwise valid messages behind it.
-
-> ⚠️ **Sender authentication.** CLPR is a transport layer. When a message arrives on the destination, the CLPR Service
-> authenticates that it came from a specific peer ledger (via the Connection and verifier) and was authorized by a
-> specific Connector. Each message also carries a `sender` field (see `ClprMessage` in the [CLPR Service Specification](clpr-service-spec.md)) that is stamped by the
-> source ledger's CLPR Service at enqueue time — it contains the on-chain address of the account that submitted the
-> message on the source ledger. This field is trustworthy (it is set by the CLPR Service, not by the caller), but it is
-> a **source-chain address** that may not be meaningful on the destination chain (e.g., a Solana address has no inherent
-> meaning on an EVM chain). Applications that need cross-chain identity resolution MUST implement their own mapping at
-> the application layer.
 
 > ⚠️ **Untrusted payloads.** Both messages and responses carry opaque application-layer payloads. A malicious
 > destination application could return a crafted response designed to exploit the source application (e.g., triggering
@@ -1095,7 +1086,7 @@ entire batch of otherwise valid messages behind it.
 
 ### 3.3.4 Failure Consequences and Slashing
 
-When a response arrives on the source ledger, the CLPR Service inspects its `ClprMessageReplyStatus` (see the [CLPR Service Specification](clpr-service-spec.md)). Only
+When a response arrives on the source ledger, the CLPR Service inspects its status. Only
 **Connector-attributable failures** trigger slashing: `CONNECTOR_NOT_FOUND` and `CONNECTOR_UNDERFUNDED`. Application
 errors (`APPLICATION_ERROR`) do not result in slashing — the Connector fulfilled its obligation to pay; the application
 simply reverted. `SUCCESS` and `REDACTED` are non-penalized outcomes. The source Connector is penalized because it
@@ -1128,8 +1119,7 @@ prioritize syncing with source-side endpoints that actually deliver bundles to t
 will be more likely to be selected as sync partners, and therefore more likely to earn the receive-side reimbursement
 when the other side sends back responses and messages. Nodes that never send will find fewer willing peers. This is an
 acknowledged limitation: on a ledger that is predominantly sending and rarely receiving, the receive-side margin may be
-insufficient to incentivize endpoint participation. Future protocol revisions may introduce a sending-side incentive
-mechanism if this proves to be a practical problem.
+insufficient to incentivize endpoint participation.
 
 ### 3.3.5 Open Economic Design Issues
 
@@ -1142,7 +1132,7 @@ Connector can occupy; (c) priority pricing, where queue slots become more expens
 does not support state rent, escrowed capital is the natural alternative to rent-based models. This is an unresolved
 design issue that must be addressed before production deployment.
 
-See also §5.2 for additional open economic questions (application-Connector agreements).
+See also §4.2 for additional open economic questions (application-Connector agreements).
 
 ---
 
@@ -1178,17 +1168,9 @@ rather than smart contract proxies.
 
 ---
 
-# 4. Specification Reference
+# 4. Known Risks and Open Questions
 
-Protobuf definitions, gRPC service definitions, verifier and Connector authorization interfaces, state transition
-algorithms, and configuration parameters are defined in the companion
-[CLPR Service Specification](clpr-service-spec.md).
-
----
-
-# 5. Known Risks and Open Questions
-
-## 5.1 Risks
+## 4.1 Risks
 
 - **Time to market.** Some HashSphere customers are already turning to existing solutions (LayerZero, Wormhole, etc.).
 - **Testing complexity.** Requires multiple concurrent networks in the same test environment; new test drivers and
@@ -1199,7 +1181,7 @@ algorithms, and configuration parameters are defined in the companion
 - **Multi-team coordination.** Development requires contributions from Execution, Smart Contracts, Block Node, Mirror
   Node, SDK, Release Engineering, Performance, Security, Docs, DevRel, and Product.
 
-## 5.2 Open Questions
+## 4.2 Open Questions
 
 1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
    ordering?
