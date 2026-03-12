@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
-import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
@@ -39,15 +38,13 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -198,107 +195,77 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        // Pick the node directory with the most block files (compare by file count to
-        // avoid parsing all nodes upfront), then only parse the winner
+        // Pick the node directory with the most block files (compare by count first,
+        // then sort only the winner to avoid unnecessary sorting of discarded lists)
         Path bestDir = null;
-        long bestCount = -1;
+        List<Path> bestPaths = null;
         for (final var dir : blockStreamDirs) {
             try (final var stream = Files.walk(dir)) {
-                final var count = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
-                        .count();
-                if (count > bestCount) {
-                    bestCount = count;
+                final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .toList();
+                if (bestPaths == null || paths.size() > bestPaths.size()) {
                     bestDir = dir;
+                    bestPaths = paths;
                 }
             } catch (Exception ignore) {
                 // We will try the next node's directory
             }
         }
-        if (bestDir == null) {
+        if (bestPaths == null || bestPaths.isEmpty()) {
             return Optional.empty();
         }
-        final List<Block> best;
-        try {
-            best = BLOCK_STREAM_ACCESS.readBlocks(bestDir);
-        } catch (Exception e) {
-            log.warn("Failed to read blocks from best directory {}", bestDir, e);
-            return Optional.empty();
-        }
-        if (best.isEmpty()) {
-            return Optional.empty();
-        }
-        // Walk the primary block list; complete blocks are added directly, incomplete ones
-        // are substituted from other node directories via a lazily-built fallback map
-        Map<Long, List<Path>> fallbackCandidates = null;
-        final var result = new ArrayList<Block>(best.size());
-        final var bestDirForLambda = bestDir;
-        for (final var block : best) {
+        bestPaths = bestPaths.stream()
+                .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
+                .toList();
+        // Parse the winner's block files and pair each block with its source path
+        final var otherDirs = new ArrayList<>(blockStreamDirs);
+        otherDirs.remove(bestDir);
+        final var result = new ArrayList<Block>(bestPaths.size());
+        for (final var blockPath : bestPaths) {
+            final var relativePath = bestDir.relativize(blockPath);
+            Block block;
+            try {
+                block = BlockStreamAccess.blockFrom(blockPath);
+            } catch (Exception e) {
+                log.warn("Failed to parse block file {}", blockPath, e);
+                // Try the same file from other node directories to avoid a gap
+                final var fallback = findCompleteBlockIn(otherDirs, relativePath);
+                if (fallback != null) {
+                    result.add(fallback);
+                }
+                continue;
+            }
             final var items = block.items();
-            if (items.isEmpty()) {
+            if (items.isEmpty() || items.getLast().hasBlockProof()) {
                 result.add(block);
                 continue;
             }
-            if (items.getLast().hasBlockProof()) {
-                result.add(block);
-                continue;
-            }
-            // Incomplete block found; lazily build the fallback map on first occurrence
-            if (fallbackCandidates == null) {
-                log.warn("Found incomplete blocks; falling back to cross-node assembly");
-                fallbackCandidates = collectFallbackBlockFilePaths(blockStreamDirs, bestDirForLambda);
-            }
-            final var blockNumber = items.getFirst().blockHeaderOrThrow().number();
-            final var candidates = fallbackCandidates.get(blockNumber);
-            final var replacement = candidates != null ? findFirstCompleteBlock(candidates) : null;
-            // Use the replacement if found, otherwise keep the incomplete block as-is;
-            // validators already handle incomplete blocks at the end of the list
+            // Incomplete block — try the same relative path under other node directories
+            final var replacement = findCompleteBlockIn(otherDirs, relativePath);
             result.add(replacement != null ? replacement : block);
         }
-        return Optional.of(result);
+        return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 
     /**
-     * Collects block file paths from all node directories except the best one, keyed by block
-     * number. Used as a fallback when the primary node has incomplete blocks that need substitution.
-     */
-    private static Map<Long, List<Path>> collectFallbackBlockFilePaths(
-            @NonNull final List<Path> blockStreamDirs, @NonNull final Path excludeDir) {
-        final var candidatesByNumber = new HashMap<Long, List<Path>>();
-        for (final var dir : blockStreamDirs) {
-            if (dir.equals(excludeDir)) {
-                continue;
-            }
-            try (final var stream = Files.walk(dir)) {
-                stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(p -> {
-                    final var blockNumber = BlockStreamAccess.extractBlockNumber(p);
-                    if (blockNumber >= 0) {
-                        candidatesByNumber
-                                .computeIfAbsent(blockNumber, k -> new ArrayList<>())
-                                .add(p);
-                    }
-                });
-            } catch (IOException e) {
-                log.warn("Failed to walk block stream directory {}", dir, e);
-            }
-        }
-        return candidatesByNumber;
-    }
-
-    /**
-     * Tries candidate file paths for a given block number, returning the first that parses
-     * to a structurally complete block (one whose last item is a block proof).
+     * Tries to find a complete version of a block file by resolving the same relative path
+     * under each of the given directories. Returns the first block whose last item is a proof.
      */
     @Nullable
-    private static Block findFirstCompleteBlock(@NonNull final List<Path> candidates) {
-        for (final var path : candidates) {
+    private static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
+        for (final var dir : otherDirs) {
+            final var candidatePath = dir.resolve(relativePath);
+            if (!Files.exists(candidatePath)) {
+                continue;
+            }
             try {
-                final var block = BlockStreamAccess.blockFrom(path);
+                final var block = BlockStreamAccess.blockFrom(candidatePath);
                 final var items = block.items();
                 if (!items.isEmpty() && items.getLast().hasBlockProof()) {
                     return block;
                 }
             } catch (Exception ignore) {
-                // Try the next candidate
+                // Try the next directory
             }
         }
         return null;
