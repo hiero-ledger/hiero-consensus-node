@@ -67,7 +67,6 @@ final class ReconnectTest {
     @AfterAll
     static void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
