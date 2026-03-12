@@ -1415,6 +1415,12 @@ public final class Hedera
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, this is the cutover upgrade, and TSS machinery won't have prepared
+            // the "normal" preconditions for roster adoption during the previous release; so skip everything
+            return;
+        }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.historyEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
