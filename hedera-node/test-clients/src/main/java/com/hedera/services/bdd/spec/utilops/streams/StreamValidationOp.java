@@ -197,39 +197,48 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        // Try each node directory, pick the one with the most blocks
-        List<Block> best = null;
+        // Pick the node directory with the most block files (compare by file count to
+        // avoid parsing all nodes upfront), then only parse the winner
+        Path bestDir = null;
+        long bestCount = -1;
         for (final var dir : blockStreamDirs) {
-            try {
-                final var blocks = BLOCK_STREAM_ACCESS.readBlocks(dir);
-                if (best == null || blocks.size() > best.size()) {
-                    best = blocks;
+            try (final var stream = Files.walk(dir)) {
+                final var count = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .count();
+                if (count > bestCount) {
+                    bestCount = count;
+                    bestDir = dir;
                 }
             } catch (Exception ignore) {
-                // We will try to read the next node's streams
+                // We will try the next node's directory
             }
         }
-        if (best == null || best.isEmpty()) {
+        if (bestDir == null) {
+            return Optional.empty();
+        }
+        final var best = BLOCK_STREAM_ACCESS.readBlocks(bestDir);
+        if (best.isEmpty()) {
             return Optional.empty();
         }
         // Walk the primary block list; complete blocks are added directly, incomplete ones
         // are substituted from other node directories via a lazily-built fallback map
         TreeMap<Long, List<Path>> fallbackCandidates = null;
         final var result = new ArrayList<Block>(best.size());
+        final var bestDirForLambda = bestDir;
         for (final var block : best) {
             final var items = block.items();
-            if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+            if (items.isEmpty()) {
                 result.add(block);
                 continue;
             }
-            if (items.isEmpty()) {
+            if (items.getLast().hasBlockProof()) {
                 result.add(block);
                 continue;
             }
             // Incomplete block found; lazily build the fallback map on first occurrence
             if (fallbackCandidates == null) {
                 log.warn("Found incomplete blocks; falling back to cross-node assembly");
-                fallbackCandidates = collectBlockFilePaths(blockStreamDirs);
+                fallbackCandidates = collectFallbackBlockFilePaths(blockStreamDirs, bestDirForLambda);
             }
             final var blockNumber = items.getFirst().blockHeaderOrThrow().number();
             final var candidates = fallbackCandidates.get(blockNumber);
@@ -238,16 +247,20 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             // validators already handle incomplete blocks at the end of the list
             result.add(replacement != null ? replacement : block);
         }
-        return result.isEmpty() ? Optional.empty() : Optional.of(result);
+        return Optional.of(result);
     }
 
     /**
-     * Collects block file paths from all node directories, keyed by block number. Used as a
-     * fallback when the primary node has incomplete blocks that need substitution.
+     * Collects block file paths from all node directories except the best one, keyed by block
+     * number. Used as a fallback when the primary node has incomplete blocks that need substitution.
      */
-    private static TreeMap<Long, List<Path>> collectBlockFilePaths(@NonNull final List<Path> blockStreamDirs) {
+    private static TreeMap<Long, List<Path>> collectFallbackBlockFilePaths(
+            @NonNull final List<Path> blockStreamDirs, @NonNull final Path excludeDir) {
         final var candidatesByNumber = new TreeMap<Long, List<Path>>();
         for (final var dir : blockStreamDirs) {
+            if (dir.equals(excludeDir)) {
+                continue;
+            }
             try (final var stream = Files.walk(dir)) {
                 stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(p -> {
                     final var blockNumber = BlockStreamAccess.extractBlockNumber(p);
