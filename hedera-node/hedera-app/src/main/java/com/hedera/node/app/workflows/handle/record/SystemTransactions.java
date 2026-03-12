@@ -23,6 +23,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRAN
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -497,23 +498,51 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Apply the deferred state-write from the wrapped record block hash migration, if any
-        final var migrationResult = wrappedRecordBlockHashMigration.result();
-        if (migrationResult != null) {
-            final var blockInfoState = state.getWritableStates(BlockRecordService.NAME)
-                    .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-            final var blockInfo = requireNonNull(blockInfoState.get());
-            final var updatedBlockInfo = blockInfo
-                    .copyBuilder()
-                    .blockHashes(migrationResult.blockHashes())
-                    .previousWrappedRecordBlockRootHash(migrationResult.previousWrappedRecordBlockRootHash())
-                    .wrappedIntermediatePreviousBlockRootHashes(
-                            migrationResult.wrappedIntermediatePreviousBlockRootHashes())
-                    .wrappedIntermediateBlockRootsLeafCount(migrationResult.wrappedIntermediateBlockRootsLeafCount())
-                    .build();
-            blockInfoState.put(updatedBlockInfo);
-            ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-            log.info("Applied wrapped record block hash migration result to state");
+        // Apply effects of the jumpstart file migration (if any)
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration != null) {
+            // Check if the block info in state matches the migration result; if not, overwrite
+            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoState = writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var blockInfo = blockInfoState.get();
+            boolean changed = false;
+            final var builder = blockInfo.copyBuilder();
+            if (!migration
+                    .previousWrappedRecordBlockRootHash()
+                    .equals(blockInfo.previousWrappedRecordBlockRootHash())) {
+                builder.previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash());
+                changed = true;
+            }
+            if (!migration
+                    .wrappedIntermediatePreviousBlockRootHashes()
+                    .equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
+                builder.wrappedIntermediatePreviousBlockRootHashes(
+                        migration.wrappedIntermediatePreviousBlockRootHashes());
+                changed = true;
+            }
+            if (migration.wrappedIntermediateBlockRootsLeafCount()
+                    != blockInfo.wrappedIntermediateBlockRootsLeafCount()) {
+                builder.wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount());
+                changed = true;
+            }
+            if (changed) {
+                blockInfoState.put(builder.build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+                log.info("Updated block info state to match migration result");
+            }
+
+            // Archive the jumpstart file so the migration doesn't run again
+            final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
+            if (jumpstartFilePath != null) {
+                try {
+                    final var archivedPath =
+                            jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
+                    Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
+                    log.info("Archived jumpstart file to {}", archivedPath);
+                } catch (final IOException e) {
+                    log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
+                }
+            }
         }
     }
 

@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,6 +52,7 @@ public class WrappedRecordBlockHashMigration {
             long wrappedIntermediateBlockRootsLeafCount) {}
 
     private @Nullable Result result;
+    private @Nullable Path jumpstartFilePath;
 
     /**
      * Returns the computed migration result, or null if the migration has not run or was skipped.
@@ -61,7 +61,14 @@ public class WrappedRecordBlockHashMigration {
         return result;
     }
 
-    static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
+    /**
+     * Returns the path to the jumpstart file used by the migration, or null if the migration
+     * has not run or was skipped.
+     */
+    public @Nullable Path jumpstartFilePath() {
+        return jumpstartFilePath;
+    }
+
     private static final String RESUME_MESSAGE =
             "Resuming calculation of wrapped record file hashes until next attempt, but this node "
                     + "will likely experience an ISS";
@@ -69,11 +76,47 @@ public class WrappedRecordBlockHashMigration {
     /**
      * Holds data loaded from the jumpstart binary file.
      *
+     * <p>The binary format is:
+     * <ul>
+     *   <li>8 bytes: block number (long)</li>
+     *   <li>48 bytes: previous block root hash (SHA-384)</li>
+     *   <li>8 bytes: streaming hasher leaf count (long)</li>
+     *   <li>4 bytes: streaming hasher hash count (int)</li>
+     *   <li>48 bytes × hash count: streaming hasher pending subtree hashes</li>
+     * </ul>
+     *
      * @param blockNumber the jumpstart block number
      * @param prevHash the previous block root hash (48 bytes, SHA-384)
      * @param hasher the streaming hasher preloaded with historical state
      */
-    private record JumpstartData(long blockNumber, Bytes prevHash, IncrementalStreamingHasher hasher) {}
+    public record JumpstartData(long blockNumber, Bytes prevHash, IncrementalStreamingHasher hasher) {
+        /**
+         * Parses jumpstart data from a byte array.
+         *
+         * @param contents the raw jumpstart file bytes
+         * @return a new {@link JumpstartData} instance
+         * @throws IOException if the byte array cannot be read
+         */
+        public static JumpstartData fromBytes(@NonNull final byte[] contents) throws IOException {
+            try (final var din = new DataInputStream(new ByteArrayInputStream(contents))) {
+                final long blockNumber = din.readLong();
+                final byte[] prevHashBytes = new byte[HASH_SIZE];
+                din.readFully(prevHashBytes);
+                final var prevHash = Bytes.wrap(prevHashBytes);
+
+                final long leafCount = din.readLong();
+                final int hashCount = din.readInt();
+                final List<byte[]> hashes = new ArrayList<>(hashCount);
+                for (int i = 0; i < hashCount; i++) {
+                    final byte[] hash = new byte[HASH_SIZE];
+                    din.readFully(hash);
+                    hashes.add(hash);
+                }
+                final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, leafCount);
+                return new JumpstartData(blockNumber, prevHash, hasher);
+            }
+        }
+    }
 
     /**
      * Executes the wrapped record block hash migration if enabled.
@@ -99,8 +142,8 @@ public class WrappedRecordBlockHashMigration {
 
     private void executeInternal(@NonNull final BlockRecordStreamConfig recordsConfig) throws Exception {
         // Verify jumpstart file exists and can be loaded
-        final var jumpstartFilePath = resolveJumpstartPath(recordsConfig);
-        if (jumpstartFilePath == null) {
+        this.jumpstartFilePath = resolveJumpstartPath(recordsConfig);
+        if (this.jumpstartFilePath == null) {
             return;
         }
 
@@ -109,7 +152,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        final var jumpstartData = loadJumpstartData(jumpstartFilePath);
+        final var jumpstartData = loadJumpstartData(this.jumpstartFilePath);
         if (jumpstartData == null) {
             return;
         }
@@ -125,11 +168,6 @@ public class WrappedRecordBlockHashMigration {
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
-
-        // Archive the jumpstart file so the migration doesn't run again
-        final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-        Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-        log.info("Archived jumpstart file to {}", archivedPath);
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -162,49 +200,25 @@ public class WrappedRecordBlockHashMigration {
     }
 
     /**
-     * Reads the jumpstart binary file with format:
+     * Loads jumpstart data from the given file path.
      *
-     * <ul>
-     *   <li>8 bytes: block number (long)</li>
-     *   <li>48 bytes: previous block root hash (SHA-384)</li>
-     *   <li>8 bytes: streaming hasher leaf count (long)</li>
-     *   <li>4 bytes: streaming hasher hash count (int)</li>
-     *   <li>48 bytes × hash count: streaming hasher pending subtree hashes</li>
-     * </ul>
-     *
-     * The jumpstart file exactly encodes the fully-committed hash <b>of</b> the contained block
+     * <p>The jumpstart file exactly encodes the fully-committed hash <b>of</b> the contained block
      * number. I.e. if the jumpstart file specifies a block number N, the first wrapped record block
      * taken from local disk and hashed is wrapped record block N+1 (using the jumpstart file's block
      * hash as the "previous block hash" for the first local wrapped record block).
      */
     private JumpstartData loadJumpstartData(@NonNull final Path jumpstartFilePath) throws Exception {
-        try (final var din = new DataInputStream(Files.newInputStream(jumpstartFilePath))) {
-            final long blockNumber = din.readLong();
-            final byte[] prevHashBytes = new byte[HASH_SIZE];
-            din.readFully(prevHashBytes);
-            final Bytes prevHash = Bytes.wrap(prevHashBytes);
-
-            final long leafCount = din.readLong();
-            final int hashCount = din.readInt();
-            final List<byte[]> hashes = new ArrayList<>(hashCount);
-            for (int i = 0; i < hashCount; i++) {
-                final byte[] hash = new byte[HASH_SIZE];
-                din.readFully(hash);
-                hashes.add(hash);
-            }
-
-            final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, leafCount);
-            if (hasher.leafCount() == 0) {
-                log.error("Jumpstart file contains no entries (leaf count is 0). {}", RESUME_MESSAGE);
-                return null;
-            }
-            log.info(
-                    "Successfully loaded jumpstart file: blockNumber={}, leafCount={}, hashCount={}",
-                    blockNumber,
-                    leafCount,
-                    hashCount);
-            return new JumpstartData(blockNumber, prevHash, hasher);
+        final var jumpstartData = JumpstartData.fromBytes(Files.readAllBytes(jumpstartFilePath));
+        if (jumpstartData.hasher().leafCount() == 0) {
+            log.error("Jumpstart file contains no entries (leaf count is 0). {}", RESUME_MESSAGE);
+            return null;
         }
+        log.info(
+                "Successfully loaded jumpstart file: blockNumber={}, leafCount={}, hashCount={}",
+                jumpstartData.blockNumber(),
+                jumpstartData.hasher().leafCount(),
+                jumpstartData.hasher().intermediateHashingState().size());
+        return jumpstartData;
     }
 
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
@@ -303,33 +317,9 @@ public class WrappedRecordBlockHashMigration {
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
-            // Branch 1 is represented by `prevWrappedBlockHash`
-
-            // Branch 2
             final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
-            final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(prevWrappedBlockHash, allPrevBlocksHash);
-
-            // Branches 3/4 (empty)
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-
-            // Branches 5/6
-            final Bytes outputTreeHash = recentWrappedRecordHashes.outputItemsTreeRootHash();
-            final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
-
-            // Branches 7/8 (empty)
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-            // Intermediate depths 4, 3, and 2
-            final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-
-            final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
-
-            final Bytes depth2Node1 = recentWrappedRecordHashes.consensusTimestampHash();
-            final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-            // Final block root
-            final Bytes finalBlockHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+            final Bytes finalBlockHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
             }
