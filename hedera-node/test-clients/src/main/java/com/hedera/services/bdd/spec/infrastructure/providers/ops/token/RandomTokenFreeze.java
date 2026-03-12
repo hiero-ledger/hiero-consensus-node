@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
@@ -18,8 +19,8 @@ public class RandomTokenFreeze implements OpProvider {
     private final RegistrySourcedNameProvider<TokenAccountRegistryRel> tokenRels;
 
     private final ResponseCodeEnum[] customOutcomes;
-    private final ResponseCodeEnum[] permissibleOutcomes =
-            standardOutcomesAnd(TOKEN_HAS_NO_FREEZE_KEY, TOKEN_NOT_ASSOCIATED_TO_ACCOUNT, ACCOUNT_FROZEN_FOR_TOKEN);
+    private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(
+            TOKEN_HAS_NO_FREEZE_KEY, TOKEN_NOT_ASSOCIATED_TO_ACCOUNT, ACCOUNT_FROZEN_FOR_TOKEN, TOKEN_WAS_DELETED);
 
     public RandomTokenFreeze(
             RegistrySourcedNameProvider<TokenAccountRegistryRel> tokenRels, ResponseCodeEnum[] customOutcomes) {

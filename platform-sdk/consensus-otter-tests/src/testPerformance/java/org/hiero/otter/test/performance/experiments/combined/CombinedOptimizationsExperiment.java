@@ -51,7 +51,8 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.period", "400us")
-                    .withConfigValue("broadcast.enableBroadcast", true);
+                    .withConfigValue("broadcast.enableBroadcast", true)
+                    .withConfigValue("sync.pingPeriod", "100ms");
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
