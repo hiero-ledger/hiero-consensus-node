@@ -39,7 +39,7 @@ system delete admin account under certain conditions.
 - The **system admin**, used primarily to manage the keys of the above admin accounts;
 or substitute for them in circumstances where they have been compromised or rendered
 unusable.
-- The **software update admin**, responsible for managing the contents of the software update files (`0.0.150`..`0.0.159`). Updating these files does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the selected update file at the time of freeze/upgrade submission.
+- The **software update admin**, responsible for managing the contents of the software update files (`0.0.150`..`0.0.159`). Updating these files does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the specified update file at the time of freeze/upgrade submission.
 
 The account number that plays each role is set on network startup from the active
 bootstrap configuration. In the default configuration, the treasury account is `0.0.2`
