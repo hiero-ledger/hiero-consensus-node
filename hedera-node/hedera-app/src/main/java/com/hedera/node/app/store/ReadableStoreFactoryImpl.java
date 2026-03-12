@@ -136,7 +136,8 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
         newMap.put(
                 ReadableMigrationRootHashStore.class,
                 new StoreEntry(
-                        BlockRecordService.NAME, (states, entityCounters) -> new ReadableMigrationRootHashStoreImpl(states)));
+                        BlockRecordService.NAME,
+                        (states, entityCounters) -> new ReadableMigrationRootHashStoreImpl(states)));
         // Address book
         newMap.put(ReadableNodeStore.class, new StoreEntry(AddressBookService.NAME, ReadableNodeStoreImpl::new));
         newMap.put(

@@ -72,8 +72,9 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         if (nodeWeight <= 0) {
             return;
         }
-        final var totalWeight =
-                activeRoster.rosterEntries().stream().mapToLong(entry -> entry.weight()).sum();
+        final var totalWeight = activeRoster.rosterEntries().stream()
+                .mapToLong(entry -> entry.weight())
+                .sum();
         if (totalWeight <= 0) {
             return;
         }
@@ -107,17 +108,15 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             previousWrappedRecordBlockRootHash = blockRootHash;
         }
         final var changed = store.applyFinalizedValuesAndMarkComplete(
-                voteHash,
-                previousWrappedRecordBlockRootHash,
-                hasher.intermediateHashingState(),
-                hasher.leafCount());
+                voteHash, previousWrappedRecordBlockRootHash, hasher.intermediateHashingState(), hasher.leafCount());
         log.info(
                 "Migration root hash voting finalized after node{} vote, >1/3 threshold reached (changedBlockInfo={})",
                 nodeId,
                 changed);
     }
 
-    private static Bytes hashOf(@NonNull final com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody vote) {
+    private static Bytes hashOf(
+            @NonNull final com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody vote) {
         requireNonNull(vote);
         final var digest = sha384DigestOrThrow();
         return Bytes.wrap(digest.digest(

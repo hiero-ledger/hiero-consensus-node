@@ -49,10 +49,10 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
-import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -502,10 +502,11 @@ public class SystemTransactions {
                             .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
                             .wrappedIntermediatePreviousBlockRootHashes(
                                     migration.wrappedIntermediatePreviousBlockRootHashes())
-                            .wrappedIntermediateBlockRootsLeafCount(
-                                    migration.wrappedIntermediateBlockRootsLeafCount())
+                            .wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount())
                             .build()));
-            log.info("Dispatched startup migration root hash vote for node{}", networkInfo.selfNodeInfo().nodeId());
+            log.info(
+                    "Dispatched startup migration root hash vote for node{}",
+                    networkInfo.selfNodeInfo().nodeId());
 
             // Archive the jumpstart file so the migration doesn't run again
             final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();

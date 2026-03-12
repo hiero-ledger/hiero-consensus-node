@@ -13,7 +13,7 @@ import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTran
 import com.hedera.node.app.records.MigrationRootHashStateApplier;
 import com.hedera.node.app.records.WritableMigrationRootHashStore;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
-import com.hedera.node.app.records.schemas.V0570BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
@@ -37,11 +37,11 @@ public class WritableMigrationRootHashStoreImpl implements WritableMigrationRoot
 
     public WritableMigrationRootHashStoreImpl(@NonNull final WritableStates states) {
         requireNonNull(states);
-        this.votingState = states.getSingleton(V0570BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+        this.votingState = states.getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
         this.blockInfoState = states.getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-        this.votes = states.get(V0570BlockRecordSchema.MIGRATION_ROOT_HASH_VOTES_STATE_ID);
-        this.tallies = states.get(V0570BlockRecordSchema.MIGRATION_ROOT_HASH_TALLIES_STATE_ID);
-        this.queue = states.getQueue(V0570BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
+        this.votes = states.get(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTES_STATE_ID);
+        this.tallies = states.get(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_TALLIES_STATE_ID);
+        this.queue = states.getQueue(V0730BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
     }
 
     @Override

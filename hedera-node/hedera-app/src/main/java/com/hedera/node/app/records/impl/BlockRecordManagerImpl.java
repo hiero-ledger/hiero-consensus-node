@@ -34,7 +34,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.records.schemas.V0570BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -293,8 +293,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             if (liveWritePrevWrappedRecordHashes()) {
                 final var votingPending = migrationRootHashVotingPending(state);
                 // Update the in-memory values
-                final var wrappedRecordFileBlockHashes =
-                        updateWrappedBlockHashes(currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
+                final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
+                        currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
                 if (wrappedRecordFileBlockHashes != null && votingPending) {
                     putMigrationWrappedHashesQueueEntry(state, currentBlockNumber, wrappedRecordFileBlockHashes);
                 }
@@ -384,7 +384,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
                     if (wrappedRecordFileBlockHashes != null && votingPending) {
-                        putMigrationWrappedHashesQueueEntry(state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
+                        putMigrationWrappedHashesQueueEntry(
+                                state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
                     }
                     if (!votingPending) {
                         wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
@@ -872,7 +873,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private boolean migrationRootHashVotingPending(@NonNull final State state) {
         final var votingState = state.getReadableStates(BlockRecordService.NAME)
-                .<MigrationRootHashVotingState>getSingleton(V0570BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
+                .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
                 .get();
         return votingState != null && !votingState.votingComplete();
     }
@@ -882,13 +883,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final long blockNumber,
             @NonNull final WrappedRecordFileBlockHashes wrappedRecordFileBlockHashes) {
         final WritableQueueState<MigrationWrappedHashes> queueState = state.getWritableStates(BlockRecordService.NAME)
-                .getQueue(V0570BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
-        queueState.add(
-                MigrationWrappedHashes.newBuilder()
-                        .blockNumber(blockNumber)
-                        .consensusTimestampHash(wrappedRecordFileBlockHashes.consensusTimestampHash())
-                        .outputItemsTreeRootHash(wrappedRecordFileBlockHashes.outputItemsTreeRootHash())
-                        .build());
+                .getQueue(V0730BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
+        queueState.add(MigrationWrappedHashes.newBuilder()
+                .blockNumber(blockNumber)
+                .consensusTimestampHash(wrappedRecordFileBlockHashes.consensusTimestampHash())
+                .outputItemsTreeRootHash(wrappedRecordFileBlockHashes.outputItemsTreeRootHash())
+                .build());
     }
 
     private boolean writeWrappedRecordFileBlockHashesToDisk() {

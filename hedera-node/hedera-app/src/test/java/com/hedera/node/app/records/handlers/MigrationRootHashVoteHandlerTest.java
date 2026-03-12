@@ -84,7 +84,8 @@ class MigrationRootHashVoteHandlerTest {
                 .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
-        final var body = TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
                 .consensusTimestampHash(Bytes.wrap(new byte[48]))
@@ -103,10 +104,11 @@ class MigrationRootHashVoteHandlerTest {
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
         given(rosterStore.getActiveRoster()).willReturn(activeRoster);
-        given(store.getTally(any())).willReturn(MigrationRootHashVoteTally.newBuilder()
-                .totalWeight(11L)
-                .voteCount(1L)
-                .build());
+        given(store.getTally(any()))
+                .willReturn(MigrationRootHashVoteTally.newBuilder()
+                        .totalWeight(11L)
+                        .voteCount(1L)
+                        .build());
         given(store.queuedHashesInOrder()).willReturn(List.of(queuedHashes));
 
         assertDoesNotThrow(() -> subject.handle(context));

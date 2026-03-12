@@ -52,7 +52,8 @@ public final class MigrationRootHashStateApplier {
             builder.previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash);
             changed = true;
         }
-        if (!wrappedIntermediatePreviousBlockRootHashes.equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
+        if (!wrappedIntermediatePreviousBlockRootHashes.equals(
+                blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
             builder.wrappedIntermediatePreviousBlockRootHashes(wrappedIntermediatePreviousBlockRootHashes);
             changed = true;
         }

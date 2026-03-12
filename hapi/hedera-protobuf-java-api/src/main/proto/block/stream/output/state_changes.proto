@@ -29,6 +29,9 @@ import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
+import "services/state/blockrecords/migration_root_hash_vote_tally.proto";
+import "services/state/blockrecords/migration_root_hash_voting_state.proto";
+import "services/state/blockrecords/migration_wrapped_hashes.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
 import "services/state/congestion/congestion_level_starts.proto";
@@ -62,6 +65,7 @@ import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/auxiliary/hints/crs_publication.proto";
+import "services/auxiliary/blockrecords/migration_root_hash_vote.proto";
 
 /**
  * A set of state changes.
@@ -500,6 +504,26 @@ enum StateIdentifier {
     STATE_ID_HIGHEST_NODE_ID = 57;
 
     /**
+     * A state identifier for migration root-hash voting state. Singleton state.
+     */
+    STATE_ID_MIGRATION_ROOT_HASH_VOTING_STATE = 58;
+
+    /**
+     * A state identifier for migration root-hash votes. Key/value state.
+     */
+    STATE_ID_MIGRATION_ROOT_HASH_VOTES = 59;
+
+    /**
+     * A state identifier for migration root-hash vote tallies. Key/value state.
+     */
+    STATE_ID_MIGRATION_ROOT_HASH_TALLIES = 60;
+
+    /**
+     * A state identifier for migration wrapped hashes queue. Queue state.
+     */
+    STATE_ID_MIGRATION_WRAPPED_HASHES_QUEUE = 61;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -746,6 +770,11 @@ message SingletonUpdateChange {
          * A change to the highest node id singleton.
          */
         com.hedera.hapi.platform.state.NodeId node_id_value = 20;
+
+        /**
+         * A change to migration root-hash voting state singleton.
+         */
+        com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState migration_root_hash_voting_state_value = 21;
     }
 }
 
@@ -1126,6 +1155,16 @@ message MapChangeValue {
          * A registered node value.
          */
         com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
+
+        /**
+         * A migration root-hash vote.
+         */
+        com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody migration_root_hash_vote_value = 33;
+
+        /**
+         * A migration root-hash vote tally.
+         */
+        com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally migration_root_hash_vote_tally_value = 34;
     }
 }
 
@@ -1152,6 +1191,11 @@ message QueuePushChange {
          * All transaction receipts for a round added to queue state.
          */
         proto.TransactionReceiptEntries transaction_receipt_entries_element = 3;
+
+        /**
+         * A migration wrapped hashes entry added to queue state.
+         */
+        com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes_element = 4;
     }
 }
 

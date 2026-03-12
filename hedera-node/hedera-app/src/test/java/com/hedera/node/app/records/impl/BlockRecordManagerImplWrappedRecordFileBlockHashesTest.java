@@ -8,11 +8,11 @@ import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_T
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0570BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0570BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -436,7 +436,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .build())
                 .withSingletonState(
                         MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder().votingComplete(false).build())
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(false)
+                                .build())
                 .commit();
 
         app.stateMutator(PlatformStateService.NAME)
@@ -501,7 +503,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .build())
                 .withSingletonState(
                         MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder().votingComplete(true).build())
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(true)
+                                .build())
                 .commit();
 
         app.stateMutator(PlatformStateService.NAME)
