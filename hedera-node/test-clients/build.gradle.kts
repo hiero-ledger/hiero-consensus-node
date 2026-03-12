@@ -78,6 +78,7 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
+        "hapiTestWraps" to "WRAPS",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
@@ -87,6 +88,7 @@ val basePrCheckTags =
         "hapiTestMiscRecords" to miscTags,
         "hapiTestMiscRecordsSerial" to miscTagsSerial,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
+        "hapiTestSimpleFeesSerial" to "(SIMPLE_FEES&SERIAL)",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
@@ -101,9 +103,12 @@ val concurrentTasks =
         "hapiTestMiscSerial",
         "hapiTestMiscRecords",
         "hapiTestMiscRecordsSerial",
+        "hapiTestWraps",
         "hapiTestTimeConsuming",
         "hapiTestTimeConsumingSerial",
         "hapiTestStateThrottling",
+        "hapiTestSimpleFees",
+        "hapiTestSimpleFeesSerial",
         "hapiTestSmartContract",
         "hapiTestSmartContractSerial",
     )
@@ -133,8 +138,6 @@ val remoteCheckTags =
                     "hapiTestRestartMATS",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
-                    "hapiTestSmartContract",
-                    "hapiTestSmartContractSerial",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
@@ -147,6 +150,7 @@ val prCheckStartPorts =
         put("hapiTestSmartContract", "25800")
         put("hapiTestNDReconnect", "26000")
         put("hapiTestTimeConsuming", "26200")
+        put("hapiTestWraps", "26300")
         put("hapiTestIss", "26400")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
@@ -158,7 +162,9 @@ val prCheckStartPorts =
         put("hapiTestMiscRecordsSerial", "28200")
         put("hapiTestTimeConsumingSerial", "28400")
         put("hapiTestStateThrottling", "28600")
-        put("hapiTestSmartContractSerial", "28800")
+        put("hapiTestSimpleFees", "28800")
+        put("hapiTestSimpleFeesSerial", "29000")
+        put("hapiTestSmartContractSerial", "29200")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -197,6 +203,10 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestWraps",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.initialCrsParties=8,staking.periodMins=16",
+        )
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
@@ -208,6 +218,7 @@ val prCheckPropOverrides =
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put("hapiTestSimpleFeesSerial", "fees.simpleFeesEnabled=true")
         put(
             "hapiTestNDReconnect",
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -228,13 +239,9 @@ val prCheckPrepareUpgradeOffsets =
             if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
         }
     }
-// Note: no MATS variants needed for history proofs
-val prCheckNumHistoryProofsToObserve =
-    mapOf(
-        "hapiTestAdhoc" to "0",
-        "hapiTestSmartContract" to "0",
-        "hapiTestSmartContractSerial" to "0",
-    )
+val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps")
+// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be in CI and set it here
+val prCheckTssLibWrapsArtifactsPaths = mapOf("hapiTestWraps" to "")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
@@ -242,9 +249,11 @@ val prCheckNetSizeOverrides =
         put("hapiTestCrypto", "3")
         put("hapiTestCryptoSerial", "3")
         put("hapiTestToken", "3")
+        put("hapiTestSimpleFees", "3")
+        put("hapiTestSimpleFeesSerial", "3")
         put("hapiTestTokenSerial", "3")
-        put("hapiTestSmartContract", "4")
-        put("hapiTestSmartContractSerial", "4")
+        put("hapiTestSmartContract", "3")
+        put("hapiTestSmartContractSerial", "3")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
@@ -263,7 +272,8 @@ tasks {
                         taskName.contains("Token") ||
                         taskName.contains("Misc") ||
                         taskName.contains("TimeConsuming") ||
-                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
+                        taskName.contains("SimpleFees") ||
+                            taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
@@ -322,13 +332,17 @@ tasks.register<Test>("testSubprocess") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -441,13 +455,17 @@ tasks.register<Test>("testSubprocessConcurrent") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -525,13 +543,17 @@ tasks.register<Test>("testRemote") {
         )
     }
 
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
+        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -566,7 +588,8 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
-val embeddedTasks = setOf("hapiTestCryptoEmbedded", "hapiTestMiscEmbedded")
+val embeddedTasks =
+    setOf("hapiTestCryptoEmbedded", "hapiTestMiscEmbedded", "hapiEmbeddedSimpleFees")
 
 val embeddedBaseTags =
     mapOf(

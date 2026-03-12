@@ -397,6 +397,25 @@ public class BaseTranslator {
     }
 
     /**
+     * Consumes a specific created entity number of the given type from the ongoing transactional unit.
+     * Unlike {@link #nextCreatedNum(EntityType)}, this removes a specific number rather than the first
+     * in sorted order, which is important when multiple entities of the same type are created in a unit
+     * and the consumption order doesn't match sorted order.
+     *
+     * @param type the type of entity
+     * @param num the specific entity number to consume
+     * @return true if the number was found and consumed
+     */
+    public boolean consumeCreatedNum(@NonNull final EntityType type, final long num) {
+        final var createdNums = nextCreatedNums.get(type);
+        if (createdNums == null) {
+            log.error("No created numbers found for entity type {} when consuming {}", type, num);
+            return false;
+        }
+        return createdNums.remove(Long.valueOf(num));
+    }
+
+    /**
      * Tracks the given pending airdrop record if it was not already in the set of known pending airdrops.
      *
      * @param pendingAirdropRecord the pending airdrop record to track

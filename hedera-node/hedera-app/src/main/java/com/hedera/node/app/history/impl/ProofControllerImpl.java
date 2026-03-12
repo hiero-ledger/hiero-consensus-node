@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static java.util.Objects.requireNonNull;
@@ -9,6 +10,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -56,7 +58,7 @@ public class ProofControllerImpl implements ProofController {
     @Nullable
     private final HistoryProof sourceProof;
 
-    private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
+    private final Map<Long, ExplicitProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
 
     /**
@@ -75,6 +77,29 @@ public class ProofControllerImpl implements ProofController {
      */
     @Nullable
     private HistoryProver prover;
+
+    private static class ExplicitProofVote {
+        private final Bytes tag;
+        private final HistoryProofVote historyProofVote;
+
+        public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote) {
+            this.historyProofVote = requireNonNull(historyProofVote);
+            final var proof = historyProofVote.proofOrThrow();
+            final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
+            tag = chainOfTrustProof.hasAggregatedNodeSignatures()
+                    ? noThrowSha384HashOf(AggregatedNodeSignatures.PROTOBUF.toBytes(
+                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
+                    : noThrowSha384HashOf(proof.uncompressedWrapsProof());
+        }
+
+        public Bytes tag() {
+            return tag;
+        }
+
+        public HistoryProofVote historyProofVote() {
+            return historyProofVote;
+        }
+    }
 
     public ProofControllerImpl(
             final long selfId,
@@ -106,7 +131,7 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        this.votes.putAll(requireNonNull(votes));
+        votes.forEach(this::incorporateVote);
         if (!construction.hasTargetProof()) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
@@ -225,33 +250,55 @@ public class ProofControllerImpl implements ProofController {
             final long nodeId,
             @NonNull final HistoryProofVote vote,
             @NonNull final Instant now,
-            @NonNull final WritableHistoryStore historyStore) {
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(vote);
         requireNonNull(now);
         requireNonNull(historyStore);
-        if (construction.hasTargetProof() || votes.containsKey(nodeId)) {
+        requireNonNull(tssConfig);
+        if (votes.containsKey(nodeId)) {
+            log.info(
+                    "Skipping already-counted vote from node{} for construction #{}",
+                    nodeId,
+                    construction.constructionId());
             return;
         }
-        if (vote.hasProof()) {
-            votes.put(nodeId, vote);
-        } else if (vote.hasCongruentNodeId()) {
-            final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
-            if (congruentVote != null && congruentVote.hasProof()) {
-                votes.put(nodeId, congruentVote);
-            }
+        if (construction.hasTargetProof()
+                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow())) {
+            log.info(
+                    "Skipping vote from node{} for construction #{} because the proof is already {}",
+                    nodeId,
+                    construction.constructionId(),
+                    isWrapsExtensible(construction.targetProofOrThrow())
+                            ? "WRAPS-extensible"
+                            : "adequate with WRAPS disabled");
+            return;
         }
+        incorporateVote(nodeId, vote);
         historyStore.addProofVote(nodeId, construction.constructionId(), vote);
         final var proofWeights = votes.entrySet().stream()
                 .collect(groupingBy(
-                        entry -> entry.getValue().proofOrThrow(),
-                        summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-        final var maybeWinningProof = proofWeights.entrySet().stream()
+                        entry -> entry.getValue().tag(), summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
+        log.info(
+                "Now have proof votes with weights {} for construction #{}",
+                proofWeights.values(),
+                construction.constructionId());
+        final var maybeWinningTag = proofWeights.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
-        maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof, now));
+        maybeWinningTag.ifPresent(tag -> {
+            final var proof = votes.values().stream()
+                    .filter(v -> v.tag().equals(tag))
+                    .findFirst()
+                    .orElseThrow()
+                    .historyProofVote()
+                    .proofOrThrow();
+            finishProof(historyStore, proof, now);
+        });
         // Let our prover know about the vote to optimize its choice of explicit or congruent voting
-        requireNonNull(prover).observeProofVote(nodeId, vote, maybeWinningProof.isPresent());
+        requireNonNull(prover).observeProofVote(nodeId, vote, maybeWinningTag.isPresent());
     }
 
     @Override
@@ -274,6 +321,23 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
+     * Incorporates the given vote into the in-memory state of this controller; used to determine when a particular
+     * proof has enough votes to be completed.
+     * @param nodeId the ID of the node that cast the vote
+     * @param vote the vote to incorporate
+     */
+    private void incorporateVote(final long nodeId, @NonNull final HistoryProofVote vote) {
+        if (vote.hasProof()) {
+            votes.put(nodeId, new ExplicitProofVote(vote));
+        } else if (vote.hasCongruentNodeId()) {
+            final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
+            if (congruentVote != null) {
+                votes.put(nodeId, congruentVote);
+            }
+        }
+    }
+
+    /**
      * Finishes the active construction, commits its proof to state, and notifies the history service.
      * @param historyStore the writable history store
      * @param proof the proof
@@ -292,6 +356,8 @@ public class ProofControllerImpl implements ProofController {
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
+        // In case we'll vote again on a conversion to a WRAPS proof
+        votes.clear();
     }
 
     /**

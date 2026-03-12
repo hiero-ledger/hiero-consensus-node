@@ -10,7 +10,6 @@ import com.hedera.statevalidation.report.Report;
 import com.hedera.statevalidation.report.StorageReport;
 import com.hedera.statevalidation.util.LongCountArray;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
-import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
@@ -18,7 +17,7 @@ import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -43,7 +42,7 @@ public final class StateAnalyzer {
             @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue()).getFileCollection(),
+                vds.getKeyValueStore().getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
                 Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
@@ -66,10 +65,10 @@ public final class StateAnalyzer {
     public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreAccessor(vds.getHashStoreDisk()).getFileCollection(),
-                vds.getPathToDiskLocationInternalNodes().size(),
+                vds.getHashChunkStore().getFileCollection(),
+                vds.getIdToDiskLocationHashChunks().size(),
                 Report::setPathToHashReport,
-                VirtualHashRecord::parseFrom);
+                t -> VirtualHashChunk.parseFrom(t, vds.getHashChunkHeight()));
     }
 
     private static void updateReport(
@@ -113,19 +112,19 @@ public final class StateAnalyzer {
                     try {
                         final Object dataItemData = deserializer.apply(dataIterator.getDataItemData());
                         switch (dataItemData) {
-                            case @SuppressWarnings("DeconstructionCanBeUsed") VirtualHashRecord hashRecord -> {
-                                final long path = hashRecord.path();
-                                final int itemSize = hashRecord.hash().getSerializedLength() + /*path*/ Long.BYTES;
+                            case VirtualHashChunk hashChunk -> {
+                                final long id = hashChunk.getChunkId();
+                                final int itemSize = hashChunk.getSerializedSizeInBytes();
 
                                 updateStats(
-                                        path,
+                                        id,
                                         itemSize,
                                         indexSize,
                                         itemCountByPath,
                                         wastedSpaceInBytes,
                                         duplicateItemCount);
                             }
-                            case @SuppressWarnings("rawtypes") VirtualLeafBytes leafRecord -> {
+                            case VirtualLeafBytes<?> leafRecord -> {
                                 final long path = leafRecord.path();
                                 final SerializableDataOutputStream outputStream =
                                         new SerializableDataOutputStream(arrayOutputStream);
