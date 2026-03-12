@@ -238,8 +238,6 @@ public class WrapsHistoryProver implements HistoryProver {
             return new Outcome.Failed("Only genesis WRAPS proofs are allowed to not have a ledger id");
         }
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
-        log.info(
-                "TEMP - state={}, hasTargetProof?={}, wrapsPhase={}", state, construction.hasTargetProof(), wrapsPhase);
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
                 && now.isAfter(asInstant(state.gracePeriodEndTimeOrThrow()))) {

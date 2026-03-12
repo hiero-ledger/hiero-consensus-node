@@ -288,7 +288,6 @@ public interface LifecycleTest {
             final var nftToken = "ledgerNft" + uniqueSuffix;
             final var nftSupplyKey = "ledgerSupplyKey" + uniqueSuffix;
             final var schedule = "ledgerSchedule" + uniqueSuffix;
-
             allRunFor(
                     spec,
                     uploadInitCode("CreateTrivial"),
@@ -309,6 +308,7 @@ public interface LifecycleTest {
                     newKeyNamed(nftSupplyKey),
                     tokenCreate(nftToken)
                             .treasury(account)
+                            .initialSupply(0L)
                             .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                             .supplyKey(nftSupplyKey)
                             .name("Ledger NFT " + uniqueSuffix)

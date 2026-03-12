@@ -1114,8 +1114,7 @@ public class HandleWorkflow {
                                 return !activeConstruction.hasTargetProof()
                                         || (tssConfig.wrapsEnabled()
                                                 != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
-                            },
-                    readableHistoryStore.getLedgerId());
+                            });
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
