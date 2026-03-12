@@ -50,7 +50,9 @@ public class HelloWorldEthereumSerialSuite {
                 getTxnRecord("autoAccount").andAllChildRecords(),
                 uploadInitCode(blockQueriesContract),
                 contractCreate(blockQueriesContract).adminKey(THRESHOLD),
-                ethereumCall(blockQueriesContract, "getBlobBaseFee").via("callTxn1").hasKnownStatus(SUCCESS),
+                ethereumCall(blockQueriesContract, "getBlobBaseFee")
+                        .via("callTxn1")
+                        .hasKnownStatus(SUCCESS),
                 ethereumCall(blockQueriesContract, "getBlobBaseFeeR", BigInteger.TEN)
                         .via("callTxn2")
                         .hasKnownStatus(SUCCESS),

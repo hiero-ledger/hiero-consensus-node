@@ -273,7 +273,7 @@ tasks {
                         taskName.contains("Misc") ||
                         taskName.contains("TimeConsuming") ||
                         taskName.contains("SimpleFees") ||
-                            taskName.contains("SmartContract")) && !taskName.contains("Serial")
+                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
