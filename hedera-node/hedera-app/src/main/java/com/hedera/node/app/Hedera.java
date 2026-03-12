@@ -528,8 +528,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl = new RosterServiceImpl(
-                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
+        final var rosterServiceImpl =
+                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -1400,12 +1400,17 @@ public final class Hedera
         final var rosterHash = RosterUtils.hash(roster).getBytes();
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, we should not put any TSS preconditions on adopting a roster,
+            // **even if** the hinTS or history feature flags are enabled (at a cutover upgrade)
+            return true;
+        }
         return (!tssConfig.hintsEnabled()
                         || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
-                        || new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME))
-                                .isReadyToAdopt(rosterHash));
+                        || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
