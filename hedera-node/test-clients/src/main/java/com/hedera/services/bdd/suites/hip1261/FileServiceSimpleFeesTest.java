@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
@@ -863,20 +862,29 @@ public class FileServiceSimpleFeesTest {
             @HapiTest
             @DisplayName("FileCreate - content exceeds max allowed size charged base fee")
             Stream<DynamicTest> fileCreateMaxSizeExceededFailsOnHandleAndChargesBaseFee() {
+                final int oversizedCreateBytes = 2 * KILOBYTE;
                 return hapiTest(
                         overriding("files.maxSizeKb", String.valueOf(SMALL_FILE_MAX_SIZE_KB)),
                         newKeyNamed(PAYER_KEY),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         fileCreate("oversizedCreateFile")
                                 .key(PAYER_KEY)
-                                .contents(bytesWithLength(2 * KILOBYTE))
+                                .contents(bytesWithLength(oversizedCreateBytes))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .via("fileCreateMaxSizeExceededTxn")
                                 .hasKnownStatus(MAX_FILE_SIZE_EXCEEDED),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileCreateMaxSizeExceededTxn",
-                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_CREATE_BASE_FEE,
+                                txnSize -> expectedFileCreateFullFeeUsd(Map.of(
+                                        SIGNATURES,
+                                        1L,
+                                        KEYS,
+                                        1L,
+                                        STATE_BYTES,
+                                        (long) oversizedCreateBytes,
+                                        PROCESSING_BYTES,
+                                        (long) txnSize)),
                                 TRANSACTION_ALLOWED_PERCENT_DIFF));
             }
 
@@ -887,9 +895,10 @@ public class FileServiceSimpleFeesTest {
                 return hapiTest(
                         overriding("files.maxSizeKb", String.valueOf(SMALL_FILE_MAX_SIZE_KB)),
                         newKeyNamed(PAYER_KEY),
+                        newKeyListNamed("wacl", List.of(PAYER_KEY)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         fileCreate("appendLimitFile")
-                                .key(PAYER_KEY)
+                                .key("wacl")
                                 .contents(bytesWithLength(KILOBYTE - 1))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER),
