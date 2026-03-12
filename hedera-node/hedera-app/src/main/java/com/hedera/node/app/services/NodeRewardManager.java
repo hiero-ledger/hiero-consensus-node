@@ -12,7 +12,6 @@ import static java.util.stream.Collectors.toMap;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -213,7 +212,6 @@ public class NodeRewardManager {
         final var writableStates = state.getWritableStates(TokenService.NAME);
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
         final var currentRoster = getRosterEntries(state);
-        Preconditions.checkArgument(!currentRoster.isEmpty(), "roster cannot be empty.");
 
         // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
@@ -366,6 +364,7 @@ public class NodeRewardManager {
                 .map(entry -> {
                     final var nodeInfo = networkInfo.nodeInfo(entry.nodeId());
                     if (nodeInfo == null) {
+                        log.error("Node {} not found in network info", entry.nodeId());
                         return null;
                     }
                     final long missedJudges = missedJudgesByNode.getOrDefault(entry.nodeId(), 0L);

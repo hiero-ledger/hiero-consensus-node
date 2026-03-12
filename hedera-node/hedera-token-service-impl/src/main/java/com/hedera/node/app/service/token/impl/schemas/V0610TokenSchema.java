@@ -73,10 +73,8 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
             @NonNull final AccountID payerId,
             final long activeNodeCredit,
             final long inactiveNodeCredit) {
-        final var activeNodeAccountIds =
-                nodeGroups.activeNodeAccountIds().stream().toList();
-        final var inactiveNodeAccountIds =
-                nodeGroups.inactiveNodeAccountIds().stream().toList();
+        final var activeNodeAccountIds = nodeGroups.activeNodeAccountIds();
+        final var inactiveNodeAccountIds = nodeGroups.inactiveNodeAccountIds();
         if (activeNodeCredit <= 0L && inactiveNodeCredit <= 0L) {
             return;
         }
