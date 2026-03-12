@@ -295,13 +295,16 @@ public class RecordCacheImpl implements HederaRecordCache {
             final long nodeId,
             @NonNull final TransactionID userTxnId,
             @NonNull final DueDiligenceFailure dueDiligenceFailure,
+            final long blockNumber,
             @NonNull final RecordSource recordSource) {
         requireNonNull(userTxnId);
         requireNonNull(recordSource);
-        for (final var identifiedReceipt : recordSource.identifiedReceipts()) {
+        final var blockNumberedRecordSource = new BlockNumberRecordSource(blockNumber, recordSource);
+        for (final var identifiedReceipt : blockNumberedRecordSource.identifiedReceipts()) {
             final var txnId = identifiedReceipt.txnId();
             final var status = identifiedReceipt.receipt().status();
-            transactionReceipts.add(new TransactionReceiptEntry(nodeId, txnId, status));
+            transactionReceipts.add(new TransactionReceiptEntry(
+                    nodeId, txnId, status, identifiedReceipt.receipt().blockNumber()));
             final var baseTxnId =
                     txnId.nonce() == 0 ? txnId : txnId.copyBuilder().nonce(0).build();
             final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
@@ -312,8 +315,8 @@ public class RecordCacheImpl implements HederaRecordCache {
             // Only add each record source once per history; since very few record sources contain more than one
             // transaction id, and few transaction ids have duplicates, this is almost always an existence check
             // in an empty list
-            if (!historySource.recordSources().contains(recordSource)) {
-                historySource.recordSources.add(recordSource);
+            if (!historySource.recordSources().contains(blockNumberedRecordSource)) {
+                historySource.recordSources.add(blockNumberedRecordSource);
             }
             final AccountID effectivePayerId;
             if (dueDiligenceFailure == DueDiligenceFailure.YES && matchesExceptNonce(txnId, userTxnId)) {
@@ -532,7 +535,10 @@ public class RecordCacheImpl implements HederaRecordCache {
     private static TransactionRecord asTxnRecord(final TransactionReceiptEntry receipt) {
         return TransactionRecord.newBuilder()
                 .receipt(
-                        TransactionReceipt.newBuilder().status(receipt.status()).build())
+                        TransactionReceipt.newBuilder()
+                                .status(receipt.status())
+                                .blockNumber(receipt.blockNumber())
+                                .build())
                 .transactionID(receipt.transactionId())
                 .build();
     }

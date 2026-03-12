@@ -729,4 +729,53 @@ class SystemTransactionsTest {
         // Assert: state should never be asked for writable BlockRecordService states
         verify(state, never()).getWritableStates(eq(BlockRecordService.NAME));
     }
+
+    @Test
+    void currentBlockNumberIsUnsetInRecordsMode() throws Exception {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(0L, method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberOutsideRecordsMode() throws Exception {
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
 }

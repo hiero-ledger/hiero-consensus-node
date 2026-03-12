@@ -71,6 +71,7 @@ final class RecordCacheImplTest extends AppTestBase {
             AccountID.newBuilder().accountNum(3).build();
     private static final AccountID PAYER_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1001).build();
+    private static final long BLOCK_NUMBER = 123L;
 
     private DeduplicationCache dedupeCache;
 
@@ -179,17 +180,17 @@ final class RecordCacheImplTest extends AppTestBase {
 
             final var entries = List.of(
                     // preceding tx
-                    new TransactionReceiptEntry(0, pTxId1, SUCCESS),
+                    new TransactionReceiptEntry(0, pTxId1, SUCCESS, 1L),
                     // user tx
-                    new TransactionReceiptEntry(0, txId1, SUCCESS),
+                    new TransactionReceiptEntry(0, txId1, SUCCESS, 1L),
                     // child tx
-                    new TransactionReceiptEntry(0, cTxId1, SUCCESS),
+                    new TransactionReceiptEntry(0, cTxId1, SUCCESS, 1L),
                     // user tx
-                    new TransactionReceiptEntry(1, txId2, SUCCESS),
+                    new TransactionReceiptEntry(1, txId2, SUCCESS, 2L),
                     // duplicate  user tx
-                    new TransactionReceiptEntry(2, txId2, SUCCESS),
+                    new TransactionReceiptEntry(2, txId2, SUCCESS, 2L),
                     // duplicate  user tx
-                    new TransactionReceiptEntry(3, txId1, SUCCESS));
+                    new TransactionReceiptEntry(3, txId1, SUCCESS, 1L));
 
             final var entry = new TransactionReceiptEntries(entries);
 
@@ -257,10 +258,10 @@ final class RecordCacheImplTest extends AppTestBase {
             final var txId2 = txId1.copyBuilder().accountID(payer2).build();
 
             final var entries = List.of(
-                    new TransactionReceiptEntry(0, txId1, SUCCESS),
-                    new TransactionReceiptEntry(1, txId2, ACCOUNT_IS_IMMUTABLE),
-                    new TransactionReceiptEntry(2, txId2, DUPLICATE_TRANSACTION),
-                    new TransactionReceiptEntry(3, txId1, DUPLICATE_TRANSACTION));
+                    new TransactionReceiptEntry(0, txId1, SUCCESS, 1L),
+                    new TransactionReceiptEntry(1, txId2, ACCOUNT_IS_IMMUTABLE, 2L),
+                    new TransactionReceiptEntry(2, txId2, DUPLICATE_TRANSACTION, 2L),
+                    new TransactionReceiptEntry(3, txId1, DUPLICATE_TRANSACTION, 1L));
 
             final var entry = new TransactionReceiptEntries(entries);
             queue.add(entry);
@@ -297,7 +298,9 @@ final class RecordCacheImplTest extends AppTestBase {
     private TransactionRecord asRecord(final TransactionReceiptEntry transactionReceiptEntry) {
         return TransactionRecord.newBuilder()
                 .transactionID(transactionReceiptEntry.transactionId())
-                .receipt(TransactionReceipt.newBuilder().status(transactionReceiptEntry.status()))
+                .receipt(TransactionReceipt.newBuilder()
+                        .status(transactionReceiptEntry.status())
+                        .blockNumber(transactionReceiptEntry.blockNumber()))
                 .build();
     }
 
@@ -377,10 +380,11 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, BLOCK_NUMBER, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
-            assertThat(getReceipt(cache, txId)).isEqualTo(receipt);
+            assertThat(getReceipt(cache, txId))
+                    .isEqualTo(receipt.copyBuilder().blockNumber(BLOCK_NUMBER).build());
         }
 
         @ParameterizedTest
@@ -397,7 +401,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
             assertThat(getReceipts(cache, txId)).containsExactly(receipt);
@@ -417,7 +421,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
             assertThat(getReceipts(cache, PAYER_ACCOUNT_ID)).containsExactly(receipt);
@@ -443,7 +447,7 @@ final class RecordCacheImplTest extends AppTestBase {
                             .transactionID(txId)
                             .receipt(receipt)
                             .build();
-                    cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+                    cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
                 }
             }
 
@@ -535,10 +539,13 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, BLOCK_NUMBER, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
-            assertThat(getRecord(cache, txId)).isEqualTo(record);
+            assertThat(getRecord(cache, txId))
+                    .isEqualTo(record.copyBuilder()
+                            .receipt(receipt.copyBuilder().blockNumber(BLOCK_NUMBER).build())
+                            .build());
         }
 
         @ParameterizedTest
@@ -556,7 +563,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
             assertThat(getRecords(cache, txId)).containsExactly(record);
@@ -583,10 +590,10 @@ final class RecordCacheImplTest extends AppTestBase {
             given(networkInfo.nodeInfo(0)).willReturn(nodeInfo);
 
             // When the unclassifiable record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.YES, new PartialRecordSource(unclassifiableRecord));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.YES, 0, new PartialRecordSource(unclassifiableRecord));
             // It does not prevent a "good" record from using this transaction id
             assertThat(cache.hasDuplicate(txId, 0L)).isEqualTo(NO_DUPLICATE);
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(classifiableRecord));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(classifiableRecord));
 
             // And we get the success record from userTransactionRecord()
             assertThat(cache.getHistory(txId)).isNotNull();
@@ -610,7 +617,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(0, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can query for the receipt by transaction ID
             assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).containsExactly(record);
@@ -669,7 +676,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, 2L)).isEqualTo(OTHER_NODE);
@@ -689,7 +696,7 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, 1L)).isEqualTo(SAME_NODE);
@@ -708,9 +715,9 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
-            cache.addRecordSource(2L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
-            cache.addRecordSource(3L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
+            cache.addRecordSource(2L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
+            cache.addRecordSource(3L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, 11L)).isEqualTo(OTHER_NODE);
@@ -730,9 +737,9 @@ final class RecordCacheImplTest extends AppTestBase {
                     .build();
 
             // When the record is added to the cache
-            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
-            cache.addRecordSource(2L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
-            cache.addRecordSource(3L, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
+            cache.addRecordSource(1L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
+            cache.addRecordSource(2L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
+            cache.addRecordSource(3L, txId, DueDiligenceFailure.NO, 0, new PartialRecordSource(record));
 
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, currentNodeId)).isEqualTo(SAME_NODE);

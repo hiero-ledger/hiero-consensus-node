@@ -13,7 +13,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -196,14 +198,16 @@ class HandleWorkflowTest {
     void setUp() {
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
-        given(singletonState.get())
-                .willReturn(PlatformState.newBuilder()
+        lenient()
+                .when(singletonState.get())
+                .thenReturn(PlatformState.newBuilder()
                         .creationSoftwareVersion(
                                 SemanticVersion.newBuilder().minor(1).build())
                         .build());
-        given(state.getReadableStates(NAME)).willReturn(readableStates);
-        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
-                .willReturn(singletonState);
+        lenient().when(state.getReadableStates(NAME)).thenReturn(readableStates);
+        lenient()
+                .when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .thenReturn(singletonState);
     }
 
     @Test
@@ -258,6 +262,31 @@ class HandleWorkflowTest {
                 .writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(BLOCK_TIME).build())
                         .build()));
+    }
+
+    @Test
+    void currentBlockNumberIsUnsetInRecordsMode() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(0L, method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberOutsideRecordsMode() throws Exception {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 
     @Test
@@ -497,7 +526,7 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,

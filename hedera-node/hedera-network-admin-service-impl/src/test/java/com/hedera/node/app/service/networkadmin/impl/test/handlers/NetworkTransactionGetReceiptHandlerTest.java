@@ -129,6 +129,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 topLevelId,
                 HederaRecordCache.DueDiligenceFailure.NO,
+                0,
                 new PartialRecordSource(List.of(
                         TransactionRecord.newBuilder()
                                 .transactionID(topLevelId)
@@ -177,6 +178,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 topLevelId,
                 HederaRecordCache.DueDiligenceFailure.NO,
+                0,
                 new PartialRecordSource(List.of(
                         TransactionRecord.newBuilder()
                                 .transactionID(topLevelId)
@@ -231,6 +233,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
         assertEquals(OK, op.header().nodeTransactionPrecheckCode());
         assertNotNull(op.receipt());
         assertEquals(UNKNOWN, op.receiptOrThrow().status());
+        assertEquals(0L, op.receiptOrThrow().blockNumber());
     }
 
     @Test
@@ -262,6 +265,36 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
         final var op = response.transactionGetReceiptOrThrow();
         assertEquals(OK, op.header().nodeTransactionPrecheckCode());
         assertEquals(expectedReceipt, op.receipt());
+    }
+
+    @Test
+    void getsResponseWithBlockNumberWhenAvailable() {
+        final var responseHeader =
+                ResponseHeader.newBuilder().nodeTransactionPrecheckCode(OK).build();
+        final var blockNumber = 321L;
+        final var queriedTxnId = transactionIDNotInCache;
+        final var receiptWithBlockNumber = TransactionReceipt.newBuilder()
+                .status(OK)
+                .blockNumber(blockNumber)
+                .build();
+        final var recordWithBlockNumber = TransactionRecord.newBuilder()
+                .transactionID(queriedTxnId)
+                .receipt(receiptWithBlockNumber)
+                .build();
+        cache.addRecordSource(
+                0L,
+                queriedTxnId,
+                HederaRecordCache.DueDiligenceFailure.NO,
+                blockNumber,
+                new PartialRecordSource(List.of(recordWithBlockNumber)));
+
+        final var query = createGetTransactionReceiptQuery(queriedTxnId, false, false);
+        when(context.query()).thenReturn(query);
+        when(context.recordCache()).thenReturn(cache);
+
+        final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
+        final var receipt = response.transactionGetReceiptOrThrow().receiptOrThrow();
+        assertEquals(blockNumber, receipt.blockNumber());
     }
 
     @Test

@@ -25,6 +25,8 @@ import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkTransaction
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.PartialRecordSource;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -165,6 +167,33 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         assertThat(op.header()).isNotNull();
         assertThat(op.header().nodeTransactionPrecheckCode()).isEqualTo(ResponseCodeEnum.OK);
         assertThat(op.transactionRecord()).isEqualTo(expectedRecord);
+    }
+
+    @Test
+    void getsResponseWithReceiptBlockNumberWhenAvailable() {
+        final var responseHeader = ResponseHeader.newBuilder()
+                .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
+                .build();
+        final var blockNumber = 654L;
+        final var queriedTxnId = transactionIDNotInCache.copyBuilder().nonce(0).build();
+        final var recordWithBlockNumber = TransactionRecord.newBuilder()
+                .transactionID(queriedTxnId)
+                .receipt(primaryRecord.receiptOrThrow().copyBuilder().blockNumber(blockNumber).build())
+                .build();
+        cache.addRecordSource(
+                0L,
+                queriedTxnId,
+                HederaRecordCache.DueDiligenceFailure.NO,
+                blockNumber,
+                new PartialRecordSource(List.of(recordWithBlockNumber)));
+
+        final var query = createGetTransactionRecordQuery(queriedTxnId, false, false);
+        when(context.query()).thenReturn(query);
+        when(context.recordCache()).thenReturn(cache);
+
+        final var response = networkTransactionGetRecordHandler.findResponse(context, responseHeader);
+        final var record = response.transactionGetRecordOrThrow().transactionRecordOrThrow();
+        assertThat(record.receiptOrThrow().blockNumber()).isEqualTo(blockNumber);
     }
 
     @Test

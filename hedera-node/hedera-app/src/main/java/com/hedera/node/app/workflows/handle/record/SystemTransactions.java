@@ -1049,12 +1049,18 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
+                    currentBlockNumber(),
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
-            return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+            return failInvalidStreamItems(
+                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
         }
+    }
+
+    private long currentBlockNumber() {
+        return streamMode == RECORDS ? 0L : blockStreamManager.blockNo();
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

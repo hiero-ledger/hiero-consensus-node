@@ -204,4 +204,14 @@ message TransactionReceipt {
      * This value SHALL be unique within a given network.
     */
     uint64 registered_node_id = 16;
+
+    /**
+     * The block number containing this transaction.
+     * <p>
+     * This value SHALL be unset or default if consensus has not been reached
+     * or the block assignment is not yet known.<br/>
+     * Once known, this value SHALL identify the block containing the
+     * transaction represented by this receipt.
+     */
+    uint64 block_number = 17;
 }

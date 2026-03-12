@@ -89,6 +89,14 @@ message TransactionReceiptEntry {
      * This is the final status after handling the transaction.
      */
     ResponseCodeEnum status = 3;
+
+    /**
+     * The block number containing the transaction, if known.
+     * <p>
+     * This value SHALL be unset or default if the block assignment was not
+     * known when the receipt was stored.
+     */
+    uint64 block_number = 4;
 }
 
 /**

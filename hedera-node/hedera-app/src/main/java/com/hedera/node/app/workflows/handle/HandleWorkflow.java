@@ -847,12 +847,13 @@ public class HandleWorkflow {
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
+                    currentBlockNumber(),
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
         } finally {
             this.inFlightDispatch = null;
         }
@@ -892,13 +893,18 @@ public class HandleWorkflow {
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
                     DueDiligenceFailure.NO,
+                    currentBlockNumber(),
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
         }
+    }
+
+    private long currentBlockNumber() {
+        return streamMode == RECORDS ? blockRecordManager.blockNo() : blockStreamManager.blockNo();
     }
 
     /**

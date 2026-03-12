@@ -58,6 +58,7 @@ public record HandleOutput(
             @NonNull final ParentTxn parentTxn,
             @NonNull final ExchangeRateSet exchangeRates,
             @NonNull final StreamMode streamMode,
+            final long blockNumber,
             @NonNull final HederaRecordCache recordCache) {
         requireNonNull(parentTxn);
         requireNonNull(exchangeRates);
@@ -99,6 +100,7 @@ public record HandleOutput(
                 parentTxn.creatorInfo().nodeId(),
                 requireNonNull(parentTxn.txnInfo().transactionID()),
                 HederaRecordCache.DueDiligenceFailure.NO,
+                blockNumber,
                 requireNonNull(cacheableRecordSource));
         return new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
     }

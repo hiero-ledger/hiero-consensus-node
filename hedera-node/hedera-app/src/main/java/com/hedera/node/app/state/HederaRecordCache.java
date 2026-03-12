@@ -52,6 +52,7 @@ public interface HederaRecordCache extends RecordCache {
             long nodeId,
             @NonNull TransactionID userTxnId,
             @NonNull DueDiligenceFailure dueDiligenceFailure,
+            long blockNumber,
             @NonNull RecordSource recordSource);
 
     /**
