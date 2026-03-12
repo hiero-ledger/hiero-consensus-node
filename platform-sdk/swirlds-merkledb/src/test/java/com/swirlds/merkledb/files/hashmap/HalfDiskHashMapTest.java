@@ -3,8 +3,10 @@ package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -606,6 +608,8 @@ class HalfDiskHashMapTest {
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
             assertEquals(4, hdhm.getNumOfBuckets());
+            assertFalse(hdhm.isResizeNeeded(99, 198));
+            assertTrue(hdhm.isResizeNeeded(800, 1600));
             // Resize to 8 buckets
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(8, hdhm.getNumOfBuckets());
@@ -615,6 +619,7 @@ class HalfDiskHashMapTest {
             // Resize again, 32 buckets
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());
+            assertFalse(hdhm.isResizeNeeded(800, 1600));
             // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());

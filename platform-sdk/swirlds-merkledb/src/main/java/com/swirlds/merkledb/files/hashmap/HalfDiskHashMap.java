@@ -930,17 +930,27 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     // -- Resize --
 
     /**
+     * Check if this map should be resized, given the new virtual map size.
+     *
+     * @param firstLeafPath The first leaf virtual path
+     * @param lastLeafPath The last leaf virtual path
+     * @return true if the new map size exceeds 70% of the current number of buckets times {@link #goodAverageBucketEntryCount}
+     */
+    public boolean isResizeNeeded(final long firstLeafPath, final long lastLeafPath) {
+        final long currentSize = lastLeafPath - firstLeafPath + 1;
+        return !(currentSize <= (long) numOfBuckets.get() * goodAverageBucketEntryCount * PERCENT_START_RESIZE / 100);
+    }
+
+    /**
      * Check if this map should be resized, given the new virtual map size. If the new map size
-     * exceeds 80% of the current number of buckets times {@link #goodAverageBucketEntryCount},
+     * exceeds 70% of the current number of buckets times {@link #goodAverageBucketEntryCount},
      * the map is resized by doubling the number of buckets.
      *
      * @param firstLeafPath The first leaf virtual path
      * @param lastLeafPath The last leaf virtual path
      */
     public void resizeIfNeeded(final long firstLeafPath, final long lastLeafPath) {
-        final long currentSize = lastLeafPath - firstLeafPath + 1;
-        if (currentSize <= (long) numOfBuckets.get() * goodAverageBucketEntryCount * PERCENT_START_RESIZE / 100) {
-            // No need to resize yet
+        if (!isResizeNeeded(firstLeafPath, lastLeafPath)) {
             return;
         }
 

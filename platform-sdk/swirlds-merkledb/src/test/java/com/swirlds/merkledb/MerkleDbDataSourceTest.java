@@ -54,6 +54,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -587,6 +588,35 @@ class MerkleDbDataSourceTest {
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
+    }
+
+    @Test
+    void skipKeyToPathCompactionWhenResizeNeeded() throws IOException {
+        createAndApplyDataSource(testDirectory, "skipKeyToPathCompactionWhenResizeNeeded", TestType.long_fixed, 1, dataSource -> {
+            final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
+            coordinator.stopAndDisableBackgroundCompaction();
+
+            dataSource.saveRecords(
+                    0,
+                    100,
+                    createHashChunkStream(0, 100, i -> i + 1, dataSource.getHashChunkHeight()),
+                    IntStream.rangeClosed(0, 100).mapToObj(i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
+                    Stream.empty(),
+                    false);
+
+            assertTrue(dataSource.getKeyToPath().isResizeNeeded(0, 100), "Resize should be needed for key-to-path");
+
+            final ThreadPoolExecutor compactingExecutor =
+                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
+                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
+            final long initialTaskCount = compactingExecutor.getTaskCount();
+
+            dataSource.enableBackgroundCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+
+            assertEquals(initialTaskCount, compactingExecutor.getTaskCount(), "No compaction task should be submitted");
+            assertFalse(coordinator.isCompactionRunning(MerkleDbDataSource.OBJECT_KEY_TO_PATH));
+        });
     }
 
     @ParameterizedTest

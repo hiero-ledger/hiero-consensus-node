@@ -1450,6 +1450,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     public void runKeyToPathStoreCompaction() {
+        final KeyRange leafPathRange = validLeafPathRange;
+        if (keyToPath.isResizeNeeded(leafPathRange.getMinValidKey(), leafPathRange.getMaxValidKey())) {
+            return;
+        }
         compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectkeyToPathScanner);
         compactionCoordinator.submitCompactionTasks(OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig);
     }
