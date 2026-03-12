@@ -51,15 +51,9 @@ describing behavior that applies to any network running Hiero (including private
   and messages.
 - **CLPR Service** — The core business logic and state implementing CLPR on a particular ledger.
 - **Connection** — An on-ledger entity representing one side of a peer relationship between the local ledger and a
-  specific remote CLPR Service instance. Identified by the compound key `(ChainID, ServiceAddress)` where the `ChainID`
-  is the ID of the peer chain and `ServiceAddress` is the address of the peer CLPR Service and has meaning as an
-  address in the remote chain. While uncommon, multiple CLPR Service instances may exist on the same chain, and
-  therefore we require this tuple. Maintains the queue of outbound messages that have not yet been acknowledged by the
-  peer.
-- **Connector** — An economic entity that provides access to a Connection. A Connector is a separate contract that holds
-  balances of native tokens, authorizes messages on the source ledger, and pays for message execution on the destination
-  ledger. Multiple Connectors may serve the same Connection, and a single Connector may serve multiple Connections.
-  Connectors are subject to slashing for provable misbehavior (see §3.3.4).
+  specific remote CLPR Service instance.
+- **Connector** — An economic entity that authorizes messages on the source ledger and pays for their execution on the
+  destination ledger.
 - **Message** — An arbitrary byte payload plus metadata representing a single unit of communication from one ledger to
   another.
 - **Bundle** — An ordered batch of messages transmitted together between two ledgers, accompanied by a state proof.
@@ -1002,8 +996,8 @@ for message handling when receiving messages), and lock a stake that can be slas
 specifies an admin authority that can top up funds, adjust settings, or shut it down.
 
 A Connector must exist on **both** ledgers in a Connection — one side authorizes and enqueues messages, the other side
-pays for their execution on arrival. Multiple Connectors may serve the same Connection, and the same Connector operator
-may run Connectors across multiple Connections.
+pays for their execution on arrival. The relationship is many-to-many: multiple Connectors may serve the same
+Connection, and a single Connector may operate across multiple Connections.
 
 **Cross-ledger identity.** When a Connector registers on the destination ledger, it specifies the address of its
 counterpart on the source ledger. The CLPR Service maintains an index mapping
