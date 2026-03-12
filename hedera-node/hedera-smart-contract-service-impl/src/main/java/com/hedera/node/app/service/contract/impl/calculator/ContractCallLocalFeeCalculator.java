@@ -10,6 +10,7 @@ import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 public class ContractCallLocalFeeCalculator implements QueryFeeCalculator {
@@ -19,8 +20,10 @@ public class ContractCallLocalFeeCalculator implements QueryFeeCalculator {
             @NonNull SimpleFeeContext queryContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
+        final var op = query.contractCallLocalOrThrow();
         final var serviceDef = requireNonNull(lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_CALL_LOCAL));
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+        addExtraFee(feeResult, serviceDef, Extra.GAS, feeSchedule, op.gas());
     }
 
     @Override

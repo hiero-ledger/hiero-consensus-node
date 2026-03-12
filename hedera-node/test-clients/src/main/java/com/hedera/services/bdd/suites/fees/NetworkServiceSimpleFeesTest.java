@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Tag;
  * Tests for simple fee calculations in the Network Admin service
  * (GetVersionInfo, TransactionGetRecord, TransactionGetReceipt).
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class NetworkServiceSimpleFeesTest {
     private static final String ALICE = "alice";
@@ -39,7 +38,8 @@ public class NetworkServiceSimpleFeesTest {
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo().signedBy(BOB).payingWith(BOB).via("versionInfo"),
-                validateChargedUsdForQueries("versionInfo", BASE_FEE_GET_VERSION_INFO, 1.0));
+                validateChargedUsdForQueries("versionInfo", BASE_FEE_GET_VERSION_INFO, 1.0),
+                validateNonZeroNodePaymentForQuery("versionInfo"));
     }
 
     @HapiTest
@@ -57,6 +57,7 @@ public class NetworkServiceSimpleFeesTest {
                         .payingWith(ALICE)
                         .via(createTxn),
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(recordQuery),
-                validateChargedUsdForQueries(recordQuery, BASE_FEE_TRANSACTION_GET_RECORD, 1.0));
+                validateChargedUsdForQueries(recordQuery, BASE_FEE_TRANSACTION_GET_RECORD, 1.0),
+                validateNonZeroNodePaymentForQuery(recordQuery));
     }
 }

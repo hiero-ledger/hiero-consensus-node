@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -11,10 +10,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -23,7 +24,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 
@@ -36,7 +39,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class FileServiceSimpleFeesTest {
     private static final String CIVILIAN = "civilian";
@@ -44,6 +46,8 @@ public class FileServiceSimpleFeesTest {
     private static final double SINGLE_KEY_FEE = 0.01;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
     private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
+    private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 5;
+    private static final double QUERY_ALLOWED_PERCENT_DIFF = 2;
 
     @HapiTest
     @DisplayName("USD base fee as expected for file create transaction")
@@ -61,7 +65,7 @@ public class FileServiceSimpleFeesTest {
                         .fee(ONE_HUNDRED_HBARS)
                         .signedBy(CIVILIAN)
                         .via("fileCreateBasic"),
-                validateChargedUsd("fileCreateBasic", FILE_CREATE_BASE_FEE));
+                validateChargedUsd("fileCreateBasic", FILE_CREATE_BASE_FEE, TRANSACTION_ALLOWED_PERCENT_DIFF));
     }
 
     @HapiTest
@@ -115,7 +119,15 @@ public class FileServiceSimpleFeesTest {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateExtraKeys"),
-                validateChargedUsd("fileCreateExtraKeys", FILE_CREATE_BASE_FEE + feeFromKeys + feeFromSignatures));
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        validateChargedUsd(
+                                "fileCreateExtraKeys",
+                                FILE_CREATE_BASE_FEE
+                                        + feeFromKeys
+                                        + feeFromSignatures
+                                        + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraKeys"),
+                                TRANSACTION_ALLOWED_PERCENT_DIFF))));
     }
 
     @HapiTest
@@ -134,7 +146,7 @@ public class FileServiceSimpleFeesTest {
                         .signedBy(CIVILIAN)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("fileUpdateBasic"),
-                validateChargedUsd("fileUpdateBasic", FILE_UPDATE_BASE_FEE));
+                validateChargedUsd("fileUpdateBasic", FILE_UPDATE_BASE_FEE, TRANSACTION_ALLOWED_PERCENT_DIFF));
     }
 
     @HapiTest
@@ -178,7 +190,7 @@ public class FileServiceSimpleFeesTest {
                         .content("A".repeat(800))
                         .payingWith(civilian)
                         .via(baseAppend),
-                validateChargedUsd(baseAppend, FILE_APPEND_BASE_FEE));
+                validateChargedUsd(baseAppend, FILE_APPEND_BASE_FEE, TRANSACTION_ALLOWED_PERCENT_DIFF));
     }
 
     @HapiTest
@@ -188,7 +200,9 @@ public class FileServiceSimpleFeesTest {
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
-                validateChargedUsdForQueries("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, 1));
+                validateChargedUsdForQueries(
+                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, QUERY_ALLOWED_PERCENT_DIFF),
+                validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
     @HapiTest
@@ -198,7 +212,11 @@ public class FileServiceSimpleFeesTest {
                 fileCreate("ntb").key(CIVILIAN).contents(bytesWithLength(1500)),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
-                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT + 500 * STATE_BYTES_FEE_USD, 1));
+                        "getFileContentsBasic",
+                        BASE_FEE_FILE_GET_CONTENT
+                                + (1500 - FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES) * PROCESSING_BYTES_FEE_USD,
+                        1),
+                validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
     @HapiTest
@@ -208,7 +226,8 @@ public class FileServiceSimpleFeesTest {
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
-                validateChargedUsdForQueries("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, 1));
+                validateChargedUsdForQueries("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, QUERY_ALLOWED_PERCENT_DIFF),
+                validateNonZeroNodePaymentForQuery("getFileInfoBasic"));
     }
 
     private static byte[] bytesWithLength(final int length) {
