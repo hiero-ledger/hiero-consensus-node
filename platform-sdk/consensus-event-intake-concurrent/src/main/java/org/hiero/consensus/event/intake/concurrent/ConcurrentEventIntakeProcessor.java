@@ -189,37 +189,43 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         }
 
         // 2. Validate event fields
-        if (!eventFieldValidator.isValid(event)) {
-            intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
-            recordStage(STAGE_VALIDATION, event);
-            return null;
-        }
-        recordStage(STAGE_VALIDATION, event);
-
-        // 3. Deduplicate by (descriptor, signature) pair
-        if (duplicate(event)) {
-            intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
-            recordStage(STAGE_DEDUPLICATION, event);
-            return null;
-        }
-        recordStage(STAGE_DEDUPLICATION, event);
-
-        // 4. Verify signature (RUNTIME events are trusted — we just created and signed them)
-        if (event.getOrigin() != EventOrigin.RUNTIME) {
-            if (!isSignatureValid(event)) {
+        try {
+            if (!eventFieldValidator.isValid(event)) {
                 intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
-                sigValidationFailedAccumulator.update(1);
-                rateLimitedLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Event failed signature check. Event: {}, Signature: {}, Hash: {}",
-                        event,
-                        event.getSignature().toHex(),
-                        event.getHash());
-                recordStage(STAGE_VERIFICATION, event);
                 return null;
             }
+        } finally {
+            recordStage(STAGE_VALIDATION, event);
         }
-        recordStage(STAGE_VERIFICATION, event);
+
+        // 3. Deduplicate by (descriptor, signature) pair
+        try {
+            if (isDuplicate(event)) {
+                intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
+                return null;
+            }
+        } finally {
+            recordStage(STAGE_DEDUPLICATION, event);
+        }
+
+        // 4. Verify signature (RUNTIME events are trusted — we just created and signed them)
+        try {
+            if (event.getOrigin() != EventOrigin.RUNTIME) {
+                if (!isSignatureValid(event)) {
+                    intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
+                    sigValidationFailedAccumulator.update(1);
+                    rateLimitedLogger.error(
+                            EXCEPTION.getMarker(),
+                            "Event failed signature check. Event: {}, Signature: {}, Hash: {}",
+                            event,
+                            event.getSignature().toHex(),
+                            event.getHash());
+                    return null;
+                }
+            }
+        } finally {
+            recordStage(STAGE_VERIFICATION, event);
+        }
 
         return event;
     }
@@ -251,7 +257,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      * @param event the event to check
      * @return true if the event is a duplicate from a previous observed event
      */
-    private boolean duplicate(@NonNull final PlatformEvent event) {
+    private boolean isDuplicate(@NonNull final PlatformEvent event) {
         // Two-level lookup: birth round → (descriptor → signatures).
         // computeIfAbsent on both levels is atomic — only one thread creates each bucket/set.
         final ConcurrentHashMap<EventDescriptorWrapper, Set<Bytes>> bucket =
