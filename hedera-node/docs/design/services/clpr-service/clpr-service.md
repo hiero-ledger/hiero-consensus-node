@@ -38,8 +38,8 @@ communicating directly*. Users only have to trust the two ledgers they send mess
 
 >💡 **A note on Hedera and Hiero:** Throughout this document, "Hiero" refers to the open-source ledger software stack
 (the node software, its APIs, and its state model). "Hedera" refers to the specific public network that runs Hiero. When
-describing behavior that applies to any network running Hiero (including private deployments), this document uses "
-Hiero." When describing the public mainnet specifically, it uses "Hedera."
+describing behavior that applies to any network running Hiero (including private deployments), this document uses
+"Hiero." When describing the public mainnet specifically, it uses "Hedera."
 
 ## 2.1 Common Terminology
 
@@ -49,14 +49,17 @@ Hiero." When describing the public mainnet specifically, it uses "Hedera."
   without trusting any intermediary.
 - **Endpoint** — A node responsible for periodically communicating with peer ledger endpoints to exchange configurations
   and messages.
+- **CLPR Service** — The core business logic and state implementing CLPR on a particular ledger.
 - **Connection** — An on-ledger entity representing one side of a peer relationship between the local ledger and a
-  specific remote CLPR Service instance. Identified by the compound key `(ChainID, ServiceAddress)` — because multiple
-  CLPR Service instances may exist on the same chain. Maintains the queue of outbound messages that have not yet been
-  acknowledged by the peer.
+  specific remote CLPR Service instance. Identified by the compound key `(ChainID, ServiceAddress)` where the `ChainID`
+  is the ID of the peer chain and `ServiceAddress` is the address of the peer CLPR Service and has meaning as an
+  address in the remote chain. While uncommon, multiple CLPR Service instances may exist on the same chain, and
+  therefore we require this tuple. Maintains the queue of outbound messages that have not yet been acknowledged by the
+  peer.
 - **Connector** — An economic entity that provides access to a Connection. A Connector is a separate contract that holds
-  balances of native tokens on each ledger, authorizes messages on the source ledger, and pays for message execution on
-  the destination ledger. Multiple Connectors may serve the same Connection. Connectors are subject to slashing for
-  provable misbehavior (see §3.3.4).
+  balances of native tokens, authorizes messages on the source ledger, and pays for message execution on the destination
+  ledger. Multiple Connectors may serve the same Connection, and a single Connector may serve multiple Connections.
+  Connectors are subject to slashing for provable misbehavior (see §3.3.4).
 - **Message** — An arbitrary byte payload plus metadata representing a single unit of communication from one ledger to
   another.
 - **Bundle** — An ordered batch of messages transmitted together between two ledgers, accompanied by a state proof.
@@ -68,7 +71,6 @@ Hiero." When describing the public mainnet specifically, it uses "Hedera."
   data. Endpoint roster updates and configuration updates are delivered as Control Messages.
 - **Source Ledger / Destination Ledger** — The originating and receiving ledgers for a given message, respectively.
 - **Configuration** — The chain ID and other metadata describing a ledger participating in CLPR.
-- **CLPR Service** — The core business logic and state implementing CLPR on a particular ledger.
 - **HashSphere** — A private or permissioned network running Hiero software, typically deployed for enterprise or
   regulated use cases.
 
@@ -85,7 +87,7 @@ having been received by the destination ledger.
 Before adding a message to the end of the queue, the service will call a **connector** (chosen by the application) to
 ask it whether it will be willing to facilitate payment on the destination ledger for this message. Connectors (noun)
 represent economic actors. A connector has a presence on both the source and destination ledger. The connector on the
-source is literally saying "I am willing to pay for this on the destination". If the connector is willing, then the
+source is literally saying, "I am willing to pay for this on the destination". If the connector is willing, then the
 message is added to the queue.
 
 Once in the queue, **endpoints** on either the source or destination ledger initiate a connection with a peer endpoint.
@@ -93,16 +95,17 @@ When they do, they exchange a **bundle** of messages that have *not yet* been co
 Among these messages are **responses** to formerly sent messages, along with **state proofs** to prove everything they
 communicate with each other. It is through these proofs that cryptographic trust is established.
 
-The endpoint on the destination that receives this bundle constructs a transaction native to its ledger (e.g. a HAPI
+The endpoint on the destination that receives this bundle constructs a transaction native to its ledger (e.g., a HAPI
 `Transaction` on Hiero or a RLP-encoded transaction on Ethereum) and submits the bundle, metadata, and proofs to its
 ledger. Post-consensus, the transaction is handled by the CLPR Service on the destination. For each message, it checks
 to make sure the connector exists and is able to pay. If so, it sets a max-gas limit and calls the application on the
 destination. When this call returns, the connection is debited to pay for the gas used along with a small tax to be paid
-to the node that submitted the transaction. A **response** message is created and queued to send back to the source
-ledger, and state is updated to indicate that the message has been acknowledged by the destination.
+to the destination node that submitted the transaction. A **response** message is created and queued to send back to the
+source ledger.
 
 On a subsequent **sync** between the source and destination, messages are exchanged, and the source sees the response
-message. It then delivers the response to the source application, and the entire message flow has completed.
+message. It records that this message has been received by updating the source ledger state. It then delivers the
+response to the source application, and the entire message flow has completed.
 
 Subsequent sections will dive into the details of how this is accomplished, including implementation notes for Hiero and
 Ethereum networks, and security measures to prevent various attacks and misuses of CLPR.
@@ -115,7 +118,7 @@ CLPR is organized into four distinct layers:
 
 | **Layer**                   | **Responsibility**                                                                                                  | **Key Abstractions**                                                                 | **Capability**                                                                                                                  |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| **Network Layer**           | Physical data transport between ledger endpoints; handshaking, trust updates, throttle negotiation                  | Connection, endpoint, verifier contracts, gRPC channels, encoding format             | Two ledgers can connect and exchange ledger configuration. Misbehaving nodes are punishable.                                    |
+| **Network Layer**           | Physical data transport between ledger endpoints; handshaking, trust updates, throttle negotiation                  | Connection, endpoint, verifier contracts, gRPC channels, encoding format             | Two ledgers can connect. Misbehaving nodes are punishable.                                                                      |
 | **Messaging Layer**         | Ordered, reliable, state-proven message queuing and delivery between ledgers                                        | Message queues, bundles, running hashes, state proofs for messages                   | Two ledgers can pass messages between each other. Additional misbehavior detection unlocked.                                    |
 | **Payment & Routing Layer** | Connector authorization and payment, message dispatch to applications, response generation, and penalty enforcement | Connector contracts, application interfaces, slashing mechanisms                     | Messages are validated against Connectors, Connectors reimburse nodes, and misbehaving Connectors are punishable.               |
 | **Application Layer**       | User-facing distributed applications built on CLPR                                                                  | Cross-ledger smart contract calls, asset management, atomic swaps                    | Applications can send messages between each other across ledgers by specify the destination ledger, application, and connector. |
@@ -132,11 +135,10 @@ Ethereum than protobuf.
 
 ## 3.1 Network Layer
 
-The network layer defines the CLPR Service and the state it maintains (§3.1.0), how ledgers identify themselves (
-§3.1.1), how the endpoint roster is managed (§3.1.2), how connections are formed and maintained (§3.1.3), how endpoints
+The network layer defines the CLPR Service and the state it maintains (§3.1.0), how ledgers identify themselves
+(§3.1.1), how the endpoint roster is managed (§3.1.2), how connections are formed and maintained (§3.1.3), how endpoints
 communicate (§3.1.4), how verifier contracts provide the underlying trust mechanism (§3.1.5), and network-level
-misbehavior detection and reporting mechanisms that protect the protocol (§3.1.6). The network layer also defines the
-three classes of messages that flow between ledgers — `Data` messages, `Response` messages, and `Control` messages.
+misbehavior detection and reporting mechanisms that protect the protocol (§3.1.6).
 
 ### 3.1.0 The CLPR Service
 
@@ -320,17 +322,9 @@ An endpoint has:
 for the remote peer as part of the connection setup call. This single seed endpoint is the minimum needed for the local
 ledger to know who to contact. Without it, the connection exists in state but cannot initiate any syncs.
 
-**Ongoing updates.** After bootstrap, endpoint changes are propagated as Control Messages delivered over the established
-connection:
-
-- **EndpointJoin** — Announces a new endpoint joining the roster. Carries the endpoint's signing certificate, service
-  endpoint, and account ID.
-- **EndpointLeave** — Announces an endpoint's departure. Carries the departing endpoint's account ID. Sent by the
-  protocol when an endpoint is removed due to confirmed misbehavior (§3.1.6) or by an authorized governance action on
-  the ledger.
-
-Each receiving ledger's CLPR Service is responsible for applying these updates to its local copy of the peer roster and
-keeping it current.
+**Ongoing updates.** After bootstrap, changes to the peer endpoint roster are propagated via Control Messages in the
+message queue (see §3.2.2 for the Control Message types and ordering guarantees). Each receiving ledger's CLPR Service
+is responsible for applying these updates to its local copy of the peer roster.
 
 **Recovery.** If the automatic sync channel breaks down — for example, because a ledger has completely rotated its
 endpoint set and none of the new endpoints are known to the peer — any user may submit a recovery call directly to the
@@ -406,8 +400,8 @@ are recorded, the seed endpoints are saved, and the deposit is locked.
 **Initial acceptance criteria.** The ZK proof submitted during registration carries the peer's full
 `ClprLedgerConfiguration`, including all acceptance-criteria parameters (`maxMessagePayloadBytes`,
 `maxMessagesPerBundle`, `maxGasPerMessage`, throttles). These values take effect immediately on the new Connection and
-govern message enqueuing from the first message onward. Subsequent changes to these parameters are delivered as in-band
-Config Update Control Messages (§3.1.4), preserving ordering with data messages.
+govern message enqueuing from the first message onward. Subsequent changes are propagated via the messaging layer's
+Control Message mechanism (§3.2.2), which ensures total ordering with data messages.
 
 **Why a deposit.** Permissionless creation means anyone can create a Connection, which creates ongoing work for the
 receiving ledger's nodes (state storage, sync overhead, proof verification). The deposit prices in this cost and
@@ -454,15 +448,9 @@ verifier's implementation fingerprint. The CLPR Service verifies the proof, chec
 verifier on the Connection. This allows verifier upgrades without re-establishing the Connection and without admin
 involvement on the destination.
 
-**Ongoing endpoint and configuration updates.** Once a Connection exists, endpoint roster changes are propagated as
-Control Messages in the message queue (see §3.1.2 for the full endpoint update and recovery mechanism). Configuration
-changes — throttles, payload limits, `ApprovedVerifiers`, and any other parameter that affects message acceptance — are
-likewise propagated as **Config Update Control Messages** in the queue, sequenced with data messages. When the local
-admin changes a configuration parameter, the CLPR Service enqueues a Config Update Control Message on **every active
-Connection**. The peer processes it at a well-defined point in the message stream, ensuring total ordering: messages
-enqueued before the control message were valid under the old config and MUST be accepted; messages enqueued after it
-comply with the new config. No race conditions are possible because config changes and data messages share a single
-ordered stream.
+**Ongoing updates.** Once a Connection exists, changes to endpoint rosters and configuration parameters are propagated
+to the peer via the messaging layer's Control Message mechanism (§3.2.2), which sequences these changes alongside data
+messages to ensure total ordering.
 
 > 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The built-in ZK verifier is part of the
 node software. The CLPR Service admin (governing council) can sever or pause any Connection via privileged HAPI
@@ -502,11 +490,10 @@ The two sides exchange:
 - **Message bundles** — Any pending messages that the peer has not yet acknowledged. Extracted and verified by the
   verifier contract.
 
-**What travels in-band vs. out-of-band.** Configuration changes and endpoint roster updates are delivered as Control
-Messages in the message queue, sequenced with data messages (see §3.1.3). Verifier contract updates are the sole
-exception — they are always out-of-band (via `updateConnectionVerifier` with a ZK proof), because the verifier
-authenticates the queue and a "use this new verifier" instruction cannot be delivered through a channel that requires
-the new verifier to read.
+**Out-of-band verifier updates.** The sync carries whatever payloads the messaging layer places in the queue (§3.2).
+The sole exception to in-band delivery is verifier contract updates — these are always out-of-band (via
+`updateConnectionVerifier` with a ZK proof), because the verifier authenticates the queue and a "use this new verifier"
+instruction cannot be delivered through a channel that requires the new verifier to read.
 
 The queue metadata exchange is the mechanism by which acknowledgements are communicated — the peer's reported
 `received_message_id` becomes the sender's `acked_message_id`, enabling deletion of acknowledged response messages and
@@ -690,6 +677,16 @@ the network layer's ability to transport data and verify trust. This layer is co
 integrity, and transport. Connector payment, application dispatch, and failure handling are the responsibility of the
 Payment and Routing layer (§3.3).
 
+The messaging layer defines three classes of messages that share a single ordered queue per Connection:
+
+- **Data Messages** — Application-level content sent from one ledger to another. This is the primary unit of
+  cross-ledger communication.
+- **Response Messages** — Generated on the destination ledger after processing a Data Message. Every Data Message
+  produces exactly one Response Message, indicating success or a specific failure condition.
+- **Control Messages** — Protocol-level messages that manage the state of a Connection. Configuration updates and
+  endpoint roster changes are delivered as Control Messages, sequenced alongside data messages to ensure total ordering.
+  Control Messages do not involve Connectors, are not dispatched to applications, and do not generate responses.
+
 ### 3.2.1 Message Queue Metadata
 
 The network layer introduced the Connection as the on-ledger entity for a peer relationship. The messaging layer extends
@@ -722,13 +719,13 @@ metadata on the Connection is described in §3.2.1 above. Message payloads, howe
 Connection (keyed by Ledger ID plus Message ID) because they are accessed by specific ID ranges during bundle
 construction and are deleted after acknowledgement. The Connection itself only holds the metadata — counters and hashes.
 
-The queue carries both initiating messages and response messages in a single intermixed stream. When the destination
-ledger processes an incoming message and generates a response (whether a success result, an application error, or a
-Connector failure), that response is enqueued in the same outbound queue as any new initiating messages the destination
-ledger may be sending back. Both types share the same running hash chain, the same state proof mechanism, and the same
-bundle transport — there is no separate response channel. The `ClprMessagePayload` proto distinguishes the two via a
-`oneof`: a `ClprMessage` is an initiating message, and a `ClprMessageReply` is a response carrying the original
-`message_id` for correlation.
+The queue carries all three message types — Data, Response, and Control — in a single intermixed stream. When the
+destination ledger processes an incoming Data Message and generates a response (whether a success result, an application
+error, or a Connector failure), that response is enqueued in the same outbound queue as any new initiating messages or
+Control Messages the destination ledger may be sending. All types share the same running hash chain, the same state
+proof mechanism, and the same bundle transport — there are no separate channels. The `ClprMessagePayload` proto
+distinguishes them via a `oneof`: a `ClprMessage` is a Data Message, a `ClprMessageReply` is a Response Message
+carrying the original `message_id` for correlation, and a `ClprControlMessage` is a Control Message.
 
 Messages are enqueued with an ID and a running hash that chains each message to the previous one, forming a verifiable
 log. This enables the receiving ledger to validate message integrity and ordering without trusting the relay. The
@@ -746,8 +743,17 @@ Each queued entry contains:
       opaque byte data. The encoding and semantics of the payload are defined by higher-level protocol layers.
     - **Response Message** — A reply to a previously received Data Message, containing the original message ID, a
       structured status (`ClprMessageReplyStatus`), and opaque reply bytes.
-    - **Control Message** — A protocol-level message carrying an endpoint roster update (`EndpointJoin`/`EndpointLeave`)
-      or a configuration update (`ClprConfigUpdate`). See §3.1.2 and §3.1.3.
+    - **Control Message** — A protocol-level message. There are three subtypes:
+        - **EndpointJoin** — Announces a new endpoint joining the peer's roster. Carries the endpoint's signing
+          certificate, service endpoint, and account ID (see §3.1.2).
+        - **EndpointLeave** — Announces an endpoint's departure. Carries the departing endpoint's account ID. Sent
+          when an endpoint is removed due to confirmed misbehavior (§3.1.6) or by governance action.
+        - **ConfigUpdate** — Carries updated configuration parameters (throttles, payload limits, `ApprovedVerifiers`,
+          etc.). When the local admin changes a configuration parameter, the CLPR Service enqueues a ConfigUpdate on
+          **every active Connection**. The peer processes it at a well-defined point in the message stream, so messages
+          enqueued before the ConfigUpdate were valid under the old config and MUST be accepted; messages enqueued after
+          it comply with the new config. This total ordering eliminates race conditions where a source enqueues a
+          message valid under the config it has seen but that would be rejected under a change it hasn't learned about.
 - **Running Hash After Processing** — The cumulative hash computed from the prior running hash and this message's
   payload. When this message is the last one in a bundle, this hash must match the state-proven value, enabling
   verification without requiring the entire queue history.
