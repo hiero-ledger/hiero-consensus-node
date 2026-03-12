@@ -190,6 +190,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -2427,16 +2428,24 @@ public class UtilVerbs {
     }
 
     public static CustomSpecAssert validateNodePaymentAmountForQuery(
-            @NonNull final String txn, final long expectedTinybars) {
+            @NonNull final String txn, final long expectedTinycents) {
         requireNonNull(txn);
         return assertionsHold((spec, assertLog) -> {
             final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            final var rate = getExchangeRateForQuery(spec, txn);
+            final var expectedTinybars = expectedTinycents * rate.getHbarEquiv() / rate.getCentEquiv();
             assertEquals(
                     expectedTinybars,
                     actualNodePayment,
                     String.format(
-                            "Node payment for query '%s' was %d tinybars, expected %d tinybars",
-                            txn, actualNodePayment, expectedTinybars));
+                            "Node payment for query '%s' was %d tinybars, expected %d tinybars"
+                                    + " (from %d tinycents at rate %d/%d)",
+                            txn,
+                            actualNodePayment,
+                            expectedTinybars,
+                            expectedTinycents,
+                            rate.getHbarEquiv(),
+                            rate.getCentEquiv()));
         });
     }
 
@@ -3252,6 +3261,14 @@ public class UtilVerbs {
                 .filter(aa -> aa.getAccountID().equals(defaultNode))
                 .mapToLong(AccountAmount::getAmount)
                 .sum();
+    }
+
+    private static ExchangeRate getExchangeRateForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn);
+        allRunFor(spec, subOp);
+        return subOp.getResponseRecord().getReceipt().getExchangeRate().getCurrentRate();
     }
 
     private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
