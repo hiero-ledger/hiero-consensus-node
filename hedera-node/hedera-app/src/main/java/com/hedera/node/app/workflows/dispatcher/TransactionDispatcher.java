@@ -293,6 +293,7 @@ public class TransactionDispatcher {
             case HINTS_PARTIAL_SIGNATURE -> handlers.hintsPartialSignatureHandler();
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
+            case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {

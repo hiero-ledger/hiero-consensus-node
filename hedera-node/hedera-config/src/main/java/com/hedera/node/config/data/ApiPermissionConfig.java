@@ -45,6 +45,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
@@ -294,6 +295,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange migrationRootHashVote,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange createRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange updateRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange deleteRegisteredNode) {
@@ -388,6 +390,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(LEDGER_ID_PUBLICATION, c -> c.ledgerIdPublication);
+        permissionKeys.put(MIGRATION_ROOT_HASH_VOTE, c -> c.migrationRootHashVote);
         permissionKeys.put(REGISTERED_NODE_CREATE, c -> c.createRegisteredNode);
         permissionKeys.put(REGISTERED_NODE_UPDATE, c -> c.updateRegisteredNode);
         permissionKeys.put(REGISTERED_NODE_DELETE, c -> c.deleteRegisteredNode);
