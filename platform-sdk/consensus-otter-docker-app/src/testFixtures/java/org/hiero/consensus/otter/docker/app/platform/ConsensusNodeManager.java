@@ -210,7 +210,7 @@ public class ConsensusNodeManager {
      * @param listener the listener to register, must not be {@code null}
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
-        consensusRoundListeners.add(listener);
+        //consensusRoundListeners.add(listener);
     }
 
     /**

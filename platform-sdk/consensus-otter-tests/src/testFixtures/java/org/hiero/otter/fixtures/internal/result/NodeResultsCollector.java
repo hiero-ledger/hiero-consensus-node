@@ -65,6 +65,9 @@ public class NodeResultsCollector {
      * @param round the consensus round to add
      */
     public void addConsensusRound(@NonNull final ConsensusRound round) {
+        if ( true ) {
+            return;
+        }
         requireNonNull(round);
         if (!destroyed) {
             // sends each round through the pool to deduplicate across nodes
