@@ -48,14 +48,17 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
+        final var nodeId = context.creatorInfo().nodeId();
+        log.info("Handling migration root hash vote from node{}", nodeId);
         final var store = context.storeFactory().writableStore(WritableMigrationRootHashStore.class);
         if (store.isVotingComplete()) {
+            log.info("Ignoring migration root hash vote from node{} because voting is already complete", nodeId);
             return;
         }
 
         final var op = context.body().migrationRootHashVoteOrThrow();
-        final var nodeId = context.creatorInfo().nodeId();
         if (!store.putVoteIfAbsent(nodeId, op)) {
+            log.info("Ignoring duplicate migration root hash vote from node{}", nodeId);
             return;
         }
 
@@ -84,6 +87,12 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         final var tallyWeight = Optional.ofNullable(store.getTally(voteHash))
                 .map(tally -> tally.totalWeight())
                 .orElse(0L);
+        log.info(
+                "Recorded migration root hash vote from node{} (nodeWeight={}, tallyWeight={}, totalWeight={})",
+                nodeId,
+                nodeWeight,
+                tallyWeight,
+                totalWeight);
         if (tallyWeight * 3 <= totalWeight) {
             return;
         }

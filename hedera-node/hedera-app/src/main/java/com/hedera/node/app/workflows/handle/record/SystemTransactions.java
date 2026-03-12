@@ -497,6 +497,11 @@ public class SystemTransactions {
         // Apply effects of the jumpstart file migration (if any)
         final var migration = wrappedRecordBlockHashMigration.result();
         if (migration != null) {
+            log.info(
+                    "Submitting startup migration root hash vote for node{} (leafCount={}, intermediateHashes={})",
+                    networkInfo.selfNodeInfo().nodeId(),
+                    migration.wrappedIntermediateBlockRootsLeafCount(),
+                    migration.wrappedIntermediatePreviousBlockRootHashes().size());
             systemContext.dispatchAdmin(b -> b.memo("Migration wrapped record root hash vote")
                     .migrationRootHashVote(MigrationRootHashVoteTransactionBody.newBuilder()
                             .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
