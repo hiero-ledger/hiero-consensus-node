@@ -3,7 +3,7 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -38,11 +38,11 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.nodeIdState = states.getSingleton(NODE_ID_STATE_ID);
+        this.nodeIdState = states.getSingleton(HIGHEST_NODE_ID_STATE_ID);
     }
 
     @Override
-    public long incrementAndGet() {
+    public long incrementEntityNumAndGet() {
         final var newEntityNum = peekAtNextNumber();
         entityIdState.put(new EntityNumber(newEntityNum));
         return newEntityNum;
@@ -90,5 +90,14 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     @Override
     public void decrementEntityTypeCounter(final EntityType entityType) {
         adjustEntityCount(entityType, -1);
+    }
+
+    @Override
+    public void updateHighestNodeIdIfLarger(final long nodeId) {
+        final var current = nodeIdState.get();
+        final long currentHighest = current == null ? -1 : current.id();
+        if (nodeId > currentHighest) {
+            nodeIdState.put(new NodeId(nodeId));
+        }
     }
 }

@@ -38,6 +38,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
@@ -201,7 +202,7 @@ public class DuplicateManagementTest {
                                 .transfers(includingDeduction("node payment", TO))));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),

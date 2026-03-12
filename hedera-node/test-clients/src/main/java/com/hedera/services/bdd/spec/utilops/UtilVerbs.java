@@ -164,6 +164,7 @@ import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
+import com.hedera.services.bdd.spec.utilops.streams.UntilLogContainsOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AssertingBiConsumer;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
@@ -180,6 +181,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -190,6 +192,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -262,8 +265,6 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
-    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
-
     /**
      * Private constructor to prevent instantiation.
      *
@@ -465,10 +466,7 @@ public class UtilVerbs {
      * @return the operation that validates the streams
      */
     public static StreamValidationOp validateStreams() {
-        final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
-                .map(Integer::parseInt)
-                .orElse(0);
-        return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
+        return new StreamValidationOp();
     }
 
     /**
@@ -546,6 +544,166 @@ public class UtilVerbs {
     public static LogContainmentOp assertBlockNodeCommsLogDoesNotContainText(
             @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsText(selector, text, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target text
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, text, null, opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsText(selector, text, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target text
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, text, null, opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsPattern(selector, regex, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target regex
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, null, Pattern.compile(regex), opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsPattern(selector, regex, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target regex
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, null, Pattern.compile(regex), opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
     }
 
     /**
@@ -784,10 +942,10 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents raw bytes of the jumpstart file
-     * @param wrappedHashes     per-block entries from the wrapped record hashes file
-     * @param nodeComputedHash  the hash the node logged during migration
-     * @param freezeBlockNum    the last block the migration processed
+     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param wrappedHashes              per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash           the hash the node logged during migration
+     * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final byte[] jumpstartContents,
@@ -795,6 +953,19 @@ public class UtilVerbs {
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
         return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+    }
+
+    /**
+     * Verifies the node's persisted live wrapped record block root hash by replaying
+     * {@code .rcd} files from genesis through the given block and comparing the final
+     * chained hash against the node's persisted value.
+     *
+     * @param nodeComputedHash the hash the node persisted (from log scraping)
+     * @param liveBlockNum     the block number at which the live hash was persisted
+     */
+    public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
+            @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
+        return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -2272,16 +2443,24 @@ public class UtilVerbs {
     }
 
     public static CustomSpecAssert validateNodePaymentAmountForQuery(
-            @NonNull final String txn, final long expectedTinybars) {
+            @NonNull final String txn, final long expectedTinycents) {
         requireNonNull(txn);
         return assertionsHold((spec, assertLog) -> {
             final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            final var rate = getExchangeRateForQuery(spec, txn);
+            final var expectedTinybars = expectedTinycents * rate.getHbarEquiv() / rate.getCentEquiv();
             assertEquals(
                     expectedTinybars,
                     actualNodePayment,
                     String.format(
-                            "Node payment for query '%s' was %d tinybars, expected %d tinybars",
-                            txn, actualNodePayment, expectedTinybars));
+                            "Node payment for query '%s' was %d tinybars, expected %d tinybars"
+                                    + " (from %d tinycents at rate %d/%d)",
+                            txn,
+                            actualNodePayment,
+                            expectedTinybars,
+                            expectedTinycents,
+                            rate.getHbarEquiv(),
+                            rate.getCentEquiv()));
         });
     }
 
@@ -3097,6 +3276,14 @@ public class UtilVerbs {
                 .filter(aa -> aa.getAccountID().equals(defaultNode))
                 .mapToLong(AccountAmount::getAmount)
                 .sum();
+    }
+
+    private static ExchangeRate getExchangeRateForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn);
+        allRunFor(spec, subOp);
+        return subOp.getResponseRecord().getReceipt().getExchangeRate().getCurrentRate();
     }
 
     private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {

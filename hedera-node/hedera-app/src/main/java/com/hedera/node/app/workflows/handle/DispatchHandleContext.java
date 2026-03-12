@@ -513,9 +513,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 options,
                 childPreHandleResult);
         dispatchProcessor.processDispatch(childDispatch);
-        if (options.commitImmediately()) {
-            stack.commitTransaction(childDispatch.streamBuilder());
-        }
         // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
         final var paidStakingRewards = childDispatch.streamBuilder().getPaidStakingRewards();
         if (!paidStakingRewards.isEmpty()) {

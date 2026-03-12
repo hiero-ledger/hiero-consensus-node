@@ -24,7 +24,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -100,7 +99,7 @@ public class NodeCreateHandler implements TransactionHandler {
         final var maybeSystemTxnDispatchEntityNum =
                 handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
         final var maybeNodeIsInStateForSystemTxn =
-                isNodeInStateForSystemTxn(handleContext.dispatchMetadata(), handleContext.nodeIdGenerator(), nodeStore);
+                isNodeInStateForSystemTxn(handleContext.dispatchMetadata(), nodeStore);
         validateTrue(
                 maybeNodeIsInStateForSystemTxn || (nodeStore.sizeOfState() < nodeConfig.maxNumber()),
                 MAX_NODES_CREATED);
@@ -135,19 +134,23 @@ public class NodeCreateHandler implements TransactionHandler {
         long nextNodeId;
         Node node;
 
-        // If a system-dispatched transplant transaction for nodes in override network (non-prod environments)
-        // attempts to create a node that already exists in the state (even if marked as deleted),
-        // neither the highest node ID nor the entity count should be incremented.
-        if (maybeNodeIsInStateForSystemTxn) {
-            // Assign node id using the one provided by the system dispatch metadata
+        // System-dispatched node creation must use the explicit node id from metadata. If the node
+        // already exists in state (even if deleted), this is a transplant restore and should not
+        // increment either the highest node id or the live node count.
+        if (maybeSystemTxnDispatchEntityNum.isPresent()) {
             nextNodeId = maybeSystemTxnDispatchEntityNum.get();
             node = nodeBuilder.nodeId(nextNodeId).build();
-            nodeStore.put(node);
+            if (maybeNodeIsInStateForSystemTxn) {
+                nodeStore.put(node);
+            } else {
+                // Increment the nodes count. Update the highest node ID if needed.
+                nodeStore.putWithExplicitId(node);
+            }
         } else {
-            // Assign node id using a dedicated generator to avoid reuse
-            nextNodeId = handleContext.nodeIdGenerator().newNodeId();
+            // Assign node id using the store to avoid reuse
+            nextNodeId = nodeStore.peekAtNextNodeId();
             node = nodeBuilder.nodeId(nextNodeId).build();
-            nodeStore.putAndIncrementCount(node);
+            nodeStore.putAndIncrement(node);
         }
 
         accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());
@@ -176,19 +179,18 @@ public class NodeCreateHandler implements TransactionHandler {
      * that already exists in the current state.
      *
      * <p>If the dispatch metadata provides a node ID (as in system transactions), this method checks
-     * if that node ID is already present in the node store. If not, it uses the next node ID from the generator.
+     * if that node ID is already present in the node store.
      *
      * @param metadata the dispatch metadata containing optional system transaction node ID
-     * @param nodeIdGenerator the generator for new node IDs
      * @param nodeStore the store containing current node state
-     * @return {@code true} if the node ID (from metadata or generator) already exists in the state; {@code false} otherwise
+     * @return {@code true} if the node ID (from metadata) already exists in the state; {@code false} otherwise
      */
     private boolean isNodeInStateForSystemTxn(
-            final HandleContext.DispatchMetadata metadata,
-            final NodeIdGenerator nodeIdGenerator,
-            final ReadableNodeStore nodeStore) {
+            final HandleContext.DispatchMetadata metadata, final ReadableNodeStore nodeStore) {
         final var systemTxnCreationNum = metadata.getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
-        final var nextNodeId = systemTxnCreationNum != null ? systemTxnCreationNum : nodeIdGenerator.peekAtNewNodeId();
-        return nodeStore.get(nextNodeId) != null;
+        if (systemTxnCreationNum == null) {
+            return false;
+        }
+        return nodeStore.get(systemTxnCreationNum) != null;
     }
 }

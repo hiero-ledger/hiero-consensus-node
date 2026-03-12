@@ -7,11 +7,18 @@ public interface WritableEntityIdStore extends ReadableEntityIdStore, WritableEn
      *
      * @return the next new entity number
      */
-    long incrementAndGet();
+    long incrementEntityNumAndGet();
 
     /**
      * Increments the current highest node id in state and returns the new value.
      * If no node id has been allocated yet, initializes to 0.
      */
     long incrementHighestNodeIdAndGet();
+
+    /**
+     * Sets the highest node id to the given value if it is greater than the current highest.
+     *
+     * @param nodeId the node id to set as the highest
+     */
+    void updateHighestNodeIdIfLarger(long nodeId);
 }

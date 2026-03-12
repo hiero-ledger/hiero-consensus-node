@@ -10,8 +10,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -203,10 +203,10 @@ public class AddressBookTestBase {
                         ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
-        given(writableStates.getSingleton(NODE_ID_STATE_ID))
+        given(writableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        NODE_ID_STATE_ID,
-                        NODE_ID_STATE_LABEL,
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
                         () -> NodeId.newBuilder().id(num).build(),
                         c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
@@ -219,10 +219,10 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
-        given(readableStates.getSingleton(NODE_ID_STATE_ID))
+        given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        NODE_ID_STATE_ID,
-                        NODE_ID_STATE_LABEL,
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
                         () -> NodeId.newBuilder().id(num).build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
