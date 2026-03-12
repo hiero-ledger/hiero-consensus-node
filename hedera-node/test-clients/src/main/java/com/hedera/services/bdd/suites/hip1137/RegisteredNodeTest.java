@@ -35,6 +35,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -51,6 +52,7 @@ public class RegisteredNodeTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String NEW_ADMIN_KEY = "newAdminKey";
     private static final String CREATE_TXN = "registeredNodeCreate";
+    private static final String UPDATE_TXN = "registeredNodeUpdate";
     private static final String NODE_ACCOUNT = "nodeAccount";
     private static final String REGISTERED_NODE = "registeredNode";
     private static final String TEST_NODE = "testNode";
@@ -83,10 +85,38 @@ public class RegisteredNodeTest {
                         .description("new-desc")
                         .adminKey(NEW_ADMIN_KEY)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
+                        .via(UPDATE_TXN)
                         .hasKnownStatus(SUCCESS),
+                getTxnRecord(UPDATE_TXN).logged(),
                 registeredNodeDelete(REGISTERED_NODE)
                         .signedBy(DEFAULT_PAYER, NEW_ADMIN_KEY)
                         .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @DisplayName("create → update (admin key rotation) works with SECP256K1 admin key")
+    final Stream<DynamicTest> crudHappyPathWithSecp256k1AdminKey() {
+        final var createdId = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                newKeyNamed(NEW_ADMIN_KEY).shape(SigControl.SECP256K1_ON),
+                registeredNodeCreate("rn")
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .via(CREATE_TXN)
+                        .exposingCreatedIdTo(createdId::set)
+                        .hasKnownStatus(SUCCESS),
+                getTxnRecord(CREATE_TXN).logged().hasPriority(recordWith().hasNonZeroRegisteredNodeId()),
+                withOpContext((spec, opLog) -> {
+                    final var update = registeredNodeUpdate(createdId::get)
+                            .description("new-desc")
+                            .adminKey(NEW_ADMIN_KEY)
+                            .signedBy(DEFAULT_PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
+                            .via("secp256k1UpdateTxn")
+                            .hasKnownStatus(SUCCESS);
+                    final var record = getTxnRecord("secp256k1UpdateTxn").logged();
+                    allRunFor(spec, update, record);
+                }));
     }
 
     @HapiTest

@@ -24,6 +24,7 @@ import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.EntityNumber;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.RealmID;
+import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -453,6 +454,143 @@ public interface HapiPropertySource {
                 .domainName(parts[0])
                 .port(Integer.parseInt(parts[1]))
                 .build();
+    }
+
+    /**
+     * Interprets the given string as a block node endpoint in the format {@code addr:port:blockNodeApi[:tls]},
+     * returning a {@link RegisteredServiceEndpoint} with a {@code BlockNodeEndpoint} type set.
+     * <p>
+     * The {@code addr} may be an IPv4 address or FQDN. The required {@code blockNodeApi} must be one of
+     * {@code OTHER}, {@code STATUS}, {@code PUBLISH}, {@code SUBSCRIBE_STREAM}, {@code STATE_PROOF}.
+     * The optional literal {@code tls} enables {@code requires_tls = true}.
+     *
+     * @param v the string to interpret
+     * @return the parsed {@link RegisteredServiceEndpoint}
+     */
+    static RegisteredServiceEndpoint asBlockNodeEndpoint(@NonNull final String v) {
+        requireNonNull(v);
+        final String[] parts = v.split(":");
+        final String addr = parts[0];
+        final int port = Integer.parseInt(parts[1]);
+        final var builder = RegisteredServiceEndpoint.newBuilder();
+        setAddress(builder, addr);
+        builder.setPort(port);
+        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi = null;
+        boolean requiresTls = false;
+        for (int i = 2; i < parts.length; i++) {
+            final String part = parts[i];
+            if (part.equalsIgnoreCase("tls")) {
+                requiresTls = true;
+            } else {
+                try {
+                    blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(part.toUpperCase());
+                } catch (IllegalArgumentException ignore) {
+                    // not a known api name; skip
+                }
+            }
+        }
+        if (blockNodeApi == null) {
+            throw new IllegalArgumentException("Missing required blockNodeApi in block node endpoint '" + v
+                    + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
+                    + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
+        }
+        builder.setRequiresTls(requiresTls);
+        builder.setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                .setEndpointApi(blockNodeApi)
+                .build());
+        return builder.build();
+    }
+
+    /**
+     * Interprets the given string as a mirror node endpoint in the format {@code addr:port[:tls]},
+     * returning a {@link RegisteredServiceEndpoint} with a {@code MirrorNodeEndpoint} type set.
+     *
+     * @param v the string to interpret
+     * @return the parsed {@link RegisteredServiceEndpoint}
+     */
+    static RegisteredServiceEndpoint asMirrorNodeEndpoint(@NonNull final String v) {
+        return parseSimpleEndpoint(v)
+                .setMirrorNode(RegisteredServiceEndpoint.MirrorNodeEndpoint.newBuilder()
+                        .build())
+                .build();
+    }
+
+    /**
+     * Interprets the given string as an RPC relay endpoint in the format {@code addr:port[:tls]},
+     * returning a {@link RegisteredServiceEndpoint} with an {@code RpcRelayEndpoint} type set.
+     *
+     * @param v the string to interpret
+     * @return the parsed {@link RegisteredServiceEndpoint}
+     */
+    static RegisteredServiceEndpoint asRpcRelayEndpoint(@NonNull final String v) {
+        return parseSimpleEndpoint(v)
+                .setRpcRelay(
+                        RegisteredServiceEndpoint.RpcRelayEndpoint.newBuilder().build())
+                .build();
+    }
+
+    /**
+     * Interprets the given string as a general service endpoint in the format
+     * {@code addr:port[:description][:tls]}, returning a {@link RegisteredServiceEndpoint}
+     * with a {@code GeneralServiceEndpoint} type set.
+     * <p>
+     * The {@code addr} may be an IPv4 address or FQDN. If the last segment (case-insensitive)
+     * equals {@code "tls"}, the endpoint will have {@code requires_tls = true}. All remaining
+     * segments after port (excluding the trailing {@code tls} flag) are rejoined with {@code ":"}
+     * to form the description, which allows colons inside the description text.
+     *
+     * @param v the string to interpret
+     * @return the parsed {@link RegisteredServiceEndpoint}
+     */
+    static RegisteredServiceEndpoint asGeneralServiceEndpoint(@NonNull final String v) {
+        requireNonNull(v);
+        final String[] parts = v.split(":");
+        final var builder = RegisteredServiceEndpoint.newBuilder();
+        setAddress(builder, parts[0]);
+        builder.setPort(Integer.parseInt(parts[1]));
+        boolean requiresTls = false;
+        int descEnd = parts.length;
+        if (descEnd > 2 && parts[descEnd - 1].equalsIgnoreCase("tls")) {
+            requiresTls = true;
+            descEnd--;
+        }
+        final var descBuilder = RegisteredServiceEndpoint.GeneralServiceEndpoint.newBuilder();
+        if (descEnd > 2) {
+            descBuilder.setDescription(String.join(":", java.util.Arrays.copyOfRange(parts, 2, descEnd)));
+        }
+        builder.setRequiresTls(requiresTls);
+        builder.setGeneralService(descBuilder.build());
+        return builder.build();
+    }
+
+    /**
+     * Parses a simple endpoint string in the format {@code addr:port[:tls]} and returns
+     * a partially-built {@link RegisteredServiceEndpoint.Builder} with address, port, and
+     * TLS flag set. Callers must set the endpoint type and call {@code build()}.
+     */
+    private static RegisteredServiceEndpoint.Builder parseSimpleEndpoint(@NonNull final String v) {
+        requireNonNull(v);
+        final String[] parts = v.split(":");
+        final var builder = RegisteredServiceEndpoint.newBuilder();
+        setAddress(builder, parts[0]);
+        builder.setPort(Integer.parseInt(parts[1]));
+        boolean requiresTls = false;
+        for (int i = 2; i < parts.length; i++) {
+            if (parts[i].equalsIgnoreCase("tls")) {
+                requiresTls = true;
+            }
+        }
+        builder.setRequiresTls(requiresTls);
+        return builder;
+    }
+
+    private static void setAddress(
+            @NonNull final RegisteredServiceEndpoint.Builder builder, @NonNull final String addr) {
+        try {
+            builder.setIpAddress(asOctets(addr));
+        } catch (Exception ignore) {
+            builder.setDomainName(addr);
+        }
     }
 
     static ContractID asContract(String v) {

@@ -62,13 +62,13 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
         return this;
     }
 
-    public HapiRegisteredNodeUpdate adminKey(@NonNull final Key adminKey) {
-        this.adminKey = Optional.of(requireNonNull(adminKey));
+    public HapiRegisteredNodeUpdate adminKey(@NonNull final String keyName) {
+        this.adminKeyName = Optional.of(requireNonNull(keyName));
         return this;
     }
 
-    public HapiRegisteredNodeUpdate adminKey(@NonNull final String keyName) {
-        this.adminKeyName = Optional.of(requireNonNull(keyName));
+    public HapiRegisteredNodeUpdate adminKey(@NonNull final Key adminKey) {
+        this.adminKey = Optional.of(requireNonNull(adminKey));
         return this;
     }
 
