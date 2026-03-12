@@ -15,6 +15,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 
 /**
  * Some utilities related to synthetic transaction bodies.
@@ -155,11 +156,14 @@ public class SynthTxnUtils {
      * @return the corresponding {@link CryptoCreateTransactionBody}
      */
     public static ContractCreateTransactionBody synthEthTxCreation(
-            final long autoRenewPeriod, @NonNull final EthTxData ethTxData) {
+            final long autoRenewPeriod,
+            @NonNull final EthTxData ethTxData,
+            @NonNull final BigInteger weibarsPerSubunit) {
         requireNonNull(ethTxData);
+        requireNonNull(weibarsPerSubunit);
         return ContractCreateTransactionBody.newBuilder()
                 .gas(ethTxData.gasLimit())
-                .initialBalance(ethTxData.effectiveTinybarValue())
+                .initialBalance(ethTxData.effectiveTinybarValue(weibarsPerSubunit))
                 .autoRenewPeriod(Duration.newBuilder().seconds(autoRenewPeriod))
                 .initcode(Bytes.wrap(ethTxData.callData()))
                 .build();

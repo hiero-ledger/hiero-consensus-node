@@ -19,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -58,7 +59,7 @@ class ContractServiceImplTest {
         when(appContext.signatureVerifier()).thenReturn(signatureVerifier);
         when(appContext.idFactory()).thenReturn(entityIdFactory);
 
-        subject = new ContractServiceImpl(appContext, metrics);
+        subject = new ContractServiceImpl(appContext, metrics, new DenominationConverter(8));
     }
 
     @Test

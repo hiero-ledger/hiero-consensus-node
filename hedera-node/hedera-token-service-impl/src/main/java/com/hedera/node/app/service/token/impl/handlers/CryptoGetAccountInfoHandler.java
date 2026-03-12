@@ -27,6 +27,7 @@ import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.AliasUtils;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
@@ -56,16 +57,22 @@ import javax.inject.Singleton;
 public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
     private final CryptoOpsUsage cryptoOpsUsage;
     private final InstantSource instantSource;
+    private final DenominationConverter denominationConverter;
 
     /**
      * Default constructor for injection.
      * @param cryptoOpsUsage the usage of the crypto operations for calculating fees
+     * @param instantSource the source of the current instant
+     * @param denominationConverter the denomination converter
      */
     @Inject
     public CryptoGetAccountInfoHandler(
-            @NonNull final CryptoOpsUsage cryptoOpsUsage, @NonNull final InstantSource instantSource) {
+            @NonNull final CryptoOpsUsage cryptoOpsUsage,
+            @NonNull final InstantSource instantSource,
+            @NonNull final DenominationConverter denominationConverter) {
         this.cryptoOpsUsage = requireNonNull(cryptoOpsUsage);
         this.instantSource = requireNonNull(instantSource);
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     @Override
@@ -176,7 +183,8 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
                     stakingRewardsStore.isStakingRewardsActivated(),
                     account,
                     stakingInfoStore,
-                    instantSource.instant()));
+                    instantSource.instant(),
+                    denominationConverter.subunitsPerWholeUnit()));
             return Optional.of(info.build());
         }
     }

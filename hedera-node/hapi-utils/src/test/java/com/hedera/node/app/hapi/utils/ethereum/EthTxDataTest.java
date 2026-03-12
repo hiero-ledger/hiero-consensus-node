@@ -2,7 +2,6 @@
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.DETERMINISTIC_DEPLOYER_TRANSACTION;
-import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -29,10 +28,12 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class EthTxDataTest {
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
+    private static final BigInteger WEIBARS_PER_TINYBAR = BigInteger.valueOf(10_000_000_000L);
 
     static final String SIGNATURE_ADDRESS = "a94f5374fce5edbc8e2a8697c15331677e6ebf0b";
     static final String SIGNATURE_PUBKEY = "033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d";
@@ -105,26 +106,30 @@ class EthTxDataTest {
     @Test
     void effectiveValueIsNominalWhenReasonable() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
-        final var nominal = subject.value().divide(WEIBARS_IN_A_TINYBAR).longValueExact();
-        assertEquals(nominal, subject.effectiveTinybarValue());
+        final var nominal = subject.value().divide(WEIBARS_PER_TINYBAR).longValueExact();
+        assertEquals(
+                nominal, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR), "Effective value should match nominal");
     }
 
     @Test
     void effectiveOfferedGasPriceIsNominalWhenReasonable() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         final var nominal = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
-                .divide(WEIBARS_IN_A_TINYBAR)
+                .divide(WEIBARS_PER_TINYBAR)
                 .longValueExact();
-        assertEquals(nominal, subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE));
+        assertEquals(
+                nominal,
+                subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE, WEIBARS_PER_TINYBAR),
+                "Effective gas price should match nominal");
     }
 
     @Test
     void effectiveOfferedGasPriceAvoidsOverflow() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0))
                 .replaceValue(
-                        BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(WEIBARS_IN_A_TINYBAR));
+                        BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(WEIBARS_PER_TINYBAR));
         final var expected = Long.MAX_VALUE;
-        assertEquals(expected, subject.effectiveTinybarValue());
+        assertEquals(expected, subject.effectiveTinybarValue(WEIBARS_PER_TINYBAR), "Should cap at Long.MAX_VALUE");
     }
 
     @Test
@@ -510,7 +515,7 @@ class EthTxDataTest {
                 oneByte,
                 1,
                 oneByte,
-                WEIBARS_IN_A_TINYBAR,
+                WEIBARS_PER_TINYBAR,
                 oneByte,
                 null,
                 null,
@@ -518,7 +523,7 @@ class EthTxDataTest {
                 oneByte,
                 oneByte,
                 oneByte);
-        assertEquals(1L, tinybarTx.getAmount());
+        assertEquals(1L, tinybarTx.getAmount(WEIBARS_PER_TINYBAR));
     }
 
     @Test
@@ -730,7 +735,7 @@ class EthTxDataTest {
                         .getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
                         .compareTo(BigInteger.valueOf(45)
                                 .multiply(BigInteger.valueOf(DETERMINISTIC_DEPLOYER_GAS_PRICE_MULTIPLIER))
-                                .multiply(WEIBARS_IN_A_TINYBAR))
+                                .multiply(WEIBARS_PER_TINYBAR))
                 == 0);
     }
 
@@ -764,5 +769,46 @@ class EthTxDataTest {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
+    }
+
+    // --- Parameterized denomination-aware tests (Story 2-3, AC-6) ---
+
+    @ParameterizedTest
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void effectiveTinybarValueWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
+        assertEquals(expected, subject.effectiveTinybarValue(weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void getAmountWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.value().divide(weibarsPerSubunit).longValueExact();
+        assertEquals(expected, subject.getAmount(weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void effectiveOfferedGasPriceWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var expected = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
+                .divide(weibarsPerSubunit)
+                .longValueExact();
+        assertEquals(expected, subject.effectiveOfferedGasPriceInTinybars(TINYBAR_GAS_PRICE, weibarsPerSubunit));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1000000000000000000", "10000000000", "1"})
+    void overflowProtectionWithVariousWeibarsPerSubunit(final String weibarsPerSubunitStr) {
+        final var weibarsPerSubunit = new BigInteger(weibarsPerSubunitStr);
+        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0))
+                .replaceValue(
+                        BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(weibarsPerSubunit));
+        assertEquals(Long.MAX_VALUE, subject.effectiveTinybarValue(weibarsPerSubunit));
     }
 }

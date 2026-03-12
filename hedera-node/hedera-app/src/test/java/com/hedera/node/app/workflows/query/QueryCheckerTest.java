@@ -644,6 +644,8 @@ class QueryCheckerTest extends AppTestBase {
         when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
         when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
         when(simpleFeeCalculator.calculateTxFee(any(), any())).thenReturn(transferFeeResult);
+        when(feeManager.subunitsPerWholeUnit())
+                .thenReturn(com.hedera.node.app.spi.fees.util.FeeUtils.DEFAULT_SUBUNITS_PER_HBAR);
 
         // Spy QueryChecker to mock feeResultToFees
         QueryChecker spyChecker = org.mockito.Mockito.spy(checker);

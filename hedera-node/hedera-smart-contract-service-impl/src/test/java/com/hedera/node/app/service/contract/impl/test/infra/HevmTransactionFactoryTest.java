@@ -23,7 +23,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
-import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_DELETED_CONTRACT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -82,6 +81,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -93,6 +93,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -135,6 +136,7 @@ class HevmTransactionFactoryTest {
     private HederaEvmContext context;
 
     private static final long TOP_LEVEL_TINYBAR_GAS_PRICE = 100L;
+    private static final BigInteger WEIBARS_PER_TINYBAR = BigInteger.valueOf(10_000_000_000L);
 
     private static final ContractsConfig CONFIG_THROTTLE_BY_GAS = HederaTestConfigBuilder.create()
             .withValue("contracts.maxGasPerSec", 15_000_000L)
@@ -162,7 +164,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     @Test
@@ -563,12 +566,12 @@ class HevmTransactionFactoryTest {
         assertEquals(Bytes.EMPTY, transaction.payload());
         assertEquals(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.chainId()), transaction.chainId());
         assertEquals(
-                ETH_DATA_WITH_TO_ADDRESS.value().divide(WEIBARS_IN_A_TINYBAR).longValueExact(), transaction.value());
+                ETH_DATA_WITH_TO_ADDRESS.value().divide(WEIBARS_PER_TINYBAR).longValueExact(), transaction.value());
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.gasLimit(), transaction.gasLimit());
         assertEquals(
                 ETH_DATA_WITH_TO_ADDRESS
                         .getMaxGasAsBigInteger(TOP_LEVEL_TINYBAR_GAS_PRICE)
-                        .divide(WEIBARS_IN_A_TINYBAR)
+                        .divide(WEIBARS_PER_TINYBAR)
                         .longValueExact(),
                 transaction.offeredGasPrice());
         assertEquals(MAX_GAS_ALLOWANCE, transaction.maxGasAllowance());
@@ -591,10 +594,13 @@ class HevmTransactionFactoryTest {
         assertEquals(0, transaction.nonce());
         assertEquals(CALL_DATA, transaction.payload());
         assertEquals(Bytes.wrap(dataToUse.chainId()), transaction.chainId());
-        assertEquals(dataToUse.value().divide(WEIBARS_IN_A_TINYBAR).longValueExact(), transaction.value());
+        assertEquals(
+                dataToUse.value().divide(WEIBARS_PER_TINYBAR).longValueExact(),
+                transaction.value(),
+                "Transaction value should match ETH data value converted from weibars");
         assertEquals(dataToUse.gasLimit(), transaction.gasLimit());
         assertEquals(
-                dataToUse.effectiveOfferedGasPriceInTinybars(TOP_LEVEL_TINYBAR_GAS_PRICE),
+                dataToUse.effectiveOfferedGasPriceInTinybars(TOP_LEVEL_TINYBAR_GAS_PRICE, WEIBARS_PER_TINYBAR),
                 transaction.offeredGasPrice());
         assertEquals(MAX_GAS_ALLOWANCE, transaction.maxGasAllowance());
 
@@ -604,7 +610,7 @@ class HevmTransactionFactoryTest {
         final var expectedCreation = ContractCreateTransactionBody.newBuilder()
                 .autoRenewPeriod(minAutoRenewPeriod)
                 .gas(dataToUse.gasLimit())
-                .initialBalance(dataToUse.effectiveTinybarValue())
+                .initialBalance(dataToUse.effectiveTinybarValue(WEIBARS_PER_TINYBAR))
                 .initcode(CALL_DATA)
                 .build();
         assertEquals(expectedCreation, transaction.hapiCreation());
@@ -809,7 +815,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -830,7 +837,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -851,7 +859,8 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -872,6 +881,7 @@ class HevmTransactionFactoryTest {
                 ethereumSignatures,
                 context,
                 entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
+                DEFAULT_HOOKS_CONFIG,
+                new DenominationConverter(8));
     }
 }

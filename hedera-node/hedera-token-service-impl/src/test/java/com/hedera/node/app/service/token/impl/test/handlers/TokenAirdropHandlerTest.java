@@ -733,6 +733,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var simpleFeeCalculatorMock = mock(SimpleFeeCalculator.class);
         given(handleContext.getSimpleFeeCalculator()).willReturn(simpleFeeCalculatorMock);
         given(handleContext.activeRate()).willReturn(exchangeRate);
+        lenient().when(handleContext.subunitsPerWholeUnit()).thenReturn(100_000_000L);
     }
 
     private void mockLegacyFeeCalculator() {

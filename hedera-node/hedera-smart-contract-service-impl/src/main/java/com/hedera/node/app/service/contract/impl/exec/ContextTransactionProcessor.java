@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -31,6 +32,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.Callable;
@@ -60,6 +62,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final ContractMetrics contractMetrics;
+    private final BigInteger weibarsPerSubunit;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -87,7 +90,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final DenominationConverter denominationConverter) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -100,6 +104,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.contractMetrics = requireNonNull(contractMetrics);
+        this.weibarsPerSubunit = requireNonNull(denominationConverter).weibarsPerSubunit();
     }
 
     @Override
@@ -123,8 +128,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         requireNonNull(hevmTransaction.exception()).getStatus());
                 final var hookId = hevmTransaction.maybeHookId();
                 outcome = CallOutcome.fromResultsWithoutSidecars(
-                        result.asProtoResultOf(null, rootProxyWorldUpdater, null),
-                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, hookId),
+                        result.asProtoResultOf(null, rootProxyWorldUpdater, null, weibarsPerSubunit),
+                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, hookId, weibarsPerSubunit),
                         null,
                         null,
                         null,
@@ -209,8 +214,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
             final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
-                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData, hookId),
+                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData, weibarsPerSubunit),
+                    result.asEvmTxResultOf(
+                            ethTxDataIfApplicable(), rootProxyWorldUpdater, callData, hookId, weibarsPerSubunit),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
@@ -305,8 +311,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;
         return CallOutcome.fromResultsWithoutSidecars(
-                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
-                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData, hookId),
+                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData, weibarsPerSubunit),
+                result.asEvmTxResultOf(
+                        ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData, hookId, weibarsPerSubunit),
                 null,
                 null,
                 null,

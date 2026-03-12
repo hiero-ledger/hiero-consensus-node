@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ class HederaEvmTransactionAbortResultTest {
                 WEI_NETWORK_GAS_PRICE.toLong(),
                 ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED);
         assertEquals(ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult =
+                subject.asProtoResultOf(null, rootProxyWorldUpdater, null, BigInteger.valueOf(10_000_000_000L));
         final var traditionalMessage = Bytes.wrap(
                         MAX_CONTRACT_STORAGE_EXCEEDED.protoName().getBytes(StandardCharsets.UTF_8))
                 .toString();
@@ -43,7 +45,8 @@ class HederaEvmTransactionAbortResultTest {
         final var subject = HederaEvmTransactionResult.resourceExhaustionFrom(
                 SENDER_ID, GAS_LIMIT / 2, WEI_NETWORK_GAS_PRICE.toLong(), MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED);
         assertEquals(MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
+        final var protoResult =
+                subject.asProtoResultOf(null, rootProxyWorldUpdater, null, BigInteger.valueOf(10_000_000_000L));
         final var traditionalMessage = Bytes.wrap(
                         MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED.protoName().getBytes(StandardCharsets.UTF_8))
                 .toString();

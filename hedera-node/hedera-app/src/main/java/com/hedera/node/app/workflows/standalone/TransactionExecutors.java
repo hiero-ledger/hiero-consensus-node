@@ -23,6 +23,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
@@ -35,6 +36,7 @@ import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -277,8 +279,15 @@ public enum TransactionExecutors {
                                 : new ThrottleAccumulator(configSupplier, capacitySplitSource, throttleType)),
                 () -> componentRef.get().appFeeCharging(),
                 entityIdFactory);
+        final var denominationConverter = new DenominationConverter(
+                bootstrapConfig.getConfigData(NativeCoinConfig.class).decimals());
         final var contractService = new ContractServiceImpl(
-                appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
+                appContext,
+                NO_OP_METRICS,
+                NOOP_VERIFICATION_STRATEGIES,
+                tracerBinding,
+                customOps,
+                denominationConverter);
         final var utilService = new UtilServiceImpl(appContext, (signedTxn, config) -> componentRef
                 .get()
                 .transactionChecker()

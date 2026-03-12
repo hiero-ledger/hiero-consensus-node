@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import dagger.BindsInstance;
 import dagger.Component;
@@ -57,7 +58,8 @@ public interface ContractServiceComponent {
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
                 @BindsInstance EntityIdFactory entityIdFactory,
-                @BindsInstance NativeLibVerifier nativeLibVerifier);
+                @BindsInstance NativeLibVerifier nativeLibVerifier,
+                @BindsInstance DenominationConverter denominationConverter);
     }
 
     /**

@@ -38,6 +38,7 @@ import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
@@ -145,7 +146,7 @@ class IngestComponentTest {
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(new BootstrapConfigProviderImpl())
                 .fileServiceImpl(new FileServiceImpl())
-                .contractServiceImpl(new ContractServiceImpl(appContext, NO_OP_METRICS))
+                .contractServiceImpl(new ContractServiceImpl(appContext, NO_OP_METRICS, new DenominationConverter(8)))
                 .utilServiceImpl(new UtilServiceImpl(appContext, (signedTxn, config) -> null))
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)

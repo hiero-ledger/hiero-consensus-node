@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
+import java.math.BigInteger;
 import org.hiero.hapi.fees.FeeResult;
 
 /**
@@ -15,8 +16,35 @@ import org.hiero.hapi.fees.FeeResult;
  */
 public class FeeUtils {
 
+    /**
+     * The default number of subunits per whole HBAR (10^8 tinybars per HBAR),
+     * corresponding to decimals=8.
+     */
+    public static final long DEFAULT_SUBUNITS_PER_HBAR = 100_000_000L;
+
     private FeeUtils() {
         // util class
+    }
+
+    /**
+     * Scales a fee amount computed in default tinybars (10^-8 HBAR) to the
+     * configured native coin subunits (10^-decimals HBAR).
+     *
+     * <p>When {@code subunitsPerWholeUnit == DEFAULT_SUBUNITS_PER_HBAR} (i.e. decimals=8),
+     * this is a no-op and returns the input unchanged.
+     *
+     * @param defaultTinybars the fee amount in default tinybars (10^-8 HBAR)
+     * @param subunitsPerWholeUnit the number of subunits per whole HBAR for the configured decimals
+     * @return the fee amount scaled to the configured denomination
+     */
+    public static long scaleToSubunits(final long defaultTinybars, final long subunitsPerWholeUnit) {
+        if (subunitsPerWholeUnit == DEFAULT_SUBUNITS_PER_HBAR) {
+            return defaultTinybars;
+        }
+        return BigInteger.valueOf(defaultTinybars)
+                .multiply(BigInteger.valueOf(subunitsPerWholeUnit))
+                .divide(BigInteger.valueOf(DEFAULT_SUBUNITS_PER_HBAR))
+                .longValueExact();
     }
 
     /**

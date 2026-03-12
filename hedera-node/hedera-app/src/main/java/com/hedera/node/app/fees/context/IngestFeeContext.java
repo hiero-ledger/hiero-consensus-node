@@ -196,6 +196,11 @@ public class IngestFeeContext implements FeeContext {
     }
 
     @Override
+    public long subunitsPerWholeUnit() {
+        return feeManager.subunitsPerWholeUnit();
+    }
+
+    @Override
     public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
         return frontendThrottle.getHighVolumeThrottleUtilization(functionality);
     }

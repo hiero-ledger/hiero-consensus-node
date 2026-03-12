@@ -3,6 +3,7 @@ package com.hedera.node.app.spi.fees;
 
 import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsToTinybars;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.scaleToSubunits;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -118,13 +119,23 @@ public interface FeeContext {
     HederaFunctionality functionality();
 
     /**
-     * Gets the number of tinybars equivalent to the given number of tinycents.
+     * Returns the number of native coin subunits per whole HBAR for the configured
+     * number of decimals. At the default decimals=8, this returns 100,000,000 (the
+     * default tinybar conversion factor).
+     *
+     * @return the subunits-per-whole-unit conversion factor
+     */
+    long subunitsPerWholeUnit();
+
+    /**
+     * Gets the number of native coin subunits equivalent to the given number of tinycents,
+     * scaled for the configured native coin decimals.
      *
      * @param amount the amount in tinycents
-     * @return the amount in tinybars
+     * @return the amount in native coin subunits
      */
     default long tinybarsFromTinycents(final long amount) {
-        return tinycentsToTinybars(amount, fromPbj(activeRate()));
+        return scaleToSubunits(tinycentsToTinybars(amount, fromPbj(activeRate())), subunitsPerWholeUnit());
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static com.hedera.node.app.spi.fees.util.FeeUtils.scaleToSubunits;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
@@ -144,6 +145,21 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
                 nodeFee + fees.nodeFee(),
                 networkFee + fees.networkFee(),
                 serviceFee + fees.serviceFee(),
+                highVolumeMultiplier);
+    }
+
+    /**
+     * Returns a new {@link Fees} with each component scaled from default tinybars
+     * (10^-8 HBAR) to the configured native coin subunits (10^-decimals HBAR).
+     *
+     * @param subunitsPerWholeUnit the number of subunits per whole HBAR for the configured decimals
+     * @return a new {@link Fees} with scaled fee components
+     */
+    public Fees scaledToSubunits(final long subunitsPerWholeUnit) {
+        return new Fees(
+                scaleToSubunits(nodeFee, subunitsPerWholeUnit),
+                scaleToSubunits(networkFee, subunitsPerWholeUnit),
+                scaleToSubunits(serviceFee, subunitsPerWholeUnit),
                 highVolumeMultiplier);
     }
 

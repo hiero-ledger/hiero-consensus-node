@@ -62,6 +62,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
     private final TransactionInfo txInfo;
     private final FeeSchedule simpleFeesSchedule;
+    private final long subunitsPerWholeUnit;
 
     /**
      * Create a new instance. One is created per transaction.
@@ -92,7 +93,8 @@ public class FeeCalculatorImpl implements FeeCalculator {
             final boolean isInternalDispatch,
             final CongestionMultipliers congestionMultipliers,
             final ReadableStoreFactory storeFactory,
-            @NonNull final FeeSchedule simpleFeesSchedule) {
+            @NonNull final FeeSchedule simpleFeesSchedule,
+            final long subunitsPerWholeUnit) {
         //  Perform basic validations, and convert the PBJ objects to Google protobuf objects for `hapi-fees`.
         requireNonNull(txBody);
         requireNonNull(payerKey);
@@ -129,6 +131,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
         this.congestionMultipliers = congestionMultipliers;
         this.storeFactory = storeFactory;
+        this.subunitsPerWholeUnit = subunitsPerWholeUnit;
         try {
             this.txInfo = new TransactionInfo(
                     SignedTransaction.DEFAULT, txBody, SignatureMap.DEFAULT, Bytes.EMPTY, functionOf(txBody), null);
@@ -143,7 +146,8 @@ public class FeeCalculatorImpl implements FeeCalculator {
             final CongestionMultipliers congestionMultipliers,
             final ReadableStoreFactory storeFactory,
             final HederaFunctionality functionality,
-            @NonNull final FeeSchedule simpleFeesSchedule) {
+            @NonNull final FeeSchedule simpleFeesSchedule,
+            final long subunitsPerWholeUnit) {
         if (feeData == null) {
             this.feeData = null;
             this.usage = null;
@@ -160,6 +164,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
         this.congestionMultipliers = congestionMultipliers;
         this.storeFactory = storeFactory;
+        this.subunitsPerWholeUnit = subunitsPerWholeUnit;
 
         // used only for access query functionality (in congestionMultipliers)
         this.txInfo = new TransactionInfo(
@@ -241,7 +246,8 @@ public class FeeCalculatorImpl implements FeeCalculator {
         final var sigValueObject = new SigValueObj(sigUsage.numSigs(), sigUsage.numPayerKeys(), sigUsage.sigsSize());
         final var matrix = callback.apply(sigValueObject);
         final var feeObject = FeeBuilder.getFeeObject(feeData, matrix, currentRate, 1);
-        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee());
+        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee())
+                .scaledToSubunits(subunitsPerWholeUnit);
     }
 
     @Override
@@ -253,7 +259,8 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
         final var feeObject = overflowCalc.fees(
                 usage, feeData, currentRate, congestionMultipliers.maxCurrentMultiplier(txInfo, storeFactory));
-        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee());
+        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee())
+                .scaledToSubunits(subunitsPerWholeUnit);
     }
 
     public long getCongestionMultiplier() {

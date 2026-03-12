@@ -80,6 +80,7 @@ import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
@@ -106,6 +107,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.NativeCoinConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.TssConfig;
@@ -526,7 +528,9 @@ public final class Hedera
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
         networkServiceImpl = new NetworkServiceImpl();
-        contractServiceImpl = new ContractServiceImpl(appContext, metrics);
+        final var denominationConverter = new DenominationConverter(
+                bootstrapConfig.getConfigData(NativeCoinConfig.class).decimals());
+        contractServiceImpl = new ContractServiceImpl(appContext, metrics, denominationConverter);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         final var rosterServiceImpl = new RosterServiceImpl(
                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);

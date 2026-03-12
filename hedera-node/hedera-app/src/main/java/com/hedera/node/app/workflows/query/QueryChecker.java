@@ -260,7 +260,8 @@ public class QueryChecker {
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
-            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
+            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()))
+                    .scaledToSubunits(feeContext.subunitsPerWholeUnit());
             return fees.totalFee();
         }
         return cryptoTransferHandler.calculateFees(feeContext).totalFee();

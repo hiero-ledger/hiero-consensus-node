@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.scaleToSubunits;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static java.util.Objects.requireNonNull;
 
@@ -252,9 +253,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                                queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents.totalTinycents(),
-                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                                queryFees = scaleToSubunits(
+                                        tinycentsToTinybars(
+                                                queryFeeTinyCents.totalTinycents(),
+                                                fromPbj(context.exchangeRateInfo()
+                                                        .activeRate(consensusTime))),
+                                        feeManager.subunitsPerWholeUnit());
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
                             }

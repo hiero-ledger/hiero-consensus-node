@@ -16,6 +16,7 @@ import com.hedera.hapi.node.network.NetworkGetVersionInfoResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -49,9 +50,16 @@ public class NetworkGetVersionInfoHandler extends PaidQueryHandler {
             .nodedata(GET_VERSION_INFO_NODE_USAGE)
             .build();
 
+    private final DenominationConverter denominationConverter;
+
+    /**
+     * Creates a new {@link NetworkGetVersionInfoHandler}.
+     *
+     * @param denominationConverter the denomination converter for native coin decimals
+     */
     @Inject
-    public NetworkGetVersionInfoHandler() {
-        // Exists for injection
+    public NetworkGetVersionInfoHandler(@NonNull final DenominationConverter denominationConverter) {
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     @Override
@@ -94,7 +102,10 @@ public class NetworkGetVersionInfoHandler extends PaidQueryHandler {
                             .copyBuilder()
                             .build("" + hederaConfig.configVersion())
                             .build();
-            responseBuilder.hederaServicesVersion(servicesVersion).hapiProtoVersion(versionConfig.hapiVersion());
+            responseBuilder
+                    .hederaServicesVersion(servicesVersion)
+                    .hapiProtoVersion(versionConfig.hapiVersion())
+                    .nativeCoinDecimals(denominationConverter.decimals());
         }
 
         return Response.newBuilder().networkGetVersionInfo(responseBuilder).build();

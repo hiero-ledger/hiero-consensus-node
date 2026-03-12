@@ -58,6 +58,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -155,7 +156,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(context.body()).willReturn(contractCreateTransactionWithInsufficientGas());
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult =
+                SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, BigInteger.valueOf(10_000_000_000L));
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT.finalStatus(),
@@ -164,7 +166,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(
+                        null, baseProxyWorldUpdater, null, null, BigInteger.valueOf(10_000_000_000L)),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -202,7 +205,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
-        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedResult =
+                HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null, BigInteger.valueOf(10_000_000_000L));
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 HALT_RESULT.finalStatus(),
@@ -211,7 +215,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                HALT_RESULT.asEvmTxResultOf(
+                        null, baseProxyWorldUpdater, null, null, BigInteger.valueOf(10_000_000_000L)),
                 null,
                 null,
                 null);

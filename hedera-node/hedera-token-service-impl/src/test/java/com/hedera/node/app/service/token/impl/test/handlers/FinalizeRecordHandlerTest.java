@@ -31,6 +31,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -57,9 +58,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.BDDMockito;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -119,7 +124,8 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         when(configProvider.getConfiguration()).thenReturn(versionedConfig);
-        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory, null);
+        subject = new FinalizeRecordHandler(
+                stakingRewardsHandler, configProvider, entityIdFactory, new DenominationConverter(8), null);
     }
 
     @Test
@@ -1064,6 +1070,61 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                         .receiverAccountID(ACCOUNT_1212_ID)
                                         .build())
                                 .build()));
+    }
+
+    /* default */ static Stream<Arguments> denominationDerivationCases() {
+        return Stream.of(
+                Arguments.of(6, 50_000_000_000L * 1_000_000L), Arguments.of(8, 50_000_000_000L * 100_000_000L));
+    }
+
+    @ParameterizedTest
+    @MethodSource("denominationDerivationCases")
+    /* default */ void derivesLedgerTotalTinyBarFloatFromDenominationConverter(
+            final int decimals, final long expectedTotalFloat) {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfig);
+        final var treasuryAccountId = AccountID.newBuilder().accountNum(2).build();
+        when(entityIdFactory.newAccountId(2L)).thenReturn(treasuryAccountId);
+
+        final var handler = new FinalizeRecordHandler(
+                stakingRewardsHandler, configProvider, entityIdFactory, new DenominationConverter(decimals), null);
+
+        // Verify the derived value is used in genesis treasury credit validation.
+        // A child record with a single AccountAmount matching the expected total float
+        // should be accepted without throwing.
+        setupTestStores(List.of(ACCOUNT_1212), List.of(), List.of(), List.of());
+        final var localContext = mockContext();
+        given(localContext.configuration()).willReturn(configuration);
+        given(localContext.hasChildOrPrecedingRecords()).willReturn(true);
+
+        final var childRecord = mock(RecordStreamBuilder.class);
+        given(childRecord.transferList())
+                .willReturn(TransferList.newBuilder()
+                        .accountAmounts(AccountAmount.newBuilder()
+                                .amount(expectedTotalFloat)
+                                .accountID(treasuryAccountId)
+                                .build())
+                        .build());
+        doAnswer(invocation -> {
+                    final var consumer = invocation.getArgument(1, Consumer.class);
+                    consumer.accept(childRecord);
+                    return null;
+                })
+                .when(localContext)
+                .forEachChildRecord(any(), any());
+
+        handler.finalizeStakingRecord(
+                localContext, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+    }
+
+    @Test
+    void constructorThrowsOnOverflowWithHighDecimals() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfig);
+        assertThatThrownBy(() -> new FinalizeRecordHandler(
+                        stakingRewardsHandler, configProvider, entityIdFactory, new DenominationConverter(18), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("overflow")
+                .hasMessageContaining("18")
+                .hasCauseInstanceOf(ArithmeticException.class);
     }
 
     private FinalizeContext mockContext() {

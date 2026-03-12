@@ -25,6 +25,7 @@ import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -54,9 +55,13 @@ public class ContractServiceImpl implements ContractService {
 
     /**
      * @param appContext the current application context
+     * @param denominationConverter the denomination converter for native coin arithmetic
      */
-    public ContractServiceImpl(@NonNull final AppContext appContext, @NonNull final Metrics metrics) {
-        this(appContext, metrics, null, null, Set.of());
+    public ContractServiceImpl(
+            @NonNull final AppContext appContext,
+            @NonNull final Metrics metrics,
+            @NonNull final DenominationConverter denominationConverter) {
+        this(appContext, metrics, null, null, Set.of(), denominationConverter);
     }
 
     /**
@@ -64,16 +69,19 @@ public class ContractServiceImpl implements ContractService {
      * @param verificationStrategies the current verification strategy used
      * @param addOnTracers all action sidecar content tracer callbacks
      * @param customOps any additional custom operations to use when constructing the EVM
+     * @param denominationConverter the denomination converter for native coin arithmetic
      */
     public ContractServiceImpl(
             @NonNull final AppContext appContext,
             @NonNull final Metrics metrics,
             @Nullable final VerificationStrategies verificationStrategies,
             @Nullable final Supplier<List<ActionSidecarContentTracer>> addOnTracers,
-            @NonNull final Set<Operation> customOps) {
+            @NonNull final Set<Operation> customOps,
+            @NonNull final DenominationConverter denominationConverter) {
         requireNonNull(appContext);
         requireNonNull(customOps);
         requireNonNull(metrics);
+        requireNonNull(denominationConverter);
         final Supplier<ContractsConfig> contractsConfigSupplier =
                 () -> appContext.configSupplier().get().getConfigData(ContractsConfig.class);
         final var systemContractMethodRegistry = new SystemContractMethodRegistry();
@@ -92,7 +100,8 @@ public class ContractServiceImpl implements ContractService {
                         systemContractMethodRegistry,
                         customOps,
                         appContext.idFactory(),
-                        nativeLibVerifier);
+                        nativeLibVerifier,
+                        denominationConverter);
     }
 
     @Override

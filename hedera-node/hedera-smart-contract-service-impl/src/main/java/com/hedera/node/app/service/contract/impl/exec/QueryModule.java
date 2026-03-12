@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.hevm.QueryContextHevmBlocks;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import dagger.Binds;
@@ -40,10 +41,18 @@ public interface QueryModule {
         return requireNonNull(context).configuration().getConfigData(HederaConfig.class);
     }
 
+    /**
+     * Provides tinybar values for query-scoped exchange rate conversions.
+     *
+     * @param exchangeRate the current exchange rate
+     * @param denominationConverter the converter for native coin denomination scaling
+     * @return the tinybar values for the query scope
+     */
     @Provides
     @QueryScope
-    static TinybarValues provideTinybarValues(@NonNull final ExchangeRate exchangeRate) {
-        return TinybarValues.forQueryWith(exchangeRate);
+    static TinybarValues provideTinybarValues(
+            @NonNull final ExchangeRate exchangeRate, @NonNull final DenominationConverter denominationConverter) {
+        return TinybarValues.forQueryWith(exchangeRate, denominationConverter.subunitsPerWholeUnit());
     }
 
     @Provides

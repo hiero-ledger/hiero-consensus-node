@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.gas;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging.ONE_HBAR_IN_TINYBARS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAX_GAS_ALLOWANCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
@@ -34,11 +33,14 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.service.token.DenominationConverter;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -72,7 +74,7 @@ class CustomGasChargingTest {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomGasCharging(gasCalculator);
+        subject = new CustomGasCharging(gasCalculator, new DenominationConverter(8));
     }
 
     @Test
@@ -408,7 +410,25 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
+        verify(worldUpdater).collectGasFee(SENDER_ID, 100_000_000L, false);
+    }
+
+    // --- Parameterized denomination-aware tests (Story 2-3, AC-6) ---
+
+    @ParameterizedTest
+    @CsvSource({"0, 1", "6, 1000000", "8, 100000000"})
+    /* default */ void abortedTransactionFeeCapScalesWithDecimals(final int decimals, final long expectedCap) {
+        final var denominationAwareSubject = new CustomGasCharging(gasCalculator, new DenominationConverter(decimals));
+        givenExcessiveIntrinsicGasCost(false);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
+        // Balance exceeds cap so the cap is the binding constraint
+        given(sender.getBalance()).willReturn(Wei.of(Long.MAX_VALUE));
+        denominationAwareSubject.chargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownHapiCall());
+        verify(worldUpdater).collectGasFee(SENDER_ID, expectedCap, false);
     }
 
     private void givenWellKnownIntrinsicGasCost() {

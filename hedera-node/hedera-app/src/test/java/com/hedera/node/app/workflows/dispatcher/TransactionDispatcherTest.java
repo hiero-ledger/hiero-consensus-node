@@ -22,6 +22,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.util.FeeUtils;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.stream.Stream;
@@ -163,6 +164,7 @@ class TransactionDispatcherTest {
             // And: Transaction body is provided
             given(feeContext.body()).willReturn(txBody);
             given(feeContext.activeRate()).willReturn(testExchangeRate);
+            given(feeContext.subunitsPerWholeUnit()).willReturn(FeeUtils.DEFAULT_SUBUNITS_PER_HBAR);
 
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult(498500000L, 100000L, 2);

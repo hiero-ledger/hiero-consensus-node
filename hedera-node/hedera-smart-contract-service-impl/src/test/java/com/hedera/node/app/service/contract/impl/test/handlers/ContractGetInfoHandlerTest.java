@@ -23,6 +23,7 @@ import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetInfoHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
@@ -103,7 +104,7 @@ class ContractGetInfoHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ContractGetInfoHandler(instantSource, entityIdFactory);
+        handler = new ContractGetInfoHandler(instantSource, entityIdFactory, new DenominationConverter(8));
     }
 
     @Test

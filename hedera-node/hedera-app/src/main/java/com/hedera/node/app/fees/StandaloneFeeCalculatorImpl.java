@@ -13,6 +13,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.app.spi.fees.util.FeeUtils;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
@@ -95,6 +96,11 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             } catch (com.hedera.hapi.util.UnknownHederaFunctionality e) {
                 throw new IllegalStateException(e);
             }
+        }
+
+        @Override
+        public long subunitsPerWholeUnit() {
+            return FeeUtils.DEFAULT_SUBUNITS_PER_HBAR;
         }
 
         @Override

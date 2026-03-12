@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.ACCOUNT_AMOUNT_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.hasStakeMetaChanges;
 import static java.util.Objects.requireNonNull;
@@ -12,6 +11,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -37,22 +37,34 @@ import org.apache.logging.log4j.Logger;
 public class StakingRewardsHelper {
     private static final Logger log = LogManager.getLogger(StakingRewardsHelper.class);
     /**
-     * The maximum pending rewards that can be paid out in a single staking period, which is 50B hbar.
+     * The total supply of whole coins (50 billion), used to derive the maximum pending rewards cap.
      */
-    public static final long MAX_PENDING_REWARDS = 50_000_000_000L * HBARS_TO_TINYBARS;
+    private static final long TOTAL_SUPPLY_WHOLE_UNITS = 50_000_000_000L;
+
+    /**
+     * The maximum pending rewards that can be paid out in a single staking period.
+     * Derived from the configured denomination converter at construction time.
+     */
+    private final long maxPendingRewards;
 
     private final boolean assumeContiguousPeriods;
 
     /**
      * Default constructor for injection.
+     * @param configProvider the configuration provider
+     * @param denominationConverter the denomination converter for computing max pending rewards
      */
     @Inject
-    public StakingRewardsHelper(@NonNull final ConfigProvider configProvider) {
+    public StakingRewardsHelper(
+            @NonNull final ConfigProvider configProvider, @NonNull final DenominationConverter denominationConverter) {
         requireNonNull(configProvider);
+        requireNonNull(denominationConverter);
         this.assumeContiguousPeriods = configProvider
                 .getConfiguration()
                 .getConfigData(StakingConfig.class)
                 .assumeContiguousPeriods();
+        this.maxPendingRewards =
+                Math.multiplyExact(TOTAL_SUPPLY_WHOLE_UNITS, denominationConverter.subunitsPerWholeUnit());
     }
 
     /**
@@ -230,20 +242,22 @@ public class StakingRewardsHelper {
             newNetworkPendingRewards = currentPendingRewards;
             newNodePendingRewards = 0L;
         }
-        if (newNetworkPendingRewards > MAX_PENDING_REWARDS) {
+        if (newNetworkPendingRewards > maxPendingRewards) {
             log.error(
-                    "Pending rewards increased by {} to an un-payable {}, fixing to 50B hbar",
+                    "Pending rewards increased by {} to an un-payable {}, capping at {}",
                     amount,
-                    newNetworkPendingRewards);
-            newNetworkPendingRewards = MAX_PENDING_REWARDS;
+                    newNetworkPendingRewards,
+                    maxPendingRewards);
+            newNetworkPendingRewards = maxPendingRewards;
         }
-        if (newNodePendingRewards > MAX_PENDING_REWARDS) {
+        if (newNodePendingRewards > maxPendingRewards) {
             log.error(
-                    "Pending rewards increased by {} to an un-payable {} for node {}, fixing to 50B hbar",
+                    "Pending rewards increased by {} to an un-payable {} for node {}, capping at {}",
                     amount,
                     newNodePendingRewards,
-                    currStakingInfo.nodeNumber());
-            newNodePendingRewards = MAX_PENDING_REWARDS;
+                    currStakingInfo.nodeNumber(),
+                    maxPendingRewards);
+            newNodePendingRewards = maxPendingRewards;
         }
         final var stakingRewards = stakingRewardsStore.get();
         final var copy = stakingRewards.copyBuilder();

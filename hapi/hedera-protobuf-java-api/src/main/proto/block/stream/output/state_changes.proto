@@ -44,6 +44,7 @@ import "services/state/schedule/schedule.proto";
 import "services/state/throttles/throttle_usage_snapshots.proto";
 import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
+import "services/state/token/native_coin_decimals.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
 import "services/state/token/node_payments.proto";
@@ -495,6 +496,11 @@ enum StateIdentifier {
     STATE_ID_REGISTERED_NODES = 56;
 
     /**
+    * A state identifier for the native coin decimals. Singleton state.
+    */
+    STATE_ID_NATIVE_COIN_DECIMALS = 57;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -736,6 +742,14 @@ message SingletonUpdateChange {
          * Node payments SHALL be updated for every non-empty block.
          */
         com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
+
+        /**
+         * A change to the native coin decimals singleton.
+         * <p>
+         * Native coin decimals SHALL be set at genesis and
+         * SHALL NOT change after network launch.
+         */
+        com.hedera.hapi.node.state.token.NativeCoinDecimals native_coin_decimals_value = 20;
     }
 }
 

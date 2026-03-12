@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.asStakingRewardBuilder;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeExtendedRewardSumHistory;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeNewStakes;
@@ -17,6 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -53,6 +53,7 @@ public class EndOfStakingPeriodUpdater {
     private final AccountsConfig accountsConfig;
     private final StakingRewardsHelper stakeRewardsHelper;
     private final EntityIdFactory entityIdFactory;
+    private final DenominationConverter denominationConverter;
 
     public static final String END_OF_PERIOD_MEMO = "End of staking period calculation record";
 
@@ -65,11 +66,13 @@ public class EndOfStakingPeriodUpdater {
     public EndOfStakingPeriodUpdater(
             @NonNull final StakingRewardsHelper stakeRewardsHelper,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final DenominationConverter denominationConverter) {
         this.stakeRewardsHelper = stakeRewardsHelper;
         final var config = configProvider.getConfiguration();
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
         this.entityIdFactory = entityIdFactory;
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /**
@@ -135,7 +138,7 @@ public class EndOfStakingPeriodUpdater {
 
             // The amount of pending rewards that stakers could collect from this period
             final var pendingRewards = (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart())
-                    / HBARS_TO_TINYBARS
+                    / denominationConverter.subunitsPerWholeUnit()
                     * nodeRewardRate;
             final var newStakes = computeNewStakes(nodeInfo, stakingConfig);
             log.info(
@@ -184,7 +187,8 @@ public class EndOfStakingPeriodUpdater {
                 maxRewardRate,
                 stakingRewardsStore.pendingRewards(),
                 unreservedStakingRewardBalance,
-                END_OF_PERIOD_MEMO);
+                END_OF_PERIOD_MEMO,
+                denominationConverter.subunitsPerWholeUnit());
         log.info("Exporting:\n{}", nodeStakes);
         return context.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE)
                 .signedTx(signedTxWith(syntheticNodeStakeUpdateTxn.build()))
@@ -211,7 +215,7 @@ public class EndOfStakingPeriodUpdater {
         final var balanceRatio = ratioOf(unreservedBalance, stakingConfig.rewardBalanceThreshold());
         final var rewardRate = rescaledPerHbarRewardRate(
                 balanceRatio, stakedToReward, stakingConfig.perHbarRewardRate(), stakingConfig.maxStakeRewarded());
-        return stakedToReward < HBARS_TO_TINYBARS ? 0 : rewardRate;
+        return stakedToReward < denominationConverter.subunitsPerWholeUnit() ? 0 : rewardRate;
     }
 
     /**

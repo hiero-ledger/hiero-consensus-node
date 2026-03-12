@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.api.StakingRewardsApi;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -20,14 +23,19 @@ import javax.inject.Singleton;
 public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
 
     private final StakePeriodManager stakePeriodManager;
+    private final DenominationConverter denominationConverter;
 
     /**
      * Default constructor for injection.
      * @param stakePeriodManager the stake period manager
+     * @param denominationConverter the denomination converter
      */
     @Inject
-    public StakeRewardCalculatorImpl(@NonNull final StakePeriodManager stakePeriodManager) {
+    public StakeRewardCalculatorImpl(
+            @NonNull final StakePeriodManager stakePeriodManager,
+            @NonNull final DenominationConverter denominationConverter) {
         this.stakePeriodManager = stakePeriodManager;
+        this.denominationConverter = requireNonNull(denominationConverter);
     }
 
     /** {@inheritDoc} */
@@ -49,8 +57,12 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
         if (stakingInfo != null && stakingInfo.deleted()) {
             return 0;
         }
-        final var rewardOffered =
-                computeRewardFromDetails(account, stakingInfo, stakePeriodManager.currentStakePeriod(), effectiveStart);
+        final var rewardOffered = computeRewardFromDetails(
+                account,
+                stakingInfo,
+                stakePeriodManager.currentStakePeriod(),
+                effectiveStart,
+                denominationConverter.subunitsPerWholeUnit());
         return account.declineReward() ? 0 : rewardOffered;
     }
 
@@ -66,7 +78,11 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
             return 0;
         }
         final var rewardOffered = computeRewardFromDetails(
-                account, nodeStakingInfo, stakePeriodManager.estimatedCurrentStakePeriod(), effectiveStart);
+                account,
+                nodeStakingInfo,
+                stakePeriodManager.estimatedCurrentStakePeriod(),
+                effectiveStart,
+                denominationConverter.subunitsPerWholeUnit());
         return account.declineReward() ? 0 : rewardOffered;
     }
 
@@ -82,6 +98,7 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
      * @param nodeStakingInfo the node staking info
      * @param currentStakePeriod the current stake period
      * @param effectiveStart the effective start
+     * @param subunitsPerWholeUnit the number of subunits per whole coin (e.g. 10^8 for hbar)
      * @return the reward for the given account based on the given node staking info
      */
     @VisibleForTesting
@@ -89,7 +106,9 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
             @NonNull final Account account,
             @Nullable final StakingNodeInfo nodeStakingInfo,
             final long currentStakePeriod,
-            final long effectiveStart) {
-        return StakingRewardsApi.computeRewardFromDetails(account, nodeStakingInfo, currentStakePeriod, effectiveStart);
+            final long effectiveStart,
+            final long subunitsPerWholeUnit) {
+        return StakingRewardsApi.computeRewardFromDetails(
+                account, nodeStakingInfo, currentStakePeriod, effectiveStart, subunitsPerWholeUnit);
     }
 }

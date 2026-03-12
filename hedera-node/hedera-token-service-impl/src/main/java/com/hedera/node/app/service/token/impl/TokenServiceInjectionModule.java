@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
+import com.hedera.node.app.service.token.DenominationConverter;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeRewardCalculator;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeRewardCalculatorImpl;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandler;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandlerImpl;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.NativeCoinConfig;
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import javax.inject.Singleton;
 
 /**
  * Dagger module of the token service.
@@ -36,4 +44,20 @@ public interface TokenServiceInjectionModule {
      */
     @Binds
     StakeRewardCalculator stakeRewardCalculator(StakeRewardCalculatorImpl rewardCalculator);
+
+    /**
+     * Provides the {@link DenominationConverter} derived from the native coin decimals configuration.
+     * @param configProvider the configuration provider
+     * @return the denomination converter
+     */
+    @Provides
+    @Singleton
+    static DenominationConverter provideDenominationConverter(@NonNull final ConfigProvider configProvider) {
+        requireNonNull(configProvider);
+        final var decimals = configProvider
+                .getConfiguration()
+                .getConfigData(NativeCoinConfig.class)
+                .decimals();
+        return new DenominationConverter(decimals);
+    }
 }

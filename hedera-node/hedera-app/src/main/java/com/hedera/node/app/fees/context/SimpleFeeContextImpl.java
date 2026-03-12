@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees.context;
 
+import static com.hedera.node.app.spi.fees.util.FeeUtils.DEFAULT_SUBUNITS_PER_HBAR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -56,6 +57,11 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
     @Override
     public @Nullable QueryContext queryContext() {
         return queryContext;
+    }
+
+    @Override
+    public long subunitsPerWholeUnit() {
+        return feeContext == null ? DEFAULT_SUBUNITS_PER_HBAR : feeContext.subunitsPerWholeUnit();
     }
 
     @Override

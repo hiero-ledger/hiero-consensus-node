@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.api;
 
-import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.util.Objects.requireNonNull;
 
@@ -57,13 +56,14 @@ public interface StakingRewardsApi {
             @NonNull final Account account,
             @Nullable final StakingNodeInfo nodeStakingInfo,
             final long currentStakePeriod,
-            final long stakePeriodStart) {
+            final long stakePeriodStart,
+            final long subunitsPerWholeUnit) {
         requireNonNull(account);
         if (nodeStakingInfo == null || nodeStakingInfo.deleted()) {
             return 0L;
         }
         final var rewardSumHistory = nodeStakingInfo.rewardSumHistory();
-        return rewardFor(account, rewardSumHistory, currentStakePeriod, stakePeriodStart);
+        return rewardFor(account, rewardSumHistory, currentStakePeriod, stakePeriodStart, subunitsPerWholeUnit);
     }
 
     /**
@@ -83,7 +83,8 @@ public interface StakingRewardsApi {
             final boolean areRewardsActive,
             @NonNull final Account account,
             @NonNull final ReadableStakingInfoStore readableStakingInfoStore,
-            @NonNull final Instant estimatedConsensusNow) {
+            @NonNull final Instant estimatedConsensusNow,
+            final long subunitsPerWholeUnit) {
         if (account.hasStakedNodeId() && !account.declineReward()) {
             final var currentStakePeriod = estimatedCurrentStakePeriod(stakePeriodMins, estimatedConsensusNow);
             final var clampedStakePeriodStart =
@@ -94,7 +95,8 @@ public interface StakingRewardsApi {
                         account,
                         readableStakingInfoStore.get(account.stakedNodeIdOrThrow()),
                         currentStakePeriod,
-                        clampedStakePeriodStart);
+                        clampedStakePeriodStart,
+                        subunitsPerWholeUnit);
             }
         }
         return 0;
@@ -184,7 +186,8 @@ public interface StakingRewardsApi {
             @NonNull final Account account,
             @NonNull final List<Long> rewardSumHistory,
             final long currentStakePeriod,
-            final long effectiveStart) {
+            final long effectiveStart,
+            final long subunitsPerWholeUnit) {
         final var rewardFrom = (int) (currentStakePeriod - 1 - effectiveStart);
         if (rewardFrom <= 0) {
             return 0;
@@ -198,12 +201,12 @@ public interface StakingRewardsApi {
             // Two-step computation; first, the reward from the last period the account changed its
             // stake in...
             return account.stakeAtStartOfLastRewardedPeriod()
-                            / HBARS_TO_TINYBARS
+                            / subunitsPerWholeUnit
                             * (rewardFromMinus1Sum - rewardFromSum)
                     // ...and second, the reward for all following periods
-                    + totalStake(account) / HBARS_TO_TINYBARS * (firstRewardSum - rewardFromMinus1Sum);
+                    + totalStake(account) / subunitsPerWholeUnit * (firstRewardSum - rewardFromMinus1Sum);
         } else {
-            return totalStake(account) / HBARS_TO_TINYBARS * (firstRewardSum - rewardFromSum);
+            return totalStake(account) / subunitsPerWholeUnit * (firstRewardSum - rewardFromSum);
         }
     }
 
