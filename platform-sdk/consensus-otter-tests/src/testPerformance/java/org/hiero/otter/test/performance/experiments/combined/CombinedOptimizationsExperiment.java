@@ -50,7 +50,7 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
-                    .withConfigValue("event.creation.period", "100us")
+                    .withConfigValue("event.creation.period", "300us")
                     .withConfigValue("broadcast.enableBroadcast", true)
                     .withConfigValue("sync.pingPeriod", "100ms");
 
