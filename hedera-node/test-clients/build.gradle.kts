@@ -88,7 +88,14 @@ val basePrCheckTags =
     )
 
 val concurrentTasks =
-    setOf("hapiTestCrypto", "hapiTestCryptoSerial", "hapiTestToken", "hapiTestTokenSerial", "hapiTestWraps", "hapiTestCutover")
+    setOf(
+        "hapiTestCrypto",
+        "hapiTestCryptoSerial",
+        "hapiTestToken",
+        "hapiTestTokenSerial",
+        "hapiTestWraps",
+        "hapiTestCutover",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
