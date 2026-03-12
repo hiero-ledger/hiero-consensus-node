@@ -18,6 +18,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param updateAccountIdAllowed Whether the account ID can be updated
  * @param minPerPeriodNodeRewardUsd A minimum daily node reward amount in USD (applies even to inactive nodes)
  * @param targetYearlyNodeRewardsUsd The target USD node rewards
+ * @param blockNodeRewardsEnabled feature flag for enabling block node reward payments (HIP-1357)
  * @param targetYearlyBlockNodeRewardsUsd A target yearly block node reward amount in USD (HIP-1357).
  *                                        This is the estimated dollar cost of operating a Tier 1 block node
  *                                        distributed to all registered Tier 1 block node operators.
@@ -64,7 +65,10 @@ public record NodesConfig(
         long targetYearlyNodeRewardsUsd,
 
         /* Block node rewards HIP-1357 configurations */
-        @ConfigProperty(defaultValue = "0") @NetworkProperty long targetYearlyBlockNodeRewardsUsd,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean blockNodeRewardsEnabled,
+
+        @ConfigProperty(defaultValue = "36000") @NetworkProperty long targetYearlyBlockNodeRewardsUsd,
 
         @ConfigProperty(defaultValue = "365") @NetworkProperty
         long numPeriodsToTargetUsd,

@@ -114,7 +114,7 @@ class NodeRewardManagerTest {
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     public static final long MIN_REWARD = 10L;
     public static final long TARGET_REWARD = 100L;
-    public static final long BLOCK_NODE_REWARD = 50L;
+    private static final long BLOCK_NODE_REWARD = 50L;
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
     private static final long NODE_0_ID = 0L;
@@ -913,7 +913,7 @@ class NodeRewardManagerTest {
         final var activeCount = 2;
         final var inactiveCount = 1;
 
-        final var activeTotal = (TARGET_REWARD + BLOCK_NODE_REWARD) + TARGET_REWARD; // 250
+        final var activeTotal = TARGET_REWARD + BLOCK_NODE_REWARD + TARGET_REWARD; // 250
         final var budgetBalance = activeTotal + 5L; // 255
 
         // Active total = 250 (node 1: 150, node 2: 100), inactive = 10
@@ -1002,6 +1002,27 @@ class NodeRewardManagerTest {
         final var rewardAmounts = newRewardAmounts();
         final var nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
 
+        nodeRewardManager.computeActiveBlockNodeRewards(
+                activitiesForNodes(NODE_1_ID), givenFoundBlockNodeIds(NODE_1_ID), nodesConfig, NOW, rewardAmounts);
+
+        assertThat(rewardAmounts.isEmpty()).isTrue();
+    }
+
+    @Test
+    void testComputeActiveBlockNodeRewardsFeatureFlagDisabledSkipsRewards() {
+        // blockNodeRewardsEnabled = false (default) → no rewards even when target USD is set and nodes are eligible
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.blockNodeRewardsEnabled", false)
+                .withValue("nodes.targetYearlyBlockNodeRewardsUsd", 365)
+                .withValue("nodes.numPeriodsToTargetUsd", 365)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
+        final var nodesConfig = config.getConfigData(NodesConfig.class);
+
+        final var rewardAmounts = newRewardAmounts();
         nodeRewardManager.computeActiveBlockNodeRewards(
                 activitiesForNodes(NODE_1_ID), givenFoundBlockNodeIds(NODE_1_ID), nodesConfig, NOW, rewardAmounts);
 
@@ -1201,6 +1222,7 @@ class NodeRewardManagerTest {
     private NodesConfig givenBlockNodeRewardConfig(long numPeriods, long yearlyRewardUsd) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("staking.periodMins", 1)
+                .withValue("nodes.blockNodeRewardsEnabled", true)
                 .withValue("nodes.targetYearlyBlockNodeRewardsUsd", yearlyRewardUsd)
                 .withValue("nodes.numPeriodsToTargetUsd", numPeriods)
                 .getOrCreateConfig();

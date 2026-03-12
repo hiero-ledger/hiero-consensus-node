@@ -94,10 +94,8 @@ import org.junit.jupiter.api.TestMethodOrder;
  *   <li>Active node, no registered block node</li>
  *   <li>Active node, one registered block node</li>
  *   <li>Active node, multiple registered block nodes</li>
+ *   <li>Mixed configuration: inactive, active with no block node, and active with a block node</li>
  * </ul>
- *
- * <p>Only node 2 participates in rewards (nodes 0, 1, 3 decline rewards), so all reward
- * assertions are isolated to a single node and its account (0.0.5).
  */
 @Order(9)
 @HapiTestLifecycle
@@ -110,7 +108,7 @@ public final class BlockNodeRewardsTests {
     // Account number of the node reward account (0.0.801).
     private static final long NODE_REWARD_ACCOUNT_NUM = 801L;
 
-    private static final long CONSENSUS_NODE_YEARLY_REWARD_USD = 25000L;
+    private static final long CONSENSUS_NODE_YEARLY_REWARD_USD = 25_000L;
 
     // Yearly block node reward in USD used in these tests. With {@code numPeriodsToTargetUsd=365} these yields a
     // per-period reward of 100 USD.
@@ -485,7 +483,7 @@ public final class BlockNodeRewardsTests {
                 final var accountId = nodeToAccountNum.get(nodeId);
                 assertNotNull(accountId, "No account found for node " + nodeId);
                 final var expectedRewardTinyUSD = expectedReward.getValue();
-                final var expectedRewardTinybars = spec.ratesProvider().toTbWithActiveRates((expectedRewardTinyUSD));
+                final var expectedRewardTinybars = spec.ratesProvider().toTbWithActiveRates(expectedRewardTinyUSD);
                 final var actualRewardTinybars = transfersByAccount.get(accountId);
                 // assert with a max delta of 1 tinybar (integer divisions can lead to this)
                 assertEquals(

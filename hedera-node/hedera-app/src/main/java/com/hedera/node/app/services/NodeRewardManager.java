@@ -507,6 +507,10 @@ public class NodeRewardManager {
             @NonNull final NodesConfig nodesConfig,
             @NonNull final Instant now,
             @NonNull final NodeRewardAmounts rewardAmounts) {
+        if (!nodesConfig.blockNodeRewardsEnabled()) {
+            log.info("Block node rewards are disabled (feature flag); no block node rewards will be distributed");
+            return;
+        }
         if (nodesConfig.targetYearlyBlockNodeRewardsUsd() <= 0) {
             log.info("Block node rewards are disabled; no block node rewards will be distributed");
             return;
@@ -563,16 +567,16 @@ public class NodeRewardManager {
                 if (registeredNode == null || !isBlockNodeType(registeredNode)) {
                     continue;
                 }
-                if (!claimedBlockNodeIds.add(registeredNodeId)) {
+                if (claimedBlockNodeIds.add(registeredNodeId)) {
+                    eligibleNodeIds.add(activity.nodeId());
+                    break;
+                } else {
                     log.warn(
                             "Registered block node {} is already claimed by another consensus node; "
                                     + "consensus node {} will not receive block node rewards for it",
                             registeredNodeId,
                             activity.nodeId());
-                    continue;
                 }
-                eligibleNodeIds.add(activity.nodeId());
-                break;
             }
         }
         return eligibleNodeIds;
