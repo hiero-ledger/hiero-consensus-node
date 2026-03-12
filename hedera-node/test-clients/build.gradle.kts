@@ -638,7 +638,6 @@ tasks.register<Test>("testEmbedded") {
     ) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
-        systemProperty("staking.periodMins", "1440")
     }
 
     // Limit heap and number of processors
