@@ -85,7 +85,6 @@ message ClprConnection {
 
   // --- Connection State ---
 
-  uint64 deposit = 6;                      // locked deposit amount (returned on graceful close, slashable)
   ClprConnectionStatus status = 7;         // current operational state
 
   // --- Message Queue Metadata ---
@@ -237,7 +236,7 @@ service ClprService {
   // Query: download this ledger's configuration.
   rpc getLedgerConfiguration(proto.Query) returns (proto.Response);
 
-  // Sever (permanently close) a Connection. Returns deposits.
+  // Sever (permanently close) a Connection.
   rpc severConnection(proto.Transaction) returns (proto.TransactionResponse);
 
   // Pause a Connection (temporarily halt processing).
@@ -250,10 +249,12 @@ service ClprService {
 
   // Register a new Connection. Requires a locally deployed verifier contract,
   // a ZK proof that the source ledger's ApprovedVerifiers endorses the verifier's
-  // implementation fingerprint, a deposit, and seed endpoints.
+  // implementation fingerprint, and seed endpoints.
   rpc registerConnection(proto.Transaction) returns (proto.TransactionResponse);
 
-  // Update the verifier contract on an existing Connection. Requires a new ZK proof.
+  // Update the verifier contract on an existing Connection. Checks the new verifier's
+  // code hash against the ApprovedVerifiers already stored on the Connection (delivered
+  // via ConfigUpdate Control Messages). No ZK proof needed — config is already authenticated.
   rpc updateConnectionVerifier(proto.Transaction) returns (proto.TransactionResponse);
 
   // Submit a verified sync payload (bundle) received from a peer endpoint.
@@ -288,16 +289,17 @@ service ClprService {
 message ClprRegisterConnectionRequest {
   bytes verifier_contract = 1;                  // address of the locally deployed verifier contract
   bytes zk_proof = 2;                           // ZK proof of source ledger's ApprovedVerifiers endorsement
-  uint64 deposit = 3;                           // deposit in native tokens (must meet clpr.connectionDeposit minimum)
-  repeated ClprEndpoint seed_endpoints = 4;     // initial peer endpoints (at least one)
+  repeated ClprEndpoint seed_endpoints = 3;     // initial peer endpoints (at least one)
 }
 
 // Included in updateConnectionVerifier transactions.
+// No ZK proof needed — the Connection already holds the peer's ApprovedVerifiers
+// (delivered via ConfigUpdate Control Messages). The CLPR Service checks the new
+// verifier's code hash against the stored ApprovedVerifiers.
 message ClprUpdateConnectionVerifierRequest {
   string chain_id = 1;                          // \
   bytes service_address = 2;                    // / compound key identifying the Connection
   bytes verifier_contract = 3;                  // new verifier contract address
-  bytes zk_proof = 4;                           // ZK proof that source ledger endorses new verifier's fingerprint
 }
 
 // Included in severConnection, pauseConnection, and resumeConnection transactions.
@@ -374,7 +376,7 @@ verification to these contracts.
 ```
 interface IClprVerifier {
   // Verify a configuration proof. Returns the verified configuration.
-  // Used during: registerConnection, updateConnectionVerifier.
+  // Used during: registerConnection, recoverEndpointRoster.
   function verifyConfig(bytes proof_bytes) returns (ClprLedgerConfiguration);
 
   // Verify a bundle proof. Returns verified queue metadata and messages.
@@ -497,8 +499,8 @@ When a Response Message is delivered back to the source ledger:
 | `clpr.clprEnabled`               | `false`     | Global         | Master enable switch for the CLPR Service.                                                      |
 | `clpr.connectionFrequency`       | `5000` ms   | Global         | How frequently endpoints initiate sync calls to peers.                                          |
 | `clpr.publicizeNetworkAddresses` | `true`      | Global         | Whether to include service endpoint addresses in the Configuration.                             |
-| `clpr.connectionDeposit`         | TBD         | Global         | Minimum deposit (in native tokens) required to register a new Connection.                       |
 | `clpr.maxQueueDepth`             | TBD         | Per-Connection | Maximum unacknowledged messages in the outbound queue before new messages are rejected.          |
 | `clpr.maxMessagePayloadBytes`    | TBD         | Per-Connection | Maximum payload size for a single message. Advertised in config; enforced by source and dest.   |
 | `clpr.maxMessagesPerBundle`      | TBD         | Per-Connection | Maximum messages a single bundle may contain.                                                   |
 | `clpr.maxGasPerMessage`          | TBD         | Per-Connection | Maximum gas (or ops/sec budget) allocated to processing a single message.                       |
+| `clpr.maxSyncPayloadBytes`       | TBD         | Per-Connection | Maximum total size of a sync payload (proof bytes + metadata + bundle). Endpoints MAY terminate streams exceeding this. |
