@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -41,6 +42,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final String INCREMENTAL_WRAPS_PROOF_STARTED = "Constructing incremental WRAPS proof";
     private static final String INCREMENTAL_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing incremental WRAPS proof";
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(16);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
@@ -71,6 +73,12 @@ public class WrapsHandoffsTest implements LifecycleTest {
             if (hasWrapsArtifactsPath()) {
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
+                        withExternalizedLedgerIdFromHgcaaLog(
+                                byNodeId(0),
+                                LEDGER_ID_TIMEOUT,
+                                LOG_POLL_INTERVAL,
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
+                                this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
                         untilHgcaaLogContainsText(
                                         byNodeId(0),
                                         GENESIS_WRAPS_PROOF_CONSTRUCTED,
