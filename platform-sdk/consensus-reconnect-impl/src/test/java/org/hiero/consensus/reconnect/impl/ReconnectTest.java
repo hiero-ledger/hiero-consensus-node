@@ -64,11 +64,6 @@ final class ReconnectTest {
         ConstructableRegistration.registerSyncConstructables();
     }
 
-    @AfterAll
-    static void tearDown() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
-    }
-
     @Test
     @DisplayName("Successfully reconnects multiple times and stats are updated")
     void statsTrackSuccessfulReconnect() throws IOException, InterruptedException {
