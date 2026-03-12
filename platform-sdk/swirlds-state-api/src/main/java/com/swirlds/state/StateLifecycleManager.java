@@ -4,6 +4,7 @@ package com.swirlds.state;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Future;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -66,6 +67,15 @@ public interface StateLifecycleManager<S, D> {
      * @param targetPath The path to save the snapshot.
      */
     void createSnapshot(@NonNull S state, @NonNull Path targetPath);
+
+    /**
+     * Creates a snapshot asynchronously for the state provided as a parameter.
+     *
+     * @param state The state to save.
+     * @param targetPath The path to save the snapshot.
+     * @return a future that completes when the snapshot has been written
+     */
+    Future<Void> createSnapshotAsync(@NonNull S state, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state from disk, initializes the manager with the loaded state (replacing the
