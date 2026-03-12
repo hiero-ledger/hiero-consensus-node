@@ -124,7 +124,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
     public static final long FILE_GET_CONTENTS_INCLUDED_KEYS = 1L;
-    public static final long FILE_GET_CONTENTS_INCLUDED_BYTES = 1000L;
+    public static final long FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES = 1000L;
     public static final double FILE_CREATE_BASE_FEE = 0.05;
     public static final double FILE_UPDATE_BASE_FEE = 0.05;
     public static final double FILE_APPEND_BASE_FEE = 0.05;
@@ -209,5 +209,6 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONTRACT_CREATE_BASE_FEE_USD = 0.9999;
     public static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
     public static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
+    public static final long CONTRACT_GET_BYTECODE_INCLUDED_PROCESSING_BYTES = 20_000L;
     public static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;
 }
