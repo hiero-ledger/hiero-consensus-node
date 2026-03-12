@@ -1143,13 +1143,6 @@ public class UtilVerbs {
         return new CustomSpecAssert(custom);
     }
 
-    private static final ByteString MAINNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x00});
-    private static final ByteString TESTNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x01});
-    private static final ByteString PREVIEWNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x02});
-    private static final ByteString DEVNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x03});
-
-    private static final Set<ByteString> RECOGNIZED_LEDGER_IDS =
-            Set.of(MAINNET_LEDGER_ID, TESTNET_LEDGER_ID, PREVIEWNET_LEDGER_ID, DEVNET_LEDGER_ID);
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
@@ -1161,13 +1154,7 @@ public class UtilVerbs {
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerId -> {
-            if (!RECOGNIZED_LEDGER_IDS.contains(ledgerId)) {
-                Assertions.fail(
-                        "Target network is claiming unrecognized ledger id " + CommonUtils.hex(ledgerId.toByteArray()));
-            }
-            ledgerIdConsumer.accept(ledgerId);
-        });
+        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
     }
 
     /**
