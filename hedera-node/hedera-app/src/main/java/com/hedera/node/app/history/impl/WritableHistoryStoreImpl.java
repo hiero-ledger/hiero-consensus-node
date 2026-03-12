@@ -191,9 +191,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         if (toRosterHash == null
                 || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
-            final var upcomingConstruction = requireNonNull(activeConstruction.get());
-            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-            purgePublications(upcomingConstruction.constructionId(), fromRoster);
+            final var obsoleteConstruction = requireNonNull(activeConstruction.get());
+            purgePublications(obsoleteConstruction.constructionId(), fromRoster);
             if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
                 final var survivingNodeIds = toRoster.rosterEntries().stream()
                         .map(RosterEntry::nodeId)
@@ -205,8 +204,10 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                     }
                 });
             }
+            final var upcomingConstruction = requireNonNull(nextConstruction.get());
+            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
             // And finally, make the next construction the active one
-            activeConstruction.put(nextConstruction.get());
+            activeConstruction.put(upcomingConstruction);
             nextConstruction.put(HistoryProofConstruction.DEFAULT);
             return true;
         }
