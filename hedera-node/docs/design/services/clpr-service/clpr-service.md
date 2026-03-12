@@ -305,6 +305,10 @@ combined) that the ledger will accept from a peer endpoint. This caps the data a
 the gRPC level before submitting it as a transaction. An endpoint MAY terminate a gRPC stream that exceeds this limit
 without submitting anything.
 
+`MaxQueueDepth` is the maximum number of unacknowledged messages allowed in the outbound queue for a single Connection.
+When the queue is full, new messages are rejected until the peer catches up. This provides natural backpressure when
+one ledger is faster than the other and prevents unbounded state growth from accumulating undelivered messages.
+
 `MaxSyncsPerSec` is an advisory hint and not enforced by the protocol. It exists to help well-behaved sending endpoints
 avoid wasteful duplication. The problem it addresses is redundancy: on Ethereum, for example, multiple source endpoints
 receiving the same sync simultaneously may each independently construct and submit a transaction to the mempool,
@@ -697,7 +701,7 @@ the Connection with message queue metadata — the bookkeeping needed to send, r
 Each Connection tracks the following queue state:
 
 - **Next Message ID** (`next_message_id`) — The next sequence number to assign to an outgoing message. Strictly
-  increasing. Stored as `uint64`; at 1 million messages per second this would take ~584,000 years to overflow, so
+  increasing. Stored as `uint64`; at one million messages per second this would take ~584,000 years to overflow, so
   wraparound is not a practical concern.
 - **Acknowledged Message ID** (`acked_message_id`) — The ID of the most recent outgoing message confirmed received by
   the peer. Updated when the peer reports its `received_message_id` during sync (§3.1.4). This is a transport-level
@@ -710,9 +714,7 @@ Each Connection tracks the following queue state:
   inbound bundles against state-proven values.
 
 The gap between `next_message_id` and `acked_message_id` represents messages that are queued but not yet acknowledged —
-the "in flight" window. The Connection should enforce a configurable maximum queue depth to prevent unbounded state
-growth. If the queue is full (too many unacknowledged messages), new messages are rejected until the peer catches up.
-This also provides natural backpressure when one ledger is faster than the other.
+the "in flight" window. The Connection enforces `MaxQueueDepth` (see §3.1.1) to bound this window.
 
 ### 3.2.2 Message Storage
 
@@ -725,9 +727,7 @@ The queue carries all three message types — Data, Response, and Control — in
 destination ledger processes an incoming Data Message and generates a response (whether a success result, an application
 error, or a Connector failure), that response is enqueued in the same outbound queue as any new initiating messages or
 Control Messages the destination ledger may be sending. All types share the same running hash chain, the same state
-proof mechanism, and the same bundle transport — there are no separate channels. The `ClprMessagePayload` proto
-distinguishes them via a `oneof`: a `ClprMessage` is a Data Message, a `ClprMessageReply` is a Response Message
-carrying the original `message_id` for correlation, and a `ClprControlMessage` is a Control Message.
+proof mechanism, and the same bundle transport — there are no separate channels.
 
 Messages are enqueued with an ID and a running hash that chains each message to the previous one, forming a verifiable
 log. This enables the receiving ledger to validate message integrity and ordering without trusting the relay. The
@@ -744,12 +744,12 @@ Each queued entry contains:
     - **Data Message** — An initiating message containing routing metadata (Connector, target application, sender) and
       opaque byte data. The encoding and semantics of the payload are defined by higher-level protocol layers.
     - **Response Message** — A reply to a previously received Data Message, containing the original message ID, a
-      structured status (`ClprMessageReplyStatus`), and opaque reply bytes.
+      structured status, and opaque reply bytes.
     - **Control Message** — A protocol-level message. There are three subtypes:
         - **EndpointJoin** — Announces a new endpoint joining the peer's roster. Carries the endpoint's signing
-          certificate, service endpoint, and account ID (see §3.1.2).
+          certificate, service endpoint (if any), and account ID (see §3.1.2).
         - **EndpointLeave** — Announces an endpoint's departure. Carries the departing endpoint's account ID. Sent
-          when an endpoint is removed due to confirmed misbehavior (§3.1.6) or by governance action.
+          when an endpoint is removed for any reason.
         - **ConfigUpdate** — Carries updated configuration parameters (throttles, payload limits, `ApprovedVerifiers`,
           etc.). When the local admin changes a configuration parameter, the CLPR Service enqueues a ConfigUpdate on
           **every active Connection**. The peer processes it at a well-defined point in the message stream, so messages
@@ -831,14 +831,14 @@ sequenceDiagram
 ```
 
 First, the CLPR Service **calls the Connection's verifier contract** with the proof bytes (see §3.1.5). The verifier
-contract performs whatever cryptographic verification is appropriate for the source ledger and returns the verified queue
-metadata and messages. If the verifier contract rejects the proof (reverts, returns an error, or fails verification),
-the entire bundle is rejected. A legitimate endpoint would never produce a bad proof, so this is also a signal that the
-submitting endpoint may be misbehaving. The submitting node will have paid the transaction cost and will not be
-reimbursed. Repeated invalid proof submissions from the same endpoint constitute provable misbehavior (§3.1.6) and can
-lead to bond slashing and removal from the endpoint roster. On EVM chains, verifier contracts SHOULD fail fast on
-obviously malformed inputs (e.g., wrong proof length) before performing expensive cryptographic operations, to bound the
-computational cost of invalid submissions.
+contract performs whatever cryptographic verification is appropriate for the source ledger and returns the verified
+queue metadata and messages. If the verifier contract rejects the proof (reverts, returns an error, or fails
+verification), the entire bundle is rejected. A legitimate endpoint would never produce a bad proof, so this is also a
+signal that the submitting endpoint may be misbehaving. The submitting node will have paid the transaction cost and will
+not be reimbursed. Repeated invalid proof submissions from the same endpoint constitute provable misbehavior (§3.1.6)
+and _may_ lead to bond slashing and removal from the endpoint roster. On EVM chains, verifier contracts SHOULD fail fast
+on obviously malformed inputs (e.g., wrong proof length) before performing expensive cryptographic operations to bound
+the computational cost of invalid submissions.
 
 Next, the CLPR Service **enforces monotonic message ordering** — the primary replay defense. Every message in the
 bundle MUST have an ID strictly greater than the Connection's current `received_message_id`, and message IDs within the
@@ -869,18 +869,14 @@ On Hiero networks, the configuration must be based on operations-per-second limi
 are rejected at ingest rather than during post-consensus handling. Once a bundle starts execution, it must be able to
 finish — a failure due to an ops/sec throttle post-consensus would be unacceptable.
 
-Additionally, each ledger advertises a **maximum message payload size** (`clpr.maxMessagePayloadBytes`) in its
-`ClprLedgerConfiguration`. This limit is set by the **destination** ledger — it declares the maximum payload size it is
-willing to accept. The source ledger's CLPR Service MUST reject any message submission whose payload exceeds the
-destination's advertised limit. The source ledger may also enforce its own lower limit (it may refuse to enqueue
-messages it considers too large even if the destination would accept them), but it MUST NOT enqueue a message that
-exceeds the destination's declared maximum. On the destination side, the CLPR Service MUST reject any bundle containing
-a message whose payload exceeds `clpr.maxMessagePayloadBytes` — this is the authoritative enforcement, regardless of
-what the source allowed. This prevents oversized payloads from bloating on-chain state, inflating proof sizes, and
-creating disproportionate verification costs.
+`MaxMessagePayloadBytes` (§3.1.1) is enforced on both sides. The source ledger's CLPR Service MUST reject any message
+submission whose payload exceeds the destination's advertised limit. The source ledger may also enforce its own lower
+limit (it may refuse to enqueue messages it considers too large even if the destination would accept them), but it
+MUST NOT enqueue a message that exceeds the destination's declared maximum. On the destination side, the CLPR Service
+MUST reject any bundle containing a message whose payload exceeds `MaxMessagePayloadBytes` — this is the authoritative
+enforcement, regardless of what the source allowed.
 
-These limits are configured per Connection. See the [CLPR Service Specification](clpr-service-spec.md) for the relevant
-configuration parameters.
+These limits are configured per Connection.
 
 ### 3.2.6 Message Lifecycle and Redaction
 
@@ -897,9 +893,6 @@ verifiable: verification skips over redacted slots by using the stored `running_
 than recomputing from the (now absent) payload. On the destination side, a redacted message is delivered as an empty
 payload with a protocol-level "redacted" indicator — the destination generates a deterministic response and processing
 continues normally.
-
-Redaction is a governance tool, not a storage optimization mechanism. It requires appropriate authority on the ledger
-and should only be used in exceptional circumstances.
 
 ### 3.2.7 Response Ordering and Correlation
 
@@ -920,10 +913,9 @@ the oldest unresponded message, the second to the next, and so on. Any deviation
 
 **Mixed bundles.** A bundle received from a peer may contain a mix of new initiating messages and responses to
 previously sent messages. For example, Ledger A might receive a bundle from Ledger B containing
-`[B_msg_1, R_for_A_msg_5, B_msg_2, R_for_A_msg_6]`. The `oneof` in `ClprMessagePayload` cleanly distinguishes the two
-types. All are processed in order, but each type is handled differently: initiating messages are dispatched to the
-Payment and Routing layer (§3.3.3), while responses are delivered back to the originating application and trigger
-cleanup.
+`[B_msg_1, R_for_A_msg_5, B_msg_2, R_for_A_msg_6]`. All are processed in order, but each type is handled differently:
+initiating messages are dispatched to the Payment and Routing layer (§3.3.3), while responses are delivered back to the
+originating application and trigger cleanup.
 
 **Response cleanup and ordering verification.** Initiating Data Messages in the outbound queue are retained after
 acknowledgement because they serve as the ordered reference list for verifying responses. Control Messages and Response
@@ -936,11 +928,11 @@ arrives that does not match the next expected Data Message, the peer ledger has 
 Response messages in the outbound queue, by contrast, are deleted on ack — since responses do not generate responses,
 once the peer confirms receipt there is nothing left to verify.
 
-**Example.** Suppose A's outbound queue contains `[Ma1, Ma2, Ra3, Ma4]` and these are sent to B. B eventually acks
-through Ma2. A cannot yet delete Ma1 or Ma2 — it needs them to verify response ordering. Ra3 and Ma4 are not yet acked.
-Later, B sends Rb1 and Rb2. A matches Rb1 to Ma1 (correct order), deletes Ma1. Matches Rb2 to Ma2 (correct order),
-deletes Ma2. In a subsequent sync, B acks through Ma4. A deletes Ra3 immediately (it is a response, no further action
-needed) but retains Ma4 until Rb4 arrives.
+**Example.** Suppose `A`'s outbound queue contains `[Ma1, Ma2, Ra3, Ma4]` and these are sent to `B`. `B` eventually acks
+through `Ma2`. `A` cannot yet delete `Ma1` or `Ma2` — it needs them to verify response ordering. `Ra3` and `Ma4` are not
+yet acked. Later, `B` sends `Rb1` and `Rb2`. `A` matches `Rb1` to `Ma1` (correct order), deletes `Ma1`. Matches `Rb2`
+to `Ma2` (correct order), deletes `Ma2`. In a subsequent sync, `B` acks through `Ma4`. `A` deletes `Ra3` immediately
+(it is a response, no further action needed) but retains `Ma4` until `Rb4` arrives.
 
 **Protocol violation and halting.** The ordering guarantee is verified by the source ledger. If a peer ledger sends a
 valid state proof but the responses within it are out of order (e.g., R3 arrives before R2), the source ledger's CLPR
@@ -948,11 +940,6 @@ Service halts acceptance of new outbound messages on that Connection. It does no
 ledger, only individual endpoints. Instead, it waits for the peer ledger to send a subsequent bundle containing valid,
 correctly ordered data. This could happen if the peer ledger had a bug that was subsequently fixed. Once valid data
 resumes, the Connection unblocks and normal operation continues.
-
-**Throughput implication.** Because messages are processed sequentially on the destination, a single slow-processing
-message (e.g., one that triggers an expensive contract call) delays response generation for every message behind it in
-the bundle. The `clpr.maxGasPerMessage` configuration parameter mitigates this by capping per-message computation,
-but this sequential-processing constraint is an inherent throughput consideration for bundle sizing.
 
 ---
 
