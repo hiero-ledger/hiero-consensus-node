@@ -30,11 +30,11 @@ import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.CutoverJumpstartConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
@@ -95,7 +95,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 BootstrapConfig.class,
                 CacheConfig.class,
                 ConsensusConfig.class,
-                CutoverJumpstartConfig.class,
+                BlockStreamJumpStartConfig.class,
                 ContractsConfig.class,
                 HooksConfig.class,
                 EntitiesConfig.class,
