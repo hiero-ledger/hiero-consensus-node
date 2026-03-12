@@ -35,6 +35,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.val
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_INFO_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
@@ -81,27 +83,22 @@ import org.junit.jupiter.api.Tag;
 public class FileServiceSimpleFeesTest {
     private static final String PAYER = "payer";
     private static final String PAYER_KEY = "payerKey";
-
+    private static final int KILOBYTE = 1_024;
+    private static final int SERVICE_STATE_BYTES_THRESHOLD = 1_000;
+    private static final int NODE_PROCESSING_BYTES_THRESHOLD = KILOBYTE;
+    private static final int FILE_MEMO_MAX_BYTES = KILOBYTE;
+    private static final int FILE_MEMO_EXCEEDS_MAX_BYTES = FILE_MEMO_MAX_BYTES + 1;
+    private static final int LARGE_FILE_MAX_SIZE_KB = 128;
+    private static final int SMALL_FILE_MAX_SIZE_KB = 1;
     private static final String FILE = "testFile";
 
     private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 5.0;
     private static final double QUERY_ALLOWED_PERCENT_DIFF = 2.0;
     private static final int LARGE_CONTENT_BYTES = 5_000;
-    private static final int KILOBYTE = 1_024;
-    private static final int SERVICE_STATE_BYTES_THRESHOLD = 1_000;
     private static final int SERVICE_STATE_BYTES_BELOW_THRESHOLD = SERVICE_STATE_BYTES_THRESHOLD - 1;
     private static final int SERVICE_STATE_BYTES_ABOVE_THRESHOLD = SERVICE_STATE_BYTES_THRESHOLD + 1;
-    private static final int NODE_PROCESSING_BYTES_THRESHOLD = KILOBYTE;
     private static final int NODE_PROCESSING_BYTES_BELOW_THRESHOLD = NODE_PROCESSING_BYTES_THRESHOLD - 1;
     private static final int NODE_PROCESSING_BYTES_ABOVE_THRESHOLD = NODE_PROCESSING_BYTES_THRESHOLD + 1;
-    private static final int FILE_MEMO_MAX_BYTES = KILOBYTE;
-    private static final int FILE_MEMO_EXCEEDS_MAX_BYTES = FILE_MEMO_MAX_BYTES + 1;
-    private static final int LARGE_FILE_MAX_SIZE_KB = 128;
-    private static final int SMALL_FILE_MAX_SIZE_KB = 1;
-
-    // Query-charged base values observed in existing File service simple-fees suites.
-    private static final double FILE_GET_CONTENTS_BASE_FEE = 0.0001;
-    private static final double FILE_GET_INFO_BASE_FEE = 0.0001;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -127,13 +124,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .signedBy(PAYER),
                         fileUpdate(FILE)
                                 .contents(bytesWithLength(contentBytes))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
                                 .via("fileUpdateExtraBytesTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateExtraBytesTxn",
@@ -153,13 +148,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .signedBy(PAYER),
                         fileAppend(FILE)
                                 .content(bytesWithLength(appendBytes))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
                                 .via("fileAppendExtraBytesTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendExtraBytesTxn",
@@ -186,13 +179,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .signedBy(PAYER),
                         fileUpdate(FILE)
                                 .wacl("fiveKeys")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, "k1", "k2", "k3", "k4", "k5")
-                                .fee(ONE_HUNDRED_HBARS)
                                 .via("fileUpdateExtraKeysTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateExtraKeysTxn",
@@ -214,13 +205,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("oldWacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, "oldWaclKey")
-                                .fee(ONE_HBAR),
+                                .signedBy(PAYER, "oldWaclKey"),
                         fileUpdate(FILE)
                                 .wacl("newWacl")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, "oldWaclKey", "newWaclKey")
-                                .fee(ONE_HBAR)
                                 .via("fileUpdateWaclOnlyTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateWaclOnlyTxn",
@@ -367,7 +356,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents(bytesWithLength(largeSize))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS)
                                 .via("fileCreateLargeTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileCreateLargeTxn",
@@ -395,13 +383,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
+                                .signedBy(PAYER),
                         fileUpdate("largeUpdateFile")
                                 .contents(bytesWithLength(largeSize))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS)
                                 .via("fileUpdateLargeTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateLargeTxn",
@@ -421,13 +407,11 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents(bytesWithLength(LARGE_CONTENT_BYTES))
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS),
+                                .signedBy(PAYER),
                         fileAppend("largeAppendFile")
                                 .content(bytesWithLength(appendSize))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS)
                                 .via("fileAppendLargeTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendLargeTxn",
@@ -441,7 +425,7 @@ public class FileServiceSimpleFeesTest {
             @DisplayName("FileGetContent - fee based on total file size returned")
             Stream<DynamicTest> fileGetContentsLargeFileChargedByReturnedSize() {
                 final int size = LARGE_CONTENT_BYTES;
-                final double expected = FILE_GET_CONTENTS_BASE_FEE
+                final double expected = FILE_GET_CONTENTS_QUERY_BASE_FEE_USD
                         + Math.max(0, size - SERVICE_STATE_BYTES_THRESHOLD) * STATE_BYTES_FEE_USD;
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
@@ -450,8 +434,7 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents(bytesWithLength(size))
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS),
+                                .signedBy(PAYER),
                         getFileContents("largeQueryFile")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
@@ -471,12 +454,10 @@ public class FileServiceSimpleFeesTest {
                                 .key("wacl")
                                 .contents(bytesWithLength(LARGE_CONTENT_BYTES))
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS),
+                                .signedBy(PAYER),
                         fileDelete("largeDeleteFile")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileDeleteLargeTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileDeleteLargeTxn",
@@ -510,7 +491,6 @@ public class FileServiceSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, invalidPayerSig), forKey(FILE, invalidWaclSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateInvalidSigTxn")
                                 .hasPrecheck(INVALID_SIGNATURE),
                         getTxnRecord("fileCreateInvalidSigTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -544,7 +524,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateInsufficientPayerBalanceTxn")
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
                         getTxnRecord("fileCreateInsufficientPayerBalanceTxn")
@@ -563,7 +542,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateMemoTooLongTxn")
                                 .hasPrecheck(MEMO_TOO_LONG),
                         getTxnRecord("fileCreateMemoTooLongTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -584,7 +562,6 @@ public class FileServiceSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .txnId(expiredTxnId)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateExpiredTxn")
                                 .hasPrecheck(TRANSACTION_EXPIRED),
                         getTxnRecord("fileCreateExpiredTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -605,7 +582,6 @@ public class FileServiceSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .txnId(futureTxnId)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateFutureStartTxn")
                                 .hasPrecheck(INVALID_TRANSACTION_START),
                         getTxnRecord("fileCreateFutureStartTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -623,7 +599,6 @@ public class FileServiceSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .validDurationSecs(0)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateInvalidDurationTxn")
                                 .hasPrecheck(INVALID_TRANSACTION_DURATION),
                         getTxnRecord("fileCreateInvalidDurationTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -640,7 +615,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("firstFileCreateTxn"),
                         fileCreate("duplicateFile")
                                 .key(PAYER_KEY)
@@ -648,7 +622,6 @@ public class FileServiceSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .txnId("firstFileCreateTxn")
-                                .fee(ONE_HBAR)
                                 .via("duplicateFileCreateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION));
             }
@@ -670,14 +643,12 @@ public class FileServiceSimpleFeesTest {
                                 .waclShape(waclShape)
                                 .sigControl(forKey(PAYER_KEY, validPayerSig), forKey(FILE, validWaclSig))
                                 .contents("abc")
-                                .payingWith(PAYER)
-                                .fee(ONE_HBAR),
+                                .payingWith(PAYER),
                         fileUpdate(FILE)
                                 .contents("def")
                                 .sigControl(forKey(PAYER_KEY, invalidPayerSig), forKey(FILE, invalidWaclSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileUpdateInvalidSigTxn")
                                 .hasPrecheck(INVALID_SIGNATURE),
                         getTxnRecord("fileUpdateInvalidSigTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -693,8 +664,7 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
+                                .signedBy(PAYER),
                         fileUpdate(FILE)
                                 .contents("def")
                                 .payingWith(PAYER)
@@ -722,13 +692,11 @@ public class FileServiceSimpleFeesTest {
                                 .waclShape(waclShape)
                                 .sigControl(forKey(PAYER_KEY, validPayerSig), forKey(FILE, validWaclSig))
                                 .contents("abc")
-                                .payingWith(PAYER)
-                                .fee(ONE_HBAR),
+                                .payingWith(PAYER),
                         fileDelete(FILE)
                                 .sigControl(forKey(PAYER_KEY, invalidPayerSig), forKey(FILE, invalidWaclSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileDeleteInvalidSigTxn")
                                 .hasPrecheck(INVALID_SIGNATURE),
                         getTxnRecord("fileDeleteInvalidSigTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -751,14 +719,12 @@ public class FileServiceSimpleFeesTest {
                                 .waclShape(waclShape)
                                 .sigControl(forKey(PAYER_KEY, validPayerSig), forKey(FILE, validWaclSig))
                                 .contents("abc")
-                                .payingWith(PAYER)
-                                .fee(ONE_HBAR),
+                                .payingWith(PAYER),
                         fileAppend(FILE)
                                 .content("def")
                                 .sigControl(forKey(PAYER_KEY, invalidPayerSig), forKey(FILE, invalidWaclSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileAppendInvalidSigTxn")
                                 .hasPrecheck(INVALID_SIGNATURE),
                         getTxnRecord("fileAppendInvalidSigTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -784,7 +750,6 @@ public class FileServiceSimpleFeesTest {
                                 .signedBy(PAYER)
                                 .setNode(4)
                                 .txnId("duplicateFileCreateId")
-                                .fee(ONE_HBAR)
                                 .via("fileCreateDuplicateHandleTxn"),
                         fileCreate("secondHandleDuplicateFile")
                                 .key(PAYER_KEY)
@@ -793,7 +758,6 @@ public class FileServiceSimpleFeesTest {
                                 .signedBy(PAYER)
                                 .setNode(3)
                                 .txnId("duplicateFileCreateId")
-                                .fee(ONE_HBAR)
                                 .via("fileCreateDuplicateHandleTxnTwo")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
                         validateChargedUsdWithinWithTxnSize(
@@ -813,7 +777,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileUpdateInvalidFileIdTxn")
                                 .hasKnownStatus(INVALID_FILE_ID),
                         validateChargedUsdWithinWithTxnSize(
@@ -832,14 +795,12 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
-                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER).fee(ONE_HBAR),
+                                .signedBy(PAYER),
+                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER),
                         fileUpdate(FILE)
                                 .contents("def")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileUpdateDeletedFileTxn")
                                 .hasKnownStatus(FILE_DELETED),
                         validateChargedUsdWithinWithTxnSize(
@@ -858,13 +819,11 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
-                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER).fee(ONE_HBAR),
+                                .signedBy(PAYER),
+                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER),
                         fileDelete(FILE)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileDeleteDeletedFileTxn")
                                 .hasKnownStatus(FILE_DELETED),
                         validateChargedUsdWithinWithTxnSize(
@@ -883,14 +842,12 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents("abc")
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
-                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER).fee(ONE_HBAR),
+                                .signedBy(PAYER),
+                        fileDelete(FILE).payingWith(PAYER).signedBy(PAYER),
                         fileAppend(FILE)
                                 .content("def")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileAppendDeletedFileTxn")
                                 .hasKnownStatus(FILE_DELETED),
                         validateChargedUsdWithinWithTxnSize(
@@ -912,7 +869,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents(bytesWithLength(2 * KILOBYTE))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateMaxSizeExceededTxn")
                                 .hasKnownStatus(MAX_FILE_SIZE_EXCEEDED),
                         validateChargedUsdWithinWithTxnSize(
@@ -933,13 +889,11 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents(bytesWithLength(KILOBYTE - 1))
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR),
+                                .signedBy(PAYER),
                         fileAppend("appendLimitFile")
                                 .content(bytesWithLength(2))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileAppendMaxSizeExceededTxn")
                                 .hasKnownStatus(MAX_FILE_SIZE_EXCEEDED),
                         validateChargedUsdWithinWithTxnSize(
@@ -963,7 +917,6 @@ public class FileServiceSimpleFeesTest {
                                 .contents(bytesWithLength(0))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via("fileCreateEmptyContentTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileCreateEmptyContentTxn",
@@ -982,14 +935,13 @@ public class FileServiceSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .contents(bytesWithLength(LARGE_CONTENT_BYTES))
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_MILLION_HBARS),
+                                .signedBy(PAYER),
                         getFileInfo("largeInfoFile")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .via("getLargeFileInfoQuery"),
                         validateChargedUsdForQueries(
-                                "getLargeFileInfoQuery", FILE_GET_INFO_BASE_FEE, QUERY_ALLOWED_PERCENT_DIFF),
+                                "getLargeFileInfoQuery", FILE_GET_INFO_QUERY_BASE_FEE_USD, QUERY_ALLOWED_PERCENT_DIFF),
                         validateNonZeroNodePaymentForQuery("getLargeFileInfoQuery"));
             }
         }
@@ -1004,7 +956,6 @@ public class FileServiceSimpleFeesTest {
                         .contents(bytesWithLength(contentBytes))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
-                        .fee(ONE_HBAR)
                         .via(txnName),
                 validateChargedUsdWithinWithTxnSize(
                         txnName,
@@ -1019,17 +970,11 @@ public class FileServiceSimpleFeesTest {
                 newKeyNamed(PAYER_KEY),
                 newKeyListNamed("wacl", List.of(PAYER_KEY)),
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                fileCreate(FILE)
-                        .key("wacl")
-                        .contents("abc")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR),
+                fileCreate(FILE).key("wacl").contents("abc").payingWith(PAYER).signedBy(PAYER),
                 fileUpdate(FILE)
                         .contents(bytesWithLength(contentBytes))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
-                        .fee(ONE_HBAR)
                         .via(txnName),
                 validateChargedUsdWithinWithTxnSize(
                         txnName,
@@ -1042,17 +987,11 @@ public class FileServiceSimpleFeesTest {
                 newKeyNamed(PAYER_KEY),
                 newKeyListNamed("wacl", List.of(PAYER_KEY)),
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                fileCreate(FILE)
-                        .key("wacl")
-                        .contents("abc")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR),
+                fileCreate(FILE).key("wacl").contents("abc").payingWith(PAYER).signedBy(PAYER),
                 fileAppend(FILE)
                         .content(bytesWithLength(appendBytes))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
-                        .fee(ONE_HBAR)
                         .via(txnName),
                 validateChargedUsdWithinWithTxnSize(
                         txnName,
@@ -1062,7 +1001,7 @@ public class FileServiceSimpleFeesTest {
     }
 
     private Stream<DynamicTest> fileGetContentsBoundaryWithExpectedFee(final int contentBytes, final String queryName) {
-        final double expected = FILE_GET_CONTENTS_BASE_FEE
+        final double expected = FILE_GET_CONTENTS_QUERY_BASE_FEE_USD
                 + Math.max(0, contentBytes - SERVICE_STATE_BYTES_THRESHOLD) * STATE_BYTES_FEE_USD;
 
         return hapiTest(
@@ -1072,8 +1011,7 @@ public class FileServiceSimpleFeesTest {
                         .key(PAYER_KEY)
                         .contents(bytesWithLength(contentBytes))
                         .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR),
+                        .signedBy(PAYER),
                 getFileContents(FILE).payingWith(PAYER).signedBy(PAYER).via(queryName),
                 validateChargedUsdForQueries(queryName, expected, QUERY_ALLOWED_PERCENT_DIFF),
                 validateNonZeroNodePaymentForQuery(queryName));
