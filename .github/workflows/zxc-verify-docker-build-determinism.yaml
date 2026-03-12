@@ -122,7 +122,7 @@ jobs:
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         with:
-          version: v0.16.2
+          version: v0.32.1
           driver-opts: network=host
           buildkitd-config-inline: |
             [registry."docker.io"]
