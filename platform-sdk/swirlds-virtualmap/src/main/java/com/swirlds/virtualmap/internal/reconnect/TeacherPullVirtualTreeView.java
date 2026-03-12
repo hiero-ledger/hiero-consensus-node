@@ -92,7 +92,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * @return the node hash
      */
     public Hash loadHash(final long path) {
-        return records.findHash(path);
+        return path == 0 ? records.rootHash() : records.findHash(path);
     }
 
     /**

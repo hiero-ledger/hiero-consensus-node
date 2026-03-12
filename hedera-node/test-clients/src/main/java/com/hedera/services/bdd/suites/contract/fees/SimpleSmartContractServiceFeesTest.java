@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
@@ -57,7 +56,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class SimpleSmartContractServiceFeesTest {
@@ -182,10 +180,12 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith(relayer.name())
                         .nonce(0)
                         .via("ethCall"),
-                // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account;
+                // extra sig fee accounts for signatures above NODE_INCLUDED_SIGNATURES
+                validateChargedUsdWithin(
+                        "ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                 validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")

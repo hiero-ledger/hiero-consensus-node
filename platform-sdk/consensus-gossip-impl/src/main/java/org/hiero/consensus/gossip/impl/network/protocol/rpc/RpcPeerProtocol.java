@@ -386,7 +386,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
                 final GossipPing ping = pingHandler.possiblyInitiatePing();
                 if (ping != null) {
-                    sendPingSameThread(ping, output);
+                    sendPingSameThread(ping.correlationId(), output);
                     output.flush();
                 }
 
@@ -475,12 +475,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             inputQueue.add(receiver::receiveEventsFinished);
                             break;
                         case PING:
-                            pingHandler.handleIncomingPing(input.readPbjRecord(GossipPing.PROTOBUF));
+                            pingHandler.handleIncomingPing(input.readLong());
                             break;
                         case PING_REPLY:
-                            final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
+                            final long correlationId = input.readLong();
                             final long pingMillis =
-                                    TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(pingReply));
+                                    TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(correlationId));
                             overloadMonitor.reportPing(pingMillis);
                             break;
                     }
@@ -560,18 +560,18 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         });
     }
 
-    void sendPingReply(final GossipPing reply) {
+    void sendPingReply(final long correlationId) {
         outputQueue.add(out -> {
             out.writeShort(1); // single message
             out.write(PING_REPLY);
-            out.writePbjRecord(reply, GossipPing.PROTOBUF);
+            out.writeLong(correlationId);
         });
     }
 
-    private void sendPingSameThread(final GossipPing ping, final SyncOutputStream output) throws IOException {
+    private void sendPingSameThread(final long correlationId, final SyncOutputStream output) throws IOException {
         output.writeShort(1); // single message
         output.write(PING);
-        output.writePbjRecord(ping, GossipPing.PROTOBUF);
+        output.writeLong(correlationId);
     }
 
     /**

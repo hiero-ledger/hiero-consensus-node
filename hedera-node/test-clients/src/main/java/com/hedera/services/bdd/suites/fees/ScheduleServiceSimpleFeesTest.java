@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -15,22 +15,26 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_CREATE = 0.01;
@@ -38,6 +42,7 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
+    private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -100,6 +105,22 @@ public class ScheduleServiceSimpleFeesTest {
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
                 validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL),
                 validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO),
-                validateNonZeroNodePaymentForQuery("getScheduleInfoBasic"));
+                validateNodePaymentAmountForQuery("getScheduleInfoBasic", EXPECTED_NODE_PAYMENT_TINYCENTS));
+    }
+
+    @HapiTest
+    @DisplayName("schedule get info - invalid schedule fails - no fee charged")
+    final Stream<DynamicTest> scheduleGetInfoInvalidScheduleFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                cryptoCreate(PAYING_SENDER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYING_SENDER).exposingBalanceTo(initialBalance::set),
+                getScheduleInfo("0.0.99999999").payingWith(PAYING_SENDER).hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getAccountBalance(PAYING_SENDER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
     }
 }

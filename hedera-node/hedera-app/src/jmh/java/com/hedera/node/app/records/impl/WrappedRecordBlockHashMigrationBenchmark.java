@@ -103,7 +103,8 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 false,
                 wrappedRecordHashesDir.toString(),
                 true,
-                jumpstartFilePath);
+                jumpstartFilePath,
+                false);
     }
 
     @TearDown(Level.Trial)
