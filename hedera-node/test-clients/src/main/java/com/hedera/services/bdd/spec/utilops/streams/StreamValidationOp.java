@@ -44,11 +44,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -216,13 +217,19 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (bestDir == null) {
             return Optional.empty();
         }
-        final var best = BLOCK_STREAM_ACCESS.readBlocks(bestDir);
+        final List<Block> best;
+        try {
+            best = BLOCK_STREAM_ACCESS.readBlocks(bestDir);
+        } catch (Exception e) {
+            log.warn("Failed to read blocks from best directory {}", bestDir, e);
+            return Optional.empty();
+        }
         if (best.isEmpty()) {
             return Optional.empty();
         }
         // Walk the primary block list; complete blocks are added directly, incomplete ones
         // are substituted from other node directories via a lazily-built fallback map
-        TreeMap<Long, List<Path>> fallbackCandidates = null;
+        Map<Long, List<Path>> fallbackCandidates = null;
         final var result = new ArrayList<Block>(best.size());
         final var bestDirForLambda = bestDir;
         for (final var block : best) {
@@ -254,9 +261,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      * Collects block file paths from all node directories except the best one, keyed by block
      * number. Used as a fallback when the primary node has incomplete blocks that need substitution.
      */
-    private static TreeMap<Long, List<Path>> collectFallbackBlockFilePaths(
+    private static Map<Long, List<Path>> collectFallbackBlockFilePaths(
             @NonNull final List<Path> blockStreamDirs, @NonNull final Path excludeDir) {
-        final var candidatesByNumber = new TreeMap<Long, List<Path>>();
+        final var candidatesByNumber = new HashMap<Long, List<Path>>();
         for (final var dir : blockStreamDirs) {
             if (dir.equals(excludeDir)) {
                 continue;
