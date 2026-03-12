@@ -836,10 +836,11 @@ public class HandleWorkflow {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
                 stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
-                hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+                final var hollowAccountCompletionsDetails =
+                        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 // In case a TSS callback needs access to the current dispatch's savepoint stack
                 this.inFlightDispatch = dispatch;
-                dispatchProcessor.processDispatch(dispatch);
+                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
             final var handleOutput =
