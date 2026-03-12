@@ -405,5 +405,6 @@ public class MerkleDbTestUtils {
                         + MerkleDbDataSource.getRegisteredDatabases().stream()
                                 .map(MerkleDbDataSource::getDbId)
                                 .collect(Collectors.joining(", ")));
+        assertEquals(expectedOpenCount, MerkleDbDataSource.getRegisteredDatabases().size());
     }
 }
