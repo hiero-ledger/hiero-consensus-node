@@ -469,17 +469,21 @@ ledgers. The sync method is the single entry point for all interledger data exch
 ![Messaging](clpr-messaging-state.svg)
 
 A sync call is initiated by one endpoint selecting a peer endpoint from the Connection's peer roster and opening a gRPC
-connection to it. **The sync is bidirectional within a single call** — both sides exchange their data simultaneously,
-minimizing round trips. This works because each endpoint **pre-computes its entire outbound payload before the call
-begins**. The endpoint packages its proof bytes (in whatever format the peer's verifier contract expects), reads any
-unacked messages, and bundles everything together. The gRPC call is then a symmetric exchange of pre-computed
-packages.
+connection to it. **The sync is bidirectional within a single call** — both sides exchange their data, minimizing
+round trips. The initiating endpoint pre-computes its outbound payload before opening the connection — it packages
+its proof bytes (in whatever format the peer's verifier contract expects), reads any unacked messages, and bundles
+everything together. The responding endpoint computes its payload upon receiving the incoming connection. The gRPC
+call is then a symmetric exchange of these payloads.
 
 **Proof structure.** Each direction of the sync carries **opaque proof bytes** that will be passed to the Connection's
 verifier contract on the receiving ledger. The verifier contract performs the expensive cryptographic verification and
 returns the verified queue metadata and messages. What the proof bytes contain internally — state roots, Merkle paths,
 ZK proofs, TSS signatures, BLS aggregate signatures — is entirely up to the verifier contract. CLPR does not interpret
 or constrain the proof format.
+
+> 💡 **Important:** Endpoints **MUST** verify the proof before submitting transactions to their own ledger. On
+Hiero and Ethereum, this is done by executing the verifier contract *locally* before submitting the transaction. This
+must be done, otherwise the endpoint will have to pay for invalid payloads that fail verification post-consensus.
 
 The two sides exchange:
 
@@ -489,11 +493,6 @@ The two sides exchange:
   sent and received. Extracted and verified by the verifier contract.
 - **Message bundles** — Any pending messages that the peer has not yet acknowledged. Extracted and verified by the
   verifier contract.
-
-**Verifier swaps are local, not interledger.** Changes to `ApprovedVerifiers` propagate in-band like all other
-configuration changes (via ConfigUpdate Control Messages). The act of deploying a new verifier contract and calling
-`updateConnectionVerifier` is a local operation on the receiving ledger — it does not flow through the sync protocol.
-See §3.1.3 for the full verifier update flow.
 
 The queue metadata exchange is the mechanism by which acknowledgements are communicated — the peer's reported
 `received_message_id` becomes the sender's `acked_message_id`, enabling deletion of acknowledged response messages and
@@ -544,7 +543,7 @@ native callback (on Hiero) that implements two methods:
 
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
   verification is appropriate for the source ledger, and returns a verified configuration. Used during connection
-  registration (§3.1.3) and out-of-band endpoint roster recovery (§3.1.2).
+  registration (§3.1.3).
 - **`verifyBundle(bytes) → (ClprQueueMetadata, ClprMessagePayload[])`** — Accepts opaque proof bytes, performs
   verification, and returns verified queue metadata and messages. Used during bundle processing (§3.2.4).
 
@@ -596,12 +595,14 @@ different ledger pairs. Each is a separate implementation; CLPR treats them iden
 > ‼️ **Upgradeable verifier contracts.** Verifier contracts may be deployed behind upgradeable proxies (e.g., EIP-1967)
 to allow the source ledger to upgrade verification logic without requiring every Connection to run
 `updateConnectionVerifier`.
-When proxies are used, the implementation fingerprint in `ApprovedVerifiers` is the proxy's code hash (since that is
-what `EXTCODEHASH` returns), and the proxy owner can change the underlying implementation. This is acceptable **only if**
-the proxy's upgrade authority is controlled by the source ledger's CLPR Service admin (or equivalent governance). The
-verifier contract is an extension of the source ledger's CLPR Service running on a foreign chain — its upgrade authority
-must be the same trust boundary. A verifier whose upgrade key is controlled by a third party is a critical vulnerability:
-that third party could silently replace the verification logic, and the source ledger would have no recourse.
+> 
+> When proxies are used, the implementation fingerprint in `ApprovedVerifiers` is the proxy's code hash (since that is
+what `EXTCODEHASH` returns), and the proxy owner can change the underlying implementation. This is acceptable
+**only if** the proxy's upgrade authority is controlled by the source ledger's CLPR Service admin (or equivalent
+governance). The verifier contract is an extension of the source ledger's CLPR Service running on a foreign chain — its
+upgrade authority must be the same trust boundary. A verifier whose upgrade key is controlled by a third party is a
+critical vulnerability: that third party could silently replace the verification logic, and the source ledger would have
+no recourse.
 
 > 💡 **Note:** Chain-specific verifier specifications (e.g., how to construct a Hiero TSS verifier for Ethereum, or how
 to build a ZK prover wrapping Ethereum sync committee consensus) are out of scope for this document. Each is a separate
@@ -616,7 +617,7 @@ and the transaction submitting it to the local ledger is signed by the **local e
 it. This two-signature property allows the receiving ledger to unambiguously attribute misbehavior to either a local or
 remote endpoint, and to produce cryptographically self-proving evidence that the remote ledger can verify independently.
 
-**Remote endpoint: duplicate broadcast** — ****If the same payload (identified by its remote endpoint signature) is
+**Remote endpoint: duplicate broadcast** — If the same payload (identified by its remote endpoint signature) is
 submitted by multiple distinct local endpoints within a single sync round, the remote peer endpoint must have sent that
 payload to more than one local endpoint simultaneously. No honest local endpoint would fabricate a foreign signature, so
 the evidence is conclusive.
@@ -1235,3 +1236,7 @@ algorithms, and configuration parameters are defined in the companion
    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
    properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
    may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
+9. **Endpoint roster recovery verification.** The recovery mechanism in §3.1.2 requires a state proof to authenticate
+   a fresh endpoint roster, but neither `verifyConfig` (which returns configuration, not endpoints) nor `verifyBundle`
+   (which returns queue metadata and messages) is designed for this. A third verifier method or an extension to an
+   existing one may be needed.
