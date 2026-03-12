@@ -8,7 +8,7 @@ dependencies {
     }
 }
 
-val besu = "25.2.2"
+val besu = "26.2.0"
 val bouncycastle = "1.81"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
@@ -95,7 +95,7 @@ dependencies.constraints {
         because("org.eclipse.collections.impl")
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
-    api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
+    api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
     api("org.hyperledger.besu:secp256k1:1.3.0") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
@@ -109,8 +109,8 @@ dependencies.constraints {
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
     api("org.yaml:snakeyaml:2.5") { because("org.yaml.snakeyaml") }
-    api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
-    api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
+    api("io.consensys.tuweni:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
+    api("io.consensys.tuweni:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
         because("uk.org.webcompere.systemstubs.core")
     }

@@ -50,3 +50,28 @@ javaModules {
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
+
+gradle.lifecycle.beforeProject {
+    plugins.withId("org.hiero.gradle.base.jpms-modules") {
+        configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module(
+                "org.hyperledger.besu.internal:besu-crypto-algorithms",
+                "org.hyperledger.besu.internal.crypto",
+            )
+            module(
+                "org.hyperledger.besu.internal:besu-ethereum-rlp",
+                "org.hyperledger.besu.internal.rlp",
+            )
+            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.boringssl")
+            module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+            module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+            module("io.vertx:vertx-core", "io.vertx.core")
+        }
+    }
+}
