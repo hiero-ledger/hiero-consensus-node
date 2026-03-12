@@ -633,8 +633,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(registeredNodeStore.get(10L)).willReturn(RegisteredNode.DEFAULT);
         given(registeredNodeStore.get(20L)).willReturn(RegisteredNode.DEFAULT);
 
-        final long expectedNodeId = 0L;
-        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
+        // newNodeId() will generate the next ID based on the current highest node ID in state
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
+
         final var stack = mock(HandleContext.SavepointStack.class);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
@@ -728,8 +729,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             given(registeredNodeStore.get(id)).willReturn(RegisteredNode.DEFAULT);
         }
 
-        final long expectedNodeId = 0L;
-        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
+        // newNodeId() will generate the next ID based on the current highest node ID in state
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
+
         final var stack = mock(HandleContext.SavepointStack.class);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
@@ -865,6 +867,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class))
+                .willReturn(mock(ReadableRegisteredNodeStore.class));
 
         given(handleContext.attributeValidator()).willReturn(validator);
         final var stack = mock(HandleContext.SavepointStack.class);
