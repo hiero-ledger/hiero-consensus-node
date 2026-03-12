@@ -149,7 +149,7 @@ jobs:
 
           #solo script
           echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node "${curdir}"/solo/dist/solo.js \$*" >> "${HOME}"/solo
+          echo "node \"${curdir}\"/solo/dist/solo.js \"\$@\"" >> "${HOME}"/solo
           chmod a+rx "${HOME}"/solo
           sudo mv "${HOME}"/solo /usr/bin/solo
 
