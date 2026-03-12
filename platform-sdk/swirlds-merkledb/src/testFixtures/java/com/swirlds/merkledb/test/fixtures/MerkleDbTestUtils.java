@@ -50,6 +50,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
@@ -399,7 +400,10 @@ public class MerkleDbTestUtils {
         assertEventuallyEquals(
                 expectedOpenCount,
                 MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(10, ChronoUnit.SECONDS),
-                "Expected " + expectedOpenCount + " open databases.");
+                Duration.of(5, ChronoUnit.SECONDS),
+                "Expected " + expectedOpenCount + " open databases. Registered open databases: "
+                        + MerkleDbDataSource.getRegisteredDatabases().stream()
+                                .map(MerkleDbDataSource::getDbId)
+                                .collect(Collectors.joining(", ")));
     }
 }

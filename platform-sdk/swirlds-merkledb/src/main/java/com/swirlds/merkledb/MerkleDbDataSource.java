@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -79,6 +80,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Count of open database instances */
     private static final LongAdder COUNT_OF_OPEN_DATABASES = new LongAdder();
+
+    private static final Set<MerkleDbDataSource> registeredDatabases = ConcurrentHashMap.newKeySet();
 
     // FIXME: remove
     private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
@@ -484,11 +487,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         dbId = ID_GENERATOR.getAndIncrement();
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
+        registeredDatabases.add(this);
         // FIXME: remove
         logger.info(
                 MERKLE_DB.getMarker(),
                 "Opening dbId=" + dbId + ", stacktrace: " + getStackTraceAsString(new Throwable()));
-        new Exception().printStackTrace();
 
         chunkStoreScanner = new GarbageScanner(
                 idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
@@ -508,15 +511,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 storageDir,
                 this.initialCapacity,
                 this.hashChunkHeight);
-    }
-
-    // FIXME: remove
-    public String getStackTraceAsString(Throwable t) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        t.printStackTrace(pw);
-        pw.close();
-        return sw.toString();
     }
 
     private void rebuildHashChunks(
@@ -618,6 +612,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
+    // FIXME: remove
+    public String getStackTraceAsString(Throwable t) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        t.printStackTrace(pw);
+        pw.close();
+        return sw.toString();
+    }
+
     /**
      * Enables background compaction process.
      */
@@ -641,6 +644,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public static long getCountOfOpenDatabases() {
         return COUNT_OF_OPEN_DATABASES.sum();
+    }
+
+    public static Set<MerkleDbDataSource> getRegisteredDatabases() {
+        return Set.copyOf(registeredDatabases);
+    }
+
+    public String getDbId() {
+        return String.valueOf(dbId);
     }
 
     /** Get the most recent first leaf path */
@@ -974,6 +985,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     logger.error(EXCEPTION.getMarker(), "Error while closing Data Source [{}]", tableName);
                     throw t;
                 } finally {
+                    registeredDatabases.remove(this);
                     // updated count of open databases
                     COUNT_OF_OPEN_DATABASES.decrement();
                     // FIXME: remove
