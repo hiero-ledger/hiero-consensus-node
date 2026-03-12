@@ -40,6 +40,7 @@ jobs:
       enable-hapi-tests-time-consuming: "true"
       enable-hapi-tests-state-throttling: "true"
       enable-hapi-tests-simplefees: "true"
+      enable-hapi-tests-atomic-batch: "true"
       enable-otter-tests: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"

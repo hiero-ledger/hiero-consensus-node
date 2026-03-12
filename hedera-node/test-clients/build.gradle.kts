@@ -88,8 +88,8 @@ val basePrCheckTags =
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestSimpleFeesSerial" to "(SIMPLE_FEES&SERIAL)",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
-        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
+        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
 val concurrentTasks =
@@ -107,6 +107,8 @@ val concurrentTasks =
         "hapiTestStateThrottling",
         "hapiTestSimpleFees",
         "hapiTestSimpleFeesSerial",
+        "hapiTestAtomicBatch",
+        "hapiTestAtomicBatchSerial",
     )
 
 val prCheckTags =
@@ -243,6 +245,8 @@ val prCheckNetSizeOverrides =
         put("hapiTestSimpleFeesSerial", "3")
         put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
+        put("hapiTestAtomicBatch", "3")
+        put("hapiTestAtomicBatchSerial", "3")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->

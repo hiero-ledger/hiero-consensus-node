@@ -39,7 +39,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of SmartContractServiceFeesTest. The difference here is that
@@ -67,7 +66,6 @@ class AtomicSmartContractServiceFeesTest {
 
     @HapiTest
     @DisplayName("Create a smart contract and assure proper fee charged")
-    @Order(0)
     final Stream<DynamicTest> contractCreateBaseUSDFee() {
         final var creation = "creation";
         final var gasUsedRef = new java.util.concurrent.atomic.AtomicReference<>(0.0);
@@ -99,7 +97,6 @@ class AtomicSmartContractServiceFeesTest {
 
     @HapiTest
     @DisplayName("Call a smart contract and assure proper fee charged")
-    @Order(1)
     final Stream<DynamicTest> contractCallBaseUSDFee() {
         final var contract = "contractCall";
         return hapiTest(
@@ -116,7 +113,6 @@ class AtomicSmartContractServiceFeesTest {
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     @DisplayName("Do an ethereum transaction and assure proper fee charged")
-    @Order(2)
     final Stream<DynamicTest> ethereumTransactionBaseUSDFee(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount receiver) {
         final var ethCall = "ethCall";

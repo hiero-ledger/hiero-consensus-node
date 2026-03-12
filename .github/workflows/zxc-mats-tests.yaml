@@ -58,6 +58,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-atomic-batch:
+        description: "HAPI Testing (Atomic Batch) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -252,7 +257,7 @@ jobs:
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-time-consuming: "${{ inputs.enable-hapi-tests-time-consuming == 'true' }}"
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}"
       enable-network-log-capture: "true"
       mats-suffix: "MATS"
     secrets:
