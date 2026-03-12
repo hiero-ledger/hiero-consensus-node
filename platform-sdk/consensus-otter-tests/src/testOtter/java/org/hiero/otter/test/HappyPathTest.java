@@ -24,24 +24,6 @@ import org.junit.jupiter.api.Test;
  */
 public class HappyPathTest {
 
-    @Test
-    void flakyTest1() {
-        // This test is intentionally flaky to verify that the framework correctly reports flaky tests.
-        // It will fail approximately 50% of the time.
-        if (Math.random() < 0.5) {
-            throw new RuntimeException("Flaky test failed");
-        }
-    }
-
-    @Test
-    void flakyTest2() {
-        // This test is intentionally flaky to verify that the framework correctly reports flaky tests.
-        // It will fail approximately 50% of the time.
-        if (Math.random() < 0.5) {
-            throw new RuntimeException("Flaky test failed");
-        }
-    }
-
     /**
      * Simple test that runs a network with 4 nodes for some time and does some basic validations.
      *
