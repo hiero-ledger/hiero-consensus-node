@@ -48,8 +48,9 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
     private static final long NETWORK_REWARD_ACCOUNT = 800L;
     private static final long NODE_REWARD_ACCOUNT = 801L;
     private static final long FEE_COLLECTION_ACCOUNT = 802L;
+    private static final long FUNDING_ACCOUNT = 98L;
     private static final long FIRST_NODE_ACCOUNT = 3L;
-    private static final long LAST_SYSTEM_ACCOUNT = 100L;
+    private static final long LAST_TEST_NODE_ACCOUNT = 6L;
 
     private final Map<Long, Long> expectedBalances = new HashMap<>();
 
@@ -59,7 +60,7 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
     @SuppressWarnings("java:S106")
     public void validateRecordsAndSidecars(final List<RecordWithSidecars> recordsWithSidecars) {
         expectedBalances.clear();
-        getExpectedBalanceFrom(recordsWithSidecars);
+        computeRecordDerivedExpectedBalances(recordsWithSidecars);
         // Reconciliation is only relevant when end-of-staking-period behavior is in play.
         if (containsEndOfStakingPeriodRecord(recordsWithSidecars)) {
             reconcileKnownStakingBoundaryFeeDistributions();
@@ -78,6 +79,15 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
      */
     private void reconcileKnownStakingBoundaryFeeDistributions() {
         final var observedBalances = observedBalancesFromNetwork(expectedBalances.keySet());
+        final var deltas = computeObservedMinusExpectedDeltas(observedBalances);
+
+        if (looksLikeUnmodeledStakingBoundaryDistribution(deltas)) {
+            applyExpectedBalanceAdjustments(deltas);
+            log.warn("Adjusted expected balances for likely unmodeled staking-boundary fee distribution: {}", deltas);
+        }
+    }
+
+    private Map<Long, Long> computeObservedMinusExpectedDeltas(final Map<Long, Long> observedBalances) {
         final Map<Long, Long> deltas = new HashMap<>();
         for (final var entry : expectedBalances.entrySet()) {
             final var accountNum = entry.getKey();
@@ -91,11 +101,11 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
                 deltas.put(accountNum, delta);
             }
         }
+        return deltas;
+    }
 
-        if (looksLikeUnmodeledStakingBoundaryDistribution(deltas)) {
-            deltas.forEach((accountNum, delta) -> expectedBalances.merge(accountNum, delta, Long::sum));
-            log.warn("Adjusted expected balances for likely unmodeled staking-boundary fee distribution: {}", deltas);
-        }
+    private void applyExpectedBalanceAdjustments(final Map<Long, Long> deltas) {
+        deltas.forEach((accountNum, delta) -> expectedBalances.merge(accountNum, delta, Long::sum));
     }
 
     /**
@@ -103,8 +113,8 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
      * redistribution shape:
      *
      * <ul>
-     *   <li>Debits are only from 0.0.801 and/or 0.0.802.</li>
-     *   <li>Credits are only to node/system recipient accounts.</li>
+     *   <li>Debits are only from x.x.801 and/or x.x.802 (matched by account number).</li>
+     *   <li>Credits are only to expected HIP-1259 recipients for embedded test networks.</li>
      *   <li>Total debits are at least total credits in the delta set.</li>
      * </ul>
      *
@@ -123,7 +133,7 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
             final var accountNum = entry.getKey();
             final var delta = entry.getValue();
             if (delta < 0) {
-                if (accountNum != NODE_REWARD_ACCOUNT && accountNum != FEE_COLLECTION_ACCOUNT) {
+                if (!isKnownStakingDistributionSource(accountNum)) {
                     return false;
                 }
                 hasSourceDebit = true;
@@ -142,12 +152,20 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
     }
 
     /**
+     * Restricts debits to the two known staking redistribution source accounts.
+     */
+    private boolean isKnownStakingDistributionSource(final long accountNum) {
+        return accountNum == NODE_REWARD_ACCOUNT || accountNum == FEE_COLLECTION_ACCOUNT;
+    }
+
+    /**
      * Restricts credits to accounts that can legitimately receive staking fee distributions.
      */
     private boolean isPotentialStakingDistributionRecipient(final long accountNum) {
-        return accountNum == NETWORK_REWARD_ACCOUNT
+        return accountNum == FUNDING_ACCOUNT
+                || accountNum == NETWORK_REWARD_ACCOUNT
                 || accountNum == NODE_REWARD_ACCOUNT
-                || (accountNum >= FIRST_NODE_ACCOUNT && accountNum <= LAST_SYSTEM_ACCOUNT);
+                || (accountNum >= FIRST_NODE_ACCOUNT && accountNum <= LAST_TEST_NODE_ACCOUNT);
     }
 
     /**
@@ -171,24 +189,31 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
                 .anyMatch(TxnUtils::isEndOfStakingPeriodRecord);
     }
 
-    private void getExpectedBalanceFrom(final List<RecordWithSidecars> recordsWithSidecars) {
+    private void computeRecordDerivedExpectedBalances(final List<RecordWithSidecars> recordsWithSidecars) {
         for (final var recordWithSidecars : recordsWithSidecars) {
             final var items = recordWithSidecars.recordFile().getRecordStreamItemsList();
             for (final var item : items) {
-                accountClassifier.incorporate(item);
-                final var grpcRecord = item.getRecord();
-                grpcRecord.getTransferList().getAccountAmountsList().forEach(aa -> {
-                    final var accountNum = aa.getAccountID().getAccountNum();
-                    final var amount = aa.getAmount();
-                    expectedBalances.merge(accountNum, amount, Long::sum);
-                });
+                incorporateExpectedBalanceFrom(item);
             }
+            assertNoNegativeExpectedBalances();
+        }
+    }
 
-            for (final var entry : expectedBalances.entrySet()) {
-                if (entry.getValue() < 0) {
-                    throw new IllegalStateException(
-                            "Negative balance for account " + entry.getKey() + " with value " + entry.getValue());
-                }
+    private void incorporateExpectedBalanceFrom(final RecordStreamItem item) {
+        accountClassifier.incorporate(item);
+        final var grpcRecord = item.getRecord();
+        grpcRecord.getTransferList().getAccountAmountsList().forEach(aa -> {
+            final var accountNum = aa.getAccountID().getAccountNum();
+            final var amount = aa.getAmount();
+            expectedBalances.merge(accountNum, amount, Long::sum);
+        });
+    }
+
+    private void assertNoNegativeExpectedBalances() {
+        for (final var entry : expectedBalances.entrySet()) {
+            if (entry.getValue() < 0) {
+                throw new IllegalStateException(
+                        "Negative balance for account " + entry.getKey() + " with value " + entry.getValue());
             }
         }
     }
