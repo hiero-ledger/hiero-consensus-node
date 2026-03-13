@@ -86,7 +86,6 @@ class HintsContextTest {
                 Duration.ofSeconds(10),
                 Duration.ofSeconds(5),
                 "data/keys/tss",
-                (short) 512,
                 false,
                 false,
                 false,
