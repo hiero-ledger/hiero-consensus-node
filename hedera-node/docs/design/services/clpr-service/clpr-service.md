@@ -50,8 +50,9 @@ describing behavior that applies to any network running Hiero (including private
 - **Endpoint** — A node responsible for periodically communicating with peer ledger endpoints to exchange configurations
   and messages.
 - **CLPR Service** — The core business logic and state implementing CLPR on a particular ledger.
-- **Connection** — An on-ledger entity representing one side of a peer relationship between the local ledger and a
-  specific remote CLPR Service instance.
+- **Connection** — An on-ledger entity representing a communication channel with a specific peer. Identified by a
+  **Connection ID** derived from an ECDSA_secp256k1 keypair. Multiple Connections may exist between the same pair of
+  ledgers (e.g., with different verifiers at different commitment levels).
 - **Connector** — An economic entity that authorizes messages on the source ledger and pays for their execution on the
   destination ledger.
 - **Message** — An arbitrary byte payload plus metadata representing a single unit of communication from one ledger to
@@ -147,11 +148,11 @@ software; on Ethereum it is a smart contract deployed on-chain.
 
 - **Local configuration** — The configuration describing this ledger: its `ChainID`, approved verifier
   contracts, and throttle parameters. There is exactly one local configuration per CLPR Service instance.
-- **Connections** — One connection per peer CLPR Service instance, keyed by the compound identity
-  `(ChainID, ServiceAddress)`. Multiple Connections may share a `ChainID` if they represent different CLPR Service
-  deployments on the same chain. Each Connection holds the peer's identity, the peer's last-known configuration
-  timestamp, the verifier contract used to verify inbound proofs from that peer, all message queue metadata, and the
-  endpoint roster for that peer.
+- **Connections** — Each Connection is keyed by its **Connection ID** (see §3.1.3 for how this ID is derived).
+  Multiple Connections may target the same peer CLPR Service instance — for example, with different verifiers operating
+  at different commitment levels. Each Connection holds the peer's `ChainID` and `ServiceAddress`, the peer's
+  last-known configuration timestamp, the verifier contract used to verify inbound proofs, all message queue metadata,
+  and the peer's endpoint roster.
 - **Locked funds** — Balances posted by endpoints (bonds held against misbehavior) and Connectors (funds held to pay for
   message execution on arrival, and bonds held against misbehavior). The CLPR Service is the custodian of these funds
   and the sole authority for releasing or slashing them.
@@ -191,11 +192,13 @@ a [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) cha
 CLPR Service deployments may exist on the same chain (e.g., two competing CLPR Service contracts on Ethereum, both
 claiming `eip155:1`).
 
-A peer is uniquely identified by the compound key **`(ChainID, ServiceAddress)`**, where `ServiceAddress` is the
-on-ledger address of the peer's CLPR Service (a contract address on EVM chains, a well-known constant on Hiero where
-the CLPR Service is native). The `ChainID` comes from the configuration; the `ServiceAddress` is extracted from the
-ZK proof at connection registration (the proof attests to state at a specific contract address). Connections are keyed
-by this compound identity, and applications must specify both when targeting a specific peer.
+A peer CLPR Service instance is identified by the compound key **`(ChainID, ServiceAddress)`**, where `ServiceAddress`
+is the on-ledger address of the peer's CLPR Service (a contract address on EVM chains, a well-known constant on Hiero
+where the CLPR Service is native). The `ChainID` comes from the configuration; the `ServiceAddress` is extracted from
+the ZK proof at connection registration (the proof attests to state at a specific contract address). However,
+`(ChainID, ServiceAddress)` does **not** uniquely identify a Connection — multiple Connections may target the same
+peer CLPR Service instance (see §3.1.3). Each Connection is identified by its own **Connection ID**, derived from an
+ECDSA_secp256k1 keypair at registration time. Applications specify the Connection ID when sending messages.
 
 **Examples:**
 
@@ -394,7 +397,8 @@ sequenceDiagram
     Note over User,LB: 1. Ledger A's ApprovedVerifiers contains fingerprint for this verifier type
     Note over User,LB: 2. User has deployed matching verifier code on Ledger B
 
-    User->>LB: registerConnection(verifier_address, zk_proof, seed_endpoints)
+    User->>LB: registerConnection(connection_id, ecdsa_sig, verifier_address, zk_proof, seed_endpoints)
+    LB->>LB: verify ecdsa_sig (caller controls connection_id)
     LB->>ZK: verify zk_proof
     ZK-->>LB: ConfigA (verified: chain_id, service_address, approved_verifiers, ...)
     LB->>LB: check: EXTCODEHASH(verifier_address) ∈ ConfigA.ApprovedVerifiers values?
@@ -403,23 +407,41 @@ sequenceDiagram
     Note over User,LB: Repeat in reverse on Ledger A for bidirectional communication
 ```
 
+**Connection ID.** Each Connection is identified by a **Connection ID** that is the same on both ledgers. The registrant
+generates an ECDSA_secp256k1 keypair and derives the Connection ID from the public key (e.g., `keccak256(pubkey)`).
+Registration on each ledger requires a signature from this key, proving the registrant controls the identity. Because
+the Connection ID is deterministic from the keypair, the registrant can register on both ledgers independently, in any
+order, without a pairing ceremony. An attacker who observes a registration on one ledger cannot front-run registration
+on the other because they do not hold the private key. ECDSA_secp256k1 is chosen for universal platform support:
+Ethereum has the `ecrecover` precompile, Solana has the secp256k1 program, and Hiero supports it natively.
+
 **Registration flow.** The caller submits a `registerConnection` call specifying:
 
-1. The address of a **verifier contract** already deployed on the local ledger.
-2. A **ZK proof** attesting to the source ledger's current configuration. This proof is verified by a
+1. The **Connection ID** and an **ECDSA_secp256k1 signature** over the registration data, proving the caller controls
+   the identity keypair.
+2. The address of a **verifier contract** already deployed on the local ledger.
+3. A **ZK proof** attesting to the source ledger's current configuration. This proof is verified by a
    **built-in ZK verifier** hardcoded into the CLPR Service (not the verifier contract itself — the bootstrap cannot
    rely on a verifier whose legitimacy has not yet been established).
-3. At least one **seed endpoint** for the peer.
+4. At least one **seed endpoint** for the peer.
 
-The CLPR Service verifies the ZK proof using its built-in verifier, extracting the source ledger's configuration. It
-then checks that the locally deployed verifier contract's **implementation fingerprint** (code hash) matches one of the
-entries in the source ledger's `ApprovedVerifiers`. If the fingerprint matches, the Connection is created: the peer's
+The CLPR Service verifies the ECDSA signature (confirming the caller controls the Connection ID), then verifies the ZK
+proof using its built-in verifier, extracting the source ledger's configuration. It checks that the locally deployed
+verifier contract's **implementation fingerprint** (code hash) matches one of the entries in the source ledger's
+`ApprovedVerifiers`. If the fingerprint matches, the Connection is created: the Connection ID is recorded, the peer's
 configuration is stored, the verifier contract address and fingerprint are recorded, and the seed endpoints are saved.
 
 **Initial acceptance criteria.** The ZK proof submitted during registration carries the peer's full
 configuration, including all acceptance-criteria parameters. These values take effect immediately on the new Connection
 and govern message enqueuing from the first message onward. Subsequent changes are propagated via the messaging layer's
 Control Message mechanism (§3.2.2), which ensures total ordering with data messages.
+
+**Multiple Connections to the same peer.** Because Connections are keyed by Connection ID (not by the peer's identity),
+multiple Connections may exist between the same pair of ledgers. This is useful when a peer ledger supports multiple
+commitment levels in its state proofs — for example, Ethereum offers `latest`, `safe`, and `finalized` block
+confirmations. Each Connection uses a different verifier tuned to a specific commitment level, giving applications a
+choice between lower latency and stronger finality guarantees. Each Connection has its own independent queue, endpoint
+roster, and Connector set. See §3.4 for application-layer patterns that leverage this.
 
 **Severing connections.** The local CLPR Service admin can **sever** (permanently close) any Connection at any time.
 This is an emergency power — it immediately stops all message processing on the Connection and rejects new bundles.
@@ -1144,6 +1166,14 @@ asset bridging) are designed.
 
 CLPR supports multiple interaction patterns at the application layer, built on top of the general messaging primitive.
 
+**Choosing a Connection.** When multiple Connections exist between the same pair of ledgers — for example, one per
+Ethereum commitment level (`latest`, `safe`, `finalized`) — applications choose which Connection to use based on their
+latency vs. finality requirements. A price feed oracle might use a `latest`-level Connection for low-latency updates,
+accepting the risk of an Ethereum reorg. A token bridge transferring high-value assets should use a `finalized`-level
+Connection, where the verifier only accepts proofs from finalized blocks and reorg risk is eliminated. The Connection
+choice is made at send time and is the application's responsibility — CLPR does not impose a default or recommend a
+commitment level.
+
 ### 3.4.1 Remote Smart Contract Call
 
 A contract on Ledger A calls a proxy contract, which creates a state change. An endpoint picks up the change, submits it
@@ -1192,20 +1222,13 @@ rather than smart contract proxies.
 5. How should protocol overhead costs (configuration updates, queue metadata sync, bundle transmission) be funded — can
    they be made "free" from the user's perspective?
 6. Should CLPR message enqueueing use child transaction dispatch or direct Java API invocation?
-7. **Multiple Connections per peer with different commitment levels.** Since Connections are keyed by
-   `(ChainID, ServiceAddress)` and verifier selection is per-Connection, a ledger could maintain multiple Connections
-   to the same peer — each using a different verifier with a different commitment level (e.g., `latest`, `safe`,
-   `finalized`). Applications could then choose which Connection to use based on their latency vs. finality tradeoff.
-   A DEX might use `latest` for price feeds, while a token bridge uses `finalized` for asset transfers. This is already
-   architecturally supported but the implications for endpoint resource allocation, Connector management, and message
-   routing across parallel Connections need further design.
-8. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
+7. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
    and it can never produce correctly ordered responses, the Connection is stuck (§3.2.7). Severing the Connection
    leaves in-flight messages in an ambiguous state — the source cannot determine which messages were processed on the
    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
    properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
    may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
-9. **Endpoint roster recovery verification.** The recovery mechanism in §3.1.2 requires a state proof to authenticate
+8. **Endpoint roster recovery verification.** The recovery mechanism in §3.1.2 requires a state proof to authenticate
    a fresh endpoint roster, but neither `verifyConfig` (which returns configuration, not endpoints) nor `verifyBundle`
    (which returns queue metadata and messages) is designed for this. A third verifier method or an extension to an
    existing one may be needed.
