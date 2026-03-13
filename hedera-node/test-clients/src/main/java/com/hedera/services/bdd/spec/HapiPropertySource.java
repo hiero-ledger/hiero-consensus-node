@@ -471,29 +471,21 @@ public interface HapiPropertySource {
         requireNonNull(v);
         final String[] parts = v.split(":");
         final String addr = parts[0];
-        final int port = Integer.parseInt(parts[1]);
+        final int port = validatePort(Integer.parseInt(parts[1]), v);
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, addr);
         builder.setPort(port);
-        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi = null;
-        boolean requiresTls = false;
-        for (int i = 2; i < parts.length; i++) {
-            final String part = parts[i];
-            if (part.equalsIgnoreCase("tls")) {
-                requiresTls = true;
-            } else {
-                try {
-                    blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(part.toUpperCase());
-                } catch (IllegalArgumentException ignore) {
-                    // not a known api name; skip
-                }
-            }
-        }
-        if (blockNodeApi == null) {
+        final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi;
+        try {
+            blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(
+                    parts[2].toUpperCase());
+        } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Missing required blockNodeApi in block node endpoint '" + v
                     + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
                     + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
         }
+        final boolean requiresTls =
+                parts.length > 3 && parts[parts.length - 1].equalsIgnoreCase("tls");
         builder.setRequiresTls(requiresTls);
         builder.setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
                 .setEndpointApi(blockNodeApi)
@@ -547,7 +539,7 @@ public interface HapiPropertySource {
         final String[] parts = v.split(":");
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, parts[0]);
-        builder.setPort(Integer.parseInt(parts[1]));
+        builder.setPort(validatePort(Integer.parseInt(parts[1]), v));
         boolean requiresTls = false;
         int descEnd = parts.length;
         if (descEnd > 2 && parts[descEnd - 1].equalsIgnoreCase("tls")) {
@@ -573,7 +565,7 @@ public interface HapiPropertySource {
         final String[] parts = v.split(":");
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, parts[0]);
-        builder.setPort(Integer.parseInt(parts[1]));
+        builder.setPort(validatePort(Integer.parseInt(parts[1]), v));
         boolean requiresTls = false;
         for (int i = 2; i < parts.length; i++) {
             if (parts[i].equalsIgnoreCase("tls")) {
@@ -591,6 +583,14 @@ public interface HapiPropertySource {
         } catch (Exception ignore) {
             builder.setDomainName(addr);
         }
+    }
+
+    private static int validatePort(int port, @NonNull String input) {
+        if (port < 0 || port > 65535) {
+            throw new IllegalArgumentException(
+                    "Port " + port + " out of valid range (0-65535) in endpoint '" + input + "'");
+        }
+        return port;
     }
 
     static ContractID asContract(String v) {

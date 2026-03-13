@@ -7,7 +7,6 @@ import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLite
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.DeleteRegisteredNodeSuite;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -37,7 +36,7 @@ public class DeleteRegisteredNodeCommand implements Callable<Integer> {
         final var yahcli = registeredNodesCommand.getYahcli();
         final var config = ConfigUtils.configFrom(yahcli);
         final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
-        final var targetId = validatedNodeId(normalizedNodeId);
+        final var targetId = registeredNodesCommand.validatedNodeId(normalizedNodeId);
 
         if (adminKeyPath == null) {
             config.output().warn("No --adminKey option, payer signature alone must meet signing requirements");
@@ -58,17 +57,4 @@ public class DeleteRegisteredNodeCommand implements Callable<Integer> {
         return 0;
     }
 
-    private long validatedNodeId(@NonNull final String nodeId) {
-        try {
-            final long id = Long.parseLong(nodeId);
-            if (id < 0) {
-                throw new IllegalArgumentException("Negative node id");
-            }
-            return id;
-        } catch (Exception e) {
-            throw new CommandLine.ParameterException(
-                    registeredNodesCommand.getYahcli().getSpec().commandLine(),
-                    "Invalid registered node id '" + nodeId + "'");
-        }
-    }
 }
