@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ACCOUNTS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CANCEL_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CLAIM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ATOMIC_BATCH_BASE_FEE_USD;
@@ -67,6 +68,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_AIRDROPS_INCLUDED_COUNT;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_AIRDROP_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
@@ -2093,7 +2096,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for AtomicBatch with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedAtomicBatchFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedAtomicBatchFullFeeUsd(
@@ -2234,7 +2237,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for FileDelete with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedFileDeleteFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedFileDeleteFullFeeUsd(
@@ -2270,7 +2273,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for FileAppend with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedFileAppendFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedFileAppendFullFeeUsd(
@@ -2301,12 +2304,28 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for Prng with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedPrngFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedPrngFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- TokenAirdrop simple fees utils ---------//
+
+    /**
+     * TokenAirdrop fee add-on (on top of CryptoTransfer fees):
+     * airdrop fee = TOKEN_AIRDROP_BASE_FEE_USD
+     *                   + AIRDROPS_FEE_USD * max(0, airdropsCount - TOKEN_AIRDROPS_INCLUDED_COUNT)
+     */
+    private static double expectedTokenAirdropSurchargeUsd(long airdropsCount) {
+        final long airdropExtras = Math.max(0L, airdropsCount - TOKEN_AIRDROPS_INCLUDED_COUNT);
+        return TOKEN_AIRDROP_BASE_FEE_USD + airdropExtras * AIRDROPS_FEE_USD;
+    }
+
+    public static double expectedTokenAirdropSurchargeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenAirdropSurchargeUsd(extras.getOrDefault(Extra.AIRDROPS, 0L));
     }
 
     // -------- TokenClaimAirdrop simple fees utils ---------//
@@ -2331,7 +2350,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for TokenClaimAirdrop with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedTokenClaimAirdropFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenClaimAirdropFullFeeUsd(
@@ -2360,7 +2379,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for TokenCancelAirdrop with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedTokenCancelAirdropFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenCancelAirdropFullFeeUsd(
@@ -2389,7 +2408,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for TokenReject with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedTokenRejectFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenRejectFullFeeUsd(
@@ -2419,7 +2438,7 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for TokenFeeScheduleUpdate with no bytes.
+     * Overload when extras are provided in a map.
      */
     public static double expectedTokenFeeScheduleUpdateFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenFeeScheduleUpdateFullFeeUsd(
