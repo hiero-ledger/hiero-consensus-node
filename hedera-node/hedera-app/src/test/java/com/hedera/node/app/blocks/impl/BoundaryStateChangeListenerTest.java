@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.token.NodePayment;
@@ -221,6 +222,17 @@ class BoundaryStateChangeListenerTest {
 
         assertEquals(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, result.kind());
         assertEquals(nodePayments, result.value());
+    }
+
+    @Test
+    void testSingletonUpdateChangeValueForMigrationRootHashVotingState() {
+        final var votingState =
+                MigrationRootHashVotingState.newBuilder().votingComplete(true).build();
+
+        final var result = BoundaryStateChangeListener.singletonUpdateChangeValueFor(votingState);
+
+        assertEquals(SingletonUpdateChange.NewValueOneOfType.MIGRATION_ROOT_HASH_VOTING_STATE_VALUE, result.kind());
+        assertEquals(votingState, result.value());
     }
 
     @Test

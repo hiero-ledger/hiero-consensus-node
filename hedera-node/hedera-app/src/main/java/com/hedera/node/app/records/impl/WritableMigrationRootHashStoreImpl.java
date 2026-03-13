@@ -13,7 +13,10 @@ import com.hedera.node.app.records.WritableMigrationRootHashStore;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.*;
+import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableQueueState;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -116,7 +119,6 @@ public class WritableMigrationRootHashStoreImpl implements WritableMigrationRoot
         builder.wrappedIntermediateBlockRootsLeafCount(wrappedIntermediateBlockRootsLeafCount);
 
         blockInfoState.put(builder.build());
-        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
 
         votingState.put(
                 MigrationRootHashVotingState.newBuilder().votingComplete(true).build());
