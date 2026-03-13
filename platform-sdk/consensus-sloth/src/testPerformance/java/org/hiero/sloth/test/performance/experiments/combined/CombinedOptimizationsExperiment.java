@@ -37,7 +37,7 @@ import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
-    public static final BenchmarkParameters DEFAULTS = BenchmarkParameters.defaults();
+    public static final BenchmarkParameters DEFAULTS = new BenchmarkParameters(4, 1000, 4000, 20, 3L, 5L, 40L);
 
     /**
      * Apply all identified optimizations together.
@@ -50,7 +50,7 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
-                    .withConfigValue("event.creation.period", "400us")
+                    .withConfigValue("event.creation.period", "300us")
                     .withConfigValue("sync.pingPeriod", "100ms")
                     .withConfigValue("broadcast.enableBroadcast", true);
 
