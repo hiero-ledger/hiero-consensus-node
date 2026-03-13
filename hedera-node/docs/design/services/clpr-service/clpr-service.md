@@ -351,10 +351,11 @@ message queue (see §3.2.2 for the Control Message types and ordering guarantees
 is responsible for applying these updates to its local copy of the peer roster.
 
 **Recovery.** If the automatic sync channel breaks down — for example, because a ledger has completely rotated its
-endpoint set and none of the new endpoints are known to the peer — any user may submit a recovery call directly to the
-CLPR Service API. This call takes a fresh endpoint list (or a single new endpoint) and updates the peer roster for the
-specified connection without requiring a live sync. This operation requires a state proof. Any user may submit a
-recovery call — it is not a privileged operation.
+endpoint set and none of the new endpoints are known to the peer — any user may submit a `recoverEndpointRoster` call
+directly to the CLPR Service API. This call takes opaque proof bytes, which the Connection's verifier contract
+validates via `verifyEndpoints` (§3.1.5), returning the peer's current endpoint list. The CLPR Service replaces the
+stale peer roster with the verified endpoints. No live sync is required, and any user may submit the call — it is not
+a privileged operation.
 
 **How local endpoints are established** varies by ledger type:
 
@@ -573,13 +574,16 @@ JSON-RPC, but communicates with peer endpoints over gRPC.
 
 CLPR is **proof-system-agnostic** — all cryptographic verification is delegated to verifier contracts, and the protocol
 never interprets proof bytes directly. A verifier contract is a smart contract (on EVM chains) or a system contract /
-native callback (on Hiero) that implements two methods:
+native callback (on Hiero) that implements three methods:
 
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
   verification is appropriate for the source ledger, and returns a verified configuration. Used during connection
-  registration (§3.1.3).
+  registration (§3.1.3) and `updateConnectionVerifier` with ZK proof path (§3.1.3).
 - **`verifyBundle(bytes) → (ClprQueueMetadata, ClprMessagePayload[])`** — Accepts opaque proof bytes, performs
   verification, and returns verified queue metadata and messages. Used during bundle processing (§3.2.4).
+- **`verifyEndpoints(bytes) → ClprEndpoint[]`** — Accepts opaque proof bytes, performs verification, and returns a
+  verified list of endpoints for a specific Connection on the source ledger. Used during endpoint roster recovery
+  (§3.1.2) when the sync channel is broken and the peer's endpoint set must be re-bootstrapped from a state proof.
 
 What happens inside the verifier contract is entirely its own concern. A verifier for Hiero might check TSS signatures
 and Merkle paths. A verifier for Ethereum might validate BLS aggregate signatures from the sync committee, or verify a
@@ -1221,22 +1225,21 @@ rather than smart contract proxies.
 This section enumerates the failure modes that can disrupt a Connection and the recovery path for each. These scenarios
 should be used as the basis for integration and fault-tolerance testing.
 
-| # | Scenario | Sync channel | Recovery path | Status |
-|---|----------|-------------|---------------|--------|
-| R1 | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints. | Broken | Any user submits endpoint recovery call (§3.1.2) with a state proof and fresh endpoint list. Once at least one valid endpoint is known, syncs resume. | **Gap:** no verifier method currently handles endpoint-only state proofs (open question #8). |
-| R2 | **Planned verifier migration (sync channel working).** Source ledger upgrades proof format while syncs are active. | Working | 4-step migration sequence (§3.1.3): deploy new verifiers, update `ApprovedVerifiers`, continue old proofs until ConfigUpdate acked, switch per-Connection. | **Works.** |
-| R3 | **Endpoints rotated, verifier changed, proof format unchanged.** Sync channel broken, but old verifier can still read new proofs. | Broken | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume. `updateConnectionVerifier` local check works because proof format is compatible. | **Works** (modulo R1 gap). |
-| R4 | **Endpoints rotated AND proof format changed.** Sync channel broken, old verifier cannot read new proofs, ConfigUpdate cannot be delivered. | Broken | Endpoint recovery first (R1), then `updateConnectionVerifier` with **ZK proof** path (§3.1.3) to re-bootstrap the peer's config and switch to the new verifier. Queue state is preserved. | **Works** (modulo R1 gap). |
-| R5 | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data. | Suspect | Admin severs or pauses the Connection. If the verifier is simply buggy (not malicious), a new verifier can be deployed and `updateConnectionVerifier` called. If compromised, sever and re-register from scratch — queue state is lost. | **Works** (data loss on sever). |
-| R6 | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses. | Working | Connection halts (§3.2.7). No automatic recovery — severing loses in-flight messages. Applications need out-of-band reconciliation. | **No recovery path defined** (open question #7). |
-| R7 | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints. | Temporarily broken | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed. | **Works.** |
-| R8 | **Peer ledger down entirely.** The remote ledger is offline. | Broken | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off. | **Works.** |
-| R9 | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints. | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user. | **Works** (modulo R1 gap). |
-| R10 | **Built-in ZK verifier becomes obsolete.** The bootstrap verifier hardcoded in the CLPR Service needs updating. | N/A | Requires a software upgrade (Hiero) or contract upgrade (Ethereum) to the CLPR Service itself. Existing Connections are unaffected — they use their own verifier. Only new Connection registration is impacted. | **Works** (requires platform upgrade). |
+| #   | Scenario                                                                                                                                    | Sync channel         | Recovery path                                                                                                                                                                                                                           | Status                                           |
+|-----|---------------------------------------------------------------------------------------------------------------------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
+| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Any user submits `recoverEndpointRoster` (§3.1.2) with proof bytes. The Connection's verifier validates via `verifyEndpoints` (§3.1.5) and returns the peer's current endpoints. Syncs resume.                                          | **Works.**                                       |
+| R2  | **Planned verifier migration (sync channel working).** Source ledger upgrades proof format while syncs are active.                          | Working              | 4-step migration sequence (§3.1.3): deploy new verifiers, update `ApprovedVerifiers`, continue old proofs until ConfigUpdate acked, switch per-Connection.                                                                              | **Works.**                                       |
+| R3  | **Endpoints rotated, verifier changed, proof format unchanged.** Sync channel broken, but old verifier can still read new proofs.           | Broken               | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume. `updateConnectionVerifier` local check works because proof format is compatible.                                                                      | **Works.**                                       |
+| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, old verifier cannot read new proofs, ConfigUpdate cannot be delivered. | Broken               | `updateConnectionVerifier` with **ZK proof** path (§3.1.3) to re-bootstrap the peer's config and switch to the new verifier. Then endpoint recovery (R1) using the new verifier's `verifyEndpoints`. Queue state is preserved.          | **Works.**                                       |
+| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | Admin severs or pauses the Connection. If the verifier is simply buggy (not malicious), a new verifier can be deployed and `updateConnectionVerifier` called. If compromised, sever and re-register from scratch — queue state is lost. | **Works** (data loss on sever).                  |
+| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection halts (§3.2.7). No automatic recovery — severing loses in-flight messages. Applications need out-of-band reconciliation.                                                                                                     | **No recovery path defined** (open question #7). |
+| R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                          | **Works.**                                       |
+| R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                              | **Works.**                                       |
+| R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user.                                                                                                                                                             | **Works.**                                       |
+| R10 | **Built-in ZK verifier becomes obsolete.** The bootstrap verifier hardcoded in the CLPR Service needs updating.                             | N/A                  | Requires a software upgrade (Hiero) or contract upgrade (Ethereum) to the CLPR Service itself. Existing Connections are unaffected — they use their own verifier. Only new Connection registration is impacted.                         | **Works** (requires platform upgrade).           |
 
-> ‼️ **R1 is the critical gap.** Endpoint recovery requires verifying a state proof of the peer's endpoint roster, but
-the verifier contract interface (§3.1.5) has no method designed for this. Resolving open question #8 (endpoint roster
-recovery verification) is required before R1, R3, R4, and R9 are fully functional.
+> 💡 All recovery scenarios except R6 (permanent queue corruption) have defined recovery paths. R6 remains an open
+design question (§5.2 #7).
 
 ---
 
@@ -1270,7 +1273,3 @@ recovery verification) is required before R1, R3, R4, and R9 are fully functiona
    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
    properties. What recovery mechanism, if any, can resolve this without violating ordering guarantees? Applications
    may need their own out-of-band reconciliation, but the protocol-level recovery path is undefined.
-8. **Endpoint roster recovery verification.** The recovery mechanism in §3.1.2 requires a state proof to authenticate
-   a fresh endpoint roster, but neither `verifyConfig` (which returns configuration, not endpoints) nor `verifyBundle`
-   (which returns queue metadata and messages) is designed for this. A third verifier method or an extension to an
-   existing one may be needed.
