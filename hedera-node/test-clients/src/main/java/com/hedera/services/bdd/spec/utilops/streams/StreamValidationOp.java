@@ -192,7 +192,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         () -> Assertions.fail("No block streams found"));
         validateProofs(spec);
 
-        // Cross-validation of wrapped record hashes with the on-disk record stream files
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
         if (!cutoverEnabled) {
             final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
                     .validationErrorsIn(spec)
@@ -320,9 +320,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     /**
-     * Detects whether cutover was executed by checking for the preserved preview blocks
-     * directory on node 0's working directory. This directory is created by the test's
-     * pre-restart callback before cutover deletes preview blocks.
+     * Detects whether cutover was executed by checking for the preserved preview blocks directory
+     * inside node 0's working directory. This directory is created by a pre-restart callback before
+     * the cutover execution deletes preview blocks.
      */
     private static boolean isCutoverEnabled(@NonNull final HapiSpec spec) {
         if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {

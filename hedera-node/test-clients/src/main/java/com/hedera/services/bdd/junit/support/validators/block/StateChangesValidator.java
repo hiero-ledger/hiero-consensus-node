@@ -449,7 +449,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     previewBlocks.size());
 
             // At the cutover boundary, reinitialize hash state from the first post-cutover
-            // block's BlockInfo (which contains the wrapped record block hashes)
+            // block's BlockInfo
             final var firstPostCutoverBlock = blocks.getFirst();
             final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                     List.of(firstPostCutoverBlock),
@@ -462,9 +462,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                         """
                                 Reinitializing hash state at cutover boundary from BlockInfo:
                                   previousWrappedRecordBlockRootHash={}
-
                                   wrappedIntermediateCount={}
-
                                   wrappedIntermediateLeafCount={}""",
                         blockInfo.previousWrappedRecordBlockRootHash().toHex(),
                         blockInfo.wrappedIntermediatePreviousBlockRootHashes().size(),
@@ -492,7 +490,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         final int n = blocks.size();
-        // Find the list index (not block number) of the last block with a proof
         int lastVerifiableIndex = -1;
         for (int j = blocks.size() - 1; j >= 0; j--) {
             if (blocks.get(j).items().getLast().hasBlockProof()) {

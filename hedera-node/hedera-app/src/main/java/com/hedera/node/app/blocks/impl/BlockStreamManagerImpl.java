@@ -716,13 +716,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-            final var latestOutputHashes = runningHashManager.latestHashes();
-            final var latestBlockHashes = blockHashManager.blockHashes();
             final var newBlockStreamInfo = new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
-                    latestOutputHashes,
-                    latestBlockHashes,
+                    runningHashManager.latestHashes(),
+                    blockHashManager.blockHashes(),
                     inputsHash,
                     blockStartStateHash,
                     interimStateChangeLeaves,

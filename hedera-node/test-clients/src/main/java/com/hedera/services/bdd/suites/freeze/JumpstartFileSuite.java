@@ -63,7 +63,7 @@ import org.junit.jupiter.api.parallel.Isolated;
 @HapiTestLifecycle
 @Isolated
 @Order(Integer.MAX_VALUE - 2)
-class CutoverSuite implements LifecycleTest {
+class JumpstartFileSuite implements LifecycleTest {
 
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
@@ -158,10 +158,8 @@ class CutoverSuite implements LifecycleTest {
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
                         freezeBlockNum.get())),
-                // Phase 5: Second burst with live wrapped record hashes enabled
-                logIt("Phase 5: Second burst with live wrapped record hashes"),
+                logIt("Phase 5: Ops burst with live wrapped record hashes"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                // Phase 6: Second freeze to persist live hash state, then verify from record files
                 logIt("Phase 6: Second freeze and live hash verification"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
@@ -178,9 +176,9 @@ class CutoverSuite implements LifecycleTest {
                                 .exposingMatchGroupTo(2, liveWrappedHash)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
-                logIt("Phase 7: third burst prior to cutover"),
+                logIt("Phase 7: Ops burst prior to cutover"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                logIt("Phase 8: Enable cutover"),
+                logIt("Phase 8: Execute cutover logic"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
                         Map.of(
@@ -254,7 +252,7 @@ class CutoverSuite implements LifecycleTest {
                             bi.wrappedIntermediatePreviousBlockRootHashes().size());
                     assertLogContains(log, "wrappedIntermediateLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
 
-                    // Verify BSI fields derived from BlockInfo
+                    // Verify block stream info fields derived from BlockInfo
                     assertTrue(log.contains("Cutover initial BlockStreamInfo:"), "Log should contain cutover BSI dump");
                     assertLogContains(log, "blockNumber", bi.lastBlockNumber());
                     // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
@@ -333,11 +331,11 @@ class CutoverSuite implements LifecycleTest {
                     // TRANSACTION_RESULT items in this block. So we seed from the captured
                     // RunningHashes and evolve through each TRANSACTION_RESULT to verify
                     // the chain is correct end-to-end.
-                    final var rh = capturedRunningHashes.get();
-                    byte[] ohNMinus3 = rh.nMinus3RunningHash().toByteArray();
-                    byte[] ohNMinus2 = rh.nMinus2RunningHash().toByteArray();
-                    byte[] ohNMinus1 = rh.nMinus1RunningHash().toByteArray();
-                    byte[] ohCurrent = rh.runningHash().toByteArray();
+                    final var runningHashes = capturedRunningHashes.get();
+                    byte[] nMinus3 = runningHashes.nMinus3RunningHash().toByteArray();
+                    byte[] nMinus2 = runningHashes.nMinus2RunningHash().toByteArray();
+                    byte[] nMinus1 = runningHashes.nMinus1RunningHash().toByteArray();
+                    byte[] current = runningHashes.runningHash().toByteArray();
                     int resultCount = 0;
                     for (final var item : firstPostCutover.items()) {
                         if (item.hasTransactionResult()) {
@@ -345,30 +343,30 @@ class CutoverSuite implements LifecycleTest {
                                     BlockItem.PROTOBUF.toBytes(item).toByteArray();
                             final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
                             // Rotate: shift all four slots left
-                            ohNMinus3 = ohNMinus2;
-                            ohNMinus2 = ohNMinus1;
-                            ohNMinus1 = ohCurrent;
+                            nMinus3 = nMinus2;
+                            nMinus2 = nMinus1;
+                            nMinus1 = current;
                             // Compute: SHA384(previousHash || hashedLeaf)
                             final var digest = CommonUtils.sha384DigestOrThrow();
-                            digest.update(ohCurrent);
+                            digest.update(current);
                             digest.update(hashedLeaf);
-                            ohCurrent = digest.digest();
+                            current = digest.digest();
                             resultCount++;
                         }
                     }
-                    opLog.info("Evolved running hashes through {} TRANSACTION_RESULT items", resultCount);
+                    opLog.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
                     assertTrue(
-                            resultCount > 0, "First post-cutover block should contain at least one TRANSACTION_RESULT");
+                            resultCount > 0, "First post-cutover block should contain at least one transaction result");
                     // Build expected trailingOutputHashes from the evolved state
-                    Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(ohNMinus3), Bytes.EMPTY, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(ohNMinus2), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(ohNMinus1), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(ohCurrent), expectedOutputHashes, 4);
+                    Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4);
                     org.junit.jupiter.api.Assertions.assertEquals(
                             expectedOutputHashes,
                             blockStreamInfo.trailingOutputHashes(),
                             "trailingOutputHashes should match RunningHashes evolved"
-                                    + " through first post-cutover block's TRANSACTION_RESULTs");
+                                    + " through first post-cutover block's transaction results");
 
                     // === Verify first block's footer previousBlockRootHash is the wrapped record block hash ===
                     final var firstFooter = firstPostCutover.items().stream()
@@ -380,7 +378,7 @@ class CutoverSuite implements LifecycleTest {
                             capturedBlockInfo.get().previousWrappedRecordBlockRootHash(),
                             firstFooter.previousBlockRootHash(),
                             "Footer previousBlockRootHash should match"
-                                    + " BlockInfo.previousWrappedRecordBlockRootHash");
+                                    + " block info's previousWrappedRecordBlockRootHash");
 
                     // === Verify hash chain by computing block root hashes from items ===
                     // Initialize the previous block hashes tree with wrapped record block hashes,
