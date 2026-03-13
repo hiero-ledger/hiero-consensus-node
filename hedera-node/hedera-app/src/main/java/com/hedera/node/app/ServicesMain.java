@@ -214,6 +214,15 @@ public class ServicesMain {
                 ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
                 // Otherwise derive it from the node's id in state
                 : canonicalEventStreamLoc(selfId.id(), state);
+
+        // Run the wrapped record block hash migration before platform.build() so the result is available when
+        // BlockRecordManagerImpl is constructed during DI initialization.
+        // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
+        hedera.wrappedRecordBlockHashMigration()
+                .execute(
+                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -231,12 +240,6 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-
-        // The migration itself is gated by appropriate feature flags
-        hedera.wrappedRecordBlockHashMigration()
-                .execute(
-                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
-                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
 
         platform.start();
         hedera.run();
