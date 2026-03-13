@@ -848,8 +848,8 @@ public class HandleWorkflow {
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
-                    currentBlockNumber(),
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferringBlockRecordSource(),
+                    currentBlockNumber());
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
@@ -894,8 +894,8 @@ public class HandleWorkflow {
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
                     DueDiligenceFailure.NO,
-                    currentBlockNumber(),
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferringBlockRecordSource(),
+                    currentBlockNumber());
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);

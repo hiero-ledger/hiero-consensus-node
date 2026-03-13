@@ -47,13 +47,14 @@ public interface HederaRecordCache extends RecordCache {
      * @param userTxnId the id of the user transaction
      * @param dueDiligenceFailure whether the node failed due diligence
      * @param recordSource the source of records for the transactions
+     * @param blockNumber the block number to associate with the record source
      */
     void addRecordSource(
             long nodeId,
             @NonNull TransactionID userTxnId,
             @NonNull DueDiligenceFailure dueDiligenceFailure,
-            long blockNumber,
-            @NonNull RecordSource recordSource);
+            @NonNull RecordSource recordSource,
+            long blockNumber);
 
     /**
      * Checks if the given transaction ID has been seen by this node. If it has not, the result is

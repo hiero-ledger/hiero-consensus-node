@@ -1049,8 +1049,8 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
-                    currentBlockNumber(),
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferringBlockRecordSource(),
+                    currentBlockNumber());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);

@@ -100,8 +100,8 @@ public record HandleOutput(
                 parentTxn.creatorInfo().nodeId(),
                 requireNonNull(parentTxn.txnInfo().transactionID()),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                blockNumber,
-                requireNonNull(cacheableRecordSource));
+                requireNonNull(cacheableRecordSource),
+                blockNumber);
         return new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
     }
 

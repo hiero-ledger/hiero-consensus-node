@@ -178,14 +178,18 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         final var queriedTxnId = transactionIDNotInCache.copyBuilder().nonce(0).build();
         final var recordWithBlockNumber = TransactionRecord.newBuilder()
                 .transactionID(queriedTxnId)
-                .receipt(primaryRecord.receiptOrThrow().copyBuilder().blockNumber(blockNumber).build())
+                .receipt(primaryRecord
+                        .receiptOrThrow()
+                        .copyBuilder()
+                        .blockNumber(blockNumber)
+                        .build())
                 .build();
         cache.addRecordSource(
                 0L,
                 queriedTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                blockNumber,
-                new PartialRecordSource(List.of(recordWithBlockNumber)));
+                new PartialRecordSource(List.of(recordWithBlockNumber)),
+                blockNumber);
 
         final var query = createGetTransactionRecordQuery(queriedTxnId, false, false);
         when(context.query()).thenReturn(query);
