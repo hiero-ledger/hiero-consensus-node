@@ -32,8 +32,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_INFO_QUERY_BASE_FEE_USD;
@@ -848,7 +848,7 @@ public class FileServiceSimpleFeesTest {
                                 .hasKnownStatus(FILE_DELETED),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileDeleteDeletedFileTxn",
-                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_DELETE_BASE_FEE,
+                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_DELETE_BASE_FEE_USD,
                                 ALLOWED_PERCENT_DIFF));
             }
 
@@ -873,7 +873,7 @@ public class FileServiceSimpleFeesTest {
                                 .hasKnownStatus(FILE_DELETED),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendDeletedFileTxn",
-                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE,
+                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE_USD,
                                 ALLOWED_PERCENT_DIFF));
             }
 
@@ -929,7 +929,7 @@ public class FileServiceSimpleFeesTest {
                                 .hasKnownStatus(MAX_FILE_SIZE_EXCEEDED),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendMaxSizeExceededTxn",
-                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE,
+                                txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE_USD,
                                 ALLOWED_PERCENT_DIFF));
             }
         }
