@@ -56,12 +56,15 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -741,6 +744,108 @@ class SystemTransactionsTest {
         assertEquals(migrationLeafCount, updatedBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         // Verify commit() was called after put()
         verify(blockInfoSingleton).commit();
+    }
+
+    @Test
+    void postUpgradeSetupWritesMarkerFileWhenMigrationSucceeds(@TempDir Path tempDir) throws Exception {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("nodes.enableDAB", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+
+        given(wrappedRecordBlockHashMigration.result())
+                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
+        final var markerPath = tempDir.resolve(WrappedRecordBlockHashMigration.JUMPSTART_USED_MARKER);
+        given(wrappedRecordBlockHashMigration.markerFilePath()).willReturn(markerPath);
+        given(wrappedRecordBlockHashMigration.markerFileContent()).willReturn("# test marker\n");
+
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
+        final WritableStates writableStates = mock(WritableStates.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration);
+
+        subject.doPostUpgradeSetup(NOW, state);
+
+        assertTrue(Files.exists(markerPath));
+        assertEquals("# test marker\n", Files.readString(markerPath));
+    }
+
+    @Test
+    void postUpgradeSetupSkipsMarkerFileWhenMigrationResultIsNull() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("nodes.enableDAB", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+
+        given(wrappedRecordBlockHashMigration.result()).willReturn(null);
+
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration);
+
+        subject.doPostUpgradeSetup(NOW, state);
+
+        verify(wrappedRecordBlockHashMigration, never()).markerFilePath();
     }
 
     private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {

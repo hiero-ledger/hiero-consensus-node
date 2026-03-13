@@ -180,8 +180,17 @@ public class WrappedRecordBlockHashMigration {
      */
     private IncrementalStreamingHasher createHasherFromConfig(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
-        final List<byte[]> hashes = new ArrayList<>(jumpstartConfig.streamingHasherHashCount());
-        for (final var hash : jumpstartConfig.streamingHasherSubtreeHashes()) {
+        final var subtreeHashes = jumpstartConfig.streamingHasherSubtreeHashes();
+        if (jumpstartConfig.streamingHasherHashCount() != subtreeHashes.size()) {
+            log.error(
+                    "Jumpstart config streamingHasherHashCount ({}) does not match subtree hashes list size ({}). {}",
+                    jumpstartConfig.streamingHasherHashCount(),
+                    subtreeHashes.size(),
+                    RESUME_MESSAGE);
+            return null;
+        }
+        final List<byte[]> hashes = new ArrayList<>(subtreeHashes.size());
+        for (final var hash : subtreeHashes) {
             hashes.add(hash.toByteArray());
         }
         final var hasher = new IncrementalStreamingHasher(

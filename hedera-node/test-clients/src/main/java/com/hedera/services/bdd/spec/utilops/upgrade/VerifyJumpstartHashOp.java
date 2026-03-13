@@ -190,8 +190,9 @@ public class VerifyJumpstartHashOp extends UtilOp {
     }
 
     private static IncrementalStreamingHasher createHasherFromConfig(@NonNull final BlockStreamJumpstartConfig config) {
-        final List<byte[]> hashes = new ArrayList<>(config.streamingHasherHashCount());
-        for (final var hash : config.streamingHasherSubtreeHashes()) {
+        final var subtreeHashes = config.streamingHasherSubtreeHashes();
+        final List<byte[]> hashes = new ArrayList<>(subtreeHashes.size());
+        for (final var hash : subtreeHashes) {
             hashes.add(hash.toByteArray());
         }
         return new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, config.streamingHasherLeafCount());

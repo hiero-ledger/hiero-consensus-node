@@ -120,6 +120,16 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
+    void returnsEarlyWhenHashCountMismatchesSubtreeHashes() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        // hashCount=5 but only 1 subtree hash provided
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100, Bytes.wrap(new byte[HASH_SIZE]), 4, 5, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        subject.execute(StreamMode.RECORDS, config, badConfig);
+        assertNull(subject.result());
+    }
+
+    @Test
     void returnsEarlyWhenJumpstartHasherIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100))));
         subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 0, 0));
