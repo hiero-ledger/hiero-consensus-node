@@ -77,9 +77,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         this.fileBlockItemWriter.flushPendingBlock(pendingProof);
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.flushPendingBlock(pendingProof);
-        }
     }
 
     @Override
