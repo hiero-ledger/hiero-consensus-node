@@ -140,12 +140,12 @@ public class NodeCreateHandler implements TransactionHandler {
         // increment either the highest node id or the live node count.
         if (maybeSystemTxnDispatchEntityNum.isPresent()) {
             nextNodeId = maybeSystemTxnDispatchEntityNum.get();
+            // Verify the explicit ID doesn't collide with a registered node in the shared ID space
+            validateTrue(registeredNodeStore.get(nextNodeId) == null, INVALID_NODE_ID);
             node = nodeBuilder.nodeId(nextNodeId).build();
             if (maybeNodeIsInStateForSystemTxn) {
                 nodeStore.put(node);
             } else {
-                // Verify the explicit ID doesn't collide with a registered node in the shared ID space
-                validateTrue(registeredNodeStore.get(nextNodeId) == null, INVALID_NODE_ID);
                 // Increment the nodes count. Update the highest node ID if needed.
                 nodeStore.putWithExplicitId(node);
             }
