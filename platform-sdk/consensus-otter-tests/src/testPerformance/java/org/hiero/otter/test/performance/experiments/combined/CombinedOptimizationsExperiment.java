@@ -47,10 +47,10 @@ public class CombinedOptimizationsExperiment {
         log.info("=== Combined Experiment: All Optimizations ===");
         runBenchmark(env, "combinedAllOptimizations", DEFAULTS, network -> {
             // Apply all config optimizations
-            network.withConfigValue("event.creation.maxOtherParents", 1)
+            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
-                    .withConfigValue("event.creation.period", "200us")
+                    .withConfigValue("event.creation.period", "100us")
                     .withConfigValue("broadcast.enableBroadcast", true)
                     .withConfigValue("sync.pingPeriod", "100ms");
 
