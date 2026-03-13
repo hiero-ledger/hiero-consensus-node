@@ -369,14 +369,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * May only be called on the root stack to determine if this stack has capacity to create more system records to
+     * May only be called on the root stack to determine if this stack has capacity to create more system records
      * as preceding dispatches.
      *
      * @return whether there are more system records to be created
      * @throws NullPointerException if called on a non-root stack
      */
-    public boolean hasMoreSystemRecords() {
-        return requireNonNull(builderSink).precedingCapacity() > 0;
+    public boolean rootHasPrecedingCapacity() {
+        return requireNonNull(builderSink).precedingCapacity()
+                > requireNonNull(stack.peekFirst()).numPreceding();
     }
 
     /**
