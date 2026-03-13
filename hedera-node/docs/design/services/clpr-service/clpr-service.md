@@ -1116,22 +1116,32 @@ approved the message and implicitly promised that the destination side would pay
 did not pay, that is the source Connector's fault — either it was not monitoring its counterpart's balance, or it was
 being reckless.
 
-Penalties escalate. A single failure results in a fine drawn from the Connector's locked stake, with the proceeds going
-to the endpoint that was stuck with the unpaid execution cost. Repeated failures may result in the Connector being
-banned from the Connection entirely — removed from service and its remaining stake redistributed.
+Penalties are enforced on **both sides** of the Connection, and in both cases the endpoint that did the work receives
+the slash proceeds:
 
-This mechanism is what keeps the system honest without requiring nodes to have accounts on remote ledgers. Nodes never
-need to trust Connectors — they submit every message regardless, knowing that if the Connector does not pay, the
-Connector gets punished and the node gets compensated from the slash. The worst case for a node is a short-term float on
-execution costs while the failure response makes the round trip.
+- **Destination side.** When a message arrives and the destination Connector cannot pay, the CLPR Service slashes
+  the **destination Connector's** bond and pays the proceeds to the endpoint that submitted the bundle. This
+  compensates the endpoint immediately, on the same ledger, with no cross-chain payment needed.
+- **Source side.** When the failure response arrives back on the source ledger, the CLPR Service slashes the **source
+  Connector's** locked stake and pays the proceeds to the endpoint that submitted the bundle carrying the response.
+  This is punitive — the source Connector approved a message it couldn't back — and it also compensates the endpoint
+  for its submission work.
 
-> ‼️ **Stake-to-exposure invariant.** For this guarantee to hold, the Connector's locked stake on the source ledger must
-be sufficient to cover the worst-case endpoint losses: the maximum number of in-flight messages the Connector has
-authorized (bounded by the queue depth or per-Connector quota) multiplied by the maximum execution cost per message on
-the destination. If the stake is too small, a malicious actor can create a Connector with minimal stake, authorize a
-burst of messages, and drain endpoints of more execution cost than the slash can reimburse. The minimum Connector stake
-must be calibrated to this worst-case exposure. This is an unresolved economic design parameter that must be quantified
-before production deployment.
+Penalties escalate. A single failure results in a fine. Repeated failures may result in the Connector being banned from
+the Connection entirely — removed from service and its remaining stake forfeited.
+
+This mechanism keeps the system honest without requiring nodes to have accounts on remote ledgers. Nodes never need to
+trust Connectors — they submit every message regardless, knowing that if the Connector does not pay, the Connector gets
+slashed and the submitting endpoint gets compensated on its own ledger. This also incentivizes endpoint participation:
+every bundle submission is an opportunity to earn slash proceeds if a Connector misbehaves.
+
+> ‼️ **Stake-to-exposure invariant.** For this guarantee to hold, each side's Connector bond must be sufficient to cover
+the worst-case endpoint losses on that ledger. On the destination side, the bond must cover the maximum execution cost
+of in-flight messages that might arrive with an underfunded Connector. On the source side, the locked stake must cover
+the penalty exposure from failure responses. If either bond is too small, a malicious actor can create a Connector with
+minimal stake, authorize a burst of messages, and drain endpoints of more execution cost than the slash can reimburse.
+The minimum Connector bond on each side must be calibrated to this worst-case exposure. This is an unresolved economic
+design parameter that must be quantified before production deployment.
 
 **Receive-side economics.** Endpoint nodes are compensated only when they submit bundles on the destination
 ledger — there is no direct payment for the work of sending bundles (constructing state proofs, transmitting data,
