@@ -38,6 +38,11 @@ merge:
     - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
     - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
 
+    # MATS Codecov, Codacy, and Snyk
+    - "MQ MATS / Unit Test / Publish To Codecov"
+    - "MQ MATS / Unit Test / Publish to Codacy"
+    - "MQ MATS / Snyk Scan / Snyk Checks"
+
     # XTS Required Checks
     - "MQ XTS / XTS Timing Sensitive Tests / Timing Sensitive Tests"
     - "MQ XTS / XTS Hammer Tests / Hammer Tests"
