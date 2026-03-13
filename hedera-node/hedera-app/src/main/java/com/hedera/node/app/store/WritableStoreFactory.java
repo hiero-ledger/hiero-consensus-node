@@ -18,7 +18,7 @@ import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
@@ -99,7 +99,7 @@ public class WritableStoreFactory {
         newMap.put(WritableEvmHookStore.class, new StoreEntry(ContractService.NAME, WritableEvmHookStore::new));
         // EntityIdService
         newMap.put(
-                WritableEntityIdStoreImpl.class,
+                WritableEntityIdStore.class,
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new WritableEntityIdStoreImpl(states)));
         // Schedule Service
@@ -118,25 +118,25 @@ public class WritableStoreFactory {
 
     private final String serviceName;
     private final WritableStates states;
-    private final WritableEntityCounters entityCounters;
+    private final WritableEntityIdStore writableEntityIdStore;
 
     /**
      * Constructor of {@code WritableStoreFactory}
      *
      * @param state       the {@link State} to use
      * @param serviceName the name of the service to create stores for
-     * @param entityCounters the {@link WritableEntityCounters} to use
+     * @param writableEntityIdStore the {@link WritableEntityIdStore} to use
      * @throws NullPointerException     if one of the arguments is {@code null}
      * @throws IllegalArgumentException if the service name is unknown
      */
     public WritableStoreFactory(
             @NonNull final State state,
             @NonNull final String serviceName,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableEntityIdStore writableEntityIdStore) {
         requireNonNull(state);
         this.serviceName = requireNonNull(serviceName, "The argument 'serviceName' cannot be null!");
         this.states = state.getWritableStates(serviceName);
-        this.entityCounters = requireNonNull(entityCounters);
+        this.writableEntityIdStore = requireNonNull(writableEntityIdStore);
     }
 
     /**
@@ -153,7 +153,7 @@ public class WritableStoreFactory {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null && serviceName.equals(entry.name())) {
-            final var store = entry.factory().create(states, entityCounters);
+            final var store = entry.factory().create(states, writableEntityIdStore);
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
@@ -173,7 +173,7 @@ public class WritableStoreFactory {
     }
 
     private interface StoreFactory {
-        Object create(@NonNull WritableStates states, @NonNull WritableEntityCounters entityCounters);
+        Object create(@NonNull WritableStates states, @NonNull WritableEntityIdStore writableEntityIdStore);
     }
 
     private record StoreEntry(@NonNull String name, @NonNull StoreFactory factory) {}
