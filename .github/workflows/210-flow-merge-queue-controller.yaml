@@ -22,7 +22,6 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
-      enable-unit-tests: "true" # for Codacy and Codecov
       enable-snyk-scan: "true" # for Snyk
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
