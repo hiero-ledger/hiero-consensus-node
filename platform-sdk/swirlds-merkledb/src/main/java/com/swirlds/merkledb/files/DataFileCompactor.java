@@ -424,15 +424,25 @@ public class DataFileCompactor {
      * @throws IOException If an I/O error occurs
      */
     private void finishCurrentCompactionFile() throws IOException {
-        currentWriter.get().close();
+        final DataFileWriter writer = currentWriter.get();
+        writer.close();
         currentWriter.set(null);
-        // Now include the file in future compactions
-        currentReader.get().setFileCompleted();
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "[{}] Compaction file written, fileNum={}",
-                storeName,
-                currentReader.get().getIndex());
+
+        final DataFileReader reader = currentReader.get();
+        if (writer.getMetadata().getItemsCount() == 0) {
+            // Nothing was written — discard the empty file
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Discarding empty compaction file, fileNum={}",
+                    storeName,
+                    reader.getIndex());
+            dataFileCollection.deleteFiles(List.of(reader));
+            newCompactedFiles.remove(writer.getPath());
+        } else {
+            reader.setFileCompleted();
+            logger.info(
+                    MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
+        }
         currentReader.set(null);
     }
 
