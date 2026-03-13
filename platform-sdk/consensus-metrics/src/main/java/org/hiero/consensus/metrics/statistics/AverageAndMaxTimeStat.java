@@ -105,6 +105,16 @@ public class AverageAndMaxTimeStat {
     }
 
     /**
+     * Update the metrics with the duration between the supplied start and end times.
+     *
+     * @param start the start time
+     * @param end   the end time
+     */
+    public void update(@NonNull final Instant start, @NonNull final Instant end) {
+        updateInternal(Duration.between(start, end).toNanos());
+    }
+
+    /**
      * Internal method to update the metrics
      *
      * @param nanos the duration (in nanoseconds) that should be stored

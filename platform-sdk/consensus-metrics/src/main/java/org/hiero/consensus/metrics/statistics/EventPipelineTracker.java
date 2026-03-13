@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -75,7 +76,10 @@ public class EventPipelineTracker {
 
     /**
      * Records the delay experienced by a single event after the specified stage.
-     * The event is routed to the appropriate metric based on its {@link EventOrigin}.
+     * The delay is measured from {@link PlatformEvent#getTimeReceived()} to {@link Instant#now()}.
+     * <p>
+     * For concurrent pipelines, prefer {@link #recordEvent(String, PlatformEvent, Instant)} to
+     * avoid measuring thread scheduling noise.
      *
      * @param name  the name of the stage
      * @param event the platform event
@@ -84,6 +88,23 @@ public class EventPipelineTracker {
         final AverageAndMaxTimeStat stat = metricMap.get(new MetricKey(name, event.getOrigin()));
         if (stat != null) {
             stat.update(event.getTimeReceived());
+        }
+    }
+
+    /**
+     * Records the delay experienced by a single event after the specified stage, using a
+     * pre-captured timestamp. This avoids measuring thread scheduling delay between the
+     * call site and the stat update, which matters in concurrent pipelines.
+     *
+     * @param name  the name of the stage
+     * @param event the platform event
+     * @param now   the timestamp captured at the point the stage completed
+     */
+    public void recordEvent(
+            @NonNull final String name, @NonNull final PlatformEvent event, @NonNull final Instant now) {
+        final AverageAndMaxTimeStat stat = metricMap.get(new MetricKey(name, event.getOrigin()));
+        if (stat != null) {
+            stat.update(event.getTimeReceived(), now);
         }
     }
 

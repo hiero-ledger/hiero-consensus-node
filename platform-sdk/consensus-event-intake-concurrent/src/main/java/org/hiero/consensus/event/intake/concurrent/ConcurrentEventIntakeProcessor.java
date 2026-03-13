@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
@@ -232,11 +233,12 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
 
     /**
      * Record the pipeline delay for the given event at the named stage.
+     * Captures the current timestamp immediately to avoid measuring thread scheduling noise.
      * No-op when pipeline tracking is disabled.
      */
     private void recordStage(@NonNull final String stage, @NonNull final PlatformEvent event) {
         if (pipelineTracker != null) {
-            pipelineTracker.recordEvent(stage, event);
+            pipelineTracker.recordEvent(stage, event, Instant.now());
         }
     }
 
