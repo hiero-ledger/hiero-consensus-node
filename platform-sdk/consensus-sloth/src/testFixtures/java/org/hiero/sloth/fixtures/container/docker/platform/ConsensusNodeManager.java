@@ -195,15 +195,6 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Registers a listener to receive notifications about new consensus rounds.
-     *
-     * @param listener the listener to register
-     */
-    public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
-        consensusRoundListeners.add(listener);
-    }
-
-    /**
      * Updates the synthetic bottleneck duration.
      *
      * @param millisToSleepPerRound the number of milliseconds to sleep per round
