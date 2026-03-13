@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration.JumpstartData;
+import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -29,17 +32,17 @@ import org.junit.jupiter.api.Assertions;
 public class VerifyJumpstartHashOp extends UtilOp {
     private static final Logger log = LogManager.getLogger(VerifyJumpstartHashOp.class);
 
-    private final byte[] jumpstartContents;
+    private final BlockStreamJumpStartConfig jumpstartConfig;
     private final List<WrappedRecordFileBlockHashes> wrappedHashes;
     private final String nodeComputedHash;
     private final String freezeBlockNum;
 
     public VerifyJumpstartHashOp(
-            @NonNull final byte[] jumpstartContents,
+            @NonNull final BlockStreamJumpStartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        this.jumpstartContents = requireNonNull(jumpstartContents);
+        this.jumpstartConfig = requireNonNull(jumpstartConfig);
         this.wrappedHashes = requireNonNull(wrappedHashes);
         this.nodeComputedHash = requireNonNull(nodeComputedHash);
         this.freezeBlockNum = requireNonNull(freezeBlockNum);
@@ -49,16 +52,16 @@ public class VerifyJumpstartHashOp extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         final long freezeBlock = Long.parseLong(freezeBlockNum);
 
-        // Parse jumpstart file twice — IncrementalStreamingHasher is not cloneable,
-        // so we need independent hasher instances for the two chains
-        final var state1 = JumpstartData.fromBytes(jumpstartContents);
-        final var state2 = JumpstartData.fromBytes(jumpstartContents);
-        final long jumpstartBlockNum = state1.blockNumber();
+        // Create two independent hasher instances
+        final var hasher1 = createHasherFromConfig(jumpstartConfig);
+        final var hasher2 = createHasherFromConfig(jumpstartConfig);
+        final long jumpstartBlockNum = jumpstartConfig.blockNum();
+        final Bytes prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
 
         log.info(
                 "[VerifyJumpstartHash] Jumpstart block={}, prevHash={}, freeze block={}",
                 jumpstartBlockNum,
-                state1.prevHash(),
+                prevHash,
                 freezeBlock);
 
         // ===== Chain 1: File entries chained via computeWrappedRecordBlockRootHash =====
@@ -73,10 +76,10 @@ public class VerifyJumpstartHashOp extends UtilOp {
                 jumpstartBlockNum,
                 neededEntries.isEmpty() ? "n/a" : neededEntries.getLast().blockNumber());
 
-        Bytes fileChainHash = state1.prevHash();
+        Bytes fileChainHash = prevHash;
         int index = 0;
         for (final var entry : neededEntries) {
-            final var allPrevBlocksRootHash = Bytes.wrap(state1.hasher().computeRootHash());
+            final var allPrevBlocksRootHash = Bytes.wrap(hasher1.computeRootHash());
             final var blockRootHash =
                     RcdFileBlockHashReplay.computeBlockRootHash(fileChainHash, allPrevBlocksRootHash, entry);
 
@@ -93,7 +96,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
                         blockRootHash);
             }
 
-            state1.hasher().addNodeByHash(blockRootHash.toByteArray());
+            hasher1.addNodeByHash(blockRootHash.toByteArray());
             fileChainHash = blockRootHash;
             index++;
         }
@@ -101,8 +104,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
         log.info("[VerifyJumpstartHash] Chain 1 (file) final hash: {}", fileChainHash);
 
         // ===== Chain 2: .rcd replay =====
-        final var rcdResult =
-                RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, state2.prevHash(), state2.hasher());
+        final var rcdResult = RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, prevHash, hasher2);
 
         log.info(
                 "[VerifyJumpstartHash] Chain 2 (.rcd) processed {} blocks, final hash: {}",
@@ -185,5 +187,13 @@ public class VerifyJumpstartHashOp extends UtilOp {
                 nodeComputedHash);
 
         return false;
+    }
+
+    private static IncrementalStreamingHasher createHasherFromConfig(@NonNull final BlockStreamJumpStartConfig config) {
+        final List<byte[]> hashes = new ArrayList<>(config.streamingHasherHashCount());
+        for (final var hash : config.streamingHasherSubtreeHashes()) {
+            hashes.add(hash.toByteArray());
+        }
+        return new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, config.streamingHasherLeafCount());
     }
 }

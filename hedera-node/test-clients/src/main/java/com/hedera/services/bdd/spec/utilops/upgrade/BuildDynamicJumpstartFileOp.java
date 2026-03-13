@@ -8,12 +8,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
@@ -32,20 +31,21 @@ import org.apache.logging.log4j.Logger;
  * the disk hashes file starts at a block &gt; 0 (e.g. because disk writing was enabled after
  * genesis). The migration on restart will process disk entries from {@code midpoint+1} onward.
  *
- * <p>The computed jumpstart data is exposed as config property strings in a mutable map (so
- * the restart picks them up as {@code BlockStreamJumpStartConfig} properties), and also as raw
- * bytes via an {@link AtomicReference} so that downstream operations (e.g.
- * {@link VerifyJumpstartHashOp}) can independently replay and verify the result.
+ * <p>The computed jumpstart data is exposed as config property strings in a map (so
+ * the restart picks them up as {@code BlockStreamJumpStartConfig} properties), and also as a
+ * typed {@link BlockStreamJumpStartConfig} via an {@link AtomicReference} so that downstream
+ * operations (e.g. {@link VerifyJumpstartHashOp}) can independently replay and verify the result.
  */
 public class BuildDynamicJumpstartFileOp extends UtilOp {
     private static final Logger log = LogManager.getLogger(BuildDynamicJumpstartFileOp.class);
 
-    private final AtomicReference<byte[]> contentsRef;
+    private final AtomicReference<BlockStreamJumpStartConfig> jumpstartConfigRef;
     private final Map<String, String> envOverrides;
 
     public BuildDynamicJumpstartFileOp(
-            @NonNull final AtomicReference<byte[]> contentsRef, @NonNull final Map<String, String> envOverrides) {
-        this.contentsRef = requireNonNull(contentsRef);
+            @NonNull final AtomicReference<BlockStreamJumpStartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        this.jumpstartConfigRef = requireNonNull(jumpstartConfigRef);
         this.envOverrides = requireNonNull(envOverrides);
     }
 
@@ -113,18 +113,13 @@ public class BuildDynamicJumpstartFileOp extends UtilOp {
                 hasher.leafCount(),
                 intermediateHashes.size());
 
-        // Also serialize the binary format for downstream verification (VerifyJumpstartHashOp)
-        final var baos = new ByteArrayOutputStream();
-        try (final var dout = new DataOutputStream(baos)) {
-            dout.writeLong(jumpstartBlockNum);
-            prevWrappedBlockHash.writeTo(dout);
-            dout.writeLong(hasher.leafCount());
-            dout.writeInt(intermediateHashes.size());
-            for (final var hash : intermediateHashes) {
-                dout.write(hash.toByteArray());
-            }
-        }
-        contentsRef.set(baos.toByteArray());
+        // Expose typed config for downstream verification
+        jumpstartConfigRef.set(new BlockStreamJumpStartConfig(
+                jumpstartBlockNum,
+                prevWrappedBlockHash,
+                hasher.leafCount(),
+                intermediateHashes.size(),
+                intermediateHashes));
         return false;
     }
 }

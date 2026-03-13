@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -20,6 +21,8 @@ import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashe
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -27,6 +30,7 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +65,7 @@ class JumpstartFileSuite implements LifecycleTest {
             })
     final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
-        final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
+        final AtomicReference<BlockStreamJumpStartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
         final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
@@ -94,8 +98,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(
-                        envOverrides, buildDynamicJumpstartFile(jumpstartFileContents, envOverrides)),
+                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartFile(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
@@ -110,21 +113,41 @@ class JumpstartFileSuite implements LifecycleTest {
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
+                // Verify the migration marker file was written on each node
+                doingContextual(spec -> {
+                    for (final var node : spec.targetNetworkOrThrow().nodes()) {
+                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
+                            continue;
+                        }
+                        final var markerPath = node.getExternalPath(WRAPPED_RECORD_HASHES_FILE)
+                                .resolveSibling(WrappedRecordBlockHashMigration.JUMPSTART_USED_MARKER);
+                        org.junit.jupiter.api.Assertions.assertTrue(
+                                Files.exists(markerPath),
+                                "Jumpstart migration marker not found on node " + node.getNodeId() + " at "
+                                        + markerPath);
+                    }
+                }),
                 // Independently verify the node's computed hash. The wrapped record hashes file
                 // may have grown since the migration ran (nodes continue writing after restart),
                 // so we pass the freeze block number to bound the replay to the same range the
                 // migration processed.
                 getWrappedRecordHashes(wrappedRecordHashes),
                 sourcing(() -> verifyJumpstartHash(
-                        jumpstartFileContents.get(),
+                        jumpstartConfig.get(),
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
                         freezeBlockNum.get())),
-                // Phase 5: Second burst with live wrapped record hashes enabled
-                logIt("Phase 5: Second burst with live wrapped record hashes"),
+                logIt("Phase 5: Verify migration is not re-applied on restart"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart migration already applied \\(marker file exists at .+\\), skipping",
+                        Duration.ofSeconds(30)),
+                logIt("Phase 6: Third burst with live wrapped record hashes"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                // Phase 6: Second freeze to persist live hash state, then verify from record files
-                logIt("Phase 6: Second freeze and live hash verification"),
+                logIt("Phase 7: Freeze and live hash verification"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
                         Map.of(

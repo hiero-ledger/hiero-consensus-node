@@ -100,6 +100,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -929,8 +930,9 @@ public class UtilVerbs {
     }
 
     public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
-            @NonNull final AtomicReference<byte[]> contentsRef, @NonNull final Map<String, String> envOverrides) {
-        return new BuildDynamicJumpstartFileOp(contentsRef, envOverrides);
+            @NonNull final AtomicReference<BlockStreamJumpStartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartFileOp(jumpstartConfigRef, envOverrides);
     }
 
     public static GetWrappedRecordHashesOp getWrappedRecordHashes(
@@ -942,17 +944,17 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param jumpstartConfig            the jumpstart config properties
      * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
-            @NonNull final byte[] jumpstartContents,
+            @NonNull final BlockStreamJumpStartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     /**

@@ -83,6 +83,44 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
+    void skipsWhenMarkerFileExists() throws Exception {
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entry(i));
+        }
+        final var recentHashesDir = createRecentHashesDir(entries);
+        // Pre-create the marker file
+        Files.writeString(
+                recentHashesDir.resolve(WrappedRecordBlockHashMigration.JUMPSTART_USED_MARKER), "# Already applied\n");
+        final var config = enabledRecordsConfig(recentHashesDir);
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, jumpstartConfig(98, 4, 1)));
+        assertNull(subject.result());
+        assertNull(subject.markerFilePath());
+        assertNull(subject.markerFileContent());
+    }
+
+    @Test
+    void setsMarkerFilePathAndContentOnSuccess() throws Exception {
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entry(i));
+        }
+        final var recentHashesDir = createRecentHashesDir(entries);
+        final var config = enabledRecordsConfig(recentHashesDir);
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, jumpstartConfig(98, 4, 1)));
+        assertThat(subject.result()).isNotNull();
+        assertThat(subject.markerFilePath()).isNotNull();
+        assertThat(subject.markerFilePath().getFileName().toString())
+                .isEqualTo(WrappedRecordBlockHashMigration.JUMPSTART_USED_MARKER);
+        final var content = subject.markerFileContent();
+        assertThat(content).isNotNull();
+        assertThat(content).contains("blockStream.jumpstart.blockNum=98");
+        assertThat(content).contains("blockStream.jumpstart.streamingHasherLeafCount=4");
+        assertThat(content).contains("blockStream.jumpstart.streamingHasherHashCount=1");
+        assertThat(content).contains("blockStream.jumpstart.streamingHasherSubtreeHashes=<see config for values>");
+    }
+
+    @Test
     void returnsEarlyWhenJumpstartHasherIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100))));
         assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 0, 0)));

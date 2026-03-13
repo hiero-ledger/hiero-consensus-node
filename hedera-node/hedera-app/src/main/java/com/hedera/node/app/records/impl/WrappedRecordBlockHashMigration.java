@@ -14,9 +14,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -28,8 +25,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * Performs the one-time migration of wrapped record file block hashes into block state.
  *
- * <p>This reads jumpstart data (block number, previous block root hash, and streaming hasher state)
- * from config properties and a recent wrapped record hashes file, validates their consistency,
+ * <p>This reads jumpstart config properties (block number, previous block root hash, and streaming
+ * hasher state) and a recent wrapped record hashes file, validates their consistency,
  * computes the Merkle block hashes for the range, and writes the results back to state.
  *
  * <p>TODO: Delete this in the release after receiving/injecting the jumpstart historical hashes file.
@@ -52,7 +49,12 @@ public class WrappedRecordBlockHashMigration {
             @NonNull List<Bytes> wrappedIntermediatePreviousBlockRootHashes,
             long wrappedIntermediateBlockRootsLeafCount) {}
 
+    /** Marker file written after a successful migration to prevent re-application on restart. */
+    public static final String JUMPSTART_USED_MARKER = "jumpstart-used.properties";
+
     private @Nullable Result result;
+    private @Nullable Path markerFilePath;
+    private @Nullable String markerFileContent;
 
     /**
      * Returns the computed migration result, or null if the migration has not run or was skipped.
@@ -61,70 +63,24 @@ public class WrappedRecordBlockHashMigration {
         return result;
     }
 
+    /**
+     * Returns the path where the marker file should be written after the migration result is
+     * successfully applied to state, or null if the migration did not run.
+     */
+    public @Nullable Path markerFilePath() {
+        return markerFilePath;
+    }
+
+    /**
+     * Returns the content to write to the marker file, or null if the migration did not run.
+     */
+    public @Nullable String markerFileContent() {
+        return markerFileContent;
+    }
+
     private static final String RESUME_MESSAGE =
             "Resuming calculation of wrapped record file hashes until next attempt, but this node "
                     + "will likely experience an ISS";
-
-    /**
-     * Holds data loaded from a jumpstart source (binary file or config properties).
-     *
-     * <p>The binary format is:
-     * <ul>
-     *   <li>8 bytes: block number (long)</li>
-     *   <li>48 bytes: previous block root hash (SHA-384)</li>
-     *   <li>8 bytes: streaming hasher leaf count (long)</li>
-     *   <li>4 bytes: streaming hasher hash count (int)</li>
-     *   <li>48 bytes × hash count: streaming hasher pending subtree hashes</li>
-     * </ul>
-     *
-     * @param blockNumber the jumpstart block number
-     * @param prevHash the previous block root hash (48 bytes, SHA-384)
-     * @param hasher the streaming hasher preloaded with historical state
-     */
-    public record JumpstartData(long blockNumber, Bytes prevHash, IncrementalStreamingHasher hasher) {
-        /**
-         * Parses jumpstart data from a byte array.
-         *
-         * @param contents the raw jumpstart file bytes
-         * @return a new {@link JumpstartData} instance
-         * @throws IOException if the byte array cannot be read
-         */
-        public static JumpstartData fromBytes(@NonNull final byte[] contents) throws IOException {
-            try (final var din = new DataInputStream(new ByteArrayInputStream(contents))) {
-                final long blockNumber = din.readLong();
-                final byte[] prevHashBytes = new byte[HASH_SIZE];
-                din.readFully(prevHashBytes);
-                final var prevHash = Bytes.wrap(prevHashBytes);
-
-                final long leafCount = din.readLong();
-                final int hashCount = din.readInt();
-                final List<byte[]> hashes = new ArrayList<>(hashCount);
-                for (int i = 0; i < hashCount; i++) {
-                    final byte[] hash = new byte[HASH_SIZE];
-                    din.readFully(hash);
-                    hashes.add(hash);
-                }
-                final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, leafCount);
-                return new JumpstartData(blockNumber, prevHash, hasher);
-            }
-        }
-
-        /**
-         * Constructs jumpstart data from config properties.
-         *
-         * @param config the jumpstart config
-         * @return a new {@link JumpstartData} instance
-         */
-        public static JumpstartData fromConfig(@NonNull final BlockStreamJumpStartConfig config) {
-            final List<byte[]> hashes = new ArrayList<>(config.streamingHasherHashCount());
-            for (final var hash : config.streamingHasherSubtreeHashes()) {
-                hashes.add(hash.toByteArray());
-            }
-            final var hasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, config.streamingHasherLeafCount());
-            return new JumpstartData(config.blockNum(), config.previousWrappedRecordBlockHash(), hasher);
-        }
-    }
 
     /**
      * Executes the wrapped record block hash migration if enabled.
@@ -168,8 +124,15 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        final var jumpstartData = loadJumpstartDataFromConfig(jumpstartConfig);
-        if (jumpstartData == null) {
+        // Check if a previous migration already ran (marker file prevents re-application)
+        final var markerPath = recentHashesPath.resolveSibling(JUMPSTART_USED_MARKER);
+        if (Files.exists(markerPath)) {
+            log.info("Jumpstart migration already applied (marker file exists at {}), skipping", markerPath);
+            return;
+        }
+
+        final var hasher = createHasherFromConfig(jumpstartConfig);
+        if (hasher == null) {
             return;
         }
 
@@ -178,12 +141,18 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        if (!validateBlockNumberRange(jumpstartData.blockNumber(), allRecentWrappedRecordHashes)) {
+        if (!validateBlockNumberRange(jumpstartConfig.blockNum(), allRecentWrappedRecordHashes)) {
             return;
         }
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
-        computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+        computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+        this.markerFilePath = markerPath;
+        this.markerFileContent = MARKER_FILE_TEMPLATE.formatted(
+                jumpstartConfig.blockNum(),
+                jumpstartConfig.previousWrappedRecordBlockHash().toHex(),
+                jumpstartConfig.streamingHasherLeafCount(),
+                jumpstartConfig.streamingHasherHashCount());
     }
 
     private Path resolveRecentHashesPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -202,25 +171,31 @@ public class WrappedRecordBlockHashMigration {
     }
 
     /**
-     * Loads jumpstart data from config properties.
+     * Creates a streaming hasher from jumpstart config properties.
      *
      * <p>The jumpstart config exactly encodes the fully-committed hash <b>of</b> the contained block
      * number. I.e. if the jumpstart config specifies a block number N, the first wrapped record block
      * taken from local disk and hashed is wrapped record block N+1 (using the jumpstart config's block
      * hash as the "previous block hash" for the first local wrapped record block).
      */
-    private JumpstartData loadJumpstartDataFromConfig(@NonNull final BlockStreamJumpStartConfig jumpstartConfig) {
-        final var jumpstartData = JumpstartData.fromConfig(jumpstartConfig);
-        if (jumpstartData.hasher().leafCount() == 0) {
+    private IncrementalStreamingHasher createHasherFromConfig(
+            @NonNull final BlockStreamJumpStartConfig jumpstartConfig) {
+        final List<byte[]> hashes = new ArrayList<>(jumpstartConfig.streamingHasherHashCount());
+        for (final var hash : jumpstartConfig.streamingHasherSubtreeHashes()) {
+            hashes.add(hash.toByteArray());
+        }
+        final var hasher = new IncrementalStreamingHasher(
+                sha384DigestOrThrow(), hashes, jumpstartConfig.streamingHasherLeafCount());
+        if (hasher.leafCount() == 0) {
             log.error("Jumpstart config contains no entries (leaf count is 0). {}", RESUME_MESSAGE);
             return null;
         }
         log.info(
                 "Successfully loaded jumpstart config: blockNumber={}, leafCount={}, hashCount={}",
-                jumpstartData.blockNumber(),
-                jumpstartData.hasher().leafCount(),
-                jumpstartData.hasher().intermediateHashingState().size());
-        return jumpstartData;
+                jumpstartConfig.blockNum(),
+                hasher.leafCount(),
+                hasher.intermediateHashingState().size());
+        return hasher;
     }
 
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
@@ -297,13 +272,11 @@ public class WrappedRecordBlockHashMigration {
     }
 
     private void computeHashes(
-            @NonNull final JumpstartData jumpstartData,
+            @NonNull final BlockStreamJumpStartConfig jumpstartConfig,
+            @NonNull final IncrementalStreamingHasher allPrevBlocksHasher,
             @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
             final int numTrailingBlocks) {
-        // The number of the last wrapped record block; this is the final block processed prior to now
-        final var jumpstartBlockNum = jumpstartData.blockNumber();
-        // The hash of the (completed/hashed) jumpstart block number
-        final var allPrevBlocksHasher = jumpstartData.hasher();
+        final var jumpstartBlockNum = jumpstartConfig.blockNum();
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
                 .toList();
@@ -315,7 +288,7 @@ public class WrappedRecordBlockHashMigration {
 
         final List<Bytes> currentTrailingBlockHashes = new ArrayList<>(numTrailingBlocks);
         final int blockTailStartIndex = Math.max(0, numNeededRecentWrappedRecords - numTrailingBlocks);
-        Bytes prevWrappedBlockHash = jumpstartData.prevHash();
+        Bytes prevWrappedBlockHash = jumpstartConfig.previousWrappedRecordBlockHash();
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
@@ -366,4 +339,13 @@ public class WrappedRecordBlockHashMigration {
     private static boolean isBlank(final String s) {
         return s == null || s.isBlank();
     }
+
+    private static final String MARKER_FILE_TEMPLATE = """
+            # Jumpstart config properties used for this migration
+            blockStream.jumpstart.blockNum=%d
+            blockStream.jumpstart.previousWrappedRecordBlockHash=%s
+            blockStream.jumpstart.streamingHasherLeafCount=%d
+            blockStream.jumpstart.streamingHasherHashCount=%d
+            blockStream.jumpstart.streamingHasherSubtreeHashes=<see config for values>
+            """;
 }

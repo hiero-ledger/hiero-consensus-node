@@ -529,6 +529,18 @@ public class SystemTransactions {
                 ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
                 log.info("Updated block info state to match migration result");
             }
+
+            // Write marker file so the migration doesn't run again on subsequent restarts
+            final var markerPath = wrappedRecordBlockHashMigration.markerFilePath();
+            final var markerContent = wrappedRecordBlockHashMigration.markerFileContent();
+            if (markerPath != null && markerContent != null) {
+                try {
+                    Files.writeString(markerPath, markerContent);
+                    log.info("Wrote jumpstart migration marker file to {}", markerPath);
+                } catch (final IOException e) {
+                    log.warn("Failed to write jumpstart migration marker file at {}", markerPath, e);
+                }
+            }
         }
     }
 
