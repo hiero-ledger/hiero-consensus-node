@@ -115,6 +115,8 @@ public class BaseTranslator {
      */
     private long highestKnownEntityNum = 0L;
 
+    private long highestKnownNodeId = -1L;
+
     private boolean externalizeNonces = true;
 
     private ExchangeRateSet activeRates;
@@ -286,6 +288,14 @@ public class BaseTranslator {
         });
         highestKnownEntityNum =
                 nextCreatedNums.values().stream().mapToLong(List::getLast).max().orElse(highestKnownEntityNum);
+        final var nodeNums = nextCreatedNums.getOrDefault(NODE, emptyList());
+        final var regNodeNums = nextCreatedNums.getOrDefault(REGISTERED_NODE, emptyList());
+        if (!nodeNums.isEmpty()) {
+            highestKnownNodeId = Math.max(highestKnownNodeId, nodeNums.getLast());
+        }
+        if (!regNodeNums.isEmpty()) {
+            highestKnownNodeId = Math.max(highestKnownNodeId, regNodeNums.getLast());
+        }
     }
 
     /**
@@ -1019,14 +1029,18 @@ public class BaseTranslator {
                     final var value = mapUpdate.valueOrThrow();
                     if (value.hasNodeValue()) {
                         final long nodeId = key.entityNumberKeyOrThrow();
-                        nextCreatedNums
-                                .computeIfAbsent(NODE, ignore -> new LinkedList<>())
-                                .add(nodeId);
+                        if (nodeId > highestKnownNodeId) {
+                            nextCreatedNums
+                                    .computeIfAbsent(NODE, ignore -> new LinkedList<>())
+                                    .add(nodeId);
+                        }
                     } else if (value.hasRegisteredNodeValue()) {
                         final long registeredNodeId = key.entityNumberKeyOrThrow();
-                        nextCreatedNums
-                                .computeIfAbsent(REGISTERED_NODE, ignore -> new LinkedList<>())
-                                .add(registeredNodeId);
+                        if (registeredNodeId > highestKnownNodeId) {
+                            nextCreatedNums
+                                    .computeIfAbsent(REGISTERED_NODE, ignore -> new LinkedList<>())
+                                    .add(registeredNodeId);
+                        }
                     }
                 } else if (key.hasNftIdKey()) {
                     final var nftId = key.nftIdKeyOrThrow();

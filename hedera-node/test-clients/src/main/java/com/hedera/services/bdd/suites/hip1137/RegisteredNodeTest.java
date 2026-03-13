@@ -571,6 +571,37 @@ public class RegisteredNodeTest {
                 }));
     }
 
+    @HapiTest
+    @DisplayName("atomic batch with update + create assigns correct receipt IDs")
+    final Stream<DynamicTest> atomicBatchUpdateAndCreateReceiptIds() {
+        final var batchOperator = "batchOperator";
+        final var createdId = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_MILLION_HBARS),
+                newKeyNamed(ADMIN_KEY),
+                // Pre-create a registered node
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(createdId::set)
+                        .hasKnownStatus(SUCCESS),
+                // Atomic batch: update existing + create new
+                withOpContext((spec, opLog) -> {
+                    final var batch = atomicBatch(
+                                    registeredNodeUpdate(createdId::get)
+                                            .description("updated")
+                                            .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                                            .batchKey(batchOperator),
+                                    registeredNodeCreate("newRegisteredNode")
+                                            .adminKey(ADMIN_KEY)
+                                            .serviceEndpoints(DEFAULT_ENDPOINTS)
+                                            .batchKey(batchOperator))
+                            .payingWith(batchOperator)
+                            .hasKnownStatus(SUCCESS);
+                    allRunFor(spec, batch);
+                }));
+    }
+
     // ─── ScheduleTransactions ──────────────────────────────────────
 
     @HapiTest
