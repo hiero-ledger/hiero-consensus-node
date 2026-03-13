@@ -191,7 +191,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
                 final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-                throw new HandleException(INNER_TRANSACTION_FAILED, ctx -> {
+                throw new HandleException(INNER_TRANSACTION_FAILED, (ctx, ignored) -> {
                     recordedFeeCharging.forEachRecorded((builder, charges) -> {
                         final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
                         charges.forEach(
@@ -254,7 +254,10 @@ public class AtomicBatchHandler implements TransactionHandler {
         /**
          * Represents a charge that can be replayed on a {@link Context}.
          */
-        public record Charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable AccountID nodeAccountId) {
+        public record Charge(
+                @NonNull AccountID payerId,
+                @NonNull Fees fees,
+                @Nullable AccountID nodeAccountId) {
             /**
              * Replays the charge on the given {@link Context}.
              *
@@ -271,7 +274,8 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         private record ChargingEvent(
-                @NonNull ReplayableFeeStreamBuilder streamBuilder, @NonNull List<Charge> charges) {}
+                @NonNull ReplayableFeeStreamBuilder streamBuilder,
+                @NonNull List<Charge> charges) {}
 
         private final FeeCharging delegate;
         private final List<ChargingEvent> chargingEvents = new ArrayList<>();

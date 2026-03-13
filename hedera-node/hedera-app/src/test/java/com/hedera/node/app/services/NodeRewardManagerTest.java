@@ -13,13 +13,24 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_LABEL;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -43,8 +54,11 @@ import com.hedera.node.app.metrics.NodeMetrics;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -59,10 +73,12 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -87,6 +103,9 @@ class NodeRewardManagerTest {
 
     @Mock
     private ExchangeRateManager exchangeRateManager;
+
+    @Mock
+    private NetworkInfo networkInfo;
 
     @Mock
     private State state;
@@ -120,7 +139,7 @@ class NodeRewardManagerTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
     }
 
     @Test
@@ -212,21 +231,21 @@ class NodeRewardManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
 
         nodeRewardManager.maybeRewardActiveNodes(state, Instant.now(), systemTransactions);
         verify(systemTransactions, never())
-                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
     }
 
     @Test
     void testMaybeRewardActiveNodesWhenCurrentPeriod() {
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
         nodeRewardManager.maybeRewardActiveNodes(state, NOW_MINUS_600, systemTransactions);
         verify(systemTransactions, never())
-                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
     }
 
     @Test
@@ -240,13 +259,93 @@ class NodeRewardManagerTest {
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
         when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
 
-        verify(systemTransactions)
-                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+        verify(systemTransactions).dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
+    }
+
+    @Test
+    void testBuildNodeActivitiesExcludesUnknownNodes() {
+        givenNotFoundNode(0L);
+        givenNotFoundNode(1L);
+
+        final var nodeRewards = NodeRewards.newBuilder()
+                .numRoundsInStakingPeriod(100L)
+                .nodeActivities(List.of())
+                .build();
+        final var activities =
+                nodeRewardManager.buildNodeActivities(List.of(rosterEntry(0L), rosterEntry(1L)), nodeRewards, 80);
+
+        assertTrue(activities.isEmpty());
+    }
+
+    @Test
+    void testBuildNodeActivitiesIncludesAllKnownNodes() {
+        // buildNodeActivities includes both declining and eligible nodes — declining filter is separate
+        final var accountId0 = AccountID.newBuilder().accountNum(800L).build();
+        final var accountId1 = AccountID.newBuilder().accountNum(801L).build();
+        givenNodeWithAccount(0L, accountId0);
+        givenNodeWithAccount(1L, accountId1);
+        givenNotFoundNode(2L);
+
+        final var nodeRewards = NodeRewards.newBuilder()
+                .numRoundsInStakingPeriod(100L)
+                .nodeActivities(List.of(NodeActivity.newBuilder()
+                        .nodeId(0L)
+                        .numMissedJudgeRounds(10L)
+                        .build()))
+                .build();
+        final var activities = nodeRewardManager.buildNodeActivities(
+                List.of(rosterEntry(0L), rosterEntry(1L), rosterEntry(2L)), nodeRewards, 80);
+
+        assertThat(activities).hasSize(2);
+        final var activity0 =
+                activities.stream().filter(a -> a.nodeId() == 0L).findFirst().orElseThrow();
+        assertEquals(accountId0, activity0.accountId());
+        assertEquals(10L, activity0.numMissedRounds());
+        assertEquals(100L, activity0.roundsInPeriod());
+
+        // Node 1 has no entry in nodeActivities → defaults to 0 missed judges
+        final var activity1 =
+                activities.stream().filter(a -> a.nodeId() == 1L).findFirst().orElseThrow();
+        assertEquals(accountId1, activity1.accountId());
+        assertEquals(0L, activity1.numMissedRounds());
+    }
+
+    @Test
+    void testExcludeNodesDecliningRewardsFiltersOut() {
+        final var accountId0 = AccountID.newBuilder().accountNum(800L).build();
+        final var accountId1 = AccountID.newBuilder().accountNum(801L).build();
+        givenNodeDeclinesReward(0L, true);
+        givenNodeDeclinesReward(1L, false);
+
+        final var activities = List.of(
+                new NodeRewardActivity(0L, accountId0, 5, 100, 80), new NodeRewardActivity(1L, accountId1, 5, 100, 80));
+        final var eligible = nodeRewardManager.excludeNodesDecliningRewards(activities);
+
+        assertThat(eligible).containsExactly(new NodeRewardActivity(1L, accountId1, 5, 100, 80));
+    }
+
+    @Test
+    void testExcludeNodesDecliningRewardsMixedNodes() {
+        final var accountId0 = AccountID.newBuilder().accountNum(802L).build();
+        final var accountId1 = AccountID.newBuilder().accountNum(803L).build();
+        final var accountId2 = AccountID.newBuilder().accountNum(804L).build();
+        givenNodeDeclinesReward(0L, false);
+        givenNodeDeclinesReward(1L, true);
+        givenNotFoundNode(2L);
+
+        final var activities = List.of(
+                new NodeRewardActivity(0L, accountId0, 0, 100, 80),
+                new NodeRewardActivity(1L, accountId1, 0, 100, 80),
+                new NodeRewardActivity(2L, accountId2, 0, 100, 80));
+        final var eligible = nodeRewardManager.excludeNodesDecliningRewards(activities);
+
+        // Node 0 is eligible, node 1 declines, node 2 is unknown (null nodeInfo → excluded)
+        assertThat(eligible).containsExactly(new NodeRewardActivity(0L, accountId0, 0, 100, 80));
     }
 
     @Test
@@ -265,13 +364,16 @@ class NodeRewardManagerTest {
                                 .build()))
                 .build();
         givenSetup(initialRewards, platformStateWithFreezeTime(null), null);
+        givenNodeWithAccount(0L, AccountID.newBuilder().accountNum(800L).build());
+        givenNodeWithAccount(1L, AccountID.newBuilder().accountNum(801L).build());
         final var metrics = mock(NodeMetrics.class);
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, metrics);
+        nodeRewardManager =
+                new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, networkInfo, metrics);
         nodeRewardManager.onOpenBlock(state);
 
         nodeRewardManager.onCloseBlock(state, 0L);
 
-        verify(metrics).registerNodeMetrics(anyList());
+        verify(metrics).registerNodeMetrics(Set.of(0L, 1L));
         verify(metrics).updateNodeActiveMetrics(0L, 80.0);
         verify(metrics).updateNodeActiveMetrics(1L, 50.0);
     }
@@ -343,7 +445,6 @@ class NodeRewardManagerTest {
                 .willReturn(networkRewardState);
         given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn(networkRewardState);
-        //        given(readableNetworkRewardState.get()).willReturn(networkStakingRewardsRef.get());
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         ROSTERS_STATE_ID, ROSTERS_STATE_LABEL)
                 .build();
@@ -404,7 +505,7 @@ class NodeRewardManagerTest {
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, networkInfo, new NodeMetrics(new NoOpMetrics()));
         when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         // First call - should reward
@@ -413,7 +514,7 @@ class NodeRewardManagerTest {
 
         // Verify rewards were dispatched exactly once
         verify(systemTransactions, times(1))
-                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
 
         // The lastNodeRewardPaymentsTime should now be updated to NOW
         // So a second call in the same period should NOT reward again
@@ -422,6 +523,28 @@ class NodeRewardManagerTest {
 
         // Still only one dispatch
         verify(systemTransactions, times(1))
-                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong());
+    }
+
+    /** Stubs networkInfo to return a node with the given account ID (used by buildNodeActivities). */
+    private void givenNodeWithAccount(long nodeId, @NonNull AccountID accountId) {
+        final var nodeInfo = mock(NodeInfo.class);
+        given(nodeInfo.accountId()).willReturn(accountId);
+        given(networkInfo.nodeInfo(nodeId)).willReturn(nodeInfo);
+    }
+
+    /** Stubs networkInfo to return a node with the given declineReward flag (used by excludeNodesDecliningRewards). */
+    private void givenNodeDeclinesReward(long nodeId, boolean declines) {
+        final var nodeInfo = mock(NodeInfo.class);
+        given(nodeInfo.declineReward()).willReturn(declines);
+        given(networkInfo.nodeInfo(nodeId)).willReturn(nodeInfo);
+    }
+
+    private void givenNotFoundNode(long nodeId) {
+        given(networkInfo.nodeInfo(nodeId)).willReturn(null);
+    }
+
+    private static RosterEntry rosterEntry(long nodeId) {
+        return RosterEntry.newBuilder().nodeId(nodeId).build();
     }
 }
