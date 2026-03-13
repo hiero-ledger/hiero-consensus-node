@@ -47,8 +47,6 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 public class DefaultEventCreationManager implements EventCreationManager {
 
 
-    private static final Logger logger = LogManager.getLogger(DefaultEventCreationManager.class);
-
     private static final DoubleGauge.Config SYNC_ROUND_LAG_METRIC_CONFIG = new DoubleGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "syncRoundLag")
             .withDescription("How many rounds on average are we lagging behind peers")
@@ -131,9 +129,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
         syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
     }
 
-
-    long lastExecution = System.nanoTime();
-
     /**
      * {@inheritDoc}
      */
@@ -141,8 +136,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Nullable
     public PlatformEvent maybeCreateEvent() {
 
-       logger.info(RECONNECT.getMarker(),"Maybe create event period {} ns",System.nanoTime()-lastExecution);
-        lastExecution = System.nanoTime();
 
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());
