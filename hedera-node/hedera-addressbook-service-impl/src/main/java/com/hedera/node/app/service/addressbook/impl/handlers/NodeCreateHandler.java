@@ -9,7 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOIN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
@@ -90,8 +91,13 @@ public class NodeCreateHandler implements TransactionHandler {
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
-
-        validateFalse(nodeStore.sizeOfState() >= nodeConfig.maxNumber(), MAX_NODES_CREATED);
+        final var maybeSystemTxnDispatchEntityNum =
+                handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
+        final var maybeNodeIsInStateForSystemTxn =
+                isNodeInStateForSystemTxn(handleContext.dispatchMetadata(), nodeStore);
+        validateTrue(
+                maybeNodeIsInStateForSystemTxn || (nodeStore.sizeOfState() < nodeConfig.maxNumber()),
+                MAX_NODES_CREATED);
         addressBookValidator.validateAccount(
                 accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
         addressBookValidator.validateDescription(op.description(), nodeConfig);
@@ -116,12 +122,32 @@ public class NodeCreateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
 
-        // Since nodes won't be removed from state, we can set the nodeId to the next available id
-        // in the state based on the size of the state.
-        final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
+        long nextNodeId;
+        Node node;
 
-        nodeStore.putAndIncrementCount(node);
-        // add account id relation
+        // System-dispatched node creation must use the explicit node id from metadata. If the node
+        // already exists in state (even if deleted), this is a transplant restore and should not
+        // increment either the highest node id or the live node count.
+        if (maybeSystemTxnDispatchEntityNum.isPresent()) {
+            nextNodeId = maybeSystemTxnDispatchEntityNum.get();
+            node = nodeBuilder.nodeId(nextNodeId).build();
+            if (maybeNodeIsInStateForSystemTxn) {
+                final var existingNode = requireNonNull(nodeStore.get(nextNodeId));
+                if (!existingNode.accountId().equals(node.accountId())) {
+                    accountNodeRelStore.remove(existingNode.accountId());
+                }
+                nodeStore.put(node);
+            } else {
+                // Increment the nodes count. Update the highest node ID if needed.
+                nodeStore.putWithExplicitId(node);
+            }
+        } else {
+            // Assign node id using the store to avoid reuse
+            nextNodeId = nodeStore.peekAtNextNodeId();
+            node = nodeBuilder.nodeId(nextNodeId).build();
+            nodeStore.putAndIncrement(node);
+        }
+
         accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());
 
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
@@ -140,5 +166,25 @@ public class NodeCreateHandler implements TransactionHandler {
         // the price of the rest of the signatures.
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
         return calculator.calculate();
+    }
+
+    /**
+     * Determines if a system-dispatched node creation transaction targets a node ID
+     * that already exists in the current state.
+     *
+     * <p>If the dispatch metadata provides a node ID (as in system transactions), this method checks
+     * if that node ID is already present in the node store.
+     *
+     * @param metadata the dispatch metadata containing optional system transaction node ID
+     * @param nodeStore the store containing current node state
+     * @return {@code true} if the node ID (from metadata) already exists in the state; {@code false} otherwise
+     */
+    private boolean isNodeInStateForSystemTxn(
+            final HandleContext.DispatchMetadata metadata, final ReadableNodeStore nodeStore) {
+        final var systemTxnCreationNum = metadata.getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
+        if (systemTxnCreationNum == null) {
+            return false;
+        }
+        return nodeStore.get(systemTxnCreationNum) != null;
     }
 }

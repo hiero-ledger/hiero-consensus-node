@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -103,16 +102,8 @@ public final class Utils {
 
     public static long fromBytes(byte[] bytes) {
         long val = 0;
-        for (int i = 0; i < Math.min(bytes.length, 8); ++i) {
+        for (int i = 0; i < Math.min(bytes.length, Long.BYTES); ++i) {
             val |= ((long) bytes[i] & 0xff) << (i * 8);
-        }
-        return val;
-    }
-
-    public static long fromBytes(Bytes bytes) {
-        long val = 0;
-        for (int i = 0; i < Math.min(bytes.length(), 8); ++i) {
-            val |= ((long) bytes.getByte(i) & 0xff) << (i * 8);
         }
         return val;
     }
