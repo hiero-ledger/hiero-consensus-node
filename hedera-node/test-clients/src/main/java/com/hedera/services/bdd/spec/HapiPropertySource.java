@@ -478,8 +478,7 @@ public interface HapiPropertySource {
         builder.setPort(port);
         final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi;
         try {
-            blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(
-                    parts[2].toUpperCase());
+            blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(parts[2].toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Missing required blockNodeApi in block node endpoint '" + v
                     + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
@@ -605,14 +604,12 @@ public interface HapiPropertySource {
             return false;
         }
         if (!parts[tlsIndex].equalsIgnoreCase("tls")) {
-            throw new IllegalArgumentException(
-                    "Unknown trailing segment '" + parts[tlsIndex] + "' in endpoint '" + input
-                            + "'. Expected format: " + expectedFormat);
+            throw new IllegalArgumentException("Unknown trailing segment '" + parts[tlsIndex] + "' in endpoint '"
+                    + input + "'. Expected format: " + expectedFormat);
         }
         if (parts.length > tlsIndex + 1) {
-            throw new IllegalArgumentException(
-                    "Unknown trailing segment '" + parts[tlsIndex + 1] + "' in endpoint '" + input
-                            + "'. Expected format: " + expectedFormat);
+            throw new IllegalArgumentException("Unknown trailing segment '" + parts[tlsIndex + 1] + "' in endpoint '"
+                    + input + "'. Expected format: " + expectedFormat);
         }
         return true;
     }

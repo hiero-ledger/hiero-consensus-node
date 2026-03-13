@@ -41,8 +41,8 @@ class HapiPropertySourceBlockNodeEndpointTest {
 
     @Test
     void throwsOnMissingPort() {
-        final var ex = assertThrows(
-                IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1"));
+        final var ex =
+                assertThrows(IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1"));
         assertTrue(ex.getMessage().contains("too few segments"));
     }
 }

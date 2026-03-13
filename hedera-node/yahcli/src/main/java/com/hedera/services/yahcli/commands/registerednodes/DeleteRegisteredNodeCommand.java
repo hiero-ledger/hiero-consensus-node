@@ -56,5 +56,4 @@ public class DeleteRegisteredNodeCommand implements Callable<Integer> {
 
         return 0;
     }
-
 }

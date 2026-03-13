@@ -133,5 +133,4 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
         }
         return endpoints.isEmpty() ? null : endpoints;
     }
-
 }
