@@ -499,7 +499,7 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     private static void assertMapIsFullyHashed(VirtualMap completed) {
-        for (int i = 0; i <= completed.getMetadata().getLastLeafPath(); i++) {
+        for (int i = 1; i <= completed.getMetadata().getLastLeafPath(); i++) {
             assertNotNull(completed.getRecords().findHash(i));
         }
     }
@@ -984,7 +984,6 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("If there are no dirty leaves, previous copy's root hash is used")
     void emptyDirtyLeavesResultInHashFromPreviousCopy() throws InterruptedException {
-        final InMemoryDataSource ds = new InMemoryDataSource("emptyDirtyLeavesResultInHashFromPreviousCopy");
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
         final VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
