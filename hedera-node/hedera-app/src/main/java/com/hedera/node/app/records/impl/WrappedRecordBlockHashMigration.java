@@ -195,7 +195,7 @@ public class WrappedRecordBlockHashMigration {
             log.error("Recent wrapped record hashes file not found at {}. {}", recentHashesPath, RESUME_MESSAGE);
             return null;
         }
-        log.fatal("Found recent wrapped record hashes file at {}", recentHashesPath);
+        log.info("Found recent wrapped record hashes file at {}", recentHashesPath);
         return recentHashesPath;
     }
 

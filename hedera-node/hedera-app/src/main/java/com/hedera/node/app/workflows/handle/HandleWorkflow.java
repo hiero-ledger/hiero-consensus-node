@@ -299,6 +299,11 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+        try {
+            systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+        } catch (Exception e) {
+            logger.error("{} Failed to submit startup migration root-hash vote", ALERT_MESSAGE, e);
+        }
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS ->
@@ -614,7 +619,8 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        }
+        if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 

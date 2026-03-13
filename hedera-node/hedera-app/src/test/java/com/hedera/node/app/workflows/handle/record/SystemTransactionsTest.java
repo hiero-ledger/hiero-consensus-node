@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -13,13 +14,17 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -42,6 +47,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -115,6 +121,9 @@ class SystemTransactionsTest {
     private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
 
     @Mock
+    private MigrationRootHashSubmissions migrationRootHashSubmissions;
+
+    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -158,7 +167,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
     }
 
     @Test
@@ -215,7 +225,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -422,7 +433,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -464,7 +476,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -527,6 +540,17 @@ class SystemTransactionsTest {
         // Mock fileService.fileSchema() to return a mock schema
         final var fileSchema = mock(V0490FileSchema.class);
         given(fileService.fileSchema()).willReturn(fileSchema);
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
+        given(blockRecordStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
@@ -545,7 +569,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -580,6 +605,17 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
+        given(blockRecordStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
@@ -598,7 +634,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -607,7 +644,8 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeSetupArchivesJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupDefersArchivingJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir)
+            throws IOException {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -632,15 +670,19 @@ class SystemTransactionsTest {
 
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
         final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
         final WritableStates writableStates = mock(WritableStates.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
         given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(writableStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -658,14 +700,18 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        assertFalse(Files.exists(jumpstartFile), "Original jumpstart file should no longer exist");
-        assertTrue(Files.exists(tempDir.resolve("archived_jumpstart.bin")), "Archived jumpstart file should exist");
+        assertTrue(Files.exists(jumpstartFile), "Jumpstart file should remain until vote is observed in state");
+        assertFalse(
+                Files.exists(tempDir.resolve("archived_jumpstart.bin")),
+                "Archived jumpstart file should not exist yet");
         // Block info values match migration, so no update should have been made
         verify(blockInfoSingleton, never()).put(any());
+        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
     }
 
     @Test
@@ -687,6 +733,17 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
+        given(blockRecordStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
 
         given(wrappedRecordBlockHashMigration.result()).willReturn(null);
 
@@ -706,12 +763,14 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
+        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
     }
 
     @Test
@@ -734,10 +793,6 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         // Migration result with specific values
         final var migrationRootHash = Bytes.wrap(new byte[] {1, 2, 3});
         final var migrationIntermediateHashes = List.of(Bytes.wrap(new byte[] {4, 5, 6}));
@@ -745,7 +800,6 @@ class SystemTransactionsTest {
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
                         Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
@@ -756,10 +810,15 @@ class SystemTransactionsTest {
 
         @SuppressWarnings("unchecked")
         final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
         given(blockInfoSingleton.get()).willReturn(staleBlockInfo);
         final WritableStates writableStates = mock(WritableStates.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
         given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(writableStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -777,18 +836,75 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        // Verify that blockInfoSingleton.put() was called with updated values
-        final var captor = org.mockito.ArgumentCaptor.forClass(BlockInfo.class);
-        verify(blockInfoSingleton).put(captor.capture());
-        final var updatedBlockInfo = captor.getValue();
-        assertEquals(migrationRootHash, updatedBlockInfo.previousWrappedRecordBlockRootHash());
-        assertEquals(migrationIntermediateHashes, updatedBlockInfo.wrappedIntermediatePreviousBlockRootHashes());
-        assertEquals(migrationLeafCount, updatedBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-        // Verify commit() was called after put()
-        verify(blockInfoSingleton).commit();
+        // Post-upgrade setup no longer writes migration values directly to BlockInfo;
+        // they are applied only when voting finalizes.
+        verify(blockInfoSingleton, never()).put(any());
+        verify(blockInfoSingleton, never()).commit();
+        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableKVState<NodeId, MigrationRootHashVoteTransactionBody> votes = mock(WritableKVState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
+        given(votingStateSingleton.get()).willReturn(MigrationRootHashVotingState.DEFAULT);
+        given(blockRecordStates.<NodeId, MigrationRootHashVoteTransactionBody>get(
+                        V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTES_STATE_ID))
+                .willReturn(votes);
+        given(votes.get(new NodeId(0L))).willReturn(null);
+
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions).submitStartupVote(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() throws IOException {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+        final var jumpstartFile = Files.createTempFile("jumpstart-", ".bin");
+        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<MigrationRootHashVotingState> votingStateSingleton =
+                mock(WritableSingletonState.class);
+        @SuppressWarnings("unchecked")
+        final WritableKVState<NodeId, MigrationRootHashVoteTransactionBody> votes = mock(WritableKVState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(votingStateSingleton);
+        given(votingStateSingleton.get()).willReturn(MigrationRootHashVotingState.DEFAULT);
+        given(blockRecordStates.<NodeId, MigrationRootHashVoteTransactionBody>get(
+                        V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTES_STATE_ID))
+                .willReturn(votes);
+        given(votes.get(new NodeId(0L)))
+                .willReturn(MigrationRootHashVoteTransactionBody.newBuilder().build());
+
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+        assertFalse(Files.exists(jumpstartFile));
     }
 }

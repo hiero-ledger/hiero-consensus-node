@@ -10,6 +10,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -101,6 +102,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
                                 .build())
+                .withSingletonState(
+                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(true)
+                                .build())
                 .commit();
 
         // Seed platform state singleton needed by BlockRecordManagerImpl.startUserTransaction()
@@ -161,6 +167,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .withSingletonState(
+                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -315,6 +326,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
                                 .build())
+                .withSingletonState(
+                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(true)
+                                .build())
                 .commit();
 
         app.stateMutator(PlatformStateService.NAME)
@@ -438,6 +454,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         MIGRATION_ROOT_HASH_VOTING_STATE_ID,
                         MigrationRootHashVotingState.newBuilder()
                                 .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
                                 .build())
                 .commit();
 
@@ -472,6 +489,80 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var queue = state.getWritableStates(BlockRecordService.NAME)
                 .<MigrationWrappedHashes>getQueue(MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
         assertTrue(queue.iterator().hasNext());
+    }
+
+    @Test
+    void liveModeDoesNotQueueWrappedHashesAfterVotingDeadlineReached() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .build();
+
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .withSingletonState(
+                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(0)
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT,
+                null)) {
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+
+            final var t1 = InstantUtils.instant(13, 1);
+            mgr.startUserTransaction(t1, state);
+        }
+
+        final var queue = state.getWritableStates(BlockRecordService.NAME)
+                .<MigrationWrappedHashes>getQueue(MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
+        assertFalse(queue.iterator().hasNext());
+        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertEquals(Bytes.EMPTY, requireNonNull(blockInfo).previousWrappedRecordBlockRootHash());
+        assertEquals(List.of(), blockInfo.wrappedIntermediatePreviousBlockRootHashes());
+        assertEquals(0, blockInfo.wrappedIntermediateBlockRootsLeafCount());
     }
 
     @Test
@@ -671,7 +762,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
-    void constructorSeedsFromMigrationResult() throws Exception {
+    void constructorSeedsFromBlockInfoEvenWithMigrationResult() throws Exception {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -679,7 +770,17 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .build();
 
-        // Seed genesis-like block info (read by constructor since initTrigger != GENESIS)
+        // Build a migration result with a real hasher that has 1 leaf
+        final var seedHasher = new IncrementalStreamingHasher(
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
+        seedHasher.addLeaf(new byte[] {1, 2, 3});
+        final var seedIntermediateHashes = seedHasher.intermediateHashingState();
+        final var seedPrevHashBytes = new byte[48];
+        seedPrevHashBytes[0] = (byte) 0xAB;
+        final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
+
+        // Seed BlockInfo with the same wrapped-hash state used in the migration result.
+        // Constructor should seed from BlockInfo regardless of migrationResult presence.
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -692,26 +793,25 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .previousWrappedRecordBlockRootHash(seedPrevHash)
+                                .wrappedIntermediatePreviousBlockRootHashes(seedIntermediateHashes)
+                                .wrappedIntermediateBlockRootsLeafCount(1)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
                                 .build())
+                .withSingletonState(
+                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
+                        MigrationRootHashVotingState.newBuilder()
+                                .votingComplete(true)
+                                .build())
                 .commit();
 
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
                 .commit();
-
-        // Build a migration result with a real hasher that has 1 leaf
-        final var seedHasher = new IncrementalStreamingHasher(
-                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
-        seedHasher.addLeaf(new byte[] {1, 2, 3});
-        final var seedIntermediateHashes = seedHasher.intermediateHashingState();
-        final var seedPrevHashBytes = new byte[48];
-        seedPrevHashBytes[0] = (byte) 0xAB;
-        final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
 
         final var migrationResult =
                 new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, seedPrevHash, seedIntermediateHashes, 1);

@@ -22,8 +22,8 @@ import java.util.Set;
  *
  * <p>The layout is intentionally split across four states to keep handle logic deterministic and idempotent:
  * <ul>
- *   <li>{@code MIGRATION_ROOT_HASH_VOTING_STATE} (singleton) stores the finalization marker and acts as the one-way
- *       gate that disables further voting/queue work after consensus is reached.</li>
+ *   <li>{@code MIGRATION_ROOT_HASH_VOTING_STATE} (singleton) stores finalization and deadline metadata and acts as
+ *       the one-way gate that disables further voting/queue work after consensus is reached or the deadline passes.</li>
  *   <li>{@code MIGRATION_ROOT_HASH_VOTES} (nodeId -> vote body) enforces one vote per node and prevents duplicate
  *       submissions from being counted more than once.</li>
  *   <li>{@code MIGRATION_ROOT_HASH_TALLIES} (vote body -> aggregate weight) supports efficient weighted threshold
