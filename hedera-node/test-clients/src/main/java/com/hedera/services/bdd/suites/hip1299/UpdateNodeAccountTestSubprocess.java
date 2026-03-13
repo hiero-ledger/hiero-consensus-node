@@ -10,8 +10,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -102,9 +104,11 @@ public class UpdateNodeAccountTestSubprocess {
                             .via("createTxn"),
                     // Assert that the transaction was not submitted and failed on ingest
                     getTxnRecord("createTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+                    // Fund the original node account so it can be re-linked
+                    cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, String.valueOf(oldNodeAccountId), 1L)),
                     // Restore the original node account ID so other tests are not affected
                     nodeUpdate(String.valueOf(nodeIdToUpdate))
-                            .accountId("0.0." + oldNodeAccountId)
+                            .accountId(String.valueOf(oldNodeAccountId))
                             .payingWith(DEFAULT_PAYER)
                             .signedByPayerAnd("newNodeAccount"));
         }
