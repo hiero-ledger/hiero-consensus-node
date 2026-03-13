@@ -422,7 +422,7 @@ public class LeakyContractTestsSuite {
                 sleepFor(1_000),
                 getReceipt(uncheckedCC)
                         .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
-                        .setRetryLimit(300) //3s
+                        .setRetryLimit(300) // 3s
                         // Mod-service and mono-service use these mostly interchangeably
                         .hasPriorityStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
                         .logged());
