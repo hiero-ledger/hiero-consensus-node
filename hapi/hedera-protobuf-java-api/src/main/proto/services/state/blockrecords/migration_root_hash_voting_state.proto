@@ -12,27 +12,7 @@ option java_multiple_files = true;
  */
 message MigrationRootHashVotingState {
   /**
-   * Whether a payload hash has exceeded the >1/3 threshold and been applied.
+   * Whether a vote payload has exceeded the >1/3 threshold and been applied.
    */
   bool voting_complete = 1;
-
-  /**
-   * Canonical hash of the agreed vote payload.
-   */
-  bytes agreed_vote_hash = 2;
-
-  /**
-   * Final previous wrapped record block root hash after queue replay.
-   */
-  bytes previous_wrapped_record_block_root_hash = 3;
-
-  /**
-   * Final wrapped previous-block intermediate hashing state after queue replay.
-   */
-  repeated bytes wrapped_intermediate_previous_block_root_hashes = 4;
-
-  /**
-   * Final wrapped previous-block intermediate leaf count after queue replay.
-   */
-  uint64 wrapped_intermediate_block_roots_leaf_count = 5;
 }

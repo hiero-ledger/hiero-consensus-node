@@ -8,16 +8,11 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 /**
- * Aggregated vote information for a single migration vote payload hash.
+ * Aggregated vote information for a single migration vote payload.
  */
 message MigrationRootHashVoteTally {
   /**
-   * Total source-roster weight that has voted for this payload hash.
+   * Total source-roster weight that has voted for this payload.
    */
   uint64 total_weight = 1;
-
-  /**
-   * Number of distinct node votes counted in this tally.
-   */
-  uint64 vote_count = 2;
 }

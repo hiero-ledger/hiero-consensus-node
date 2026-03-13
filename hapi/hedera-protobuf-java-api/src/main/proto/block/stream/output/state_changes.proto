@@ -970,6 +970,11 @@ message MapChangeKey {
          * An EVM hook's storage slot key.
          */
         com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
+
+        /**
+         * A migration root-hash vote transaction body key.
+         */
+        com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody migration_root_hash_vote_key = 25;
     }
 }
 

@@ -25,6 +25,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
+import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -63,6 +64,7 @@ import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
@@ -238,6 +240,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case EvmHookSlotKey evmHookSlotKey ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.EVM_HOOK_SLOT_KEY, evmHookSlotKey));
             case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
+            case MigrationRootHashVoteTransactionBody vote ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.MIGRATION_ROOT_HASH_VOTE_KEY, vote));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -319,6 +323,12 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case RegisteredNode registeredNode ->
                 new MapChangeValue(
                         new OneOf<>(MapChangeValue.ValueChoiceOneOfType.REGISTERED_NODE_VALUE, registeredNode));
+            case MigrationRootHashVoteTransactionBody vote ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.MIGRATION_ROOT_HASH_VOTE_VALUE, vote));
+            case MigrationRootHashVoteTally tally ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.MIGRATION_ROOT_HASH_VOTE_TALLY_VALUE, tally));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

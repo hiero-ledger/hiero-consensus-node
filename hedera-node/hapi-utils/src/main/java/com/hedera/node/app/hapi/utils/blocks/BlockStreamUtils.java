@@ -164,6 +164,7 @@ public final class BlockStreamUtils {
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
+            case MIGRATION_ROOT_HASH_VOTE_KEY -> mapChangeKey.migrationRootHashVoteKeyOrThrow();
         };
     }
 

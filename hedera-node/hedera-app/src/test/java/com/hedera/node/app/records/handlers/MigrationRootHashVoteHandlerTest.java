@@ -4,6 +4,7 @@ package com.hedera.node.app.records.handlers;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,6 +70,8 @@ class MigrationRootHashVoteHandlerTest {
 
     @Test
     void handleIsNoopWhenVotingAlreadyComplete() {
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
         given(store.isVotingComplete()).willReturn(true);
@@ -76,6 +79,7 @@ class MigrationRootHashVoteHandlerTest {
         assertDoesNotThrow(() -> subject.handle(context));
 
         verify(store, never()).putVoteIfAbsent(anyLong(), any());
+        verify(store, never()).addToTally(any(), anyLong());
     }
 
     @Test
@@ -104,16 +108,97 @@ class MigrationRootHashVoteHandlerTest {
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
         given(rosterStore.getActiveRoster()).willReturn(activeRoster);
-        given(store.getTally(any()))
-                .willReturn(MigrationRootHashVoteTally.newBuilder()
-                        .totalWeight(11L)
-                        .voteCount(1L)
-                        .build());
+        given(store.getTally(vote))
+                .willReturn(
+                        MigrationRootHashVoteTally.newBuilder().totalWeight(11L).build());
         given(store.queuedHashesInOrder()).willReturn(List.of(queuedHashes));
 
         assertDoesNotThrow(() -> subject.handle(context));
 
-        verify(store).addToTally(any(), anyLong());
-        verify(store).applyFinalizedValuesAndMarkComplete(any(), any(), any(), anyLong());
+        verify(store).addToTally(eq(vote), eq(20L));
+        verify(store).getTally(vote);
+        verify(store).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopForDuplicateVote() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(false);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).addToTally(any(), anyLong());
+        verify(store, never()).getTally(any());
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopWhenThresholdNotReached() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var activeRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(NODE_ID).weight(10L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(20L).build()));
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(activeRoster);
+        given(store.getTally(vote))
+                .willReturn(
+                        MigrationRootHashVoteTally.newBuilder().totalWeight(10L).build());
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store).addToTally(eq(vote), eq(10L));
+        verify(store).getTally(vote);
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopWhenNoActiveRoster() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(null);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).addToTally(any(), anyLong());
+        verify(store, never()).getTally(any());
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 }

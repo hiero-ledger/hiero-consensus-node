@@ -286,7 +286,7 @@ message StateKey {
     /**
      * A state identifier for migration root-hash vote tallies.
      */
-    proto.ProtoBytes BlockRecordService_I_MIGRATION_ROOT_HASH_TALLIES = 60;
+    com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody BlockRecordService_I_MIGRATION_ROOT_HASH_TALLIES = 60;
 
     /**
      * Queue index for migration wrapped hashes queue.

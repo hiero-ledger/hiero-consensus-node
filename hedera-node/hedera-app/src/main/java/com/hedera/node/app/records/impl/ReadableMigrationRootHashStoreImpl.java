@@ -6,12 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
 import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.records.ReadableMigrationRootHashStore;
 import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -28,7 +26,7 @@ import java.util.List;
 public class ReadableMigrationRootHashStoreImpl implements ReadableMigrationRootHashStore {
     private final ReadableSingletonState<MigrationRootHashVotingState> votingState;
     private final ReadableKVState<NodeId, MigrationRootHashVoteTransactionBody> votes;
-    private final ReadableKVState<ProtoBytes, MigrationRootHashVoteTally> tallies;
+    private final ReadableKVState<MigrationRootHashVoteTransactionBody, MigrationRootHashVoteTally> tallies;
     private final ReadableQueueState<MigrationWrappedHashes> queue;
 
     public ReadableMigrationRootHashStoreImpl(@NonNull final ReadableStates states) {
@@ -56,8 +54,8 @@ public class ReadableMigrationRootHashStoreImpl implements ReadableMigrationRoot
     }
 
     @Override
-    public @Nullable MigrationRootHashVoteTally getTally(@NonNull final Bytes voteHash) {
-        return tallies.get(asProtoBytes(voteHash));
+    public @Nullable MigrationRootHashVoteTally getTally(@NonNull final MigrationRootHashVoteTransactionBody vote) {
+        return tallies.get(requireNonNull(vote));
     }
 
     @Override
@@ -72,11 +70,5 @@ public class ReadableMigrationRootHashStoreImpl implements ReadableMigrationRoot
         }
         queuedHashes.sort(Comparator.comparingLong(MigrationWrappedHashes::blockNumber));
         return queuedHashes;
-    }
-
-    @Override
-    public @NonNull ProtoBytes asProtoBytes(@NonNull final Bytes bytes) {
-        requireNonNull(bytes);
-        return new ProtoBytes(bytes);
     }
 }

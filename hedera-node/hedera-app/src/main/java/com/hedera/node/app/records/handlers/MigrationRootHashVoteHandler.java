@@ -5,6 +5,8 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.records.WritableMigrationRootHashStore;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -76,16 +78,15 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return;
         }
         final var totalWeight = activeRoster.rosterEntries().stream()
-                .mapToLong(entry -> entry.weight())
+                .mapToLong(RosterEntry::weight)
                 .sum();
         if (totalWeight <= 0) {
             return;
         }
 
-        final var voteHash = hashOf(op);
-        store.addToTally(voteHash, nodeWeight);
-        final var tallyWeight = Optional.ofNullable(store.getTally(voteHash))
-                .map(tally -> tally.totalWeight())
+        store.addToTally(op, nodeWeight);
+        final var tallyWeight = Optional.ofNullable(store.getTally(op))
+                .map(MigrationRootHashVoteTally::totalWeight)
                 .orElse(0L);
         log.info(
                 "Recorded migration root hash vote from node{} (nodeWeight={}, tallyWeight={}, totalWeight={})",
@@ -116,21 +117,8 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             hasher.addNodeByHash(blockRootHash.toByteArray());
             previousWrappedRecordBlockRootHash = blockRootHash;
         }
-        final var changed = store.applyFinalizedValuesAndMarkComplete(
-                voteHash, previousWrappedRecordBlockRootHash, hasher.intermediateHashingState(), hasher.leafCount());
-        log.info(
-                "Migration root hash voting finalized after node{} vote, >1/3 threshold reached (changedBlockInfo={})",
-                nodeId,
-                changed);
-    }
-
-    private static Bytes hashOf(
-            @NonNull final com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody vote) {
-        requireNonNull(vote);
-        final var digest = sha384DigestOrThrow();
-        return Bytes.wrap(digest.digest(
-                com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody.PROTOBUF
-                        .toBytes(vote)
-                        .toByteArray()));
+        store.applyFinalizedValuesAndMarkComplete(
+                previousWrappedRecordBlockRootHash, hasher.intermediateHashingState(), hasher.leafCount());
+        log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
     }
 }
