@@ -13,7 +13,7 @@ class HapiPropertySourceBlockNodeEndpointTest {
     void throwsWhenBlockNodeApiIsMissing() {
         final var ex = assertThrows(
                 IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080"));
-        assertTrue(ex.getMessage().contains("Missing required blockNodeApi"));
+        assertTrue(ex.getMessage().contains("too few segments"));
     }
 
     @Test
@@ -21,5 +21,28 @@ class HapiPropertySourceBlockNodeEndpointTest {
         final var ex = assertThrows(
                 IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080:tls"));
         assertTrue(ex.getMessage().contains("Missing required blockNodeApi"));
+    }
+
+    @Test
+    void throwsOnGarbageBetweenApiAndTls() {
+        final var ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080:STATUS:garbage:tls"));
+        assertTrue(ex.getMessage().contains("Unknown trailing segment"));
+    }
+
+    @Test
+    void throwsOnUnknownSegmentAfterApi() {
+        final var ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080:STATUS:notTls"));
+        assertTrue(ex.getMessage().contains("Unknown trailing segment"));
+    }
+
+    @Test
+    void throwsOnMissingPort() {
+        final var ex = assertThrows(
+                IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1"));
+        assertTrue(ex.getMessage().contains("too few segments"));
     }
 }

@@ -470,6 +470,7 @@ public interface HapiPropertySource {
     static RegisteredServiceEndpoint asBlockNodeEndpoint(@NonNull final String v) {
         requireNonNull(v);
         final String[] parts = v.split(":");
+        validateMinSegments(parts, 3, v, "addr:port:blockNodeApi[:tls]");
         final String addr = parts[0];
         final int port = validatePort(Integer.parseInt(parts[1]), v);
         final var builder = RegisteredServiceEndpoint.newBuilder();
@@ -484,9 +485,7 @@ public interface HapiPropertySource {
                     + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
                     + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
         }
-        final boolean requiresTls =
-                parts.length > 3 && parts[parts.length - 1].equalsIgnoreCase("tls");
-        builder.setRequiresTls(requiresTls);
+        builder.setRequiresTls(parseOptionalTls(parts, 3, v, "addr:port:blockNodeApi[:tls]"));
         builder.setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
                 .setEndpointApi(blockNodeApi)
                 .build());
@@ -537,6 +536,7 @@ public interface HapiPropertySource {
     static RegisteredServiceEndpoint asGeneralServiceEndpoint(@NonNull final String v) {
         requireNonNull(v);
         final String[] parts = v.split(":");
+        validateMinSegments(parts, 2, v, "addr:port[:description][:tls]");
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, parts[0]);
         builder.setPort(validatePort(Integer.parseInt(parts[1]), v));
@@ -563,16 +563,11 @@ public interface HapiPropertySource {
     private static RegisteredServiceEndpoint.Builder parseSimpleEndpoint(@NonNull final String v) {
         requireNonNull(v);
         final String[] parts = v.split(":");
+        validateMinSegments(parts, 2, v, "addr:port[:tls]");
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, parts[0]);
         builder.setPort(validatePort(Integer.parseInt(parts[1]), v));
-        boolean requiresTls = false;
-        for (int i = 2; i < parts.length; i++) {
-            if (parts[i].equalsIgnoreCase("tls")) {
-                requiresTls = true;
-            }
-        }
-        builder.setRequiresTls(requiresTls);
+        builder.setRequiresTls(parseOptionalTls(parts, 2, v, "addr:port[:tls]"));
         return builder;
     }
 
@@ -591,6 +586,35 @@ public interface HapiPropertySource {
                     "Port " + port + " out of valid range (0-65535) in endpoint '" + input + "'");
         }
         return port;
+    }
+
+    private static void validateMinSegments(String[] parts, int min, String input, String expectedFormat) {
+        if (parts.length < min) {
+            throw new IllegalArgumentException(
+                    "Endpoint '" + input + "' has too few segments. Expected format: " + expectedFormat);
+        }
+    }
+
+    /**
+     * Validates an optional trailing {@code tls} segment at the given index. Returns {@code true}
+     * if the segment equals {@code "tls"} (case-insensitive), throws if it is anything else or
+     * if additional segments follow the {@code tls} flag.
+     */
+    private static boolean parseOptionalTls(String[] parts, int tlsIndex, String input, String expectedFormat) {
+        if (parts.length <= tlsIndex) {
+            return false;
+        }
+        if (!parts[tlsIndex].equalsIgnoreCase("tls")) {
+            throw new IllegalArgumentException(
+                    "Unknown trailing segment '" + parts[tlsIndex] + "' in endpoint '" + input
+                            + "'. Expected format: " + expectedFormat);
+        }
+        if (parts.length > tlsIndex + 1) {
+            throw new IllegalArgumentException(
+                    "Unknown trailing segment '" + parts[tlsIndex + 1] + "' in endpoint '" + input
+                            + "'. Expected format: " + expectedFormat);
+        }
+        return true;
     }
 
     static ContractID asContract(String v) {
