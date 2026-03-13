@@ -1311,26 +1311,7 @@ minority-fork data.
 ## 12.7 Misbehavior Detection and Reporting
 
 The endpoint is responsible for detecting and reporting peer misbehavior as defined in the cross-platform spec
-(Section 8.4). Two primary misbehavior types are relevant to the endpoint:
-
-### DUPLICATE_BROADCAST Detection
-
-A DUPLICATE_BROADCAST occurs when a remote endpoint sends the same payload to multiple local endpoints. To
-correctly detect this, the endpoint MUST track the **direction** of each sync:
-
-- **Locally initiated:** This endpoint called the peer's `sync()` RPC. The response received is a consequence of
-  this endpoint's own action.
-- **Remotely initiated:** The peer called this endpoint's `sync()` RPC. The payload received was pushed by the
-  remote endpoint.
-
-Only **remotely initiated** inbound syncs can contribute to DUPLICATE_BROADCAST evidence. If this Besu endpoint
-independently initiated a sync and received the same payload that another local endpoint also received, that is
-normal operation (both local endpoints asked the same peer for data and got the same answer). This is NOT
-misbehavior.
-
-DUPLICATE_BROADCAST evidence requires: two or more `ClprSyncPayload`s with identical `proof_bytes`, initiated by
-the remote endpoint (i.e., the remote endpoint called `sync()` on two different local endpoints with the same
-payload), submitted by different local endpoints.
+(Section 8.4). The primary misbehavior type relevant to the endpoint is EXCESS_FREQUENCY:
 
 ### EXCESS_FREQUENCY Detection
 
@@ -1339,20 +1320,16 @@ The endpoint tracks the rate of remotely initiated inbound syncs per peer. If a 
 
 ### reportMisbehavior Transaction
 
-When the endpoint detects DUPLICATE_BROADCAST or EXCESS_FREQUENCY, it constructs a `reportMisbehavior()` transaction
+When the endpoint detects EXCESS_FREQUENCY, it constructs a `reportMisbehavior()` transaction
 and submits it to the CLPR Service contract:
 
 ```solidity
 function reportMisbehavior(
     bytes32 connectionId,
-    uint8 misbehaviorType,       // DUPLICATE_BROADCAST or EXCESS_FREQUENCY
+    uint8 misbehaviorType,       // EXCESS_FREQUENCY
     bytes calldata evidence       // Encoded evidence (see below)
 ) external;
 ```
-
-Evidence format for DUPLICATE_BROADCAST: ABI-encoded array of two or more `ClprSyncPayload`s with identical
-`proof_bytes` and distinct `endpoint_signature` values from different local endpoints, along with timestamps
-proving they were remotely initiated.
 
 Evidence format for EXCESS_FREQUENCY: ABI-encoded array of timestamps showing the rate of inbound syncs from the
 reported peer exceeding the configured limit.
@@ -1360,26 +1337,11 @@ reported peer exceeding the configured limit.
 The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, using the same
 nonce management and gas estimation strategies.
 
-### Cross-Endpoint Detection Coordination
+### DUPLICATE_BROADCAST (Dropped)
 
-On a given ledger, each Besu endpoint is an independent process. To detect DUPLICATE_BROADCAST (where a remote
-endpoint pushes the same payload to multiple local endpoints), local endpoints must share information about
-received payloads. Detection mechanisms (in order of preference):
-
-1. **On-chain event monitoring.** Each endpoint monitors `BundleSubmitted` events on the CLPR Service contract.
-   If two events in the same block (or within a sync round window) reference the same `connection_id` and
-   overlapping `proof_bytes` from different submitters, the remote endpoint may be guilty of DUPLICATE_BROADCAST.
-   This is the simplest approach — no additional infrastructure needed.
-
-2. **Shared mempool observation.** Endpoints can observe pending `submitBundle` transactions in the mempool
-   before they are mined. This provides earlier detection but is less reliable (transactions may be
-   private/MEV-protected).
-
-3. **Off-chain gossip.** Endpoints on the same ledger run a lightweight gossip protocol to share payload
-   fingerprints. This adds infrastructure complexity but provides the fastest detection.
-
-The recommended approach for initial implementation is option 1 (on-chain event monitoring), as it requires no
-additional coordination infrastructure.
+DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove sync direction
+(who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
+strategies.
 
 ---
 

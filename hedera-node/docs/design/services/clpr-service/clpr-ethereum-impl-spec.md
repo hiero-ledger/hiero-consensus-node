@@ -802,32 +802,15 @@ When misbehavior is proven (via `reportMisbehavior` or duplicate submission dete
   1. Verify the misbehavior evidence (see section 9 for security model).
   2. Set _endpointBonds[connectionId][offender].active = false.
   3. Transfer slash proceeds:
-     - DUPLICATE_BROADCAST: full bond to the reporter.
      - EXCESS_FREQUENCY: full bond to the protocol treasury.
   4. Emit EndpointSlashed(connectionId, offender, amount, reason).
 ```
 
-## 4.6 DUPLICATE_BROADCAST Initiator Constraint
+## 4.6 DUPLICATE_BROADCAST (Dropped)
 
-`DUPLICATE_BROADCAST` misbehavior only applies when the **remote endpoint initiated** the sync. The rationale:
-if two local endpoints independently contact the same remote endpoint and receive the same bundle, the remote
-endpoint is not at fault -- the duplication was caused by the local side.
-
-Evidence submitted to `reportMisbehavior` for `DUPLICATE_BROADCAST` MUST demonstrate that the remote endpoint
-initiated both syncs. Specifically:
-
-1. The reporter must provide two distinct `ClprSyncPayload` bundles with overlapping message ranges, both
-   signed by the same remote endpoint.
-2. Each payload must include proof that the remote endpoint was the initiator (e.g., the `sync_initiator`
-   field in the payload metadata, or TLS session initiation evidence).
-3. The `reportMisbehavior` handler must validate the initiator evidence on-chain.
-
-**Limitation:** Full TLS session initiation evidence cannot be verified on-chain (it requires access to
-network-layer metadata). The on-chain handler can verify signed payload overlap and endpoint attribution.
-For initiator proof, the implementation relies on the `sync_initiator` field being included in the signed
-portion of `ClprSyncPayload`. If the remote endpoint does not include this field, or if the field is not
-part of the signature scope, off-chain dispute resolution infrastructure (e.g., an optimistic challenge
-period with a designated arbitrator) is needed to adjudicate initiator claims.
+DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove sync direction
+(who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
+strategies.
 
 ---
 
