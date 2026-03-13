@@ -37,7 +37,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_INFO_QUERY_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
@@ -73,6 +74,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -93,8 +95,7 @@ public class FileServiceSimpleFeesTest {
     private static final int SMALL_FILE_MAX_SIZE_KB = 1;
     private static final String FILE = "testFile";
 
-    private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 5.0;
-    private static final double QUERY_ALLOWED_PERCENT_DIFF = 2.0;
+    private static final double ALLOWED_PERCENT_DIFF = 0.1;
     private static final int LARGE_CONTENT_BYTES = 5_000;
     private static final int SERVICE_STATE_BYTES_BELOW_THRESHOLD = SERVICE_STATE_BYTES_THRESHOLD - 1;
     private static final int SERVICE_STATE_BYTES_ABOVE_THRESHOLD = SERVICE_STATE_BYTES_THRESHOLD + 1;
@@ -133,8 +134,16 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateExtraBytesTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateExtraBytesTxn",
-                                txnSize -> expectedFileUpdateFullFeeUsd(1L, 1L, contentBytes, txnSize),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES,
+                                        1L,
+                                        KEYS,
+                                        1L,
+                                        STATE_BYTES,
+                                        (long) contentBytes,
+                                        PROCESSING_BYTES,
+                                        (long) txnSize)),
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -160,7 +169,7 @@ public class FileServiceSimpleFeesTest {
                                 txnSize -> expectedFileAppendFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, STATE_BYTES, (long) appendBytes, PROCESSING_BYTES, (long)
                                                 txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -188,8 +197,9 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateExtraKeysTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateExtraKeysTxn",
-                                txnSize -> expectedFileUpdateFullFeeUsd(6L, 5L, 0L, txnSize),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 6L, KEYS, 5L, STATE_BYTES, 0L, PROCESSING_BYTES, (long) txnSize)),
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -214,8 +224,9 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateWaclOnlyTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateWaclOnlyTxn",
-                                txnSize -> expectedFileUpdateFullFeeUsd(3L, 1L, 0L, txnSize),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 3L, KEYS, 1L, STATE_BYTES, 0L, PROCESSING_BYTES, (long) txnSize)),
+                                ALLOWED_PERCENT_DIFF));
             }
         }
 
@@ -369,7 +380,7 @@ public class FileServiceSimpleFeesTest {
                                         (long) largeSize,
                                         PROCESSING_BYTES,
                                         (long) txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -392,8 +403,16 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateLargeTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateLargeTxn",
-                                txnSize -> expectedFileUpdateFullFeeUsd(1L, 1L, largeSize, txnSize),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES,
+                                        1L,
+                                        KEYS,
+                                        1L,
+                                        STATE_BYTES,
+                                        (long) largeSize,
+                                        PROCESSING_BYTES,
+                                        (long) txnSize)),
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -419,7 +438,7 @@ public class FileServiceSimpleFeesTest {
                                 txnSize -> expectedFileAppendFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, STATE_BYTES, (long) appendSize, PROCESSING_BYTES, (long)
                                                 txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -440,7 +459,7 @@ public class FileServiceSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .via("getLargeFileContentsQuery"),
-                        validateChargedUsdForQueries("getLargeFileContentsQuery", expected, QUERY_ALLOWED_PERCENT_DIFF),
+                        validateChargedUsdForQueries("getLargeFileContentsQuery", expected, ALLOWED_PERCENT_DIFF),
                         validateNonZeroNodePaymentForQuery("getLargeFileContentsQuery"));
             }
 
@@ -464,7 +483,7 @@ public class FileServiceSimpleFeesTest {
                                 "fileDeleteLargeTxn",
                                 txnSize -> expectedFileDeleteFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
         }
     }
@@ -765,7 +784,7 @@ public class FileServiceSimpleFeesTest {
                                 "fileCreateDuplicateHandleTxn",
                                 txnSize -> expectedFileCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L, KEYS, 1L, STATE_BYTES, 3L, PROCESSING_BYTES, (long) txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -781,7 +800,7 @@ public class FileServiceSimpleFeesTest {
                                 .via("fileUpdateInvalidFileIdTxn")
                                 .hasKnownStatus(INVALID_FILE_ID),
                         validateChargedUsdWithinWithTxnSize(
-                                "fileUpdateInvalidFileIdTxn", ignored -> 0.0, TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                "fileUpdateInvalidFileIdTxn", ignored -> 0.0, ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -806,7 +825,7 @@ public class FileServiceSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "fileUpdateDeletedFileTxn",
                                 FileServiceSimpleFeesTest::expectedFileUpdateBaseOnlyFeeUsd,
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -830,7 +849,7 @@ public class FileServiceSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "fileDeleteDeletedFileTxn",
                                 txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_DELETE_BASE_FEE,
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -855,7 +874,7 @@ public class FileServiceSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendDeletedFileTxn",
                                 txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE,
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @LeakyHapiTest(overrides = {"files.maxSizeKb"})
@@ -885,7 +904,7 @@ public class FileServiceSimpleFeesTest {
                                         (long) oversizedCreateBytes,
                                         PROCESSING_BYTES,
                                         (long) txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @LeakyHapiTest(overrides = {"files.maxSizeKb"})
@@ -911,7 +930,7 @@ public class FileServiceSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "fileAppendMaxSizeExceededTxn",
                                 txnSize -> expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_APPEND_BASE_FEE,
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
         }
 
@@ -934,7 +953,7 @@ public class FileServiceSimpleFeesTest {
                                 "fileCreateEmptyContentTxn",
                                 txnSize -> expectedFileCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L, KEYS, 1L, STATE_BYTES, 0L, PROCESSING_BYTES, (long) txnSize)),
-                                TRANSACTION_ALLOWED_PERCENT_DIFF));
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
@@ -953,7 +972,7 @@ public class FileServiceSimpleFeesTest {
                                 .signedBy(PAYER)
                                 .via("getLargeFileInfoQuery"),
                         validateChargedUsdForQueries(
-                                "getLargeFileInfoQuery", FILE_GET_INFO_QUERY_BASE_FEE_USD, QUERY_ALLOWED_PERCENT_DIFF),
+                                "getLargeFileInfoQuery", FILE_GET_INFO_QUERY_BASE_FEE_USD, ALLOWED_PERCENT_DIFF),
                         validateNonZeroNodePaymentForQuery("getLargeFileInfoQuery"));
             }
         }
@@ -974,7 +993,7 @@ public class FileServiceSimpleFeesTest {
                         txnSize -> expectedFileCreateFullFeeUsd(Map.of(
                                 SIGNATURES, 1L, KEYS, 1L, STATE_BYTES, (long) contentBytes, PROCESSING_BYTES, (long)
                                         txnSize)),
-                        TRANSACTION_ALLOWED_PERCENT_DIFF));
+                        ALLOWED_PERCENT_DIFF));
     }
 
     private Stream<DynamicTest> fileUpdateBoundaryWithExpectedFee(final int contentBytes, final String txnName) {
@@ -990,8 +1009,10 @@ public class FileServiceSimpleFeesTest {
                         .via(txnName),
                 validateChargedUsdWithinWithTxnSize(
                         txnName,
-                        txnSize -> expectedFileUpdateFullFeeUsd(1L, 1L, contentBytes, txnSize),
-                        TRANSACTION_ALLOWED_PERCENT_DIFF));
+                        txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
+                                SIGNATURES, 1L, KEYS, 1L, STATE_BYTES, (long) contentBytes, PROCESSING_BYTES, (long)
+                                        txnSize)),
+                        ALLOWED_PERCENT_DIFF));
     }
 
     private Stream<DynamicTest> fileAppendBoundaryWithExpectedFee(final int appendBytes, final String txnName) {
@@ -1009,7 +1030,7 @@ public class FileServiceSimpleFeesTest {
                         txnName,
                         txnSize -> expectedFileAppendFullFeeUsd(Map.of(
                                 SIGNATURES, 1L, STATE_BYTES, (long) appendBytes, PROCESSING_BYTES, (long) txnSize)),
-                        TRANSACTION_ALLOWED_PERCENT_DIFF));
+                        ALLOWED_PERCENT_DIFF));
     }
 
     private Stream<DynamicTest> fileGetContentsBoundaryWithExpectedFee(final int contentBytes, final String queryName) {
@@ -1025,20 +1046,23 @@ public class FileServiceSimpleFeesTest {
                         .payingWith(PAYER)
                         .signedBy(PAYER),
                 getFileContents(FILE).payingWith(PAYER).signedBy(PAYER).via(queryName),
-                validateChargedUsdForQueries(queryName, expected, QUERY_ALLOWED_PERCENT_DIFF),
+                validateChargedUsdForQueries(queryName, expected, ALLOWED_PERCENT_DIFF),
                 validateNonZeroNodePaymentForQuery(queryName));
     }
 
-    private static double expectedFileUpdateFullFeeUsd(
-            final long sigs, final long keys, final long stateBytes, final int txnSize) {
+    private static double expectedFileUpdateFullFeeUsd(final Map<Extra, Long> extras) {
+        final long sigs = extras.getOrDefault(SIGNATURES, 0L);
+        final long keys = extras.getOrDefault(KEYS, 0L);
+        final long stateBytes = extras.getOrDefault(STATE_BYTES, 0L);
+        final int txnSize = Math.toIntExact(extras.getOrDefault(PROCESSING_BYTES, 0L));
         final double nodeAndNetwork = expectedNodeAndNetworkFeeUsd(sigs, txnSize);
         final double serviceBytesExtras = Math.max(0, stateBytes - SERVICE_STATE_BYTES_THRESHOLD) * STATE_BYTES_FEE_USD;
-        final double serviceKeysExtras = Math.max(0, keys - 1) * KEYS_FEE_USD;
-        return nodeAndNetwork + FILE_UPDATE_BASE_FEE + serviceBytesExtras + serviceKeysExtras;
+        final double serviceKeysExtras = Math.max(0, keys - FILE_UPDATE_INCLUDED_KEYS) * KEYS_FEE_USD;
+        return nodeAndNetwork + FILE_UPDATE_BASE_FEE_USD + serviceBytesExtras + serviceKeysExtras;
     }
 
     private static double expectedFileUpdateBaseOnlyFeeUsd(final int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_UPDATE_BASE_FEE;
+        return expectedNodeAndNetworkFeeUsd(1L, txnSize) + FILE_UPDATE_BASE_FEE_USD;
     }
 
     private static double expectedNodeAndNetworkFeeUsd(final long sigs, final int txnSize) {
