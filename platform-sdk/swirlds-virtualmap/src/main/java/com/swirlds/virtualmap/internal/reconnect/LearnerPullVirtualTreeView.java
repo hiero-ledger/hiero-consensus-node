@@ -142,7 +142,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
         }
 
         final AtomicBoolean rootRequestSent = new AtomicBoolean(false);
-        final AtomicBoolean lastPathSent = new AtomicBoolean(false);
         // FUTURE WORK: configurable number of tasks
         final int learnerSendTasks = 4;
         final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);

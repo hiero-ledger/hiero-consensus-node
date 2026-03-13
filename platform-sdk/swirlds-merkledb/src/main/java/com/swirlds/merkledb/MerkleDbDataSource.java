@@ -894,14 +894,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // race, so hashChunkCache.get() above may return null, but here a value is already put
             // to the cache in a different thread. In this case, discard what's loaded from disk
             // and use the value loaded by the other thread
-            final VirtualHashChunk existingChunk = hashChunkCache.putIfAbsent(chunkId, chunk);
+            final VirtualHashChunk existingChunk = hashChunkCache.putIfAbsent(chunkId, chunk.copy());
             if (existingChunk != null) {
-                chunk = existingChunk;
+                chunk = existingChunk.copy();
             }
         }
         statisticsUpdater.countHashReads();
 
-        return chunk.copy();
+        return chunk;
     }
 
     /**

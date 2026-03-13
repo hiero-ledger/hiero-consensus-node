@@ -73,7 +73,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final AsyncInputStream in,
             final AsyncOutputStream out) {
         // FUTURE work: pool size config
-        final int teacherTasks = 4;
+        final int teacherTasks = 16;
         final AtomicInteger tasksDone = new AtomicInteger(teacherTasks);
         for (int i = 0; i < teacherTasks; i++) {
             final TeacherPullVirtualTreeReceiveTask teacherReceiveTask =
