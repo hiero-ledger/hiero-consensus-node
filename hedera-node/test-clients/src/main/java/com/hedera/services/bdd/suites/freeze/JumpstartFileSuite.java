@@ -93,6 +93,10 @@ class JumpstartFileSuite implements LifecycleTest {
                         buildDynamicJumpstartFile(jumpstartFileContents)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached \\(changedBlockInfo=.*\\)",
+                        Duration.ofSeconds(30)),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
                 logIt("Phase 4: Verify jumpstart file processed successfully"),
                 assertHgcaaLogDoesNotContainText(
