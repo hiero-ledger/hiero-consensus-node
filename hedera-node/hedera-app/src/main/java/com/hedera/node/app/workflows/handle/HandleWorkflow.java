@@ -407,7 +407,9 @@ public class HandleWorkflow {
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
                 // Persist live wrapped record block hashes to state before the freeze
-                blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                if (streamMode != BLOCKS) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));

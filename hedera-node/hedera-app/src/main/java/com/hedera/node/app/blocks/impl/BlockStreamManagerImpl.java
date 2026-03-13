@@ -18,6 +18,8 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
@@ -36,6 +38,8 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -51,6 +55,7 @@ import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -70,9 +75,12 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -146,6 +154,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
+    // Cutover only: carries over the final original record hash until `startBlock()` is called for the first time. This
+    // should always be null except during cutover's gap between `init()` and the first call to `startBlock()`
+    private Bytes cutoverTrailingBlockHash;
     private long lastRoundOfPrevBlock;
     // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
     private Timestamp blockTimestamp;
@@ -250,9 +261,182 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
         final Bytes effectiveLastBlockHash;
-        if (lastBlockHash != null) {
+        boolean previousBlockHashesUpdated = false;
+        // Cutover case
+        if (shouldExecuteCutover(
+                configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .enableCutover(),
+                state)) {
+            // Step 1: Gather needed data from state
+            log.info("Block streams cutover is enabled, performing cutover initialization");
+            final var lastBlockInfoEver = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get());
+            log.info(
+                    """
+                            Cutover final BlockInfo:
+                              lastBlockNumber={}
+                              blockHashesLength={}
+                              previousWrappedRecordBlockRootHash={}
+                              wrappedIntermediateCount={}
+                              wrappedIntermediateLeafCount={}
+                              firstConsTimeOfCurrentBlock={}
+                              lastUsedConsTime={}
+                              consTimeOfLastHandledTxn={}
+                              lastIntervalProcessTime={}""",
+                    lastBlockInfoEver.lastBlockNumber(),
+                    lastBlockInfoEver.blockHashes().length(),
+                    lastBlockInfoEver.previousWrappedRecordBlockRootHash().toHex(),
+                    lastBlockInfoEver
+                            .wrappedIntermediatePreviousBlockRootHashes()
+                            .size(),
+                    lastBlockInfoEver.wrappedIntermediateBlockRootsLeafCount(),
+                    lastBlockInfoEver.firstConsTimeOfCurrentBlock(),
+                    lastBlockInfoEver.lastUsedConsTime(),
+                    lastBlockInfoEver.consTimeOfLastHandledTxn(),
+                    lastBlockInfoEver.lastIntervalProcessTime());
+            final var lastRunningHashesEver = state.getReadableStates(BlockRecordService.NAME)
+                    .<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID)
+                    .get();
+            log.info(
+                    """
+                            Cutover final RunningHashes:
+                              runningHash={}
+                              nMinus1={}
+                              nMinus2={}
+                              nMinus3={}""",
+                    lastRunningHashesEver.runningHash().toHex(),
+                    lastRunningHashesEver.nMinus1RunningHash().toHex(),
+                    lastRunningHashesEver.nMinus2RunningHash().toHex(),
+                    lastRunningHashesEver.nMinus3RunningHash().toHex());
+            final var lastBlockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
+                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                    .get();
+            requireNonNull(lastBlockStreamInfo);
+
+            // Step 2: Reshape hashes into the expected block stream format
+            // 2.1. Record block hashes (excluding the last hash); BlockHashManager.startBlock() will append
+            // prevBlockHash to trailingBlockHashes, so write all but the final record hash to avoid an off-by-one
+            final var fullBlockHashes = lastBlockInfoEver.blockHashes().toByteArray();
+            final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
+            // 2.2. Running hashes
+            Bytes lastFourHashes = appendHash(
+                    Bytes.wrap(lastRunningHashesEver.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
+            lastFourHashes = appendHash(
+                    Bytes.wrap(lastRunningHashesEver.nMinus2RunningHash().toByteArray()), lastFourHashes, 4);
+            lastFourHashes = appendHash(
+                    Bytes.wrap(lastRunningHashesEver.nMinus1RunningHash().toByteArray()), lastFourHashes, 4);
+            lastFourHashes =
+                    appendHash(Bytes.wrap(lastRunningHashesEver.runningHash().toByteArray()), lastFourHashes, 4);
+            // 2.3. Wrapped prev record block root hashes
+            final List<Bytes> wrappedPrevRecordBlockRootHashes =
+                    lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
+
+            // Step 3: Overwrite the preview block stream info object
+            effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();
+            log.info(
+                    "Using current preview stream state hash {} as the starting state hash for first block after cutover",
+                    lastBlockStreamInfo.startOfBlockStateHash());
+            final var overwritten = lastBlockStreamInfo
+                    .copyBuilder()
+                    .blockNumber(lastBlockInfoEver.lastBlockNumber())
+                    .blockTime(lastBlockInfoEver.firstConsTimeOfCurrentBlock())
+                    .trailingOutputHashes(lastFourHashes) // trailing_output_hashes MUST be the previous record outputs
+                    .trailingBlockHashes(
+                            lastBlockHashes) // the previous original record hashes (not wrapped record block hashes)
+                    .inputTreeRootHash(HASH_OF_ZERO)
+                    .numPrecedingStateChangesItems(0)
+                    .rightmostPrecedingStateChangesTreeHashes(List.of())
+                    .blockEndTime(
+                            lastBlockInfoEver
+                                    .lastUsedConsTime()) // BlockInfo's last used cons time is the block end time for
+                    // the last
+                    // _completed_ block
+                    .lastIntervalProcessTime(lastBlockInfoEver.lastIntervalProcessTime())
+                    .lastHandleTime(lastBlockInfoEver.consTimeOfLastHandledTxn())
+                    .consensusHeaderRootHash(HASH_OF_ZERO)
+                    // We don't need to overwrite the output item root hash because it's only needed for calculating the
+                    // previous block hash, which we already have.
+                    // Intentionally skipped: .outputItemRootHash(<value>)
+                    .traceDataRootHash(HASH_OF_ZERO)
+                    .intermediatePreviousBlockRootHashes(wrappedPrevRecordBlockRootHashes)
+                    .intermediateBlockRootsLeafCount(lastBlockInfoEver.wrappedIntermediateBlockRootsLeafCount());
+            final var states = state.getWritableStates(BlockStreamService.NAME);
+            final var blockStreamInfoState = states.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
+            final var firstRealBlockStreamInfo = overwritten.build();
+            blockStreamInfoState.put(firstRealBlockStreamInfo);
+            ((WritableSingletonStateBase<BlockStreamInfo>) blockStreamInfoState).commit();
+            log.info(
+                    """
+                            Cutover initial BlockStreamInfo:
+                              blockNumber={}
+                              blockTime={}
+                              trailingBlockHashesLength={}
+                              trailingOutputHashesLength={}
+                              blockEndTime={}
+                              lastIntervalProcessTime={}
+                              lastHandleTime={}
+                              intermediatePreviousBlockRootHashes={}
+                              intermediateBlockRootsLeafCount={}""",
+                    firstRealBlockStreamInfo.blockNumber(),
+                    firstRealBlockStreamInfo.blockTime(),
+                    firstRealBlockStreamInfo.trailingBlockHashes().length(),
+                    firstRealBlockStreamInfo.trailingOutputHashes().length(),
+                    firstRealBlockStreamInfo.blockEndTime(),
+                    firstRealBlockStreamInfo.lastIntervalProcessTime(),
+                    firstRealBlockStreamInfo.lastHandleTime(),
+                    firstRealBlockStreamInfo.intermediatePreviousBlockRootHashes(),
+                    firstRealBlockStreamInfo.intermediateBlockRootsLeafCount());
+
+            // Step 4: Delete any preview block files
+            // Every block file on disk at this point was produced by the preview block stream, and therefore is
+            // invalid. Delete these files to avoid corrupting any post-cutover blocks produced
+            final var cutoverConfig = configProvider.getConfiguration();
+            final var blockDirPath = blockDirFor(cutoverConfig);
+            log.info("Cutover deleting all preview block files from {}", blockDirPath);
+            try (var paths = Files.walk(blockDirPath, 2)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(p -> {
+                            final var name = p.getFileName().toString();
+                            return name.endsWith(".blk.gz")
+                                    || name.endsWith(".mf")
+                                    || name.endsWith(".pnd.gz")
+                                    || name.endsWith(".pnd.json");
+                        })
+                        .forEach(p -> {
+                            try {
+                                Files.delete(p);
+                            } catch (IOException e) {
+                                log.warn("Failed to delete preview block file: {}", p);
+                            }
+                        });
+            } catch (IOException e) {
+                log.warn("Failed to cleanup preview block files", e);
+            }
+
+            // Step 5: Update in-memory vars
+            this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
+            this.previousBlockHashes = new IncrementalStreamingHasher(
+                    sha384DigestOrThrow(),
+                    wrappedPrevRecordBlockRootHashes.stream()
+                            .map(Bytes::toByteArray)
+                            .toList(),
+                    lastBlockInfoEver.wrappedIntermediateBlockRootsLeafCount());
+            this.previousBlockHashes.addNodeByHash(
+                    lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
+            previousBlockHashesUpdated = true;
+
+            // Step 6: Mark cutover as executed so it never repeats
+            final var blockInfoStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoState = blockInfoStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            blockInfoState.put(
+                    lastBlockInfoEver.copyBuilder().cutoverExecuted(true).build());
+            ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+        } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
+            // Genesis case
             effectiveLastBlockHash = lastBlockHash;
-            // (FUTURE) Adjust for non-genesis case of block stream cutover
             this.previousBlockHashes =
                     new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
         } else {
@@ -322,7 +506,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockRootHash();
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
@@ -350,7 +534,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
-            blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
+            // During cutover, the trailing block hashes use the original record hash
+            // (not the wrapped record root hash stored in lastBlockHash).
+            final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
+            cutoverTrailingBlockHash = null;
+            blockHashManager.startBlock(blockStreamInfo, trailingHash);
             runningHashManager.startBlock(blockStreamInfo);
 
             lifecycle.onOpenBlock(state);
@@ -528,11 +716,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
+            final var latestOutputHashes = runningHashManager.latestHashes();
+            final var latestBlockHashes = blockHashManager.blockHashes();
             final var newBlockStreamInfo = new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
-                    runningHashManager.latestHashes(),
-                    blockHashManager.blockHashes(),
+                    latestOutputHashes,
+                    latestBlockHashes,
                     inputsHash,
                     blockStartStateHash,
                     interimStateChangeLeaves,
@@ -1314,5 +1504,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static int maxReadBytesSize(@NonNull final Configuration config) {
         requireNonNull(config);
         return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
+    }
+
+    private static boolean shouldExecuteCutover(final boolean cutoverEnabled, final @NonNull State state) {
+        final boolean doCutover;
+        if (cutoverEnabled) {
+            // Only execute cutover logic if the property is enabled and `cutoverExecuted` is false
+            final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            doCutover = blockInfo != null && !blockInfo.cutoverExecuted();
+            if (!doCutover) {
+                log.info("Block streams cutover already executed, skipping cutover initialization");
+            }
+        } else {
+            doCutover = false;
+        }
+        return doCutover;
     }
 }

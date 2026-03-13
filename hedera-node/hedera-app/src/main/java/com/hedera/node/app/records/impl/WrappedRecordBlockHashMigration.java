@@ -40,13 +40,11 @@ public class WrappedRecordBlockHashMigration {
     /**
      * Holds the computed migration results needed for the state-write phase.
      *
-     * @param blockHashes concatenated trailing block hashes
-     * @param previousWrappedRecordBlockRootHash the final wrapped record block root hash
+     * @param previousWrappedRecordBlockRootHash         the final wrapped record block root hash
      * @param wrappedIntermediatePreviousBlockRootHashes intermediate hashing state
-     * @param wrappedIntermediateBlockRootsLeafCount leaf count of the streaming hasher
+     * @param wrappedIntermediateBlockRootsLeafCount     leaf count of the streaming hasher
      */
     public record Result(
-            @NonNull Bytes blockHashes,
             @NonNull Bytes previousWrappedRecordBlockRootHash,
             @NonNull List<Bytes> wrappedIntermediatePreviousBlockRootHashes,
             long wrappedIntermediateBlockRootsLeafCount) {}
@@ -167,7 +165,7 @@ public class WrappedRecordBlockHashMigration {
         }
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
-        computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+        computeHashes(jumpstartData, allRecentWrappedRecordHashes);
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -296,8 +294,7 @@ public class WrappedRecordBlockHashMigration {
 
     private void computeHashes(
             @NonNull final JumpstartData jumpstartData,
-            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
-            final int numTrailingBlocks) {
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
         // The number of the last wrapped record block; this is the final block processed prior to now
         final var jumpstartBlockNum = jumpstartData.blockNumber();
         // The hash of the (completed/hashed) jumpstart block number
@@ -311,8 +308,6 @@ public class WrappedRecordBlockHashMigration {
                 neededRecentWrappedRecords.getLast().blockNumber());
         final var numNeededRecentWrappedRecords = neededRecentWrappedRecords.size();
 
-        final List<Bytes> currentTrailingBlockHashes = new ArrayList<>(numTrailingBlocks);
-        final int blockTailStartIndex = Math.max(0, numNeededRecentWrappedRecords - numTrailingBlocks);
         Bytes prevWrappedBlockHash = jumpstartData.prevHash();
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
@@ -322,11 +317,6 @@ public class WrappedRecordBlockHashMigration {
                     prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
-            }
-
-            // Update trailing block hashes
-            if (wrappedRecordsProcessed >= blockTailStartIndex) {
-                currentTrailingBlockHashes.add(finalBlockHash);
             }
 
             // Prepare for next hashing iteration
@@ -341,24 +331,8 @@ public class WrappedRecordBlockHashMigration {
                 prevWrappedBlockHash);
 
         result = new Result(
-                concatHashes(currentTrailingBlockHashes),
-                prevWrappedBlockHash,
-                allPrevBlocksHasher.intermediateHashingState(),
-                allPrevBlocksHasher.leafCount());
+                prevWrappedBlockHash, allPrevBlocksHasher.intermediateHashingState(), allPrevBlocksHasher.leafCount());
         log.info("Computed wrapped record block hash migration result (state write deferred)");
-    }
-
-    static Bytes concatHashes(@NonNull final List<Bytes> hashes) {
-        if (hashes.isEmpty()) {
-            return Bytes.EMPTY;
-        }
-        final byte[] out = new byte[hashes.size() * HASH_SIZE];
-        int offset = 0;
-        for (final var hash : hashes) {
-            hash.getBytes(0, out, offset, HASH_SIZE);
-            offset += HASH_SIZE;
-        }
-        return Bytes.wrap(out);
     }
 
     private static boolean isBlank(final String s) {

@@ -574,8 +574,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         seedPrevHashBytes[0] = (byte) 0xAB;
         final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
 
-        final var migrationResult =
-                new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, seedPrevHash, seedIntermediateHashes, 1);
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(seedPrevHash, seedIntermediateHashes, 1);
 
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();

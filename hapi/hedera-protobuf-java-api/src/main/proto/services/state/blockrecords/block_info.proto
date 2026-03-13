@@ -129,4 +129,12 @@ message BlockInfo {
      * roots subtree.
      */
     uint64 wrapped_intermediate_block_roots_leaf_count = 12;
+
+    /**
+     * A flag indicating that the block stream cutover has been executed.
+     * <p>
+     * This SHALL be set to `true` after the cutover initialization logic
+     * has run, to prevent the cutover logic from repeating.
+     */
+    bool cutover_executed = 13;
 }

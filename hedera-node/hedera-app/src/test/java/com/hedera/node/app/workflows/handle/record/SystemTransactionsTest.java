@@ -599,7 +599,7 @@ class SystemTransactionsTest {
         Files.writeString(jumpstartFile, "test");
 
         given(wrappedRecordBlockHashMigration.result())
-                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
+                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, List.of(), 0));
         given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up block info mock (values match migration so no update needed)
@@ -712,7 +712,7 @@ class SystemTransactionsTest {
         final long migrationLeafCount = 42L;
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
-                        Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
+                        migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
         given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
