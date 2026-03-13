@@ -99,7 +99,7 @@ jobs:
           echo "NEXT_CLUSTER=$next_cluster" >> "${GITHUB_ENV}"
 
       - name: Update MQPT_CLUSTER to input value
-        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        uses: step-security/set-github-variable@34d5bf507871a7fbe97dfb0a55c2288eb02770a4 # v1.0.0
         with:
           name: "MQPT_CLUSTER"
           value: "${{ env.NEXT_CLUSTER }}"
