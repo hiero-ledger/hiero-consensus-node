@@ -427,22 +427,10 @@ public class DataFileCompactor {
         final DataFileWriter writer = currentWriter.get();
         writer.close();
         currentWriter.set(null);
-
         final DataFileReader reader = currentReader.get();
-        if (writer.getMetadata().getItemsCount() == 0) {
-            // Nothing was written — discard the empty file
-            logger.info(
-                    MERKLE_DB.getMarker(),
-                    "[{}] Discarding empty compaction file, fileNum={}",
-                    storeName,
-                    reader.getIndex());
-            dataFileCollection.deleteFiles(List.of(reader));
-            newCompactedFiles.remove(writer.getPath());
-        } else {
-            reader.setFileCompleted();
-            logger.info(
-                    MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
-        }
+        reader.updateMetadata(writer.getMetadata());
+        reader.setFileCompleted();
+        logger.info(MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
         currentReader.set(null);
     }
 
