@@ -3,6 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkRegisteredNodesEnabled;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -85,6 +86,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext, "feeContext must not be null");
+        checkRegisteredNodesEnabled(feeContext);
         final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         calculator.resetUsage();
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));

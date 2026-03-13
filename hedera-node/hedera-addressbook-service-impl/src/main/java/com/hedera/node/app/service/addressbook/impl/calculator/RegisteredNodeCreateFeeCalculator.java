@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.calculator;
 
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
+import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkRegisteredNodesEnabled;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -21,7 +21,7 @@ public class RegisteredNodeCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         if (simpleFeeContext.feeContext() != null) {
-            checkDABEnabled(simpleFeeContext.feeContext());
+            checkRegisteredNodesEnabled(simpleFeeContext.feeContext());
         }
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.REGISTERED_NODE_CREATE);
