@@ -922,6 +922,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
 
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class))
+                .willReturn(mock(ReadableRegisteredNodeStore.class));
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
