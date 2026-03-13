@@ -21,6 +21,7 @@ import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -164,9 +165,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
             final boolean isActive,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final NetworkInfo networkInfo) {
         requireNonNull(hintsStore);
-        requireNonNull(tssConfig);
         requireNonNull(now);
         final var controller = component.controllers().getAnyInProgress();
         // On the very first round the hinTS controller won't be available yet
@@ -177,7 +177,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         var crsState = hintsStore.getCrsState();
         if (CRSState.DEFAULT.equals(crsState)) {
             // Must be a TSS cutover situation with tss.hintsEnabled = true but default state, so init here
-            crsState = initialCrsState(tssConfig.initialCrsParties());
+            crsState = initialCrsState((short) HintsService.partySizeForRosterNodeCount(
+                    networkInfo.addressBook().size()));
             hintsStore.setCrsState(crsState);
         }
         if (crsState.stage() != COMPLETED) {
@@ -204,7 +205,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     @Override
     public boolean doGenesisSetup(
-            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
         writableStates
@@ -213,10 +216,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         writableStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
-        final var tssConfig = configuration.getConfigData(TssConfig.class);
         final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
-        if (tssConfig.hintsEnabled()) {
-            final var state = initialCrsState(tssConfig.initialCrsParties());
+        if (configuration.getConfigData(TssConfig.class).hintsEnabled()) {
+            final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
             crsState.put(state);
         } else {
             crsState.put(CRSState.DEFAULT);

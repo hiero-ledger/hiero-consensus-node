@@ -95,7 +95,8 @@ class HintsContextTest {
                 2,
                 10,
                 Duration.ofSeconds(5),
-                validateBlockSignatures);
+                validateBlockSignatures,
+                true);
     }
 
     private static HintsPartialSignatureTransactionBody partialSigBody(final long constructionId) {
