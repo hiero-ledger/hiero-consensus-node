@@ -377,7 +377,7 @@ large enough to make Sybil attacks economically infeasible. An attacker who regi
 honest endpoints — controlling which bundles get submitted and enabling censorship or selective delay. The bond size
 should be calibrated so that controlling a majority of endpoints costs more than the value that could be extracted
 through censorship. Additionally, peer endpoint selection during sync should incorporate randomization to prevent
-persistent pairing, and endpoint reputation scoring (see §5.2) can help honest endpoints preferentially select reliable
+persistent pairing, and endpoint reputation scoring can help honest endpoints preferentially select reliable
 peers. On Hiero, where all consensus nodes are automatically endpoints, Sybil resistance is inherited from the
 network's stake-weighted consensus.
 
@@ -1176,8 +1176,6 @@ Connector can occupy; (c) priority pricing, where queue slots become more expens
 does not support state rent, escrowed capital is the natural alternative to rent-based models. This is an unresolved
 design issue that must be addressed before production deployment.
 
-See also §5.2 for additional open economic questions (application-Connector agreements).
-
 ---
 
 ## 3.4 Application Layer
@@ -1232,14 +1230,14 @@ should be used as the basis for integration and fault-tolerance testing.
 | R3  | **Endpoints rotated, verifier changed, proof format unchanged.** Sync channel broken, but old verifier can still read new proofs.           | Broken               | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume. `updateConnectionVerifier` local check works because proof format is compatible.                                                                      | **Works.**                                       |
 | R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, old verifier cannot read new proofs, ConfigUpdate cannot be delivered. | Broken               | `updateConnectionVerifier` with **ZK proof** path (§3.1.3) to re-bootstrap the peer's config and switch to the new verifier. Then endpoint recovery (R1) using the new verifier's `verifyEndpoints`. Queue state is preserved.          | **Works.**                                       |
 | R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | Admin severs or pauses the Connection. If the verifier is simply buggy (not malicious), a new verifier can be deployed and `updateConnectionVerifier` called. If compromised, sever and re-register from scratch — queue state is lost. | **Works** (data loss on sever).                  |
-| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection halts (§3.2.7). No automatic recovery — severing loses in-flight messages. Applications need out-of-band reconciliation.                                                                                                     | **No recovery path defined** (open question #7). |
+| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection halts (§3.2.7). No automatic recovery — severing loses in-flight messages. Applications need out-of-band reconciliation.                                                                                                     | **No recovery path defined** (open question #1). |
 | R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                          | **Works.**                                       |
 | R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                              | **Works.**                                       |
 | R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user.                                                                                                                                                             | **Works.**                                       |
 | R10 | **Built-in ZK verifier becomes obsolete.** The bootstrap verifier hardcoded in the CLPR Service needs updating.                             | N/A                  | Requires a software upgrade (Hiero) or contract upgrade (Ethereum) to the CLPR Service itself. Existing Connections are unaffected — they use their own verifier. Only new Connection registration is impacted.                         | **Works** (requires platform upgrade).           |
 
 > 💡 All recovery scenarios except R6 (permanent queue corruption) have defined recovery paths. R6 remains an open
-design question (§5.2 #7).
+design question (§5.2 #1).
 
 ---
 
@@ -1258,16 +1256,7 @@ design question (§5.2 #7).
 
 ## 5.2 Open Questions
 
-1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
-   ordering?
-2. How do applications formalize agreements with Connectors?
-3. What is the format for application-level error propagation (e.g., releasing locked assets on cross-ledger transfer
-   failure)?
-4. Should endpoint reputation or scoring be added to help nodes preferentially select reliable peers?
-5. How should protocol overhead costs (configuration updates, queue metadata sync, bundle transmission) be funded — can
-   they be made "free" from the user's perspective?
-6. Should CLPR message enqueueing use child transaction dispatch or direct Java API invocation?
-7. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
+1. **Recovery from permanent response ordering violation.** If a peer ledger's queue state is permanently corrupted
    and it can never produce correctly ordered responses, the Connection is stuck (§3.2.7). Severing the Connection
    leaves in-flight messages in an ambiguous state — the source cannot determine which messages were processed on the
    destination before the corruption and which were not. CLPR cannot skip or reorder messages without breaking ABFT
