@@ -149,6 +149,20 @@ All CLPR endpoint-to-endpoint communication MUST use TLS. The node's existing TL
 This provides bidirectional authentication at the transport layer. The endpoint's signing certificate is already
 published in the on-ledger roster, making verification straightforward.
 
+**Dual-key architecture.** Hiero nodes use two distinct keys for CLPR operations:
+
+1. **RSA key** (from the node's signing certificate) — used for CLPR protocol TLS authentication and the
+   `endpoint_signature` field in `ClprSyncPayload`. This key is published in `ClprEndpoint.signing_certificate`
+   and is the sole cryptographic identity visible in the CLPR wire format.
+2. **Ed25519/ECDSA key** (on the node's account) — used exclusively for signing HAPI transactions
+   (`submitBundle`, etc.) submitted to the local ledger's ingest pipeline. This key is never exposed in the
+   CLPR protocol wire format.
+
+On Hiero, the RSA signing key is the node's existing signing key already published in the address book, so no
+additional key provisioning is required. Account key changes (e.g., rotating the node account's Ed25519 key) do
+NOT affect the CLPR protocol — only the RSA signing certificate matters for endpoint identity, TLS authentication,
+and payload signatures.
+
 ## 2.4 gRPC Message Size
 
 The gRPC server and client MUST configure max message sizes to accommodate `max_sync_payload_bytes` from the
@@ -177,6 +191,10 @@ it evaluates all active Connections to determine which need syncing.
 **Heartbeat syncs.** Even when there are no pending outbound messages, the endpoint SHOULD periodically sync with
 each Connection to receive inbound messages (the peer may have messages for us). The heartbeat interval is the
 `connectionFrequency` parameter.
+
+**Connection status filtering.** PAUSED Connections are still eligible for sync initiation (to receive inbound
+messages and send acknowledgments). Only SEVERED and HALTED Connections are skipped by the sync orchestrator
+(see Section 13.4 for HALTED behavior).
 
 ## 3.2 Peer Endpoint Selection
 
@@ -229,6 +247,8 @@ When a node initiates a sync to a peer endpoint:
 
 3. Sign the payload:
    - Compute endpoint_signature = RSA_SIGN(node_signing_key, connection_id || proof_bytes)
+     The signing scheme is RSASSA-PSS with SHA-256 (preferred) or RSASSA-PKCS1-v1_5 with SHA-256.
+     The data (connection_id || proof_bytes) is hashed per the scheme's requirements before signing.
    - Set endpoint_public_key from signing certificate
 
 4. Open gRPC connection to peer endpoint (with TLS)
@@ -278,9 +298,16 @@ When this node constructs proof bytes for a peer endpoint, it proves the followi
 
 | State Element | Merkle Key Path | Purpose |
 |---------------|-----------------|---------|
-| Queue metadata | `CLPR_QUEUE_METADATA / {connection_id}` | Proves `next_message_id`, `acked_message_id`, `sent_running_hash`, `received_message_id`, `received_running_hash` |
+| Queue metadata | `CLPR_QUEUE_METADATA / {connection_id}` | Proves `next_message_id`, `sent_running_hash`, `received_message_id`, `received_running_hash` (aligned with the cross-platform `ClprQueueMetadata` fields) |
 | Message entries | `CLPR_MESSAGES / {connection_id, message_id}` for each unacked message | Proves message payloads and per-message running hashes |
 | Connection config | `CLPR_CONNECTIONS / {connection_id}` | Proves Connection status and verifier binding |
+
+**Field name alignment note.** The cross-platform `ClprQueueMetadata` returned by `verifyBundle()` includes four
+fields: `next_message_id`, `sent_running_hash`, `received_message_id`, and `received_running_hash`. It does NOT
+include an `acked_message_id` field. What this endpoint spec refers to as the peer's "acked_message_id" in the
+proof corresponds to the peer's `received_message_id` field in `ClprQueueMetadata`. The CLPR Service uses the
+peer's `received_message_id` to update the local Connection's `acked_message_id` (see cross-platform spec
+Section 4.2, step 5).
 
 ## 4.2 Proof Construction Steps
 
@@ -320,10 +347,20 @@ The TSS signature proves that a supermajority (weighted by stake) of consensus n
 A verifier contract on a peer ledger can verify this signature if it knows the current Hiero network's public key
 (the aggregate TSS public key derived from the roster).
 
-**Trust anchor tracking.** The peer ledger's verifier contract must track the Hiero network's TSS public key.
-When the roster changes (key rotation, node join/leave), the new aggregate public key must be communicated to the
-verifier. This is done via the EndpointJoin/EndpointLeave Control Messages, which carry the signing certificates
-of joining/leaving nodes. The verifier contract uses these to incrementally update its view of the aggregate key.
+**Trust anchor tracking.** The peer ledger's verifier contract must track the Hiero network's TSS aggregate
+public key. The TSS aggregate public key is a separate cryptographic artifact derived from TSS key shares
+distributed across the consensus roster — it is NOT the same as any individual node's RSA signing certificate.
+
+TSS public key changes (resulting from roster changes) are communicated through the proof itself. Each
+`HieroBlockProof` includes the full `tss_public_key` field (field 5). The verifier bootstraps from a known TSS
+public key and accepts transitions when a proof is validly signed by the currently trusted key but includes a
+new `tss_public_key` value, establishing a chain of trust. This allows the verifier to track key rotations
+without any out-of-band communication.
+
+EndpointJoin/EndpointLeave Control Messages carry RSA signing certificates for endpoint authentication (TLS
+and `endpoint_signature` verification) — they do NOT carry TSS key shares or TSS public key updates. These
+control messages update the peer's view of which endpoints exist and how to authenticate them, which is
+entirely separate from the TSS trust anchor used for proof verification.
 
 ## 4.4 State Freshness
 
@@ -465,6 +502,10 @@ TransactionBody {
 
 The transaction is signed with the node's account key and submitted to the standard ingest pipeline.
 
+**Naming note.** The `clprProcessSyncResult` / `ClprProcessSyncResultTransactionBody` HAPI transaction type maps
+to the cross-platform spec's `submitBundle` pseudo-API. A rename to `clprSubmitBundle` /
+`ClprSubmitBundleTransactionBody` SHOULD be considered for consistency with the cross-platform terminology.
+
 ## 6.3 Submission Path
 
 The `submitBundle` transaction enters the consensus pipeline through the **normal gossip path**. It is gossiped to
@@ -529,9 +570,19 @@ occurs (node join, leave, or key rotation), the endpoint module:
    carries the departing node's `account_id`.
 4. **For key rotation:** Enqueues an `EndpointLeave` followed by an `EndpointJoin` with the new certificate.
 
+**Enqueue semantics.** When this section says the endpoint module "enqueues" a Control Message, this means the
+endpoint module submits a HAPI transaction that, when processed post-consensus, causes the CLPR Service handler
+to enqueue the control message in the outbound queue. The endpoint module does NOT directly write to state — all
+state modifications go through the consensus transaction pipeline (see Section 8.3).
+
 **Timing.** Roster changes are detected after the roster transition is finalized in consensus. The Control Messages
 are enqueued in the same consensus round as the roster transition, ensuring they are ordered correctly relative to
 any data messages.
+
+**Configuration propagation.** Changes to Connection-level configuration (throttles, `approved_verifiers`, etc.)
+are propagated to peers by the CLPR Service's lazy config version mechanism, not by the endpoint module. The
+endpoint reads peer throttle values from Connection state on each sync tick, so config updates applied by the
+service are automatically reflected in subsequent sync decisions without any endpoint-module involvement.
 
 ## 7.3 Initial Endpoint Registration
 
@@ -729,6 +780,10 @@ No manual intervention is required for partition recovery.
 | `clpr.bundles.accepted` | Counter | Total bundles accepted post-consensus. |
 | `clpr.bundles.rejected` | Counter | Total bundles rejected post-consensus (replay, verification failure, etc.). |
 | `clpr.bundles.rejected.replay` | Counter | Bundles rejected specifically due to replay (already-received messages). |
+| `clpr.bundles.rejected.verification` | Counter | Bundles rejected due to proof verification failure. |
+| `clpr.bundles.rejected.hashMismatch` | Counter | Bundles rejected due to running hash chain mismatch. |
+| `clpr.bundles.rejected.oversized` | Counter | Bundles rejected due to exceeding size limits. |
+| `clpr.bundles.rejected.halted` | Counter | Bundles rejected because the Connection is HALTED. |
 | `clpr.messages.sent` | Counter | Total messages enqueued in outbound queues (all Connections). |
 | `clpr.messages.received` | Counter | Total messages received via bundles (all Connections). |
 | `clpr.messages.acked` | Counter | Total messages acknowledged by peers. |
@@ -789,7 +844,11 @@ Inbound sync calls are authenticated at two levels:
 1. **TLS layer.** The caller's certificate is verified against the Connection's peer endpoint roster. Unknown
    certificates are rejected before any protocol processing.
 2. **Payload signature.** The `endpoint_signature` in the `ClprSyncPayload` is verified against the
-   `endpoint_public_key`. This provides non-repudiable attribution for misbehavior evidence.
+   `endpoint_public_key`. This signature serves misbehavior attribution purposes — it provides non-repudiable
+   evidence that a specific endpoint produced a given payload. The `endpoint_signature` is NOT part of the
+   on-chain bundle verification algorithm; the CLPR Service does not verify `endpoint_signature` during
+   `handle()`. On-chain cryptographic assurance comes from the verifier's `proof_bytes` (TSS signature over
+   the state root and Merkle paths to the proven data).
 
 ## 12.3 Malicious Payload Protection
 
@@ -813,7 +872,38 @@ Additionally:
 - For **permanent** unresponsiveness (all peers gone), the `recoverEndpointRoster` mechanism (Section 5.4 of the
   cross-platform spec) is the recovery path.
 
-## 12.5 Node Account Security
+## 12.5 Misbehavior Attribution — DUPLICATE_BROADCAST
+
+The `DUPLICATE_BROADCAST` misbehavior type requires careful attribution logic in the endpoint module. On Hiero,
+all consensus nodes independently initiate syncs with peer endpoints, which means multiple local nodes may
+receive the same payload from the same remote peer as part of normal operation. The endpoint module MUST
+distinguish between normal multi-endpoint sync behavior and actual misbehavior.
+
+**Sync direction tracking.** The endpoint module MUST track whether each sync was:
+- **Locally initiated** — this node called a peer's `sync()` RPC.
+- **Remotely initiated** — a peer called this node's `sync()` RPC.
+
+This distinction is critical for DUPLICATE_BROADCAST evidence assembly.
+
+**Attribution rules:**
+
+1. `DUPLICATE_BROADCAST` evidence can ONLY be assembled from **inbound** (remotely initiated) syncs where the
+   remote endpoint initiated the call to this node.
+2. When this node initiates a sync and receives a response, the remote endpoint's payload in that response is
+   NOT grounds for `DUPLICATE_BROADCAST`, even if other local nodes also received the same payload by
+   independently initiating their own syncs.
+3. On Hiero, all consensus nodes independently initiate syncs. Two nodes syncing with the same remote peer and
+   getting the same payload is **normal operation** — the remote peer is responding to requests, not
+   broadcasting unsolicited data.
+4. Evidence for `DUPLICATE_BROADCAST` MUST include proof that the remote endpoint **initiated** multiple syncs
+   to different local endpoints with the same payload in one round. This means the remote peer actively pushed
+   the same data to multiple local nodes without being asked.
+
+**Practical implication.** A remote endpoint that responds to sync requests from multiple local nodes with the
+same payload is behaving correctly. Only a remote endpoint that proactively opens connections to multiple local
+nodes and pushes the same payload constitutes a duplicate broadcast.
+
+## 12.6 Node Account Security
 
 The endpoint module submits `submitBundle` transactions signed by the node's account key. On Hiero, consensus
 node accounts are privileged. The endpoint module MUST NOT expose the node's signing key through any external
@@ -872,8 +962,21 @@ When all peer endpoints for a Connection have open circuit breakers:
 | CLPR disabled at runtime | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved. |
 | No active Connections | Endpoint module runs but does nothing. No resource consumption beyond the tick timer. |
 | All Connections PAUSED | Inbound bundles still processed. Outbound enqueue rejected. Syncs still run (to receive inbound). |
+| Connection HALTED | Endpoint stops syncing for this Connection. Inbound bundles rejected by the CLPR Service. No automatic recovery — admin must sever and re-register the Connection. |
 | Node catching up (reconnect) | Endpoint dormant until state is recovered. |
 | Signed state unavailable | Syncs deferred until signed state is available (startup or reconnect edge case). |
+
+**HALTED Connection handling.** When a Connection transitions to HALTED (typically due to confirmed misbehavior),
+the sync orchestrator MUST read the Connection status from immutable state and skip HALTED Connections entirely.
+Specifically:
+
+- The endpoint stops initiating outbound syncs for the HALTED Connection.
+- Inbound sync calls referencing a HALTED Connection are rejected by the endpoint with a gRPC error before
+  any proof construction or transaction submission occurs.
+- The CLPR Service rejects any `submitBundle` transaction for a HALTED Connection during `handle()`.
+- HALTED does NOT automatically recover. An administrator must explicitly sever the Connection and re-register
+  it to resume operations. This is a deliberate safety mechanism — HALTED status indicates a trust violation
+  that requires human review.
 
 ## 13.5 Submission Deduplication
 
@@ -981,10 +1084,10 @@ receive the same sync payload. The design doc (Section 3.1.6) notes that if the 
 multiple local endpoints, the **remote peer endpoint** is identified as the culprit for "duplicate broadcast."
 However, on Hiero, a peer endpoint legitimately contacts all Hiero nodes because any node can submit the bundle.
 
-**Clarification needed:** The misbehavior detection for DUPLICATE_BROADCAST assumes the remote endpoint should
-NOT send the same payload to multiple local endpoints. But on Hiero, peer endpoints may not know how many
-Hiero nodes will independently initiate syncs. This misbehavior type may need different semantics for
-Hiero-to-Hiero connections where all nodes are endpoints.
+**Resolved:** See Section 12.5 for the full attribution logic. DUPLICATE_BROADCAST evidence can only be
+assembled from remotely initiated (inbound) syncs. When local nodes independently initiate syncs and receive
+the same payload, this is normal operation, not misbehavior. Evidence requires proof that the remote endpoint
+initiated multiple syncs to different local endpoints with the same payload in one round.
 
 ### F-8: Endpoint Bond on Hiero
 

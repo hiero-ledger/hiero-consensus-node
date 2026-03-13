@@ -276,18 +276,23 @@ symmetric: each side provides its proof bytes for the other's ledger.
 
 ## 3.3 TLS Configuration
 
-The gRPC server MUST use TLS. The endpoint's signing certificate (DER-encoded RSA public certificate, as specified in
-`ClprEndpoint.signing_certificate`) doubles as the TLS server certificate. This provides:
+The gRPC server MUST use TLS. The endpoint's RSA signing certificate (DER-encoded RSA public certificate, as
+specified in `ClprEndpoint.signing_certificate`) doubles as the TLS server certificate. This provides:
 
 - **Transport encryption** — All gRPC traffic is encrypted.
 - **Server authentication** — Peer endpoints can verify they are connecting to the endpoint they expect by checking
   the certificate against the on-chain endpoint roster.
 
+Because the RSA signing certificate is reused as the TLS certificate, the `--clpr-signing-certificate` parameter
+and the `clpr.tls.certificate-file` parameter refer to the same certificate. Operators SHOULD configure only
+`--clpr-signing-certificate`; the TLS certificate configuration is derived from it. If both are specified and they
+differ, the plugin MUST fail with a configuration error. A future version may allow separate TLS and signing
+certificates if a use case arises (e.g., TLS termination at a load balancer with a separate cert), but for now
+they MUST be identical.
+
 Configuration:
 ```toml
 [clpr.tls]
-certificate-file = "/path/to/cert.pem"
-key-file = "/path/to/key.pem"
 # Optional: require client certificates for mutual TLS
 client-auth = "REQUIRE"  # or "OPTIONAL" or "NONE"
 ```
@@ -329,6 +334,13 @@ design uses a single-threaded scheduler per Connection with a configurable perio
 ```
 For each Connection C where this node is a registered endpoint:
     Every connectionFrequency milliseconds:
+        0. Read C's Connection status from contract state (or cached state).
+             - If SEVERED or HALTED: skip this Connection entirely. Do not attempt sync.
+               HALTED does not automatically recover — admin must intervene.
+             - If PAUSED: the endpoint can still receive bundles (as responder) and send
+               acks, but there are no new outbound messages to push. Skip outbound sync
+               initiation but remain available as a responder.
+             - If ACTIVE: proceed with normal sync below.
         1. Read C's outbound queue metadata from contract state.
         2. If there are unacked messages (next_message_id > peer's received_message_id):
              a. Construct proof_bytes from local state.
@@ -338,6 +350,9 @@ For each Connection C where this node is a registered endpoint:
              e. If valid, construct and submit a submitBundle() transaction.
         3. If there are NO unacked messages:
              a. Still sync (to exchange acks and receive peer's messages).
+               A submitBundle() transaction is still needed if the ack updates
+               acked_message_id — this allows the contract to delete acknowledged
+               messages from the outbound queue.
              b. Construct a minimal proof_bytes covering only queue metadata.
 ```
 
@@ -390,6 +405,14 @@ endpoints from the same ledger are syncing with the same peer, the per-endpoint 
 `max_syncs_per_sec` is an aggregate limit, so individual endpoints should divide it by the estimated number of active
 local endpoints on the Connection.
 
+**Lazy config propagation awareness.** The endpoint uses the **last known** peer config values from Connection state
+when enforcing throttle limits. Peer configuration updates propagate lazily — a `ConfigUpdate` is enqueued on the
+next interaction, not pushed immediately. This means the peer's `max_syncs_per_sec` value visible in on-chain state
+may lag the peer's actual current configuration. This lag is acceptable: the cross-platform spec defines a tolerance
+band for throttle enforcement, and the endpoint reads peer throttle values from Connection state on each sync tick,
+so lazy config updates are automatically reflected once the `ConfigUpdate` control message has been processed by the
+contract.
+
 ---
 
 # 5. Proof Construction (Outbound)
@@ -398,6 +421,10 @@ When this Besu node initiates or responds to a sync for a Connection where Ether
 construct `proof_bytes` that the peer ledger's verifier contract can interpret and validate.
 
 ## 5.1 What is Proven
+
+> **Terminology note:** "Outbound proof" in the section title means "proof of Ethereum state sent to the peer."
+> The proof is always about Ethereum's own state (CLPR Service contract storage on the EVM chain). It is produced
+> by this Besu endpoint and consumed by the peer ledger's verifier contract.
 
 The proof must establish, with cryptographic assurance rooted in Ethereum's consensus, the following facts about the
 CLPR Service contract's state at a specific block:
@@ -523,13 +550,25 @@ this document, we define the logical structure:
 EthereumProofBytes {
     // === Beacon Layer ===
 
-    // The beacon block header (SSZ-encoded BeaconBlockHeader).
-    // Contains the slot, proposer_index, parent_root, state_root, body_root.
-    beacon_block_header: bytes
+    // The beacon block header that the sync committee actually signs.
+    // SSZ-encoded BeaconBlockHeader (slot, proposer_index, parent_root, state_root, body_root).
+    // The sync committee attests to signing_root(attested_header).
+    attested_header: bytes
 
-    // The sync committee's BLS aggregate signature over the beacon block header.
+    // The beacon block header containing the execution payload.
+    // Linked from attested_header's state root via the finality_branch.
+    // SSZ-encoded BeaconBlockHeader.
+    finalized_header: bytes
+
+    // Merkle branch from attested_header.state_root to finalized_root,
+    // proving the finalized checkpoint referenced by the attested header.
+    // This is the generalized index path in the BeaconState for
+    // state.finalized_checkpoint.root.
+    finality_branch: bytes[]
+
+    // The sync committee's BLS aggregate signature over signing_root(attested_header).
     // This is the cryptographic root of trust — it proves the beacon chain
-    // attested to this block.
+    // attested to the attested_header, which in turn commits to the finalized checkpoint.
     sync_committee_signature: bytes(96)  // BLS12-381 compressed signature
 
     // Bitmap indicating which sync committee members signed (512 bits).
@@ -545,15 +584,15 @@ EthereumProofBytes {
 
     // === Execution Layer ===
 
-    // The execution payload header, proving the link between the beacon block
+    // The execution payload header, proving the link between the finalized beacon block
     // and the execution layer state root.
     // On post-Deneb Ethereum, this is part of the beacon block body.
-    // The verifier checks: beacon_block_header.body_root commits to this payload,
+    // The verifier checks: finalized_header.body_root commits to this payload,
     // and this payload contains the state_root anchoring the MPT proofs.
     execution_payload_header: bytes  // SSZ-encoded ExecutionPayloadHeader
 
     // The Merkle branch proving that execution_payload_header is included in
-    // the beacon block body (body_root in the beacon block header).
+    // the finalized beacon block body (body_root in finalized_header).
     execution_payload_branch: bytes[]
 
     // === Account Proof ===
@@ -616,18 +655,22 @@ slot = base + 4
 A verifier contract on a peer ledger (e.g., a Solidity contract on Hiero EVM, or a native Hiero system contract)
 verifies the proof as follows:
 
-1. **Verify sync committee signature.** Check that the BLS aggregate signature over the beacon block header is valid
-   for the current sync committee. The verifier must track sync committee rotations (every ~27 hours / 256 epochs).
-2. **Verify execution payload inclusion.** Check that the `execution_payload_header` is committed to by the beacon
-   block header's `body_root` using the `execution_payload_branch`.
-3. **Extract state root.** The `execution_payload_header` contains the `state_root`.
-4. **Verify account proof.** Walk the `account_proof` MPT path from `state_root` to the CLPR Service contract's
+1. **Verify sync committee signature.** Check that the BLS aggregate signature over `signing_root(attested_header)`
+   is valid for the current sync committee. The verifier must track sync committee rotations (every ~27 hours /
+   256 epochs).
+2. **Verify finality branch.** Walk the `finality_branch` Merkle path from `attested_header.state_root` to
+   `finalized_root`, confirming that the attested header commits to the finalized checkpoint containing
+   `finalized_header`. This links the sync committee's attestation to the finalized block.
+3. **Verify execution payload inclusion.** Check that the `execution_payload_header` is committed to by the
+   `finalized_header.body_root` using the `execution_payload_branch`.
+4. **Extract state root.** The `execution_payload_header` contains the `state_root`.
+5. **Verify account proof.** Walk the `account_proof` MPT path from `state_root` to the CLPR Service contract's
    account, extracting the `storageRoot`.
-5. **Verify each storage proof.** Walk each `storage_proofs` entry's MPT path from `storageRoot` to the storage
+6. **Verify each storage proof.** Walk each `storage_proofs` entry's MPT path from `storageRoot` to the storage
    slot value.
-6. **Extract and decode data.** Parse the proven storage slot values to reconstruct `ClprQueueMetadata` and
+7. **Extract and decode data.** Parse the proven storage slot values to reconstruct `ClprQueueMetadata` and
    `ClprMessagePayload[]`.
-7. **Return** the verified metadata and messages.
+8. **Return** the verified metadata and messages.
 
 ## 6.5 Commitment Level Enforcement
 
@@ -648,7 +691,9 @@ The sync committee rotates every 256 epochs (~27.3 hours). The plugin:
 2. Maintains the current and next sync committee public keys.
 3. Includes the committee period in the proof so verifiers know which committee to validate against.
 
-The `SyncCommitteeTracker` component handles this:
+The `SyncCommitteeTracker` component handles this. The Beacon API returns `LightClientUpdate` objects (via
+`/eth/v1/beacon/light_client/updates`) that bundle the attested header, finalized header, sync committee signature,
+and participation bits together. The tracker models this directly rather than indexing signatures by block root:
 
 ```java
 public class SyncCommitteeTracker {
@@ -659,9 +704,29 @@ public class SyncCommitteeTracker {
     // Returns the current finalized slot.
     public long getFinalizedSlot();
 
-    // Returns the aggregate signature for a given block root.
-    public BLSSignature getAttestationForBlock(Bytes32 blockRoot);
+    // Fetches LightClientUpdate objects from the Beacon API
+    // (/eth/v1/beacon/light_client/updates?start_period=...&count=...).
+    // Each update contains: attested_header, finalized_header, finality_branch,
+    // sync_committee_signature, sync_committee_bits, and (optionally) the
+    // next_sync_committee with its branch.
+    public LightClientUpdate getUpdateForPeriod(long syncCommitteePeriod);
+
+    // Returns the latest finality update from the Beacon API
+    // (/eth/v1/beacon/light_client/finality_update). This provides the most
+    // recent attested_header + finalized_header + signature for proof construction.
+    public LightClientFinalityUpdate getLatestFinalityUpdate();
 }
+
+// Models the Beacon API LightClientUpdate structure.
+public record LightClientUpdate(
+    BeaconBlockHeader attestedHeader,
+    BeaconBlockHeader finalizedHeader,
+    byte[][] finalityBranch,
+    byte[] syncCommitteeSignature,    // BLS12-381 aggregate signature
+    byte[] syncCommitteeBits,          // 512-bit participation bitmap
+    SyncCommittee nextSyncCommittee,   // present during committee transitions
+    byte[][] nextSyncCommitteeBranch
+) {}
 ```
 
 ---
@@ -768,6 +833,11 @@ public class GasPriceStrategy {
 margin) exceeds the gas cost. If not, the endpoint MAY defer submission to a later block when gas is cheaper,
 provided the messages are not time-sensitive. This is a configurable behavior (`clpr.skip-unprofitable-bundles`).
 
+The profitability check SHOULD also consider whether the Connectors on the Connection have sufficient funds to
+reimburse the endpoint for gas costs. If a Connector's balance is too low to cover the expected reimbursement, the
+endpoint may end up paying gas for message delivery without being compensated. The endpoint can read Connector
+balances from the contract state and factor this into its submission decision.
+
 ## 7.5 Nonce Management
 
 The plugin maintains a `NonceTracker` that serializes nonce assignment for the endpoint's account:
@@ -808,6 +878,20 @@ After submission:
    - Verification failure: the proof was invalid (should not happen if pre-validation passed, but possible if the
      block was reorged between pre-validation and inclusion).
    - Connection paused/severed: state changed between estimation and inclusion.
+   - Connection HALTED: the Connection has been permanently halted due to a response ordering violation. No
+     automatic recovery is possible — admin must intervene. The endpoint MUST stop syncing for this Connection.
+
+   **Important distinction — bundle verification failure vs. HALTED:**
+   - **Bundle verification failures** (bad hash chain, replay, oversized payload) result in a simple revert with
+     no state change. The Connection remains ACTIVE. The endpoint should retry with fresh data on the next sync
+     cycle.
+   - **Response ordering violation** causes the contract to transition the Connection to HALTED. This is
+     permanent until an administrator intervenes. The endpoint MUST detect the HALTED status and stop all sync
+     activity for the affected Connection.
+
+   The endpoint SHOULD perform a pre-submission contract read to check the Connection status before submitting.
+   Detecting HALTED or SEVERED status via a cheap `eth_call` read is preferable to paying gas for a guaranteed
+   revert.
 3. **Handle timeout.** If the transaction is not included within a configurable number of blocks (default: 20), the
    plugin may:
    - **Speed up:** Resubmit with higher gas price (same nonce — this replaces the pending transaction).
@@ -826,12 +910,20 @@ list includes:
 - The verifier contract address and its storage slots.
 - Connector contract addresses that will be called during message dispatch.
 
-This reduces the cold storage access surcharge (2100 gas per slot on first access vs. 100 gas with access list
-pre-warming). For a transaction accessing 50 storage slots, the savings are ~100K gas.
+EIP-2930 access list entries cost 1900 gas per storage key (vs. 2100 gas for a cold access without the access
+list). The net savings is 200 gas per key (2100 cold - 1900 access list). For a transaction accessing 50 storage
+slots, the savings are approximately 10,000 gas (50 * 200). While modest, this adds up over many submissions and
+also provides the benefit of deterministic gas costs by eliminating cold/warm access variability.
 
 ---
 
 # 8. Endpoint Registration and Bond Management
+
+**Prerequisite: Connection registration.** Before any endpoint can register, the Connection itself must exist
+on-chain. Connection registration (including its deposit requirement) is an **administrative operation** performed
+separately from endpoint registration — typically by the Connection administrator or governance process. The
+endpoint plugin handles only endpoint registration; it assumes the Connection already exists and is properly
+configured.
 
 ## 8.1 Registration
 
@@ -853,14 +945,20 @@ besu --clpr-register-endpoint \
 This constructs and submits a `registerEndpoint()` transaction:
 
 ```solidity
+/// @notice Register as an endpoint on a Connection, posting a bond.
+/// @param connectionId The Connection to register on.
+/// @param endpoint The endpoint metadata (IP, port, signing certificate, etc.).
+/// @dev The bond amount is conveyed via msg.value. There is no separate bond parameter —
+///      having bond as both a function parameter AND msg.value would be redundant and a
+///      bug source (which value does the contract trust?). msg.value is authoritative.
 function registerEndpoint(
-    bytes32 connection_id,
-    ClprEndpoint calldata endpoint,
-    uint256 bond
+    bytes32 connectionId,
+    ClprEndpoint calldata endpoint
 ) external payable;
 ```
 
-The `bond` is sent as `msg.value` in the transaction.
+The bond is sent as `msg.value` in the transaction. The contract validates that `msg.value` meets or exceeds the
+minimum bond requirement.
 
 ### Auto-Registration
 
@@ -1075,8 +1173,8 @@ These are out of scope for this specification but should be considered for the c
 | Signing Certificate | `--clpr-signing-certificate` | `clpr.signing-certificate` | (required) | Path to the DER-encoded RSA certificate for TLS and payload signing. |
 | gRPC Port | `--clpr-grpc-port` | `clpr.grpc-port` | `9545` | Port for the CLPR gRPC server. |
 | gRPC Host | `--clpr-grpc-host` | `clpr.grpc-host` | `0.0.0.0` | Interface for the CLPR gRPC server. |
-| TLS Certificate | `--clpr-tls-cert` | `clpr.tls.certificate-file` | (required) | TLS certificate for the gRPC server. |
-| TLS Key | `--clpr-tls-key` | `clpr.tls.key-file` | (required) | TLS private key for the gRPC server. |
+| TLS Certificate | `--clpr-tls-cert` | `clpr.tls.certificate-file` | (derived from signing-certificate) | TLS certificate for the gRPC server. Defaults to the RSA signing certificate. If specified, MUST match the signing certificate. |
+| TLS Key | `--clpr-tls-key` | `clpr.tls.key-file` | (derived from signing certificate key) | TLS private key for the gRPC server. Defaults to the RSA signing key. |
 | Client Auth | `--clpr-tls-client-auth` | `clpr.tls.client-auth` | `OPTIONAL` | TLS client authentication mode: `NONE`, `OPTIONAL`, `REQUIRE`. |
 | Sync Frequency | `--clpr-sync-frequency` | `clpr.sync-frequency-ms` | `5000` | Milliseconds between sync attempts per Connection. |
 | Beacon API URL | `--clpr-beacon-api-url` | `clpr.beacon-api-url` | `http://localhost:5052` | Beacon chain API endpoint for sync committee data. |
@@ -1188,6 +1286,58 @@ If the Besu node temporarily follows a minority fork:
 The plugin does not need special handling for this case — the protocol's proof verification naturally rejects
 minority-fork data.
 
+## 12.7 Misbehavior Detection and Reporting
+
+The endpoint is responsible for detecting and reporting peer misbehavior as defined in the cross-platform spec
+(Section 8.4). Two primary misbehavior types are relevant to the endpoint:
+
+### DUPLICATE_BROADCAST Detection
+
+A DUPLICATE_BROADCAST occurs when a remote endpoint sends the same payload to multiple local endpoints. To
+correctly detect this, the endpoint MUST track the **direction** of each sync:
+
+- **Locally initiated:** This endpoint called the peer's `sync()` RPC. The response received is a consequence of
+  this endpoint's own action.
+- **Remotely initiated:** The peer called this endpoint's `sync()` RPC. The payload received was pushed by the
+  remote endpoint.
+
+Only **remotely initiated** inbound syncs can contribute to DUPLICATE_BROADCAST evidence. If this Besu endpoint
+independently initiated a sync and received the same payload that another local endpoint also received, that is
+normal operation (both local endpoints asked the same peer for data and got the same answer). This is NOT
+misbehavior.
+
+DUPLICATE_BROADCAST evidence requires: two or more `ClprSyncPayload`s with identical `proof_bytes`, initiated by
+the remote endpoint (i.e., the remote endpoint called `sync()` on two different local endpoints with the same
+payload), submitted by different local endpoints.
+
+### EXCESS_FREQUENCY Detection
+
+The endpoint tracks the rate of remotely initiated inbound syncs per peer. If a peer exceeds the local ledger's
+`max_syncs_per_sec` limit, the endpoint records the timestamps as evidence.
+
+### reportMisbehavior Transaction
+
+When the endpoint detects DUPLICATE_BROADCAST or EXCESS_FREQUENCY, it constructs a `reportMisbehavior()` transaction
+and submits it to the CLPR Service contract:
+
+```solidity
+function reportMisbehavior(
+    bytes32 connectionId,
+    uint8 misbehaviorType,       // DUPLICATE_BROADCAST or EXCESS_FREQUENCY
+    bytes calldata evidence       // Encoded evidence (see below)
+) external;
+```
+
+Evidence format for DUPLICATE_BROADCAST: ABI-encoded array of two or more `ClprSyncPayload`s with identical
+`proof_bytes` and distinct `endpoint_signature` values from different local endpoints, along with timestamps
+proving they were remotely initiated.
+
+Evidence format for EXCESS_FREQUENCY: ABI-encoded array of timestamps showing the rate of inbound syncs from the
+reported peer exceeding the configured limit.
+
+The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, using the same
+nonce management and gas estimation strategies.
+
 ---
 
 # 13. Monitoring and Metrics
@@ -1298,11 +1448,18 @@ authentication.
 
 ## 14.3 Signing Key Management
 
-The endpoint's signing key is used for:
-- Signing Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.).
-- Signing `ClprSyncPayload.endpoint_signature`.
+The endpoint requires **two distinct signing keys** for different purposes:
 
-Key management options:
+- **RSA private key** — Signs `ClprSyncPayload.endpoint_signature` (per cross-platform spec Section 1.5) and
+  provides the TLS server certificate. The corresponding RSA public certificate is registered on-chain as
+  `ClprEndpoint.signing_certificate`.
+- **ECDSA secp256k1 private key** — Signs Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.).
+  This is the standard Ethereum account key.
+
+These keys MUST NOT be conflated. The `endpoint_signature` field in the CLPR protocol is always RSA (for
+cross-platform compatibility with non-EVM ledgers), while Ethereum transactions always use secp256k1 ECDSA.
+
+Key management options (apply to both keys — each key may use a different storage mechanism):
 
 1. **File-based key.** The private key is stored in a file on disk, encrypted with a passphrase. This is the
    simplest option and is appropriate for development and testing.
@@ -1444,7 +1601,7 @@ specification, after cross-referencing with the source documents.
 
 ## 16.1 Contradictions with Source Documents
 
-### 16.1.1 Signing Key Type Mismatch
+### 16.1.1 Signing Key Type Mismatch (Resolved)
 
 The cross-platform spec (Section 1.2) specifies that `ClprEndpoint.signing_certificate` is a "DER-encoded RSA
 public certificate" used for TLS and payload signing. However, Ethereum transactions are signed with ECDSA
@@ -1453,9 +1610,10 @@ public certificate" used for TLS and payload signing. However, Ethereum transact
 - An **RSA keypair** for TLS and `endpoint_signature` (as specified in the protocol).
 - An **ECDSA secp256k1 keypair** for Ethereum transaction signing.
 
-The Besu plugin must manage both. The `signing-key-file` configuration refers to the ECDSA key (for transactions),
-while the `signing-certificate` refers to the RSA certificate (for TLS and protocol signatures). This dual-key
-requirement should be made explicit in the cross-platform spec for Ethereum implementations.
+This dual-key requirement is explicitly addressed in Section 14.3 of this specification. The `signing-key-file`
+configuration refers to the ECDSA key (for Ethereum transactions), while the `signing-certificate` refers to the
+RSA certificate (for TLS and protocol-level `endpoint_signature`). The RSA signing certificate also serves as the
+TLS server certificate (see Section 3.3).
 
 ### 16.1.2 Sidecar vs. Plugin Discrepancy
 
@@ -1493,7 +1651,11 @@ The CLPR plugin introduces gRPC and protobuf dependencies. Besu itself uses Nett
 protobuf on its classpath (for other plugins or internal use). Dependency version conflicts are a real risk.
 
 **Mitigation:** Use Gradle's `shadow` plugin to shade the CLPR plugin's gRPC and protobuf dependencies into a
-unique package namespace, avoiding classpath conflicts with Besu's own dependencies.
+unique package namespace, avoiding classpath conflicts with Besu's own dependencies. The `shadow` plugin
+configuration MUST include `mergeServiceFiles()` to preserve `@AutoService` / `ServiceLoader` metadata files
+(typically under `META-INF/services/`) when shading gRPC and protobuf dependencies. Without this directive,
+`ServiceLoader`-based discovery (used by gRPC for transport providers and by Besu for plugin discovery) will
+silently fail.
 
 ## 16.3 Gas Feasibility
 
