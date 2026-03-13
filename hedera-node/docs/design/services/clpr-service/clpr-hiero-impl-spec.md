@@ -85,10 +85,13 @@ message ClprRegisterConnectionTransactionBody {
 
   // ECDSA_secp256k1 signature over the registration payload, proving
   // the caller controls the Connection ID keypair.
-  // Signed payload: connection_id || verifier_contract || caller_account_id
+  // Signed payload: keccak256(connection_id || verifier_contract || caller_account_id)
+  // See section 11.5 for verification details.
   bytes ecdsa_signature = 2;
 
-  // ECDSA_secp256k1 public key (33 bytes compressed, or 65 bytes uncompressed).
+  // ECDSA_secp256k1 public key.
+  // MUST be 64 bytes (uncompressed x||y coordinates without the 0x04 prefix).
+  // The Connection ID is derived as keccak256(ecdsa_public_key).
   bytes ecdsa_public_key = 3;
 
   // Account ID of the locally deployed verifier system contract.
@@ -150,6 +153,9 @@ message ClprRegisterConnectorTransactionBody {
   uint64 initial_balance = 4;
   // Stake in tinybars locked against misbehavior.
   uint64 stake = 5;
+  // Account authorized to manage this Connector (top-up, withdraw, deregister).
+  // Defaults to the transaction payer if not specified.
+  AccountID admin = 6;
 }
 
 // Adds funds to a Connector's balance.
@@ -179,7 +185,9 @@ message ClprDeregisterConnectorTransactionBody {
 // Sends a cross-ledger message via a Connector.
 message ClprSendMessageTransactionBody {
   bytes connection_id = 1;
-  // Address of the local Connector's authorization contract.
+  // Address of the Connector's authorization contract on the local ledger.
+  // This is the key used to look up the Connector in the CONNECTORS state store
+  // (i.e., the source_connector_address component of the ClprConnectorKey).
   bytes connector_id = 2;
   // Destination application address on the peer ledger.
   bytes target_application = 3;
@@ -506,7 +514,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprSeverConnectionHandler` | `ClprSeverConnection` | Low (status transition, return deposit to original registrant) |
 | `ClprPauseConnectionHandler` | `ClprPauseConnection` | Low (status transition) |
 | `ClprResumeConnectionHandler` | `ClprResumeConnection` | Low (status transition) |
-| `ClprRegisterConnectorHandler` | `ClprRegisterConnector` | Medium (fund transfer, mapping setup) |
+| `ClprRegisterConnectorHandler` | `ClprRegisterConnector` | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices. |
 | `ClprTopUpConnectorHandler` | `ClprTopUpConnector` | Low (balance update) |
 | `ClprWithdrawConnectorBalanceHandler` | `ClprWithdrawConnectorBalance` | Low (balance check + transfer) |
 | `ClprDeregisterConnectorHandler` | `ClprDeregisterConnector` | Medium (in-flight check, fund return) |
@@ -652,6 +660,9 @@ Each Hiero endpoint node has **two distinct keys** used in different contexts:
 
 The RSA certificate is CLPR-specific and establishes endpoint identity to remote peers. The platform-native
 account key is used only for on-ledger transaction authorization and is invisible to the CLPR protocol layer.
+
+**RSA signing scheme:** Hiero endpoints use **RSASSA-PSS with SHA-256** for `endpoint_signature` computation,
+satisfying the cross-platform spec's MUST requirement for platform-specific scheme declaration.
 
 ## 4.2 gRPC Endpoint Service
 
