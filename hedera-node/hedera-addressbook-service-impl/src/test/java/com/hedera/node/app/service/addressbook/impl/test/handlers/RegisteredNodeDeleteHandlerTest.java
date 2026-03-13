@@ -324,6 +324,10 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     @DisplayName("calculateFees uses signature-based pricing with SubType.DEFAULT")
     void calculateFeesUsesSignatureBasedPricing() {
         final var expectedFees = new Fees(1L, 2L, 3L);
+        given(feeContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("nodes.registeredNodesEnabled", true)
+                        .getOrCreateConfig());
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
         given(feeContext.numTxnSignatures()).willReturn(2);
@@ -339,6 +343,10 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("calculateFees floors verification count at zero for single signature")
     void calculateFeesWithZeroSignatures() {
+        given(feeContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("nodes.registeredNodesEnabled", true)
+                        .getOrCreateConfig());
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
         given(feeContext.numTxnSignatures()).willReturn(0);
@@ -352,6 +360,10 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("calculateFees adds n-1 verifications for multiple signatures")
     void calculateFeesWithMultipleSignatures() {
+        given(feeContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("nodes.registeredNodesEnabled", true)
+                        .getOrCreateConfig());
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
         given(feeContext.numTxnSignatures()).willReturn(5);

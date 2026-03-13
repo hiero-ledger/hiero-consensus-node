@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.service.addressbook.impl.ReadableRegisteredNodeStoreImpl;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -37,6 +38,9 @@ class ReadableRegisteredNodeStoreImplTest {
     @Mock
     private ReadableStates readableStates;
 
+    @Mock
+    private ReadableEntityIdStore entityIdStore;
+
     private ReadableRegisteredNodeStoreImpl subject;
 
     @BeforeEach
@@ -47,7 +51,7 @@ class ReadableRegisteredNodeStoreImplTest {
                 .build();
         given(readableStates.<EntityNumber, RegisteredNode>get(REGISTERED_NODES_STATE_ID))
                 .willReturn(state);
-        subject = new ReadableRegisteredNodeStoreImpl(readableStates);
+        subject = new ReadableRegisteredNodeStoreImpl(readableStates, entityIdStore);
     }
 
     @Test
@@ -56,8 +60,9 @@ class ReadableRegisteredNodeStoreImplTest {
     }
 
     @Test
-    void nullStatesFails() {
-        assertThrows(NullPointerException.class, () -> new ReadableRegisteredNodeStoreImpl(null));
+    void nullArgsFail() {
+        assertThrows(NullPointerException.class, () -> new ReadableRegisteredNodeStoreImpl(null, entityIdStore));
+        assertThrows(NullPointerException.class, () -> new ReadableRegisteredNodeStoreImpl(readableStates, null));
     }
 
     @Test

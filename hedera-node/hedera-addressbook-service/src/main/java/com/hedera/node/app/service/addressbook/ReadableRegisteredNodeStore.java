@@ -16,4 +16,12 @@ public interface ReadableRegisteredNodeStore {
      */
     @Nullable
     RegisteredNode get(long registeredNodeId);
+
+    /**
+     * Returns the next registered node ID that would be generated, without incrementing
+     * the highest node ID.
+     *
+     * @return the next available node ID
+     */
+    long peekAtNextNodeId();
 }

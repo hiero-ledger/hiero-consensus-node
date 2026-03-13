@@ -31,7 +31,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -66,9 +65,6 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private StoreFactory storeFactory;
-
-    @Mock
-    private NodeIdGenerator nodeIdGenerator;
 
     @Mock
     private com.hedera.node.app.service.token.ReadableAccountStore accountStore;
@@ -221,7 +217,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
         verify(recordBuilder).registeredNodeID(newId);
     }
 
@@ -239,7 +235,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     @Test
@@ -265,7 +261,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     @Test
@@ -287,7 +283,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrement(captor.capture());
         final var persisted = captor.getValue();
 
         assertEquals(newId, persisted.registeredNodeId());
@@ -320,7 +316,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrement(captor.capture());
         assertEquals(List.of(domainEndpoint), captor.getValue().serviceEndpoint());
     }
 
@@ -350,7 +346,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
-        verify(writableRegisteredNodeStore).putAndIncrementCount(captor.capture());
+        verify(writableRegisteredNodeStore).putAndIncrement(captor.capture());
         assertEquals(3, captor.getValue().serviceEndpoint().size());
     }
 
@@ -379,6 +375,11 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         final var feeCalcFact = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
         final var expectedFees = new Fees(1, 0, 0);
+        final var config = new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
+                .withValue("nodes.registeredNodesEnabled", true)
+                .getOrCreateConfig();
+        given(feeCtx.configuration()).willReturn(config);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
         given(feeCtx.numTxnSignatures()).willReturn(3);
@@ -397,6 +398,11 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         final var feeCalcFact = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
         final var expectedFees = new Fees(1, 0, 0);
+        final var config = new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
+                .withValue("nodes.registeredNodesEnabled", true)
+                .getOrCreateConfig();
+        given(feeCtx.configuration()).willReturn(config);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
         given(feeCtx.numTxnSignatures()).willReturn(0);
@@ -421,7 +427,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     @Test
@@ -436,7 +442,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     @Test
@@ -472,7 +478,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     @Test
@@ -596,7 +602,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     // ─── Boundary tests ─────────────────────────────────────────────────
@@ -616,7 +622,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         givenHandleContext(txn, newId, stack, attributeValidator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(writableRegisteredNodeStore).putAndIncrementCount(any());
+        verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
     private void givenHandleContext(
@@ -628,8 +634,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
-        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
-        given(nodeIdGenerator.newNodeId()).willReturn(newId);
+        given(writableRegisteredNodeStore.peekAtNextNodeId()).willReturn(newId);
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);

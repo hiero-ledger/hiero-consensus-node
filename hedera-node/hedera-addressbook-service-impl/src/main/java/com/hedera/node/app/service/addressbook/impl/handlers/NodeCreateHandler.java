@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -143,6 +144,8 @@ public class NodeCreateHandler implements TransactionHandler {
             if (maybeNodeIsInStateForSystemTxn) {
                 nodeStore.put(node);
             } else {
+                // Verify the explicit ID doesn't collide with a registered node in the shared ID space
+                validateTrue(registeredNodeStore.get(nextNodeId) == null, INVALID_NODE_ID);
                 // Increment the nodes count. Update the highest node ID if needed.
                 nodeStore.putWithExplicitId(node);
             }

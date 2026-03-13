@@ -68,14 +68,14 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 
-        final var registeredNodeId = handleContext.nodeIdGenerator().newNodeId();
+        final var registeredNodeId = registeredNodeStore.peekAtNextNodeId();
         final var node = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)
                 .adminKey(op.adminKeyOrThrow())
                 .description(op.description())
                 .serviceEndpoint(op.serviceEndpoint())
                 .build();
-        registeredNodeStore.putAndIncrementCount(node);
+        registeredNodeStore.putAndIncrement(node);
 
         final var recordBuilder =
                 handleContext.savepointStack().getBaseBuilder(RegisteredNodeCreateStreamBuilder.class);

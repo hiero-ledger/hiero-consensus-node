@@ -33,7 +33,6 @@ import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
-import com.hedera.node.app.service.entityid.impl.NodeIdGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -362,7 +361,6 @@ public class ParentTxnFactory {
 
         final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
-        final var nodeIdGenerator = new NodeIdGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
         final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
@@ -390,7 +388,6 @@ public class ParentTxnFactory {
                 exchangeRateManager,
                 stack,
                 entityNumGenerator,
-                nodeIdGenerator,
                 dispatcher,
                 networkInfo,
                 childDispatchFactory,

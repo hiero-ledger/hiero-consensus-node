@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
-import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.Fees;
@@ -294,11 +293,6 @@ public interface HandleContext {
      * @return the entity number generator
      */
     EntityNumGenerator entityNumGenerator();
-
-    /**
-     * Returns a {@link NodeIdGenerator} that can be used to generate node IDs.
-     */
-    NodeIdGenerator nodeIdGenerator();
 
     /**
      * Returns the validator for attributes of entities created or updated by handlers.

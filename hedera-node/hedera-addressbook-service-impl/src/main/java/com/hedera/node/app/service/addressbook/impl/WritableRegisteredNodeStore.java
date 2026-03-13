@@ -19,7 +19,7 @@ public class WritableRegisteredNodeStore extends ReadableRegisteredNodeStoreImpl
 
     public WritableRegisteredNodeStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityIdStore writableEntityIdStore) {
-        super(states);
+        super(states, writableEntityIdStore);
         this.writableEntityIdStore = requireNonNull(writableEntityIdStore);
     }
 
@@ -35,13 +35,15 @@ public class WritableRegisteredNodeStore extends ReadableRegisteredNodeStoreImpl
     }
 
     /**
-     * Persists a new {@link RegisteredNode} into the state and increments the entity type count
-     * for {@link EntityType#REGISTERED_NODE}.
+     * Persists a new {@link RegisteredNode} into the state. Increments both the highest node ID
+     * and the {@link EntityType#REGISTERED_NODE} entity type count.
      *
      * @param node the registered node to store
      */
-    public void putAndIncrementCount(@NonNull final RegisteredNode node) {
+    public void putAndIncrement(@NonNull final RegisteredNode node) {
+        requireNonNull(node);
         put(node);
+        writableEntityIdStore.incrementHighestNodeIdAndGet();
         writableEntityIdStore.incrementEntityTypeCount(EntityType.REGISTERED_NODE);
     }
 

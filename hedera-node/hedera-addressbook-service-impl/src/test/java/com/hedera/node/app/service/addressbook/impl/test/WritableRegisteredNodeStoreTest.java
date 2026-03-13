@@ -114,13 +114,14 @@ class WritableRegisteredNodeStoreTest {
     }
 
     @Test
-    void putAndIncrementCountStoresNodeAndIncrementsCounter() {
+    void putAndIncrementStoresNodeAndIncrementsCounterAndNodeId() {
         assertFalse(writableState.contains(NODE_ENTITY_NUM));
 
-        subject.putAndIncrementCount(REGISTERED_NODE);
+        subject.putAndIncrement(REGISTERED_NODE);
 
         assertTrue(writableState.contains(NODE_ENTITY_NUM));
         assertEquals(REGISTERED_NODE, writableState.get(NODE_ENTITY_NUM));
+        verify(writableEntityIdStore).incrementHighestNodeIdAndGet();
         verify(writableEntityIdStore).incrementEntityTypeCount(EntityType.REGISTERED_NODE);
     }
 

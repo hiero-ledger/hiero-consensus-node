@@ -137,9 +137,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
         newMap.put(ReadableNodeStore.class, new StoreEntry(AddressBookService.NAME, ReadableNodeStoreImpl::new));
         newMap.put(
                 ReadableRegisteredNodeStore.class,
-                new StoreEntry(
-                        AddressBookService.NAME,
-                        (states, entityCounters) -> new ReadableRegisteredNodeStoreImpl(states)));
+                new StoreEntry(AddressBookService.NAME, ReadableRegisteredNodeStoreImpl::new));
         newMap.put(
                 ReadableAccountNodeRelStore.class,
                 new StoreEntry(

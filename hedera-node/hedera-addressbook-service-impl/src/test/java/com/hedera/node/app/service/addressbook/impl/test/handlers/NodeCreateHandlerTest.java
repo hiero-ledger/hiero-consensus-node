@@ -886,6 +886,60 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsForSystemTxnWithRegisteredNodeCollision() throws CertificateEncodingException {
+        // Set up state with 0 nodes — the explicit ID does NOT exist as a consensus node
+        rebuildState(0);
+
+        final var systemAccountId = AccountID.newBuilder().accountNum(99L).build();
+        final long collidingId = 42L;
+
+        txn = new NodeCreateBuilder()
+                .withAccountId(systemAccountId)
+                .withDescription("System node")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withAdminKey(key)
+                .build(payerId);
+
+        // Create dispatch metadata with an explicit ID that collides with a registered node
+        final var dispatchMetadata = new HandleContext.DispatchMetadata(
+                HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, collidingId);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 100)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.maxNumber", 100)
+                .getOrCreateConfig();
+
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+
+        final var systemAccount = mock(Account.class);
+        given(accountStore.getAccountById(systemAccountId)).willReturn(systemAccount);
+        given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
+
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
+        // Mock a registered node store that returns a node at the colliding ID
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(registeredNodeStore.get(collidingId)).willReturn(mock(RegisteredNode.class));
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
     void handleWorksWithoutGrpcProxyEndpoint() throws CertificateEncodingException {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)

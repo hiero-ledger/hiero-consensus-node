@@ -600,6 +600,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         final var feeCalcFact = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
         final var expectedFees = new Fees(1, 0, 0);
+        given(feeCtx.configuration()).willReturn(newConfig());
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
         given(feeCtx.numTxnSignatures()).willReturn(3);
@@ -618,6 +619,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         final var feeCalcFact = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
         final var expectedFees = new Fees(1, 0, 0);
+        given(feeCtx.configuration()).willReturn(newConfig());
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
         given(feeCtx.numTxnSignatures()).willReturn(0);
@@ -635,6 +637,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         final var feeCalcFact = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
         final var expectedFees = new Fees(1, 0, 0);
+        given(feeCtx.configuration()).willReturn(newConfig());
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
         given(feeCtx.numTxnSignatures()).willReturn(5);
