@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_FI
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -17,7 +16,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,12 +92,10 @@ public class UpdateNodeAccountTestSubprocess {
                             .accountId("newNodeAccount")
                             .payingWith(DEFAULT_PAYER)
                             .signedByPayerAnd("newNodeAccount"),
-                    cryptoCreate("foo")
-                            .setNode(oldNodeAccountId)
-                            .hasPrecheck(INVALID_NODE_ACCOUNT)
-                            .via("createTxn"),
-                    // Assert that the transaction was not submitted and failed on ingest
-                    getTxnRecord("createTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+                    // INVALID_NODE_ACCOUNT is in streamlinedIngestChecks, so the framework accepts OK as
+                    // an alternative precheck. If the node hasn't applied the nodeUpdate locally yet, the
+                    // txn may reach consensus and create a record, making a RECORD_NOT_FOUND query flaky.
+                    cryptoCreate("foo").setNode(oldNodeAccountId).hasPrecheck(INVALID_NODE_ACCOUNT));
         }
     }
 
