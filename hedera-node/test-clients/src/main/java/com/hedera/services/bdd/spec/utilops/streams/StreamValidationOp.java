@@ -20,7 +20,6 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -46,7 +45,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,14 +78,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             //            RedactingEventHashBlockStreamValidator.FACTORY
             );
 
-    private final int historyProofsToWaitFor;
+    private record DataOrException(
+            @Nullable StreamFileAccess.RecordStreamData data,
+            @Nullable Exception e) {}
 
-    @Nullable
-    private final Duration historyProofTimeout;
-
-    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
-        this.historyProofsToWaitFor = historyProofsToWaitFor;
-        this.historyProofTimeout = historyProofTimeout;
+    public StreamValidationOp() {
         this.recordStreamValidators = List.of(
                 new BlockNoValidator(),
                 new TransactionBodyValidator(),
@@ -113,7 +108,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
-                        data -> {
+                        dataOrException -> {
+                            final var data = dataOrException.data();
+                            if (data == null) {
+                                Assertions.fail(
+                                        "Unable to read stream data at " + recordStreamLocationsOf(spec),
+                                        dataOrException.e());
+                            }
                             final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
@@ -125,26 +126,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             }
                             dataRef.set(data);
                         },
-                        () -> Assertions.fail("No record stream data found"));
+                        () -> Assertions.fail(
+                                "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
 
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
-        }
-        if (historyProofsToWaitFor > 0) {
-            requireNonNull(historyProofTimeout);
-            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
-            spec.getNetworkNodes()
-                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
-                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
-                            .join());
-            // If we waited for more than one history proof, do a freeze
-            // upgrade to test adoption of whatever candidate roster
-            // triggered production of the last history proof (the first
-            // one was the "proof" of the genesis address book)
-            if (historyProofsToWaitFor > 1) {
-                allRunFor(spec, upgradeToNextConfigVersion());
-            }
         }
         // Freeze the network
         allRunFor(
@@ -159,7 +146,17 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             // Re-read the record streams since they may have been updated
                             readMaybeRecordStreamDataFor(spec)
                                     .ifPresentOrElse(
-                                            dataRef::set, () -> Assertions.fail("No record stream data found"));
+                                            dataOrException -> {
+                                                final var data = dataOrException.data();
+                                                if (data == null) {
+                                                    Assertions.fail(
+                                                            "Unable to re-read stream data at "
+                                                                    + recordStreamLocationsOf(spec),
+                                                            dataOrException.e());
+                                                }
+                                                dataRef.set(data);
+                                            },
+                                            () -> Assertions.fail("No record stream data found"));
                             final var data = requireNonNull(dataRef.get());
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
@@ -211,28 +208,38 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return Optional.ofNullable(blocks);
     }
 
-    private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
-            @NonNull final HapiSpec spec) {
+    private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
+        Exception lastException = null;
         StreamFileAccess.RecordStreamData data = null;
-        final var streamLocs = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
-                .map(Path::toAbsolutePath)
-                .map(Object::toString)
-                .toList();
+        final var streamLocs = recordStreamLocationsOf(spec);
         for (final var loc : streamLocs) {
             try {
                 log.info("Trying to read record files from {}", loc);
                 data = STREAM_FILE_ACCESS.readStreamDataFrom(
-                        loc, "sidecar", f -> new File(f).length() > MIN_GZIP_SIZE_IN_BYTES);
+                        loc,
+                        "sidecar",
+                        f -> new File(f).length() > MIN_GZIP_SIZE_IN_BYTES,
+                        // Record stream files are continually created for gossiping partial signatures when hinTS is
+                        // enabled, even without user transactions submitted; so we ignore EOF exceptions here
+                        spec.startupProperties().getBoolean("tss.hintsEnabled"));
                 log.info("Read {} record files from {}", data.records().size(), loc);
-            } catch (Exception ignore) {
-                // We will try to read the next node's streams
+            } catch (Exception e) {
+                lastException = e;
             }
             if (data != null && !data.records().isEmpty()) {
+                lastException = null;
                 break;
             }
         }
-        return Optional.ofNullable(data);
+        return Optional.of(new DataOrException(data, lastException));
+    }
+
+    private static List<String> recordStreamLocationsOf(@NonNull final HapiSpec spec) {
+        return spec.getNetworkNodes().stream()
+                .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
+                .map(Path::toAbsolutePath)
+                .map(Object::toString)
+                .toList();
     }
 
     private static void validateProofs(@NonNull final HapiSpec spec) {

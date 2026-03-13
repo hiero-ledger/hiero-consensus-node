@@ -196,10 +196,9 @@ public final class StateUtils {
                             virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                             platformContext.getConfiguration());
 
-            serviceRegistry.register(
-                    new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> StateUtils.getState(key), () -> {
-                        throw new UnsupportedOperationException("No startup networks available");
-                    }));
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
+                throw new UnsupportedOperationException("No startup networks available");
+            }));
 
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
@@ -287,7 +286,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())

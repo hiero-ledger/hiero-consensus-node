@@ -16,6 +16,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.hiero.consensus.roster.ReadableRosterStore;
 
@@ -66,13 +67,29 @@ public class ActiveRosters {
      * Returns the active rosters for a given {@link ReadableRosterStore}.
      *
      * @param rosterStore the roster store
+     * @param historyEnabled whether TSS history is enabled
+     * @param activeHintsInProgress a supplier that returns whether there are active TSS hints in progress
+     * @param activeProofInProgress if applicable, a supplier that returns whether there is an active TSS
      * @return the active rosters for the given roster store
      */
-    public static ActiveRosters from(@NonNull final ReadableRosterStore rosterStore) {
+    public static ActiveRosters from(
+            @NonNull final ReadableRosterStore rosterStore,
+            final boolean historyEnabled,
+            @NonNull final BooleanSupplier activeHintsInProgress,
+            @Nullable final BooleanSupplier activeProofInProgress) {
+        requireNonNull(activeHintsInProgress);
         final var currentRosterHash = requireNonNull(rosterStore.getCurrentRosterHash());
-        final var candidateRosterHash = rosterStore.getCandidateRosterHash();
+        var candidateRosterHash = rosterStore.getCandidateRosterHash();
+        // Ignore candidate roster hash if active TSS constructions are not ready to build on
+        if (candidateRosterHash != null) {
+            if (activeHintsInProgress.getAsBoolean()
+                    || (historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean())) {
+                candidateRosterHash = null;
+            }
+        }
         if (candidateRosterHash == null) {
-            if (rosterStore.getPreviousRosterHash() == null) {
+            if (rosterStore.getPreviousRosterHash() == null
+                    || (historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean())) {
                 return new ActiveRosters(Phase.BOOTSTRAP, currentRosterHash, currentRosterHash, rosterStore::get);
             } else {
                 return new ActiveRosters(Phase.HANDOFF, null, currentRosterHash, rosterStore::get);
