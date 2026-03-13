@@ -16,9 +16,26 @@ permissions:
   contents: write
 
 jobs:
+  # Trigger the MATS Tests
+  trigger-mats-tests:
+    name: MQ MATS
+    uses: ./.github/workflows/zxc-mats-tests.yaml
+    with:
+      ref: ${{ github.ref }}
+      enable-snyk-scan: "true" # for Snyk
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
   # Trigger the MQ XTS Tests
   trigger-merge-queue-xts-tests:
-    name: Merge Queue XTS Required Tests
+    name: MQ XTS
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
@@ -51,7 +68,7 @@ jobs:
 
   # Trigger the MQ Performance/Longevity Tests
   trigger-merge-queue-performance-tests:
-    name: Merge Queue Performance Test
+    name: MQPT
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ vars.MQPT_CLUSTER }}"
