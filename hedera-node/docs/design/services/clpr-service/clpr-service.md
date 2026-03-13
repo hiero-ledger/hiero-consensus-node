@@ -376,7 +376,7 @@ large enough to make Sybil attacks economically infeasible. An attacker who regi
 honest endpoints — controlling which bundles get submitted and enabling censorship or selective delay. The bond size
 should be calibrated so that controlling a majority of endpoints costs more than the value that could be extracted
 through censorship. Additionally, peer endpoint selection during sync should incorporate randomization to prevent
-persistent pairing, and endpoint reputation scoring (see §4.2) can help honest endpoints preferentially select reliable
+persistent pairing, and endpoint reputation scoring (see §5.2) can help honest endpoints preferentially select reliable
 peers. On Hiero, where all consensus nodes are automatically endpoints, Sybil resistance is inherited from the
 network's stake-weighted consensus.
 
@@ -467,16 +467,24 @@ No dual-format verifiers are needed. No unobservable "wait" step exists. The sou
 the ack mechanism it already has.
 
 Any user can update the verifier on an existing Connection by deploying the new verifier code locally and calling
-`updateConnectionVerifier`. The CLPR Service checks the new verifier's code hash against the `ApprovedVerifiers`
-already stored on the Connection (delivered via ConfigUpdate Control Messages — see §3.2.2). If the fingerprint
-matches, the verifier is replaced. No ZK proof is needed for this operation because the peer's config is already
-known and authenticated. This allows verifier upgrades without re-establishing the Connection and without admin
-involvement on the destination.
+`updateConnectionVerifier`. This call supports **two verification paths**:
 
-> 💡 **Bootstrap vs. ongoing updates.** At Connection registration, a ZK proof is required because no prior config
-exists — the proof bootstraps trust from nothing. For subsequent verifier updates, the ConfigUpdate mechanism has
-already delivered and authenticated the peer's current `ApprovedVerifiers`, so the `updateConnectionVerifier` call
-is purely a local check: "does this deployed code match a fingerprint the peer has already endorsed?"
+- **Local check (normal case).** The CLPR Service checks the new verifier's code hash against the `ApprovedVerifiers`
+  already stored on the Connection (delivered via ConfigUpdate Control Messages — see §3.2.2). If the fingerprint
+  matches, the verifier is replaced. No ZK proof is needed because the peer's config is already known and
+  authenticated.
+- **ZK proof (recovery case).** If the sync channel is broken and the stored `ApprovedVerifiers` is stale (e.g., the
+  peer changed its proof format and the old verifier cannot read new proofs), the caller may supply a ZK proof — the
+  same kind used at Connection registration. The built-in ZK verifier extracts the peer's current config, the CLPR
+  Service checks the new verifier's code hash against the freshly proven `ApprovedVerifiers`, and the Connection's
+  stored config is updated. This re-bootstraps trust without severing the Connection or losing queue state.
+
+This allows verifier upgrades without re-establishing the Connection and without admin involvement on the destination.
+
+> 💡 **When is the ZK path needed?** In normal operation, ConfigUpdate Control Messages keep the stored
+`ApprovedVerifiers` current, and the local check suffices. The ZK path is needed only when the in-band update channel
+has broken down — typically because the endpoints have rotated (§3.1.2 recovery) AND the proof format has changed,
+leaving no way for the old verifier to read new bundles containing the ConfigUpdate.
 
 > 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The built-in ZK verifier is part of the
 node software. The CLPR Service admin (governing council) can sever or pause any Connection via privileged HAPI
@@ -1164,7 +1172,7 @@ Connector can occupy; (c) priority pricing, where queue slots become more expens
 does not support state rent, escrowed capital is the natural alternative to rent-based models. This is an unresolved
 design issue that must be addressed before production deployment.
 
-See also §4.2 for additional open economic questions (application-Connector agreements).
+See also §5.2 for additional open economic questions (application-Connector agreements).
 
 ---
 
@@ -1208,9 +1216,33 @@ rather than smart contract proxies.
 
 ---
 
-# 4. Known Risks and Open Questions
+# 4. Recovery Scenarios
 
-## 4.1 Risks
+This section enumerates the failure modes that can disrupt a Connection and the recovery path for each. These scenarios
+should be used as the basis for integration and fault-tolerance testing.
+
+| # | Scenario | Sync channel | Recovery path | Status |
+|---|----------|-------------|---------------|--------|
+| R1 | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints. | Broken | Any user submits endpoint recovery call (§3.1.2) with a state proof and fresh endpoint list. Once at least one valid endpoint is known, syncs resume. | **Gap:** no verifier method currently handles endpoint-only state proofs (open question #8). |
+| R2 | **Planned verifier migration (sync channel working).** Source ledger upgrades proof format while syncs are active. | Working | 4-step migration sequence (§3.1.3): deploy new verifiers, update `ApprovedVerifiers`, continue old proofs until ConfigUpdate acked, switch per-Connection. | **Works.** |
+| R3 | **Endpoints rotated, verifier changed, proof format unchanged.** Sync channel broken, but old verifier can still read new proofs. | Broken | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume. `updateConnectionVerifier` local check works because proof format is compatible. | **Works** (modulo R1 gap). |
+| R4 | **Endpoints rotated AND proof format changed.** Sync channel broken, old verifier cannot read new proofs, ConfigUpdate cannot be delivered. | Broken | Endpoint recovery first (R1), then `updateConnectionVerifier` with **ZK proof** path (§3.1.3) to re-bootstrap the peer's config and switch to the new verifier. Queue state is preserved. | **Works** (modulo R1 gap). |
+| R5 | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data. | Suspect | Admin severs or pauses the Connection. If the verifier is simply buggy (not malicious), a new verifier can be deployed and `updateConnectionVerifier` called. If compromised, sever and re-register from scratch — queue state is lost. | **Works** (data loss on sever). |
+| R6 | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses. | Working | Connection halts (§3.2.7). No automatic recovery — severing loses in-flight messages. Applications need out-of-band reconciliation. | **No recovery path defined** (open question #7). |
+| R7 | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints. | Temporarily broken | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed. | **Works.** |
+| R8 | **Peer ledger down entirely.** The remote ledger is offline. | Broken | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off. | **Works.** |
+| R9 | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints. | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user. | **Works** (modulo R1 gap). |
+| R10 | **Built-in ZK verifier becomes obsolete.** The bootstrap verifier hardcoded in the CLPR Service needs updating. | N/A | Requires a software upgrade (Hiero) or contract upgrade (Ethereum) to the CLPR Service itself. Existing Connections are unaffected — they use their own verifier. Only new Connection registration is impacted. | **Works** (requires platform upgrade). |
+
+> ‼️ **R1 is the critical gap.** Endpoint recovery requires verifying a state proof of the peer's endpoint roster, but
+the verifier contract interface (§3.1.5) has no method designed for this. Resolving open question #8 (endpoint roster
+recovery verification) is required before R1, R3, R4, and R9 are fully functional.
+
+---
+
+# 5. Known Risks and Open Questions
+
+## 5.1 Risks
 
 - **Time to market.** Some HashSphere customers are already turning to existing solutions (LayerZero, Wormhole, etc.).
 - **Testing complexity.** Requires multiple concurrent networks in the same test environment; new test drivers and
@@ -1221,7 +1253,7 @@ rather than smart contract proxies.
 - **Multi-team coordination.** Development requires contributions from Execution, Smart Contracts, Block Node, Mirror
   Node, SDK, Release Engineering, Performance, Security, Docs, DevRel, and Product.
 
-## 4.2 Open Questions
+## 5.2 Open Questions
 
 1. Do messages across different Connectors between the same ledger pair need global ordering, or only within-Connector
    ordering?
