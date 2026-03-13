@@ -970,10 +970,16 @@ to `Ma2` (correct order), deletes `Ma2`. In a subsequent sync, `B` acks through 
 
 **Protocol violation and halting.** The ordering guarantee is verified by the source ledger. If a peer ledger sends a
 valid state proof but the responses within it are out of order (e.g., R3 arrives before R2), the source ledger's CLPR
-Service halts acceptance of new outbound messages on that Connection. It does not slash — you cannot slash a peer
-ledger, only individual endpoints. Instead, it waits for the peer ledger to send a subsequent bundle containing valid,
-correctly ordered data. This could happen if the peer ledger had a bug that was subsequently fixed. Once valid data
-resumes, the Connection unblocks and normal operation continues.
+Service halts acceptance of new outbound messages on that Connection and sets the Connection status to HALTED. It does
+not slash — you cannot slash a peer ledger, only individual endpoints. A HALTED Connection does not automatically
+recover — the out-of-order responses are already committed in the peer's outbound queue and cannot be unsent. The
+admin must coordinate with the peer to fix the underlying bug (which may require a CLPR Service contract upgrade on
+platforms like Ethereum), then sever the Connection and re-register.
+
+Note the distinction from bad inbound bundles: if a peer sends bundles that fail verification (bad hash chain, replay,
+oversized payloads), the CLPR Service simply rejects them without halting. The Connection remains ACTIVE and will
+accept valid bundles as soon as the peer fixes the issue. HALT is reserved exclusively for response ordering
+violations, which indicate corruption in the peer's response generation logic.
 
 ---
 

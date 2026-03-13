@@ -114,10 +114,18 @@ message ClprEndpoint {
   ServiceEndpoint service_endpoint = 1;
 
   // DER-encoded RSA public certificate used for TLS and payload signing.
+  // This is the endpoint's CLPR protocol key, used for endpoint_signature
+  // in ClprSyncPayload and for mTLS with peer endpoints.
+  //
+  // Note: endpoints also need a platform-native transaction signing key
+  // (e.g., ECDSA secp256k1 on Ethereum, Ed25519 or ECDSA on Hiero) for
+  // submitting transactions to their own ledger. The platform key is NOT
+  // part of the CLPR protocol — it is managed by the endpoint operator
+  // and is not included in the roster.
   bytes signing_certificate = 2;
 
   // On-ledger account associated with this endpoint node.
-  // Length is platform-dependent (e.g., 20 bytes for EVM/Hiero, 32 bytes for Solana).
+  // Length is platform-dependent (e.g., 20 bytes for EVM/Hiero).
   // MUST be unique within a Connection's endpoint roster.
   bytes account_id = 3;
 }
@@ -163,10 +171,18 @@ message ClprEndpointLeave {
   bytes account_id = 1;
 }
 
-// Carries updated configuration parameters. When the local admin changes a
-// configuration parameter, the CLPR Service enqueues a ConfigUpdate on every
-// active Connection. The peer processes it at a well-defined point in the
-// message stream, ensuring total ordering with data messages.
+// Carries updated configuration parameters.
+//
+// Config propagation uses lazy enqueue: when the admin updates the local
+// configuration, the CLPR Service increments a global config version counter
+// (O(1) operation). When a Connection next processes a bundle or enqueues a
+// message, the service checks whether the Connection's config version is
+// behind the global version. If so, a ConfigUpdate Control Message is
+// enqueued on that Connection at that point. This ensures:
+//   - Config updates are O(1) for the admin regardless of Connection count.
+//   - Dead or bogus Connections (with no traffic) never incur cost.
+//   - Total ordering is preserved: the ConfigUpdate appears at a specific,
+//     consensus-determined point in the message stream.
 //
 // The receiving side MUST verify that the enclosed configuration's timestamp
 // is strictly greater than the stored peer_config_timestamp. Since control
@@ -359,7 +375,11 @@ enum ClprEvidenceType {
   // Unspecified — implementations MUST reject reports with this value.
   EVIDENCE_TYPE_UNSPECIFIED = 0;
 
-  // Same payload sent to multiple local endpoints in one sync round.
+  // Remote endpoint initiated syncs to multiple local endpoints with the
+  // same payload in one sync round. Only applies when the remote endpoint
+  // was the initiator — if multiple local endpoints independently contacted
+  // the remote endpoint and received the same data, that is normal operation
+  // and NOT misbehavior.
   DUPLICATE_BROADCAST = 1;
 
   // Sync frequency exceeds the receiving ledger's advertised max_syncs_per_sec.
@@ -384,8 +404,10 @@ message ClprMisbehaviorReport {
   // the offending endpoint's signature (endpoint_signature field).
   //
   // For DUPLICATE_BROADCAST: two or more ClprSyncPayloads with identical
-  //   proof_bytes but submitted by different local endpoints (evidenced by
-  //   different submitBundle transactions on the local ledger).
+  //   proof_bytes, initiated by the remote endpoint, and submitted by
+  //   different local endpoints. Evidence MUST demonstrate that the remote
+  //   endpoint initiated the syncs (not that local endpoints independently
+  //   contacted the remote and received the same response).
   // For EXCESS_FREQUENCY: multiple ClprSyncPayloads from the same endpoint
   //   with consensus timestamps demonstrating frequency violation.
   //   Frequency MUST be measured in sync rounds or blocks, not wall-clock time.
@@ -432,6 +454,15 @@ Connection {
   // --- Status ---
   status                 : enum { ACTIVE, PAUSED, SEVERED, HALTED }
   // See §2.1.1 for status transition rules.
+
+  // --- Registration ---
+  registrant             : bytes       // account that registered this Connection (deposit recipient)
+  deposit                : uint        // anti-griefing deposit held for this Connection's lifetime
+
+  // --- Config Propagation ---
+  local_config_version   : uint64      // last local config version propagated on this Connection
+  // When local_config_version < global config version, a ConfigUpdate
+  // is lazily enqueued on the next interaction (see §1.3).
 
   // --- Outbound Queue Metadata ---
   next_message_id        : uint64      // next sequence number for outgoing messages
@@ -517,6 +548,10 @@ never interprets proof bytes directly.
 
 Every verifier contract deployed for a Connection MUST implement three methods. The method signatures below are
 language-neutral; platform-specific specs define the concrete ABI.
+
+Verifier contracts MAY maintain internal mutable state (e.g., validator set tracking, sync committee rotation)
+updated via separate administrative calls outside the CLPR interface. The three interface methods below SHOULD be
+read-only with respect to CLPR Service state, but MAY read from the verifier's own mutable state.
 
 ```
 interface IClprVerifier {
@@ -716,8 +751,14 @@ When a Response Message arrives in a bundle on the source ledger:
    of new outbound messages on this Connection.
 
 **HALTED recovery.** A HALTED Connection does not automatically recover. The ordering violation indicates a
-fundamental peer-side queue corruption that is unlikely to self-resolve. The admin MUST intervene by severing the
-Connection (see §5.5). If the underlying issue is resolved out of band, a new Connection can be registered.
+fundamental peer-side bug in response generation. The admin MUST intervene — typically by coordinating with the
+peer to fix the bug (which may require a contract upgrade on platforms like Ethereum), then severing the Connection
+(see §5.5) and re-registering if queue state is unrecoverable.
+
+**Distinction from bad inbound bundles.** If a peer sends bundles that fail verification (bad hash chain, replay,
+oversized payloads), the CLPR Service simply rejects them — no HALT, no state change. The Connection remains
+ACTIVE and will accept valid bundles as soon as the peer fixes the issue. HALT is reserved exclusively for
+response ordering violations, which indicate corruption in the peer's outbound queue state.
 
 ## 4.6 Slashing Decision
 
@@ -757,7 +798,11 @@ schedule (fine amounts, escalation thresholds, ban conditions).
 
 ## 5.1 Connection Registration
 
-Connection creation is **permissionless**. The registrant:
+Connection creation is **permissionless but requires a deposit**. The deposit is a non-trivial amount of native
+tokens held by the CLPR Service for the lifetime of the Connection. It is returned when the Connection is severed.
+The deposit prevents griefing attacks where an attacker registers large numbers of bogus Connections to inflate
+operational costs for the CLPR Service admin. Platform-specific specifications MUST define the minimum deposit
+amount. The registrant:
 
 1. Generates an **ECDSA_secp256k1 keypair** and computes the Connection ID as `keccak256(uncompressed_public_key)`
    (64-byte x||y coordinates, without the `0x04` prefix).
@@ -784,8 +829,8 @@ For a given Connection, there is exactly one active verifier. If the source ledg
 migration is fully automated through the existing ack mechanism:
 
 1. **Deploy** new verifier implementations (supporting the new proof format) on all target platforms.
-2. **Update `approved_verifiers`** — remove old fingerprints and add new ones. This enqueues a ConfigUpdate Control
-   Message on every active Connection.
+2. **Update `approved_verifiers`** — remove old fingerprints and add new ones. This increments the global config
+   version. ConfigUpdate Control Messages are lazily enqueued on each Connection at the next interaction.
 3. **Continue proving with the old format.** The bundle carrying the ConfigUpdate is verified by the old verifier
    on each destination. After the destination processes the ConfigUpdate, it knows the new `approved_verifiers` and
    can `updateConnectionVerifier` locally.
@@ -822,7 +867,7 @@ The CLPR Service admin can:
 - **Pause** a Connection — temporarily halt processing without closing it.
 - **Resume** a paused Connection — return it to `ACTIVE` status.
 - **Update the local configuration** — change `chain_id`, `approved_verifiers`, throttles. Changes are propagated
-  to peers via ConfigUpdate Control Messages.
+  to peers via ConfigUpdate Control Messages, lazily enqueued on each Connection at its next interaction (see §1.3).
 
 ---
 
@@ -837,7 +882,10 @@ specific specifications map these to native constructs. Parameters marked `[auth
 ```
 // Set or update this ledger's local CLPR configuration.
 // Authority: CLPR Service admin only.
-// Enqueues a ConfigUpdate Control Message on every active Connection.
+// Stores the new configuration and increments the global config version
+// counter. ConfigUpdate Control Messages are lazily enqueued on each
+// Connection the next time it processes a bundle or enqueues a message
+// (see ClprConfigUpdate in §1.3).
 setLedgerConfiguration(
   [auth] admin,
   configuration: ClprLedgerConfiguration
@@ -852,15 +900,21 @@ getLedgerConfiguration() → ClprLedgerConfiguration
 
 ```
 // Register a new Connection to a peer ledger.
-// Authority: any caller (permissionless).
+// Authority: any caller (permissionless; deposit required).
 // Preconditions: verifier_contract is deployed; zk_proof is valid.
+// The deposit is held for the Connection's lifetime and returned on sever.
+// Platform specs MUST define the minimum deposit amount.
 registerConnection(
   [auth] caller,
   connection_id: bytes(32),       // keccak256(uncompressed_public_key)
-  ecdsa_signature: bytes,         // ECDSA_secp256k1 signature proving caller controls the ID
+  ecdsa_signature: bytes,         // ECDSA_secp256k1 signature proving caller controls the ID;
+                                  // SHOULD sign over at least (connection_id, verifier_contract)
+                                  // to prevent cross-Connection replay. Exact payload format is
+                                  // defined in platform-specific specifications.
   verifier_contract: bytes,       // address of locally deployed verifier
   zk_proof: bytes,                // ZK proof of peer's configuration
-  seed_endpoints: ClprEndpoint[]  // at least one peer endpoint
+  seed_endpoints: ClprEndpoint[], // at least one peer endpoint
+  deposit: uint                   // anti-griefing deposit (native tokens); returned on sever
 ) → success | error
 
 // Update the verifier contract on an existing Connection.
@@ -882,6 +936,7 @@ recoverEndpointRoster(
 
 // Sever (permanently close) a Connection.
 // Authority: CLPR Service admin only.
+// Returns the Connection registration deposit to the original registrant.
 severConnection(
   [auth] admin,
   connection_id: bytes(32)
@@ -1042,6 +1097,9 @@ a system-level dispatch; on Solana, a CPI. Platform-specific specifications MUST
 3. The **return value convention** for indicating success vs. application-level failure.
 4. Whether the application callback is **synchronous** (completes within the bundle transaction) or
    **asynchronous** (queued for later execution).
+5. How **responses are delivered** to originating senders that are externally owned accounts (not contracts).
+   EOA senders cannot receive callbacks; responses SHOULD be recorded in the transaction receipt/record
+   but no callback is made.
 
 ## 6.6 Misbehavior Reporting
 
@@ -1068,7 +1126,7 @@ reportMisbehavior(
 | `publicizeNetworkAddresses` | `true`      | Global                     | Whether to include service endpoint addresses in the endpoint roster.                                    |
 | `maxQueueDepth`             | TBD         | Per-Ledger (per-Connection) | Maximum unacknowledged messages in the outbound queue before new messages are rejected.                   |
 | `maxMessagePayloadBytes`    | TBD         | Per-Ledger (per-Connection) | Maximum payload size for a single message. Enforced by source (enqueue) and destination (bundle).        |
-| `maxMessagesPerBundle`      | TBD         | Per-Ledger (per-Connection) | Maximum messages a single bundle may contain.                                                            |
+| `maxMessagesPerBundle`      | TBD         | Per-Ledger (per-Connection) | Maximum messages a single bundle may contain. Platform specs MUST set this to ensure bundles fit within the platform's transaction size and execution budget limits. |
 | `maxGasPerMessage`          | TBD         | Per-Ledger (per-Connection) | Maximum gas (or ops budget) allocated to processing a single message.                                    |
 | `maxSyncsPerSec`            | TBD         | Per-Ledger (per-Connection) | Advisory maximum sync frequency. Not protocol-enforced; persistent violation is misbehavior.             |
 | `maxSyncPayloadBytes`       | TBD         | Per-Ledger (per-Connection) | Maximum total size of a sync payload. Endpoints MAY terminate streams exceeding this limit.              |
@@ -1137,7 +1195,20 @@ upgrade authority is controlled by the source ledger's CLPR Service admin (or eq
 whose upgrade key is controlled by a third party is a critical vulnerability — that third party could silently
 replace the verification logic.
 
-## 8.9 Queue Monopolization
+## 8.9 Upgradeable CLPR Service Contracts
+
+On platforms where the CLPR Service is an upgradeable contract, endpoint proof construction depends on the
+contract's storage layout. Contract upgrades that change the storage layout MUST be coordinated with endpoint
+operators and verifier contract updates. Uncoordinated upgrades will break proof construction and halt all
+syncs until endpoints are updated.
+
+## 8.10 Endpoint Pre-Funding
+
+Endpoint operators MUST pre-fund their transaction signing accounts with sufficient native tokens to cover
+`submitBundle` transaction fees. Connector margin reimbursement occurs post-consensus and cannot cover the initial
+transaction cost. Endpoints that run out of funds cannot submit bundles and effectively go offline.
+
+## 8.11 Queue Monopolization
 
 A single Connector could authorize a large volume of messages to fill the queue to `max_queue_depth`, blocking all
 other Connectors on the Connection. This is a denial-of-service vector. Platform-specific specifications SHOULD
