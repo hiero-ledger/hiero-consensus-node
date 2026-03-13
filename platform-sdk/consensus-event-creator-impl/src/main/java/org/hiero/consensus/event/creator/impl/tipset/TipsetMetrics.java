@@ -32,6 +32,11 @@ public class TipsetMetrics {
     private final Map<NodeId, SpeedometerMetric> tipsetParentMetrics = new HashMap<>();
     private final Map<NodeId, SpeedometerMetric> pityParentMetrics = new HashMap<>();
 
+    private static final RunningAverageMetric.Config MOP_CONFIG = new RunningAverageMetric.Config(
+                    "platform", "createdEventParents")
+            .withDescription("Amount of parents newly created events have");
+    private final RunningAverageMetric mopMetric;
+
     /**
      * Create metrics for the tipset event creator.
      *
@@ -42,6 +47,7 @@ public class TipsetMetrics {
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
+        mopMetric = metrics.getOrCreate(MOP_CONFIG);
 
         for (final RosterEntry address : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(address.nodeId());
@@ -105,5 +111,15 @@ public class TipsetMetrics {
     @NonNull
     public SpeedometerMetric getPityParentMetric(@NonNull final NodeId nodeId) {
         return pityParentMetrics.get(nodeId);
+    }
+
+    /**
+     * Get the metric which tracks how many other parents on average events created on this node have
+     *
+     * @return Multiple other parents metric
+     */
+    @NonNull
+    public RunningAverageMetric getMopMetric() {
+        return mopMetric;
     }
 }
