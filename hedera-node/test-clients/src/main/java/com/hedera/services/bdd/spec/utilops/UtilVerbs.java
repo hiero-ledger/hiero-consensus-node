@@ -929,8 +929,8 @@ public class UtilVerbs {
     }
 
     public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
-            @NonNull final AtomicReference<byte[]> contentsRef) {
-        return new BuildDynamicJumpstartFileOp(contentsRef);
+            @NonNull final AtomicReference<byte[]> contentsRef, @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartFileOp(contentsRef, envOverrides);
     }
 
     public static GetWrappedRecordHashesOp getWrappedRecordHashes(

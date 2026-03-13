@@ -37,6 +37,7 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
@@ -221,7 +222,8 @@ public class ServicesMain {
         hedera.wrappedRecordBlockHashMigration()
                 .execute(
                         platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
-                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
+                        platformConfig.getConfigData(BlockRecordStreamConfig.class),
+                        platformConfig.getConfigData(BlockStreamJumpStartConfig.class));
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(

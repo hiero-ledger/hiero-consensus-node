@@ -22,7 +22,6 @@ import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRAN
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -529,19 +528,6 @@ public class SystemTransactions {
                 blockInfoState.put(builder.build());
                 ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
                 log.info("Updated block info state to match migration result");
-            }
-
-            // Archive the jumpstart file so the migration doesn't run again
-            final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
-            if (jumpstartFilePath != null) {
-                try {
-                    final var archivedPath =
-                            jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-                    Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-                    log.info("Archived jumpstart file to {}", archivedPath);
-                } catch (final IOException e) {
-                    log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
-                }
             }
         }
     }

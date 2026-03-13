@@ -4,7 +4,9 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration.JumpstartData;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpStartConfig;
 import com.hedera.node.config.types.StreamMode;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -74,10 +76,11 @@ public class WrappedRecordBlockHashMigrationBenchmark {
     // -------------------------------------------------------------------------
 
     private BlockRecordStreamConfig config;
+    private BlockStreamJumpStartConfig jumpstartConfig;
     private Path wrappedRecordHashesDir;
 
     @Setup(Level.Trial)
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         final String jumpstartFilePath = System.getProperty(JUMPSTART_FILE_PROP, DEFAULT_JUMPSTART_FILE);
         final String wrappedRecordHashesFilePath =
                 System.getProperty(WRAPPED_HASHES_FILE_PROP, DEFAULT_WRAPPED_HASHES_FILE);
@@ -89,6 +92,16 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 Path.of(wrappedRecordHashesFilePath),
                 wrappedRecordHashesDir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME),
                 StandardCopyOption.REPLACE_EXISTING);
+
+        // Parse the jumpstart binary file and construct config from its data
+        final var jumpstartData = JumpstartData.fromBytes(Files.readAllBytes(Path.of(jumpstartFilePath)));
+        final var subtreeHashes = jumpstartData.hasher().intermediateHashingState();
+        jumpstartConfig = new BlockStreamJumpStartConfig(
+                jumpstartData.blockNumber(),
+                jumpstartData.prevHash(),
+                jumpstartData.hasher().leafCount(),
+                subtreeHashes.size(),
+                subtreeHashes);
 
         config = new BlockRecordStreamConfig(
                 "/tmp/logDir",
@@ -119,7 +132,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config);
+        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig);
     }
 
     public static void main(String... args) throws Exception {

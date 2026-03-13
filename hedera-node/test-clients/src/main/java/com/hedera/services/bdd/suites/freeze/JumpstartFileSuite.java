@@ -16,10 +16,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyLiveWrappedHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -29,9 +27,8 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,7 +52,12 @@ class JumpstartFileSuite implements LifecycleTest {
             overrides = {
                 "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                 "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                "hedera.recordStream.liveWritePrevWrappedRecordHashes"
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "blockStream.jumpstart.blockNum",
+                "blockStream.jumpstart.previousWrappedRecordBlockHash",
+                "blockStream.jumpstart.streamingHasherLeafCount",
+                "blockStream.jumpstart.streamingHasherHashCount",
+                "blockStream.jumpstart.streamingHasherSubtreeHashes",
             })
     final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
@@ -64,6 +66,16 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
         final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
+
+        // Mutable map so buildDynamicJumpstartFile can add jumpstart config properties
+        // before the restart reads them
+        final var envOverrides = new HashMap<>(Map.of(
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "true",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "true",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "true"));
 
         return hapiTest(
                 overriding("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"),
@@ -80,17 +92,10 @@ class JumpstartFileSuite implements LifecycleTest {
                 }),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                logIt("Phase 2: Restarting with jumpstart file"),
+                logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
-                        Map.of(
-                                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                                "true",
-                                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                                "true",
-                                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
-                                "true"),
-                        buildDynamicJumpstartFile(jumpstartFileContents)),
+                        envOverrides, buildDynamicJumpstartFile(jumpstartFileContents, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
@@ -105,26 +110,6 @@ class JumpstartFileSuite implements LifecycleTest {
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
-                // Verify the jumpstart file was archived after successful migration
-                withOpContext((spec, opLog) -> {
-                    for (final var node : spec.targetNetworkOrThrow().nodes()) {
-                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
-                            continue;
-                        }
-
-                        final var workingDir = requireNonNull(node.metadata().workingDir());
-                        final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
-                        final var original = cutoverDir.resolve("jumpstart.bin");
-                        org.junit.jupiter.api.Assertions.assertFalse(
-                                Files.exists(original),
-                                "Jumpstart file should have been archived on node " + node.getNodeId()
-                                        + " but still exists at " + original);
-                        final var archived = cutoverDir.resolve("archived_jumpstart.bin");
-                        org.junit.jupiter.api.Assertions.assertTrue(
-                                Files.exists(archived),
-                                "Archived jumpstart file not found on node " + node.getNodeId() + " at " + archived);
-                    }
-                }),
                 // Independently verify the node's computed hash. The wrapped record hashes file
                 // may have grown since the migration ran (nodes continue writing after restart),
                 // so we pass the freeze block number to bound the replay to the same range the

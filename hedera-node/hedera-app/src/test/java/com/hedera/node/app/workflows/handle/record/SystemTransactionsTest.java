@@ -5,7 +5,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,16 +56,12 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -575,7 +570,7 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeSetupArchivesJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupSkipsBlockInfoUpdateWhenValuesMatch() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -594,13 +589,8 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
@@ -630,14 +620,12 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        assertFalse(Files.exists(jumpstartFile), "Original jumpstart file should no longer exist");
-        assertTrue(Files.exists(tempDir.resolve("archived_jumpstart.bin")), "Archived jumpstart file should exist");
         // Block info values match migration, so no update should have been made
         verify(blockInfoSingleton, never()).put(any());
     }
 
     @Test
-    void postUpgradeSetupDoesNotArchiveWhenMigrationResultIsNull() {
+    void postUpgradeSetupSkipsBlockInfoWhenMigrationResultIsNull() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -678,12 +666,12 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        // jumpstartFilePath() should never be called when result is null
-        verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
+        // Block info state should not be accessed when migration result is null
+        verify(state, never()).getWritableStates(BlockRecordService.NAME);
     }
 
     @Test
-    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -702,10 +690,6 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         // Migration result with specific values
         final var migrationRootHash = Bytes.wrap(new byte[] {1, 2, 3});
         final var migrationIntermediateHashes = List.of(Bytes.wrap(new byte[] {4, 5, 6}));
@@ -713,7 +697,6 @@ class SystemTransactionsTest {
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
                         Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
