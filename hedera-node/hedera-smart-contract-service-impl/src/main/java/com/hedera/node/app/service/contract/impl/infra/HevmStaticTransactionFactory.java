@@ -75,6 +75,7 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -104,6 +105,7 @@ public class HevmStaticTransactionFactory {
                 op.gas(),
                 1L,
                 0L,
+                null,
                 null,
                 null,
                 exception,

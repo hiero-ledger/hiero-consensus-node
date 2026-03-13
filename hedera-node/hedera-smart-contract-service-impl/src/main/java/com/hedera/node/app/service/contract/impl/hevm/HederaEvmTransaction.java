@@ -140,6 +140,7 @@ public record HederaEvmTransaction(
                 this.offeredGasPrice,
                 this.maxGasAllowance,
                 this.hapiCreation,
+                this.accessLists,
                 this.codeDelegations,
                 exception,
                 this.hookDispatch);
