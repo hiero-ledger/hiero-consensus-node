@@ -56,11 +56,15 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
         return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
     }
 
-    protected int payloadZeroBytes(@NonNull final Bytes payload) {
+    protected static int payloadZeroBytes(@NonNull final Bytes payload) {
         int zeros = 0;
-        for (int i = 0; i < payload.size(); i++) {
-            if (payload.get(i) == 0) {
-                ++zeros;
+
+        if (!payload.isEmpty()) {
+            final byte[] payloadArray = payload.toArrayUnsafe();
+            for (final var p : payloadArray) {
+                if (p == 0) {
+                    zeros++;
+                }
             }
         }
         return zeros;
