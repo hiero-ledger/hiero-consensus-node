@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -23,6 +22,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRAN
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -41,7 +41,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -69,6 +68,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -80,6 +80,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -497,23 +498,51 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Apply the deferred state-write from the wrapped record block hash migration, if any
-        final var migrationResult = wrappedRecordBlockHashMigration.result();
-        if (migrationResult != null) {
-            final var blockInfoState = state.getWritableStates(BlockRecordService.NAME)
-                    .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-            final var blockInfo = requireNonNull(blockInfoState.get());
-            final var updatedBlockInfo = blockInfo
-                    .copyBuilder()
-                    .blockHashes(migrationResult.blockHashes())
-                    .previousWrappedRecordBlockRootHash(migrationResult.previousWrappedRecordBlockRootHash())
-                    .wrappedIntermediatePreviousBlockRootHashes(
-                            migrationResult.wrappedIntermediatePreviousBlockRootHashes())
-                    .wrappedIntermediateBlockRootsLeafCount(migrationResult.wrappedIntermediateBlockRootsLeafCount())
-                    .build();
-            blockInfoState.put(updatedBlockInfo);
-            ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-            log.info("Applied wrapped record block hash migration result to state");
+        // Apply effects of the jumpstart file migration (if any)
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration != null) {
+            // Check if the block info in state matches the migration result; if not, overwrite
+            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoState = writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var blockInfo = blockInfoState.get();
+            boolean changed = false;
+            final var builder = blockInfo.copyBuilder();
+            if (!migration
+                    .previousWrappedRecordBlockRootHash()
+                    .equals(blockInfo.previousWrappedRecordBlockRootHash())) {
+                builder.previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash());
+                changed = true;
+            }
+            if (!migration
+                    .wrappedIntermediatePreviousBlockRootHashes()
+                    .equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
+                builder.wrappedIntermediatePreviousBlockRootHashes(
+                        migration.wrappedIntermediatePreviousBlockRootHashes());
+                changed = true;
+            }
+            if (migration.wrappedIntermediateBlockRootsLeafCount()
+                    != blockInfo.wrappedIntermediateBlockRootsLeafCount()) {
+                builder.wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount());
+                changed = true;
+            }
+            if (changed) {
+                blockInfoState.put(builder.build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+                log.info("Updated block info state to match migration result");
+            }
+
+            // Archive the jumpstart file so the migration doesn't run again
+            final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
+            if (jumpstartFilePath != null) {
+                try {
+                    final var archivedPath =
+                            jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
+                    Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
+                    log.info("Archived jumpstart file to {}", archivedPath);
+                } catch (final IOException e) {
+                    log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
+                }
+            }
         }
     }
 
@@ -589,40 +618,28 @@ public class SystemTransactions {
      *
      * @param state The state.
      * @param now The current time.
-     * @param activeNodeIds The list of active node ids.
+     * @param nodeGroups The node groups.
      * @param perNodeReward The per node reward.
      * @param nodeRewardsAccountId The node rewards account id.
      * @param rewardAccountBalance The reward account balance.
      * @param minNodeReward The minimum node reward.
-     * @param rosterEntries The list of roster entries.
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
             @NonNull final Instant now,
-            @NonNull final List<Long> activeNodeIds,
+            @NonNull final NodeRewardGroups nodeGroups,
             final long perNodeReward,
             @NonNull final AccountID nodeRewardsAccountId,
             final long rewardAccountBalance,
-            final long minNodeReward,
-            @NonNull final List<RosterEntry> rosterEntries) {
+            final long minNodeReward) {
         requireNonNull(state);
         requireNonNull(now);
-        requireNonNull(activeNodeIds);
+        requireNonNull(nodeGroups);
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        final var activeNodeAccountIds = activeNodeIds.stream()
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
-        final var inactiveNodeAccountIds = rosterEntries.stream()
-                .map(RosterEntry::nodeId)
-                .filter(id -> !activeNodeIds.contains(id))
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
+        final List<AccountID> activeNodeAccountIds = nodeGroups.activeNodeAccountIds();
+        final List<AccountID> inactiveNodeAccountIds = nodeGroups.inactiveNodeAccountIds();
         if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
             // No eligible rewards to distribute
             return;
@@ -640,10 +657,11 @@ public class SystemTransactions {
         final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
         if (rewardAccountBalance <= activeTotal) {
-            final long activeNodeReward = rewardAccountBalance / activeNodeAccountIds.size();
+            final long activeNodeReward =
+                    activeNodeAccountIds.isEmpty() ? 0 : rewardAccountBalance / activeNodeAccountIds.size();
             log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
             if (activeNodeReward > 0) {
-                dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, activeNodeReward);
+                dispatchSynthNodeRewards(systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward);
             }
         } else {
             final long activeNodeReward =
@@ -657,12 +675,7 @@ public class SystemTransactions {
                     activeNodeReward,
                     inactiveNodeReward);
             dispatchSynthNodeRewards(
-                    systemContext,
-                    activeNodeAccountIds,
-                    nodeRewardsAccountId,
-                    activeNodeReward,
-                    inactiveNodeAccountIds,
-                    inactiveNodeReward);
+                    systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward, inactiveNodeReward);
         }
     }
 
@@ -723,10 +736,10 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes = readableStoreFactory
+            final var nextNodeId = readableStoreFactory
                     .readableStore(ReadableEntityIdStore.class)
-                    .numNodes();
-            for (var i = 0; i < numNodes; i++) {
+                    .peekAtNextNodeId();
+            for (var i = 0; i < nextNodeId; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);
                 if (existingNode != null && !overrideNodes.contains(nodeId) && !existingNode.deleted()) {
@@ -995,25 +1008,16 @@ public class SystemTransactions {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
-        final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
+        final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
+        final var dispatch = parentTxnFactory.createDispatch(
+                parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
-            long prevEntityNum;
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(nextEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                prevEntityNum = requireNonNull(controlledNum.get()).number();
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(nextEntityNum - 1));
-                }
+            WritableSingletonState<EntityNumber> controlledNum =
+                    dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+            final var prevEntityNum = requireNonNull(controlledNum.get()).number();
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(nextEntityNum - 1));
             }
 
             dispatchProcessor.processDispatch(dispatch);
@@ -1028,20 +1032,11 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(isSuccess ? Math.max(nextEntityNum + 1, prevEntityNum) : prevEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(prevEntityNum));
-                }
+
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(prevEntityNum));
             }
+
             dispatch.stack().commitFullStack();
             final var handleOutput =
                     parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());

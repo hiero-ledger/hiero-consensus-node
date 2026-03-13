@@ -98,6 +98,7 @@ RUN mkdir -p "/opt/hgcapp" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/apps" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/config" && \
+    mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/cutover" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/diskFs" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/keys" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/lib" && \
@@ -125,6 +126,7 @@ VOLUME "/opt/hgcapp/recordStreams"
 VOLUME "/opt/hgcapp/blockStreams"
 VOLUME "/opt/hgcapp/wrappedRecordHashes"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/config"
+VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/cutover"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/diskFs"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/keys"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/onboard"
