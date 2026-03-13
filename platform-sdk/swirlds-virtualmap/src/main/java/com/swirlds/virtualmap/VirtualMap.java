@@ -355,9 +355,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.configuration = requireNonNull(configuration);
 
         this.fastCopyVersion = 0;
-        // Hasher is required during reconnects
-        this.hasher = new VirtualHasher();
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
+        // Hasher is required during reconnects
+        this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
     }
 
@@ -373,8 +373,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.configuration = requireNonNull(configuration);
 
         this.fastCopyVersion = 0;
-        this.hasher = new VirtualHasher();
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
+        this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         dataSource = dataSourceBuilder.build(LABEL, null, true, false);
@@ -396,8 +396,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         this.fastCopyVersion = 0L;
         this.configuration = requireNonNull(configuration);
-        this.hasher = new VirtualHasher();
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
+        this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
@@ -547,8 +547,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         rehashIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener,
-                        virtualMapConfig))
+                        hashListener))
                 .exceptionally((exception) -> {
                     // Shut down the iterator.
                     rehashIterator.close();
@@ -869,6 +868,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // is not immediate, the hasher will eventually stop once it finishes all of its work.
             hasher.shutdown();
         }
+        cache.shutdown();
         closeDataSource();
     }
 
@@ -1192,8 +1192,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         .iterator(),
                 metadata.getFirstLeafPath(),
                 metadata.getLastLeafPath(),
-                hashListener,
-                virtualMapConfig);
+                hashListener);
 
         if (virtualHash == null) {
             final Hash rootHash = (metadata.getSize() == 0) ? null : records.rootHash();
@@ -1453,8 +1452,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener,
-                        virtualMapConfig)))
+                        hashListener)))
                 .setExceptionHandler((thread, exception) -> {
                     // Shut down the iterator. This will cause reconnect to terminate.
                     reconnectIterator.close();
