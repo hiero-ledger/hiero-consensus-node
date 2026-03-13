@@ -54,6 +54,12 @@ ClprServiceProxy (EIP-1967 TransparentUpgradeableProxy)
   giving the community time to audit upgrades.
 - The `ProxyAdmin` is the only address that can call `upgradeTo()` on the proxy.
 
+**HALT recovery.** One concrete motivation for upgradeability is recovering from the HALTED state. When a
+Connection enters HALTED due to a response ordering violation (see section 8.2), the root cause may be a
+bug in the ClprService logic itself. The EIP-1967 proxy enables deploying a fixed implementation that can
+diagnose and resolve the HALT, restoring the Connection to ACTIVE without requiring a new Connection
+registration. Without upgradeability, a HALTED Connection would be permanently unusable.
+
 **Why not Diamond (EIP-2535)?** The Diamond pattern provides finer-grained upgradeability (per-function facets), but
 introduces additional complexity in storage management, delegate-call routing, and auditing surface. The ClprService
 contract, while large, has a bounded interface surface and benefits more from simplicity and auditability than from
@@ -101,7 +107,10 @@ interface IClprService {
     // =========================================================================
 
     /// @notice Set or update this ledger's local CLPR configuration.
-    /// @dev Enqueues a ConfigUpdate Control Message on every active Connection.
+    /// @dev Stores the new configuration and increments the global config version counter.
+    ///      ConfigUpdate Control Messages are lazily enqueued on each Connection at its
+    ///      next interaction (submitBundle or sendMessage). O(1) gas cost regardless of
+    ///      the number of active Connections.
     ///      Caller MUST have ADMIN_ROLE.
     /// @param configuration ABI-encoded ClprLedgerConfiguration struct.
     function setLedgerConfiguration(bytes calldata configuration) external;
@@ -117,6 +126,8 @@ interface IClprService {
     /// @notice Register a new Connection to a peer ledger. Permissionless.
     /// @dev The caller must provide a valid ECDSA_secp256k1 signature proving
     ///      control of the connectionId keypair.
+    ///      msg.value is held as an anti-griefing deposit for the Connection's lifetime.
+    ///      Returned to msg.sender on sever. Must meet MIN_CONNECTION_DEPOSIT.
     /// @param connectionId The Connection ID (keccak256 of uncompressed pubkey).
     /// @param ecdsaSignature ECDSA_secp256k1 signature over the registration data.
     ///        Signed payload: keccak256(abi.encodePacked(connectionId, verifierContract,
@@ -130,7 +141,7 @@ interface IClprService {
         address verifierContract,
         bytes calldata zkProof,
         bytes calldata seedEndpoints
-    ) external;
+    ) external payable;
 
     /// @notice Update the verifier contract on an existing Connection. Permissionless.
     /// @param connectionId The Connection ID.
@@ -151,6 +162,8 @@ interface IClprService {
     ) external;
 
     /// @notice Sever (permanently close) a Connection. ADMIN_ROLE only.
+    /// @dev Returns the anti-griefing deposit to the original registrant
+    ///      (connection.registrant) via ETH transfer.
     /// @param connectionId The Connection ID.
     function severConnection(bytes32 connectionId) external;
 
@@ -543,6 +556,16 @@ event EndpointRosterRecovered(
 /// @dev Storage layout for ClprService implementation.
 ///      Uses explicit storage slots to ensure upgrade safety.
 ///      All mappings use keccak256-based slot derivation per Solidity rules.
+///
+///      NOTE: For upgrade safety, consider using EIP-7201 namespaced storage
+///      (storage locations derived from a namespace string via keccak256) rather
+///      than sequential slots starting at 0. Sequential slots are safe only if
+///      the inheritance chain is strictly controlled and no base contract adds
+///      storage variables. EIP-7201 eliminates this fragility by placing each
+///      logical group in a deterministic, collision-resistant slot range.
+
+// --- Constants ---
+uint256 constant MIN_CONNECTION_DEPOSIT = 0.1 ether; // Anti-griefing deposit for Connection registration
 
 // --- Global Configuration ---
 // Slot 0: master enable flag
@@ -550,6 +573,9 @@ bool public clprEnabled;
 
 // Slot 1: pointer to ABI-encoded ClprLedgerConfiguration (stored as bytes in a separate mapping)
 bytes internal _ledgerConfiguration;
+
+// Slot 2: global config version counter (incremented by setLedgerConfiguration)
+uint256 public globalConfigVersion;
 
 // --- Connections ---
 // Slot N: mapping from connectionId to Connection struct
@@ -619,6 +645,13 @@ struct Connection {
 
     // --- Accounting ---
     uint64 nextResponseExpectedId;     // ID of the next Data Message expecting a response
+
+    // --- Lazy Config Propagation ---
+    uint64 localConfigVersion;         // Last global config version propagated on this Connection
+
+    // --- Registration Deposit ---
+    address registrant;                // Address that registered this Connection (receives deposit back on sever)
+    uint256 deposit;                   // Anti-griefing deposit held for the Connection's lifetime (wei)
 }
 ```
 
@@ -639,6 +672,12 @@ struct MessageEntry {
 
 ```solidity
 /// @dev On-chain Connector state. Maps to Spec section 2.2.
+///
+/// inFlightCount lifecycle:
+///   - Incremented by 1 during sendMessage when the Connector authorizes a Data Message.
+///   - Decremented by 1 when the corresponding Response Message is processed during submitBundle.
+///   - deregisterConnector MUST require inFlightCount == 0 to prevent orphaned messages
+///     that have no Connector to charge for response processing.
 struct Connector {
     bytes sourceConnectorAddress;      // address of counterpart on source ledger
     address connectorContract;         // IClprConnectorAuth contract address
@@ -682,7 +721,26 @@ a single SLOAD per access.
 
 # 4. Endpoint Registration and Bond Management
 
-## 4.1 Registration Flow
+## 4.1 Dual-Key Requirement
+
+Ethereum endpoints require TWO distinct key types:
+
+1. **RSA key** -- Used for the CLPR protocol TLS layer and the `endpoint_signature` field in
+   `ClprSyncPayload`. This key is registered on-chain in the peer endpoint roster via the
+   `ClprEndpoint.signing_certificate` field. It is used for inter-endpoint authentication and
+   bundle signing, and is verifiable by both the local and remote CLPR Service.
+
+2. **ECDSA secp256k1 key** -- Used for Ethereum transaction signing (`msg.sender`). This is the
+   endpoint operator's standard Ethereum account. It is implicit in every transaction and is never
+   included in the CLPR wire format. This key is used for `submitBundle`, `registerEndpoint`,
+   `deregisterEndpoint`, and other on-chain operations.
+
+The RSA key and ECDSA key are independent. The RSA key identifies the endpoint in the CLPR protocol;
+the ECDSA key identifies the endpoint's Ethereum account. The `registerEndpoint` function binds the
+two by requiring `endpoint.account_id == msg.sender` (the ECDSA-derived address) while the endpoint
+struct contains the RSA `signing_certificate`.
+
+## 4.2 Registration Flow
 
 On Ethereum, endpoint registration is permissionless (Spec section 6.5). Any address may register as an endpoint
 by posting a bond in ETH.
@@ -698,7 +756,7 @@ registerEndpoint(connectionId, endpoint) payable
   7. Emit EndpointRegistered(connectionId, msg.sender, msg.value).
 ```
 
-## 4.2 Deregistration Flow
+## 4.3 Deregistration Flow
 
 ```
 deregisterEndpoint(connectionId)
@@ -710,7 +768,7 @@ deregisterEndpoint(connectionId)
   6. Emit EndpointDeregistered(connectionId, msg.sender, bondAmount).
 ```
 
-## 4.3 Bond Parameters
+## 4.4 Bond Parameters
 
 | Parameter             | Recommended Value | Rationale                                                    |
 |-----------------------|-------------------|--------------------------------------------------------------|
@@ -722,7 +780,7 @@ The `BOND_LOCKUP_PERIOD` is enforced during deregistration: an endpoint cannot d
 `block.number >= registeredAt + BOND_LOCKUP_BLOCKS`. This prevents an attacker from registering, submitting a
 malicious bundle, and immediately deregistering before the misbehavior is reported.
 
-## 4.4 Bond Slashing
+## 4.5 Bond Slashing
 
 When misbehavior is proven (via `reportMisbehavior` or duplicate submission detection during `submitBundle`):
 
@@ -735,6 +793,28 @@ When misbehavior is proven (via `reportMisbehavior` or duplicate submission dete
   4. Emit EndpointSlashed(connectionId, offender, amount, reason).
 ```
 
+## 4.6 DUPLICATE_BROADCAST Initiator Constraint
+
+`DUPLICATE_BROADCAST` misbehavior only applies when the **remote endpoint initiated** the sync. The rationale:
+if two local endpoints independently contact the same remote endpoint and receive the same bundle, the remote
+endpoint is not at fault -- the duplication was caused by the local side.
+
+Evidence submitted to `reportMisbehavior` for `DUPLICATE_BROADCAST` MUST demonstrate that the remote endpoint
+initiated both syncs. Specifically:
+
+1. The reporter must provide two distinct `ClprSyncPayload` bundles with overlapping message ranges, both
+   signed by the same remote endpoint.
+2. Each payload must include proof that the remote endpoint was the initiator (e.g., the `sync_initiator`
+   field in the payload metadata, or TLS session initiation evidence).
+3. The `reportMisbehavior` handler must validate the initiator evidence on-chain.
+
+**Limitation:** Full TLS session initiation evidence cannot be verified on-chain (it requires access to
+network-layer metadata). The on-chain handler can verify signed payload overlap and endpoint attribution.
+For initiator proof, the implementation relies on the `sync_initiator` field being included in the signed
+portion of `ClprSyncPayload`. If the remote endpoint does not include this field, or if the field is not
+part of the signature scope, off-chain dispute resolution infrastructure (e.g., an optimistic challenge
+period with a designated arbitrator) is needed to adjudicate initiator claims.
+
 ---
 
 # 5. Bundle Submission
@@ -746,6 +826,15 @@ Verification Algorithm) and Spec section 4.6 (Slashing Decision).
 
 ```
 submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPublicKey)
+  // --- Step 0: Preconditions ---
+  0a. Require clprEnabled == true.
+
+  // --- Step 0b: Lazy Config Propagation ---
+  0b. If connection.localConfigVersion < globalConfigVersion:
+      - Enqueue a ConfigUpdate Control Message containing the current _ledgerConfiguration
+        in the Connection's outbound queue.
+      - Set connection.localConfigVersion = globalConfigVersion.
+
   // --- Step 1: Verifier Call ---
   1. Load connection = _connections[connectionId].
   2. Require connection.status == ACTIVE || connection.status == PAUSED.
@@ -788,6 +877,11 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
 
   20. Emit BundleProcessed(connectionId, firstId, lastId, msg.sender).
 ```
+
+**Verification failures do not HALT the Connection.** If any of steps 1-4 (verifier call, bundle size
+check, replay defense, running hash verification) fail, the transaction simply reverts. No Connection
+state is modified, and the Connection remains in its current status (ACTIVE or PAUSED). Only response
+ordering violations (see section 8.2) trigger the HALTED state.
 
 ## 5.2 Gas Budget Analysis
 
@@ -852,9 +946,14 @@ called via `STATICCALL` by the ClprService (the verifier functions are `view`), 
 ## 6.2 BLS Signature Verification (Ethereum Sync Committee)
 
 For verifying Ethereum consensus state, the verifier tracks the sync committee and validates BLS12-381
-aggregate signatures. Post-Cancun, Ethereum provides BLS precompiles (EIP-2537) that reduce verification cost.
+aggregate signatures.
 
-**Estimated gas for sync committee signature verification:**
+**Important:** EIP-2537 (BLS12-381 precompiles) is NOT yet activated on Ethereum mainnet. The gas estimates
+below assume EIP-2537 is available. Until activation, pure Solidity BLS verification costs approximately
+1,500,000+ gas, which is the current baseline and is prohibitive within a bundle submission. Deployments
+targeting pre-EIP-2537 networks MUST use a ZK-wrapped proof that compresses the BLS verification.
+
+**Estimated gas for sync committee signature verification (with BLS precompiles, EIP-2537, not yet activated):**
 
 | Step                              | Gas        |
 |-----------------------------------|------------|
@@ -865,9 +964,9 @@ aggregate signatures. Post-Cancun, Ethereum provides BLS precompiles (EIP-2537) 
 | Storage proof verification       | ~30,000    |
 | **Total**                        | **~185,000** |
 
-Without BLS precompiles (pre-Cancun or if precompiles are not available), BLS verification in Solidity costs
-approximately 1,500,000+ gas, which is prohibitive within a bundle submission. The implementation SHOULD
-require Cancun or later, or use a ZK-wrapped proof that compresses the BLS verification.
+**Without BLS precompiles (current mainnet baseline):** BLS verification in pure Solidity costs approximately
+1,500,000+ gas. The implementation SHOULD use a ZK-wrapped proof that compresses the BLS verification until
+EIP-2537 is activated on mainnet.
 
 ## 6.3 EXTCODEHASH Fingerprint Verification
 
@@ -914,8 +1013,18 @@ requires upgrading the ClprService implementation via the proxy.
 
 ## 7.1 Authorization Call Mechanics
 
-When `sendMessage` is called, the ClprService invokes `IClprConnectorAuth.authorizeMessage()` on the Connector's
-contract:
+When `sendMessage` is called, the ClprService performs the following before enqueuing the user's message:
+
+1. `require(clprEnabled)` -- global enable check.
+2. Load `connection = _connections[connectionId]`. Require `connection.status == ACTIVE`.
+3. **Lazy Config Propagation:** If `connection.localConfigVersion < globalConfigVersion`, enqueue a ConfigUpdate
+   Control Message containing the current `_ledgerConfiguration`, then set
+   `connection.localConfigVersion = globalConfigVersion`. This amortizes config propagation cost across
+   interactions rather than paying it all in `setLedgerConfiguration`.
+4. Invoke `IClprConnectorAuth.authorizeMessage()` on the Connector's contract (see below).
+5. Enqueue the user's Data Message in the Connection's outbound queue.
+
+The Connector authorization call:
 
 ```solidity
 (bool success, bytes memory result) = connectorContract.call{gas: CONNECTOR_AUTH_GAS_STIPEND}(
@@ -1013,23 +1122,43 @@ _enqueueResponse(connectionId, messageId, replyStatus, responseData);
 bytes memory originalPayload = _messageQueue[connectionId][response.messageId].payload;
 address targetApp = _extractSenderApp(originalPayload);
 
-// Deliver response (failure here does NOT affect protocol state)
-try IClprApplication(targetApp).onClprResponse(
-    connectionId,
-    response.messageId,
-    response.status,
-    response.messageReplyData
-) {} catch {
-    emit ResponseDeliveryFailed(connectionId, response.messageId);
+// --- Response ordering verification FIRST (Spec section 4.5) ---
+// The ordering check MUST happen BEFORE delivering the response to the application.
+// If the ordering is violated, the Connection is HALTED and no delivery occurs.
+if (response.messageId != connection.nextResponseExpectedId) {
+    connection.status = 4; // HALTED
+    emit ConnectionStatusChanged(connectionId, 1 /* ACTIVE */, 4 /* HALTED */);
+    // DO NOT deliver the response. DO NOT delete the outbound message.
+    return; // or revert the entire bundle -- implementation choice
 }
 
-// Response ordering verification (Spec section 4.5)
-require(response.messageId == connection.nextResponseExpectedId, "Response ordering violation");
+// --- Deliver response (failure here does NOT affect protocol state) ---
+// EOA handling: if targetApp has no code (is an EOA), the low-level call succeeds
+// silently with empty return data. The response is considered delivered and logged
+// in the ResponseDelivered event. EOA users who need callback functionality should
+// use a thin proxy/forwarder contract.
+if (targetApp.code.length > 0) {
+    try IClprApplication(targetApp).onClprResponse(
+        connectionId,
+        response.messageId,
+        response.status,
+        response.messageReplyData
+    ) {} catch {
+        emit ResponseDeliveryFailed(connectionId, response.messageId);
+    }
+}
+
+// Advance the expected response ID
 connection.nextResponseExpectedId = _nextDataMessageId(connectionId, response.messageId);
 
 // Delete the matched Data Message from outbound queue
 delete _messageQueue[connectionId][response.messageId];
 ```
+
+**Only response ordering violations trigger HALTED.** Verification failures in `submitBundle` (steps 1-4)
+simply revert the transaction with no Connection state change. The HALTED state is reserved exclusively
+for the case where a peer sends responses out of order, which indicates a protocol-level inconsistency
+that cannot be resolved without intervention.
 
 ## 8.3 Gas Stipend for Application Callbacks
 
@@ -1063,6 +1192,27 @@ Applied to: `setLedgerConfiguration`, `registerConnection`, `updateConnectionVer
 This means application callbacks (from `submitBundle` dispatching messages) CANNOT call back into any
 ClprService function. If an application attempts this, the transaction reverts for that message, and an
 `APPLICATION_ERROR` response is generated.
+
+## 8.5 HALTED State Recovery
+
+When a Connection enters HALTED (due to a response ordering violation in section 8.2), the Connection
+cannot process further bundles or send messages until the issue is resolved. On Ethereum, the EIP-1967
+proxy provides a recovery path:
+
+1. **Diagnosis:** Off-chain analysis determines the root cause of the ordering violation (bug in
+   ClprService logic, corrupted state, or legitimate protocol inconsistency with the peer).
+2. **Fix deployment:** A new ClprService implementation is deployed that includes:
+   - The bug fix (if the cause was a logic error), and/or
+   - A migration function that corrects the corrupted Connection state (e.g., adjusting
+     `nextResponseExpectedId` to match the actual protocol state).
+3. **Upgrade execution:** The governance multisig proposes the upgrade via the TimelockController.
+   After the timelock delay (48 hours recommended), the upgrade is executed.
+4. **Recovery:** The migration function is called to restore the Connection to ACTIVE, and normal
+   operations resume.
+
+This is a concrete motivation for the upgradeability strategy described in section 1.2. Without
+upgradeability, a HALTED Connection would be permanently unusable, requiring a completely new Connection
+registration and loss of all in-flight messages.
 
 ---
 
@@ -1163,16 +1313,16 @@ per-Connector queue quotas as the simplest effective mitigation.
 
 ## 10.1 Operation Gas Costs
 
-| Operation                      | Estimated Gas     | Who Pays                              |
-|--------------------------------|-------------------|---------------------------------------|
-| `registerConnection`           | 400,000 - 600,000 | Caller (permissionless)              |
-| `updateConnectionVerifier`     | 100,000 - 400,000 | Caller (permissionless)              |
-| `registerConnector`            | 150,000           | Connector admin                       |
-| `registerEndpoint`             | 80,000            | Endpoint operator                     |
-| `sendMessage` (enqueue)        | 80,000 - 150,000  | Message sender                        |
-| `submitBundle` (10 messages)   | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) |
-| `redactMessage`                | 30,000            | CLPR admin                            |
-| `reportMisbehavior`            | 200,000 - 500,000 | Reporter (compensated by slash)       |
+| Operation                      | Estimated Gas     | Who Pays                              | Notes                                         |
+|--------------------------------|-------------------|---------------------------------------|-----------------------------------------------|
+| `registerConnection`           | 400,000 - 600,000 | Caller (permissionless)              | Also requires MIN_CONNECTION_DEPOSIT in ETH   |
+| `updateConnectionVerifier`     | 100,000 - 400,000 | Caller (permissionless)              |                                               |
+| `registerConnector`            | 150,000           | Connector admin                       |                                               |
+| `registerEndpoint`             | 80,000            | Endpoint operator                     |                                               |
+| `sendMessage` (enqueue)        | 80,000 - 175,000  | Message sender                        | +~25K if lazy ConfigUpdate is enqueued        |
+| `submitBundle` (10 messages)   | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued        |
+| `redactMessage`                | 30,000            | CLPR admin                            |                                               |
+| `reportMisbehavior`            | 200,000 - 500,000 | Reporter (compensated by slash)       |                                               |
 
 ## 10.2 Fee Model
 
@@ -1296,6 +1446,12 @@ Signature recovery uses `ecrecover` to derive the signer's address, then verifie
 `keccak256(uncompressedPubkey) == connectionId`. This requires the caller to provide the uncompressed
 public key alongside the signature for verification.
 
+**Cross-Connection replay prevention:** Per the cross-platform spec, the `ecdsa_signature` SHOULD sign
+over at least `(connection_id, verifier_contract)` to prevent a valid signature for one Connection from
+being replayed to register a different Connection with the same key but a different verifier. The signed
+payload above satisfies this requirement by including both `connectionId` and `verifierContract`, plus
+`address(this)` and `block.chainid` for cross-chain replay prevention.
+
 ## 12.4 Application Callback Interface
 
 **Spec gap:** Spec section 6.5 (Application Delivery) states platform specs MUST define the callback interface,
@@ -1306,6 +1462,10 @@ gas budget, return conventions, and sync/async behavior.
 - **Gas budget:** `maxGasPerMessage` from the peer's configuration.
 - **Return convention:** `onClprMessage` returns `bytes` (response data). Revert = `APPLICATION_ERROR`.
 - **Synchronous:** Callbacks execute within the `submitBundle` transaction. No async queuing.
+- **EOA senders:** When a Response Message targets an EOA (externally owned account with no code), the
+  `onClprResponse` callback is not attempted (see section 8.2). The response is logged in the
+  `ResponseDelivered` event and considered delivered. EOA users who need programmatic response handling
+  should send messages through a thin proxy/forwarder contract that implements `IClprApplication`.
 
 ## 12.5 Minimum Connector Bond
 
@@ -1354,8 +1514,27 @@ bundle per boundary block is applied.
 
 ## 13.1 Contradictions with Cross-Platform Spec
 
-**None found.** The Ethereum implementation maps cleanly to all MUST-level requirements in the cross-platform
-spec. All platform-specific decisions fill explicit gaps designated for platform resolution.
+The following contradictions existed in earlier revisions and have been corrected in this version:
+
+1. **Eager config propagation (was section 13.3.4).** The original spec used eager enqueue of ConfigUpdate
+   on all Connections during `setLedgerConfiguration`, contradicting the cross-platform spec's lazy propagation
+   mandate. **Fixed:** `setLedgerConfiguration` is now O(1); ConfigUpdate is lazily enqueued at each
+   Connection's next interaction.
+
+2. **Response ordering check after delivery (was section 8.2).** The original spec delivered the response
+   to the application via `onClprResponse` BEFORE checking the response ordering invariant. This meant a
+   misordered response could trigger application side effects before the Connection was HALTED.
+   **Fixed:** The ordering check now occurs BEFORE delivery. On mismatch, the Connection is HALTED and no
+   callback is made.
+
+3. **Missing anti-griefing deposit on registerConnection.** The cross-platform spec requires an anti-griefing
+   deposit for Connection registration. The original spec omitted this. **Fixed:** `registerConnection` is
+   now `payable` with a `MIN_CONNECTION_DEPOSIT` requirement; deposit is returned on `severConnection`.
+
+4. **Missing `clprEnabled` check in submitBundle.** The original `submitBundle` flow did not verify the
+   global enable flag. **Fixed:** `require(clprEnabled)` is now step 0a.
+
+All remaining platform-specific decisions fill explicit gaps designated for platform resolution.
 
 ## 13.2 Ethereum Architecture Concerns
 
@@ -1439,16 +1618,16 @@ progress by reverting on every response.
 
 ### 13.3.4 Config Update Propagation Gas Cost
 
-**Ambiguity:** The spec says `setLedgerConfiguration` "enqueues a ConfigUpdate Control Message on every
-active Connection." On Ethereum, if there are hundreds of Connections, this single transaction could
-exceed the block gas limit.
+**Ambiguity:** The cross-platform spec mandates lazy config propagation. On Ethereum, eager propagation
+(enqueuing ConfigUpdate on every active Connection during `setLedgerConfiguration`) would be an O(N)
+operation that could exceed the block gas limit with hundreds of Connections.
 
-**Resolution:** `setLedgerConfiguration` accepts an optional `connectionIds` parameter (not in the
-cross-platform spec) to batch the enqueue across multiple transactions. If `connectionIds` is empty,
-it enqueues on ALL active Connections. The admin is responsible for ensuring each transaction fits within
-gas limits. An alternative is lazy propagation: store a global config version counter and have each
-Connection check the counter during bundle processing, but this changes the ordering guarantees and is
-NOT recommended.
+**Resolution:** `setLedgerConfiguration` is O(1). It stores the new configuration and increments
+`globalConfigVersion`. ConfigUpdate Control Messages are lazily enqueued on each Connection at its
+next interaction (`submitBundle` or `sendMessage`): if `connection.localConfigVersion < globalConfigVersion`,
+a ConfigUpdate is enqueued and `localConfigVersion` is updated. This amortizes the enqueue cost across
+subsequent interactions rather than concentrating it in a single transaction. No `connectionIds` batching
+parameter is needed.
 
 ## 13.4 Gas Feasibility Summary
 
@@ -1458,10 +1637,10 @@ NOT recommended.
 | Message enqueue            | ~100,000        | Yes       | Comparable to a Uniswap swap           |
 | Bundle (10 msgs, 2M gas/msg) | ~22,000,000  | Marginal  | 73% of block; at most 1/block          |
 | Bundle (10 msgs, 500K gas/msg) | ~7,000,000 | Yes       | Leaves room for other txns             |
-| BLS verification (Cancun)  | ~185,000        | Yes       | Pre-Cancun: prohibitive without ZK     |
+| BLS verification (EIP-2537) | ~185,000       | Yes       | Not yet on mainnet; pure Solidity: 1.5M+ |
 | ZK proof verification      | ~230,000        | Yes       | Groth16; one-time at registration      |
 | SHA-256 running hash (10 msgs) | ~2,000     | Yes       | Negligible                             |
-| Config update (100 conns)  | ~5,000,000      | Yes       | May need batching for 500+ connections |
+| Config update (setLedgerConfiguration) | ~50,000 | Yes  | O(1); lazy propagation amortizes enqueue cost |
 
 **Overall assessment:** The CLPR protocol is gas-feasible on Ethereum with the recommended parameters. The
 primary constraint is `submitBundle`, which dominates gas consumption. Low `maxGasPerMessage` values
