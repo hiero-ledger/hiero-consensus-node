@@ -2,9 +2,11 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 
 /**
  * Writes serialized block items to a destination stream.
@@ -41,4 +43,9 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        return blockDir.resolve(baseName + ".pnd.json");
+    }
 }

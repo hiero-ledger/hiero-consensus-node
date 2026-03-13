@@ -34,9 +34,6 @@ class GrpcBlockItemWriterTest {
     private BlockBufferService blockBufferService;
 
     @Mock
-    private BlockNodeConnectionManager blockNodeConnectionManager;
-
-    @Mock
     private ConfigProvider configProvider;
 
     @Mock

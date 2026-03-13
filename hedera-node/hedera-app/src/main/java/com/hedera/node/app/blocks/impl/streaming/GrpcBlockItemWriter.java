@@ -159,9 +159,4 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         return blockDir.resolve(baseName + COMPLETE_PENDING_EXTENSION);
     }
-
-    private Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return blockDir.resolve(baseName + ".pnd.json");
-    }
 }
