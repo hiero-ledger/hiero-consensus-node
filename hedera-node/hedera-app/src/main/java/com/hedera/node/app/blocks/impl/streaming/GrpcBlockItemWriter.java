@@ -37,6 +37,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final FileSystem fileSystem;
     private long blockNumber;
+    private final Path nodeScopedBlockDir;
 
     /**
      * Construct a new GrpcBlockItemWriter.
@@ -56,21 +57,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
                 requireNonNull(selfNodeAccountIdManager, "selfNodeAccountIdManager must not be null");
         this.fileSystem = requireNonNull(fileSystem, "fileSystem must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-    }
-
-    /**
-     * Creates the node-scoped block directory path dynamically from the current configuration
-     * and self node account ID.
-     *
-     * @return the path to the node-scoped block directory
-     */
-    @NonNull
-    private Path nodeScopedBlockDir() {
-        final var blockDir = fileSystem.getPath(configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockFileDir());
-        return blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
+        // Compute directory for block files
+        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
+        nodeScopedBlockDir =
+                blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
     }
 
     /**
@@ -141,13 +132,12 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             return;
         }
         try {
-            final var blockDir = nodeScopedBlockDir();
-            Files.createDirectories(blockDir);
-            final var contentsPath = pendingContentsPath(blockDir, blockNumber);
+            Files.createDirectories(nodeScopedBlockDir);
+            final var contentsPath = pendingContentsPath(nodeScopedBlockDir, blockNumber);
             try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
                 out.write(Block.PROTOBUF.toBytes(new Block(items)).toByteArray());
             }
-            final var proofPath = pendingProofPath(blockDir, blockNumber);
+            final var proofPath = pendingProofPath(nodeScopedBlockDir, blockNumber);
             Files.writeString(proofPath, PendingProof.JSON.toJSON(pendingProof));
             logger.info("Flushed pending block #{} ({}, {})", blockNumber, contentsPath, proofPath);
         } catch (IOException e) {

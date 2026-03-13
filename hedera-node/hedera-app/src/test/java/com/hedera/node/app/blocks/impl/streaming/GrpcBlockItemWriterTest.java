@@ -21,6 +21,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,6 +50,19 @@ class GrpcBlockItemWriterTest {
 
     @TempDir
     Path tempDir;
+
+    @BeforeEach
+    void setUp() {
+        when(configProvider.getConfiguration()).thenReturn(configuration);
+        when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+        when(selfNodeAccountIdManager.getSelfNodeAccountId())
+                .thenReturn(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(1)
+                        .build());
+    }
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
@@ -97,7 +111,6 @@ class GrpcBlockItemWriterTest {
                 new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
-        Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof =
                 BlockItem.newBuilder().blockProof(BlockProof.newBuilder()).build();
 
