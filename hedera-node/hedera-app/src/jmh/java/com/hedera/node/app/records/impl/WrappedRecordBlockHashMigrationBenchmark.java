@@ -116,7 +116,6 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 false,
                 wrappedRecordHashesDir.toString(),
                 true,
-                "",
                 false);
     }
 
