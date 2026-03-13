@@ -69,19 +69,23 @@ message ClprConfigUpdate {
 
 ```protobuf
 message ClprConnection {
-  // --- Peer Identity (compound key: chain_id + service_address) ---
+  // --- Connection Identity ---
 
-  string chain_id = 1;                     // CAIP-2 identifier for the peer chain
-  bytes service_address = 2;               // on-ledger address of the peer's CLPR Service
+  bytes connection_id = 1;                 // Connection ID derived from ECDSA_secp256k1 public key (same on both ledgers)
+
+  // --- Peer Identity ---
+
+  string chain_id = 2;                     // CAIP-2 identifier for the peer chain
+  bytes service_address = 3;               // on-ledger address of the peer's CLPR Service
 
   // --- Peer Configuration ---
 
-  proto.Timestamp peer_config_timestamp = 3;
+  proto.Timestamp peer_config_timestamp = 4;
 
   // --- Verifier Contract ---
 
-  bytes verifier_contract = 4;             // address of the locally deployed verifier for this Connection
-  bytes verifier_fingerprint = 5;          // implementation fingerprint (code hash) endorsed by peer
+  bytes verifier_contract = 5;             // address of the locally deployed verifier for this Connection
+  bytes verifier_fingerprint = 6;          // implementation fingerprint (code hash) endorsed by peer
 
   // --- Connection State ---
 
@@ -97,7 +101,7 @@ message ClprConnection {
 }
 
 // Note: the peer endpoint roster is stored separately in state, keyed by
-// (chain_id, service_address, account_id). It is NOT embedded in the Connection object.
+// (connection_id, account_id). It is NOT embedded in the Connection object.
 // Endpoints are seeded at connection registration and updated via
 // ClprEndpointJoin / ClprEndpointLeave control messages.
 
@@ -287,25 +291,27 @@ service ClprService {
 ```protobuf
 // Included in registerConnection transactions.
 message ClprRegisterConnectionRequest {
-  bytes verifier_contract = 1;                  // address of the locally deployed verifier contract
-  bytes zk_proof = 2;                           // ZK proof of source ledger's ApprovedVerifiers endorsement
-  repeated ClprEndpoint seed_endpoints = 3;     // initial peer endpoints (at least one)
+  bytes connection_id = 1;                      // Connection ID derived from ECDSA_secp256k1 public key
+  bytes ecdsa_signature = 2;                    // ECDSA_secp256k1 signature over registration data, proving caller controls the ID
+  bytes verifier_contract = 3;                  // address of the locally deployed verifier contract
+  bytes zk_proof = 4;                           // ZK proof of source ledger's ApprovedVerifiers endorsement
+  repeated ClprEndpoint seed_endpoints = 5;     // initial peer endpoints (at least one)
 }
 
 // Included in updateConnectionVerifier transactions.
-// No ZK proof needed — the Connection already holds the peer's ApprovedVerifiers
-// (delivered via ConfigUpdate Control Messages). The CLPR Service checks the new
-// verifier's code hash against the stored ApprovedVerifiers.
+// Two verification paths: (1) local check against stored ApprovedVerifiers (normal case),
+// or (2) ZK proof to re-bootstrap the peer's config when the sync channel is broken.
+// If zk_proof is present, the built-in ZK verifier extracts fresh config and updates the
+// Connection's stored config before checking the new verifier's code hash.
 message ClprUpdateConnectionVerifierRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-  bytes verifier_contract = 3;                  // new verifier contract address
+  bytes connection_id = 1;                      // Connection ID identifying the Connection
+  bytes verifier_contract = 2;                  // new verifier contract address
+  bytes zk_proof = 3;                           // optional: ZK proof for recovery path (omit for local check)
 }
 
 // Included in severConnection, pauseConnection, and resumeConnection transactions.
 message ClprConnectionAdminRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
+  bytes connection_id = 1;                      // Connection ID identifying the Connection
 }
 
 // Included in submitBundle transactions.
@@ -318,37 +324,34 @@ message ClprSubmitBundleRequest {
 }
 
 // Included in recoverEndpointRoster transactions.
+// The Connection's verifier validates proof_bytes via verifyEndpoints() and returns the
+// peer's current endpoint list. The CLPR Service replaces the stale peer roster.
 message ClprRecoverEndpointRosterRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-  repeated ClprEndpoint endpoints = 3;          // new/updated endpoints
-  bytes zk_proof = 4;                           // state proof attesting to the endpoint data
+  bytes connection_id = 1;                      // Connection ID identifying the Connection to recover
+  bytes proof_bytes = 2;                        // opaque proof bytes passed to verifyEndpoints()
 }
 
 // Included in registerConnector transactions.
 message ClprRegisterConnectorRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / Connection this Connector will serve
-  bytes source_connector_address = 3;           // address of the counterpart Connector on the source ledger
-  bytes connector_contract = 4;                 // address of the Connector's authorization contract
-  uint64 initial_balance = 5;                   // initial funds for message execution
-  uint64 stake = 6;                             // stake to lock against misbehavior
+  bytes connection_id = 1;                      // Connection this Connector will serve
+  bytes source_connector_address = 2;           // address of the counterpart Connector on the source ledger
+  bytes connector_contract = 3;                 // address of the Connector's authorization contract
+  uint64 initial_balance = 4;                   // initial funds for message execution
+  uint64 stake = 5;                             // stake to lock against misbehavior
 }
 
 // Included in sendMessage transactions.
 message ClprSendMessageRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the destination Connection
-  bytes connector_id = 3;                       // Connector to authorize and pay for this message
-  bytes target_application = 4;                 // destination app address
-  bytes message_data = 5;                       // opaque application payload
+  bytes connection_id = 1;                      // Connection ID identifying the destination Connection
+  bytes connector_id = 2;                       // Connector to authorize and pay for this message
+  bytes target_application = 3;                 // destination app address
+  bytes message_data = 4;                       // opaque application payload
 }
 
 // Included in reportMisbehavior transactions.
 message ClprReportMisbehaviorRequest {
-  string chain_id = 1;                          // \
-  bytes service_address = 2;                    // / compound key identifying the Connection
-  ClprMisbehaviorReport report = 3;
+  bytes connection_id = 1;                      // Connection ID identifying the Connection
+  ClprMisbehaviorReport report = 2;
 }
 ```
 
@@ -376,12 +379,16 @@ verification to these contracts.
 ```
 interface IClprVerifier {
   // Verify a configuration proof. Returns the verified configuration.
-  // Used during: registerConnection, recoverEndpointRoster.
+  // Used during: registerConnection, updateConnectionVerifier (ZK proof path).
   function verifyConfig(bytes proof_bytes) returns (ClprLedgerConfiguration);
 
   // Verify a bundle proof. Returns verified queue metadata and messages.
   // Used during: submitBundle (on-chain bundle processing).
   function verifyBundle(bytes proof_bytes) returns (ClprQueueMetadata, ClprMessagePayload[]);
+
+  // Verify an endpoint roster proof. Returns the verified endpoint list for a Connection.
+  // Used during: recoverEndpointRoster (when sync channel is broken).
+  function verifyEndpoints(bytes proof_bytes) returns (ClprEndpoint[]);
 }
 ```
 
@@ -457,7 +464,7 @@ When `submitBundle` is processed on-chain:
 
 When `sendMessage` is processed:
 
-1. Look up the Connection by `(chain_id, service_address)`. Reject if not `ACTIVE`.
+1. Look up the Connection by `connection_id`. Reject if not `ACTIVE`.
 2. Look up the Connector by `connector_id` on the Connection. Reject if not found.
 3. Call `IClprConnectorAuth.authorizeMessage()` on the Connector's authorization contract. Reject if not authorized.
 4. Validate payload size against the destination's `maxMessagePayloadBytes`. Reject if exceeded.
@@ -465,7 +472,7 @@ When `sendMessage` is processed:
 6. Construct `ClprMessage` with `connector_id`, `target_application`, `sender` (stamped from transaction caller),
    and `message_data`.
 7. Compute `running_hash = SHA-256(sent_running_hash || serialized_payload)`.
-8. Store the message in the queue keyed by `(chain_id, service_address, next_message_id)`.
+8. Store the message in the queue keyed by `(connection_id, next_message_id)`.
 9. Update Connection: `sent_running_hash = running_hash`, `next_message_id += 1`.
 
 ## 5.4 Response Ordering Verification
