@@ -19,6 +19,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -69,6 +70,10 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         if (activeRoster == null || activeRoster.rosterEntries().isEmpty()) {
             return;
         }
+        final var rosterWeights = activeRoster.rosterEntries().stream()
+                .map(entry -> entry.nodeId() + ":" + entry.weight())
+                .collect(Collectors.joining(", "));
+        log.info("Migration root hash vote active roster weights [{}]", rosterWeights);
         final var nodeWeight = activeRoster.rosterEntries().stream()
                 .filter(entry -> entry.nodeId() == nodeId)
                 .mapToLong(entry -> entry.weight())
