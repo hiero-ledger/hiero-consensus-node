@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
-import com.hedera.node.config.data.BlockStreamJumpStartConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -32,13 +32,13 @@ import org.junit.jupiter.api.Assertions;
 public class VerifyJumpstartHashOp extends UtilOp {
     private static final Logger log = LogManager.getLogger(VerifyJumpstartHashOp.class);
 
-    private final BlockStreamJumpStartConfig jumpstartConfig;
+    private final BlockStreamJumpstartConfig jumpstartConfig;
     private final List<WrappedRecordFileBlockHashes> wrappedHashes;
     private final String nodeComputedHash;
     private final String freezeBlockNum;
 
     public VerifyJumpstartHashOp(
-            @NonNull final BlockStreamJumpStartConfig jumpstartConfig,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
@@ -189,7 +189,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
         return false;
     }
 
-    private static IncrementalStreamingHasher createHasherFromConfig(@NonNull final BlockStreamJumpStartConfig config) {
+    private static IncrementalStreamingHasher createHasherFromConfig(@NonNull final BlockStreamJumpstartConfig config) {
         final List<byte[]> hashes = new ArrayList<>(config.streamingHasherHashCount());
         for (final var hash : config.streamingHasherSubtreeHashes()) {
             hashes.add(hash.toByteArray());

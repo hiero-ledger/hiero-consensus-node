@@ -9,7 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
-import com.hedera.node.config.data.BlockStreamJumpStartConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,7 +92,7 @@ public class WrappedRecordBlockHashMigration {
     public void execute(
             @NonNull final StreamMode streamMode,
             @NonNull final BlockRecordStreamConfig recordsConfig,
-            @NonNull final BlockStreamJumpStartConfig jumpstartConfig) {
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
         requireNonNull(streamMode);
         requireNonNull(recordsConfig);
         requireNonNull(jumpstartConfig);
@@ -111,7 +111,7 @@ public class WrappedRecordBlockHashMigration {
 
     private void executeInternal(
             @NonNull final BlockRecordStreamConfig recordsConfig,
-            @NonNull final BlockStreamJumpStartConfig jumpstartConfig)
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig)
             throws Exception {
         // Check if jumpstart config is populated (blockNum defaults to -1 when unconfigured)
         if (jumpstartConfig.blockNum() < 0) {
@@ -179,7 +179,7 @@ public class WrappedRecordBlockHashMigration {
      * hash as the "previous block hash" for the first local wrapped record block).
      */
     private IncrementalStreamingHasher createHasherFromConfig(
-            @NonNull final BlockStreamJumpStartConfig jumpstartConfig) {
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
         final List<byte[]> hashes = new ArrayList<>(jumpstartConfig.streamingHasherHashCount());
         for (final var hash : jumpstartConfig.streamingHasherSubtreeHashes()) {
             hashes.add(hash.toByteArray());
@@ -272,7 +272,7 @@ public class WrappedRecordBlockHashMigration {
     }
 
     private void computeHashes(
-            @NonNull final BlockStreamJumpStartConfig jumpstartConfig,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final IncrementalStreamingHasher allPrevBlocksHasher,
             @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
             final int numTrailingBlocks) {

@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
-import com.hedera.node.config.data.BlockStreamJumpStartConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.BufferedOutputStream;
@@ -71,7 +71,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
     // -------------------------------------------------------------------------
 
     private BlockRecordStreamConfig config;
-    private BlockStreamJumpStartConfig jumpstartConfig;
+    private BlockStreamJumpstartConfig jumpstartConfig;
     private Path wrappedRecordHashesDir;
 
     @Setup(Level.Trial)
@@ -100,7 +100,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
             }
         }
         final var subtreeHashes = hasher.intermediateHashingState();
-        jumpstartConfig = new BlockStreamJumpStartConfig(
+        jumpstartConfig = new BlockStreamJumpstartConfig(
                 0L, Bytes.wrap(prevHash), hasher.leafCount(), subtreeHashes.size(), subtreeHashes);
 
         config = new BlockRecordStreamConfig(

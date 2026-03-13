@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -22,7 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
-import com.hedera.node.config.data.BlockStreamJumpStartConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -65,13 +65,13 @@ class JumpstartFileSuite implements LifecycleTest {
             })
     final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
-        final AtomicReference<BlockStreamJumpStartConfig> jumpstartConfig = new AtomicReference<>();
+        final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
         final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
 
-        // Mutable map so buildDynamicJumpstartFile can add jumpstart config properties
+        // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
         final var envOverrides = new HashMap<>(Map.of(
                 "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
@@ -98,7 +98,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartFile(jumpstartConfig, envOverrides)),
+                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
