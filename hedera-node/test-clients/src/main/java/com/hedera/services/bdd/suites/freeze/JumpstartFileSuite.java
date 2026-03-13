@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.freeze;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -22,7 +21,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static java.nio.file.Files.isDirectory;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,7 +35,6 @@ import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -84,7 +81,6 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
         final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
-        final AtomicReference<String> lastRecordFile = new AtomicReference<>();
         final AtomicReference<BlockInfo> capturedBlockInfo = new AtomicReference<>();
         final AtomicReference<RunningHashes> capturedRunningHashes = new AtomicReference<>();
 
@@ -186,10 +182,12 @@ class JumpstartFileSuite implements LifecycleTest {
                                 "false",
                                 "hedera.recordStream.liveWritePrevWrappedRecordHashes",
                                 "false",
+                                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                                "false",
                                 "blockStream.enableCutover",
                                 "true",
                                 "blockStream.streamMode",
-                                "BLOCKS"),
+                                "BOTH"),
                         // Pre-restart: capture the final BlockInfo from the last block before cutover
                         withOpContext((spec, opLog) -> {
                             final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
@@ -237,7 +235,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 withOpContext((spec, opLog) -> {
                     final var bi = capturedBlockInfo.get();
                     final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                    final var log = java.nio.file.Files.readString(node0.getExternalPath(APPLICATION_LOG));
+                    final var log = Files.readString(node0.getExternalPath(APPLICATION_LOG));
 
                     // Verify BlockInfo fields
                     assertLogContains(log, "lastBlockNumber", bi.lastBlockNumber());
@@ -256,13 +254,22 @@ class JumpstartFileSuite implements LifecycleTest {
                     assertTrue(log.contains("Cutover initial BlockStreamInfo:"), "Log should contain cutover BSI dump");
                     assertLogContains(log, "blockNumber", bi.lastBlockNumber());
                     // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
-                    assertLogContains(
-                            log, "trailingBlockHashesLength", bi.blockHashes().length() - 48);
+                    final var fullBlockHashes = bi.blockHashes().toByteArray();
+                    final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - 48);
+                    assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
                     // trailingOutputHashes must be exactly the final four record stream running hashes
-                    assertLogContains(log, "trailingOutputHashesLength", 192);
+                    final var rh = capturedRunningHashes.get();
+                    Bytes expectedOutputHashes = BlockImplUtils.appendHash(
+                            Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(
+                            Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(
+                            Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4);
+                    expectedOutputHashes = BlockImplUtils.appendHash(
+                            Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4);
+                    assertLogContains(log, "trailingOutputHashes", expectedOutputHashes.toHex());
 
                     // Verify the logged RunningHashes hex values match what we captured
-                    final var rh = capturedRunningHashes.get();
                     assertLogContains(log, "runningHash", rh.runningHash().toHex());
                     assertLogContains(log, "nMinus1", rh.nMinus1RunningHash().toHex());
                     assertLogContains(log, "nMinus2", rh.nMinus2RunningHash().toHex());
@@ -458,16 +465,6 @@ class JumpstartFileSuite implements LifecycleTest {
                     }
 
                     opLog.info("Hash chain verified for {} post-cutover blocks", postCutoverBlocks.size());
-
-                    // Capture last record file before Phase 8 burst to verify no new records
-                    final var recordStreamsDir = node0.getExternalPath(RECORD_STREAMS_DIR);
-                    if (isDirectory(recordStreamsDir)) {
-                        final var recordFiles = RecordStreamingUtils.orderedRecordFilesFrom(
-                                recordStreamsDir.toString(), ignored -> true);
-                        if (!recordFiles.isEmpty()) {
-                            lastRecordFile.set(recordFiles.getLast());
-                        }
-                    }
                 }),
                 logIt("Phase 9: First post-cutover burst"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
@@ -504,25 +501,6 @@ class JumpstartFileSuite implements LifecycleTest {
                         }
                         prevBlockNum = blockNum;
                     }
-
-                    // Verify no new record files were produced after cutover
-                    if (lastRecordFile.get() != null) {
-                        final var recordStreamsDir = node0.getExternalPath(RECORD_STREAMS_DIR);
-                        final List<String> recordFiles;
-                        try {
-                            recordFiles = RecordStreamingUtils.orderedRecordFilesFrom(
-                                    recordStreamsDir.toString(), ignored -> true);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                        final var newerRecordFiles = recordFiles.stream()
-                                .filter(f -> f.compareTo(lastRecordFile.get()) > 0)
-                                .toList();
-                        assertTrue(
-                                newerRecordFiles.isEmpty(),
-                                "Expected no new record files after cutover to BLOCKS mode, but found "
-                                        + newerRecordFiles.size());
-                    }
                 }),
                 // restart with cutover enabled one more time, to verify it doesn't do anything
                 logIt("Phase 11: Restart with cutover enabled to verify idempotent operation"),
@@ -532,10 +510,12 @@ class JumpstartFileSuite implements LifecycleTest {
                         "false",
                         "hedera.recordStream.liveWritePrevWrappedRecordHashes",
                         "false",
+                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                        "false",
                         "blockStream.enableCutover",
                         "true",
                         "blockStream.streamMode",
-                        "BLOCKS")),
+                        "BOTH")),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),

@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STRE
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -21,7 +20,6 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -41,7 +39,6 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashSet;
@@ -107,8 +104,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
-        // Detect cutover by checking for the preserved preview blocks directory on disk
-        final boolean cutoverEnabled = isCutoverEnabled(spec);
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
@@ -120,12 +115,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         dataOrException.e());
                             }
                             dataRef.set(data);
-                            // TODO - reconciliation validators need to account for
-                            // post-cutover transactions missing from the record stream
                             final var maybeErrors = recordStreamValidators.stream()
-                                    .filter(v -> !cutoverEnabled
-                                            || !(v instanceof BalanceReconciliationValidator)
-                                                    && !(v instanceof TokenReconciliationValidator))
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
                                     .map(Throwable::getMessage)
@@ -135,14 +125,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
                         },
-                        () -> {
-                            if (!cutoverEnabled) {
-                                Assertions.fail(
-                                        "Aborted reading record stream data at " + recordStreamLocationsOf(spec));
-                            } else {
-                                log.info("Cutover enabled, no record stream data expected");
-                            }
-                        });
+                        () -> Assertions.fail(
+                                "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
 
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
@@ -175,10 +159,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             final var data = requireNonNull(dataRef.get());
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
-                                    // TODO: Skip record-vs-block parity check when cutover is enabled,
-                                    // since the record stream is incomplete after switching to BLOCKS mode
-                                    .filter(factory ->
-                                            !cutoverEnabled || factory != TransactionRecordParityValidator.FACTORY)
                                     .map(factory -> factory.create(spec))
                                     .flatMap(v -> v.validationErrorsIn(blocks, data))
                                     .peek(t -> log.error("Block stream validation error", t))
@@ -193,18 +173,14 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         validateProofs(spec);
 
         // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
-        if (!cutoverEnabled) {
-            final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
-                    .validationErrorsIn(spec)
-                    .peek(t -> log.error("Wrapped record hashes validation error!", t))
-                    .map(Throwable::getMessage)
-                    .collect(joining(ERROR_PREFIX));
-            if (!maybeWrappedHashesErrors.isBlank()) {
-                throw new AssertionError(
-                        "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
-            }
-        } else {
-            log.info("Cutover enabled, skipping wrapped record hashes validation");
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
         }
 
         return false;
@@ -317,20 +293,5 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         } else {
             return simulatedBlockNode.getReceivedBlockNumbers();
         }
-    }
-
-    /**
-     * Detects whether cutover was executed by checking for the preserved preview blocks directory
-     * inside node 0's working directory. This directory is created by a pre-restart callback before
-     * the cutover execution deletes preview blocks.
-     */
-    private static boolean isCutoverEnabled(@NonNull final HapiSpec spec) {
-        if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
-            return false;
-        }
-        final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        final var preservedDir =
-                node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
-        return Files.isDirectory(preservedDir);
     }
 }

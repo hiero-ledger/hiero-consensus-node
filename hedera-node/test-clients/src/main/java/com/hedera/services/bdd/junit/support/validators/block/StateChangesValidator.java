@@ -34,6 +34,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockFooter;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
@@ -453,8 +454,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var firstPostCutoverBlock = blocks.getFirst();
             final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                     List.of(firstPostCutoverBlock),
-                    com.hedera.hapi.block.stream.output.SingletonUpdateChange::blockInfoValue,
-                    com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+                    SingletonUpdateChange::blockInfoValue,
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
             if (blockInfo != null
                     && blockInfo.previousWrappedRecordBlockRootHash() != null
                     && !blockInfo.previousWrappedRecordBlockRootHash().equals(Bytes.EMPTY)) {

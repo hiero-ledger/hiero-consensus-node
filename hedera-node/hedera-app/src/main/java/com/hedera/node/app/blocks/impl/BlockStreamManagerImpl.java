@@ -373,8 +373,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             Cutover initial BlockStreamInfo:
                               blockNumber={}
                               blockTime={}
-                              trailingBlockHashesLength={}
-                              trailingOutputHashesLength={}
+                              trailingBlockHashes={}
+                              trailingOutputHashes={}
                               blockEndTime={}
                               lastIntervalProcessTime={}
                               lastHandleTime={}
@@ -382,8 +382,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                               intermediateBlockRootsLeafCount={}""",
                     firstRealBlockStreamInfo.blockNumber(),
                     firstRealBlockStreamInfo.blockTime(),
-                    firstRealBlockStreamInfo.trailingBlockHashes().length(),
-                    firstRealBlockStreamInfo.trailingOutputHashes().length(),
+                    firstRealBlockStreamInfo.trailingBlockHashes().toHex(),
+                    firstRealBlockStreamInfo.trailingOutputHashes().toHex(),
                     firstRealBlockStreamInfo.blockEndTime(),
                     firstRealBlockStreamInfo.lastIntervalProcessTime(),
                     firstRealBlockStreamInfo.lastHandleTime(),

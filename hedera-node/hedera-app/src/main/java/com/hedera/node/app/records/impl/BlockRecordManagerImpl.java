@@ -254,9 +254,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return false;
-        }
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
         }
@@ -275,9 +272,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public void writeFreezeBlockWrappedRecordFileBlockHashes(@NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         if (!writeWrappedRecordFileBlockHashesToDisk() && !liveWritePrevWrappedRecordHashes()) {
             return;
         }
@@ -324,9 +318,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return false;
-        }
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
@@ -478,9 +469,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public void markMigrationRecordsStreamed() {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         lastBlockInfo =
                 lastBlockInfo.copyBuilder().migrationRecordsStreamed(true).build();
     }
@@ -491,9 +479,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param consensusTime the consensus time at which to switch to the current block
      */
     public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
         streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
         if (streamMode == RECORDS) {
@@ -532,6 +517,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private void putLastBlockInfo(@NonNull final State state) {
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+
+        final var blockInfoInState = blockInfoState.get();
+        if (blockInfoInState.cutoverExecuted()) {
+            // If cutover has already executed, preserve the cutover-related fields from state rather than overwriting
+            // with in-memory values. This is necessary to preserve the integrity of the cutover process when stream
+            // mode is still set to both records and block streams.
+            lastBlockInfo = lastBlockInfo
+                    .copyBuilder()
+                    .previousWrappedRecordBlockRootHash(blockInfoInState.previousWrappedRecordBlockRootHash())
+                    .wrappedIntermediatePreviousBlockRootHashes(
+                            blockInfoInState.wrappedIntermediatePreviousBlockRootHashes())
+                    .wrappedIntermediateBlockRootsLeafCount(blockInfoInState.wrappedIntermediateBlockRootsLeafCount())
+                    .cutoverExecuted(blockInfoInState.cutoverExecuted())
+                    .build();
+        }
+
         blockInfoState.put(lastBlockInfo);
     }
 
@@ -540,9 +541,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     public void endUserTransaction(
             @NonNull final Stream<SingleTransactionRecord> recordStreamItems, @NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         // check if we need to run event recovery before we can write any new records to stream
         if (!this.eventRecoveryCompleted) {
             // FUTURE create event recovery class and call it here. Should this be in startUserTransaction()?
@@ -638,9 +636,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     @Override
     public void endRound(@NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         // We get the latest running hash from the StreamFileProducer blocking if needed for it to be computed.
         final var currentRunningHash = streamFileProducer.getRunningHash();
         // Update running hashes in state with the latest running hash and the previous 3 running hashes.
@@ -725,9 +720,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     @Override
     public void setLastTopLevelTime(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         final var now = asTimestamp(consensusTime);
         final var builder =
                 this.lastBlockInfo.copyBuilder().consTimeOfLastHandledTxn(now).lastUsedConsTime(now);
@@ -736,9 +728,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public void setLastUsedConsensusTime(@NonNull Instant consensusTime, @NonNull State state) {
-        if (streamMode == BLOCKS) {
-            return;
-        }
         requireNonNull(consensusTime);
         requireNonNull(state);
         final var newBlockInfo = new BlockInfo(
