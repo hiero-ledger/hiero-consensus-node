@@ -164,6 +164,14 @@ interface IClprService {
     /// @notice Sever (permanently close) a Connection. ADMIN_ROLE only.
     /// @dev Returns the anti-griefing deposit to the original registrant
     ///      (connection.registrant) via ETH transfer.
+    ///
+    ///      The `severConnection` function MUST follow checks-effects-interactions ordering:
+    ///      1. **Checks**: Verify caller has ADMIN_ROLE, Connection exists and is not already SEVERED.
+    ///      2. **Effects**: Set Connection status to SEVERED, clear queue state, record the deposit
+    ///         amount and registrant address in local variables.
+    ///      3. **Interactions**: Transfer the deposit to the registrant via `call{value: deposit}("")`.
+    ///         The reentrancy guard provides additional protection, but CEI ordering is the primary
+    ///         defense.
     /// @param connectionId The Connection ID.
     function severConnection(bytes32 connectionId) external;
 
@@ -543,6 +551,12 @@ event MisbehaviorReported(
 event EndpointRosterRecovered(
     bytes32 indexed connectionId,
     uint256 endpointCount
+);
+
+/// @notice Emitted when a Response Message callback to the target application reverts.
+event ResponseDeliveryFailed(
+    bytes32 indexed connectionId,
+    uint64 indexed messageId
 );
 ```
 
@@ -1089,6 +1103,13 @@ For each Data Message:
 
 When a verified Data Message is dispatched to its target application:
 
+> **Normative note:** State updates to `receivedMessageId` and `receivedRunningHash` occur before each
+> individual application callback. If the callback reverts (caught by try/catch), the state update is NOT
+> rolled back -- the message is considered received and delivered regardless of the application's response.
+> This is consistent with the cross-platform spec's requirement that inbound processing is not contingent
+> on application behavior. The `submitBundle` step 18 reference to updating these fields refers to the
+> cumulative result after all per-message updates in the dispatch loop, not a separate single update.
+
 ```solidity
 // State updates BEFORE external call (checks-effects-interactions)
 connection.receivedMessageId = messageId;
@@ -1533,6 +1554,13 @@ The following contradictions existed in earlier revisions and have been correcte
 
 4. **Missing `clprEnabled` check in submitBundle.** The original `submitBundle` flow did not verify the
    global enable flag. **Fixed:** `require(clprEnabled)` is now step 0a.
+
+5. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
+   calls MUST return an error." All state-modifying functions MUST check `require(clprEnabled)` as their
+   first step. This includes: `registerConnection`, `registerConnector`, `updateConnectionVerifier`,
+   `recoverEndpointRoster`, `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
+   `deregisterEndpoint`, `reportMisbehavior`, `redactMessage`, and `sendMessage`. Read-only query functions
+   (`getLedgerConfiguration`, `getConnectionState`) are exempt.
 
 All remaining platform-specific decisions fill explicit gaps designated for platform resolution.
 
