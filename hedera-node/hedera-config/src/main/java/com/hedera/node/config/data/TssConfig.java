@@ -73,4 +73,7 @@ public record TssConfig(
 
         @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl) {}
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration wrapsProvingKeyRetryInterval) {}
