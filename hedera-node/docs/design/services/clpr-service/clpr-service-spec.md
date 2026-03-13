@@ -487,6 +487,7 @@ messages.
 | `ACTIVE`  | `PAUSED`  | Admin calls `pauseConnection`                    | Outbound enqueue rejected. Inbound bundles still processed. |
 | `ACTIVE`  | `SEVERED` | Admin calls `severConnection`                    | Terminal state. All processing stops.                       |
 | `ACTIVE`  | `HALTED`  | Response ordering violation detected (§4.5)      | Protocol-triggered. Requires admin intervention.            |
+| `PAUSED`  | `HALTED`  | Response ordering violation detected during inbound bundle processing (§4.5) | Inbound bundles are still processed while paused. |
 | `PAUSED`  | `ACTIVE`  | Admin calls `resumeConnection`                   |                                                             |
 | `PAUSED`  | `SEVERED` | Admin calls `severConnection`                    | Terminal state.                                             |
 | `HALTED`  | `SEVERED` | Admin calls `severConnection`                    | Only valid transition out of HALTED.                        |
@@ -995,6 +996,8 @@ getQueueDepth(
 // Register a Connector on a Connection.
 // Authority: any caller (permissionless, but requires initial funds).
 // Platform specs MUST define minimum stake requirements.
+// The caller becomes the Connector admin, authorized for topUpConnector,
+// withdrawConnectorBalance, and deregisterConnector operations.
 registerConnector(
   [auth] caller,
   connection_id: bytes(32),

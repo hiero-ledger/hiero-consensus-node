@@ -103,6 +103,19 @@ pragma solidity ^0.8.24;
 interface IClprService {
 
     // =========================================================================
+    // Admin Enable/Disable
+    // =========================================================================
+
+    /// @notice Enable or disable the CLPR Service. When disabled, all non-admin
+    ///         operations revert. Only the admin can toggle this.
+    /// @dev Caller MUST have ADMIN_ROLE. The initial state after deployment is
+    ///      disabled (clprEnabled = false) until the admin explicitly enables
+    ///      the service, ensuring configuration is complete before accepting
+    ///      traffic.
+    /// @param enabled True to enable, false to disable.
+    function setClprEnabled(bool enabled) external;
+
+    // =========================================================================
     // Configuration Management (Spec section 6.1)
     // =========================================================================
 
@@ -128,7 +141,13 @@ interface IClprService {
     ///      control of the connectionId keypair.
     ///      msg.value is held as an anti-griefing deposit for the Connection's lifetime.
     ///      Returned to msg.sender on sever. Must meet MIN_CONNECTION_DEPOSIT.
+    ///
+    ///      The uncompressed public key (64 bytes, x||y without 0x04 prefix) is required
+    ///      because ecrecover returns a 20-byte address, which cannot be compared to the
+    ///      32-byte connectionId. The contract verifies keccak256(ecdsaPublicKey) == connectionId.
     /// @param connectionId The Connection ID (keccak256 of uncompressed pubkey).
+    /// @param ecdsaPublicKey The uncompressed secp256k1 public key (64 bytes, x||y without
+    ///        0x04 prefix). Used to verify keccak256(ecdsaPublicKey) == connectionId.
     /// @param ecdsaSignature ECDSA_secp256k1 signature over the registration data.
     ///        Signed payload: keccak256(abi.encodePacked(connectionId, verifierContract,
     ///        address(this), block.chainid)).
@@ -137,6 +156,7 @@ interface IClprService {
     /// @param seedEndpoints ABI-encoded array of ClprEndpoint structs.
     function registerConnection(
         bytes32 connectionId,
+        bytes calldata ecdsaPublicKey,
         bytes calldata ecdsaSignature,
         address verifierContract,
         bytes calldata zkProof,
@@ -200,6 +220,8 @@ interface IClprService {
 
     /// @notice Register a Connector on a Connection. Permissionless but requires ETH.
     /// @dev msg.value is split between initial_balance and stake per the parameters.
+    ///      The caller (msg.sender) is recorded as the Connector admin, authorized for
+    ///      topUpConnector, withdrawConnectorBalance, and deregisterConnector.
     /// @param connectionId The Connection ID.
     /// @param sourceConnectorAddress Address of the counterpart Connector on the source ledger.
     /// @param connectorContract Address of the Connector's IClprConnectorAuth contract.
@@ -658,6 +680,10 @@ struct Connection {
     uint64 maxSyncPayloadBytes;
 
     // --- Accounting ---
+    // nextResponseExpectedId is a gas-efficient counter-based optimization of the
+    // cross-platform spec's walk-based approach (Spec section 4.5). Instead of walking
+    // the outbound queue from the beginning on every response, this counter tracks the
+    // current position, advancing via _nextDataMessageId() after each response delivery.
     uint64 nextResponseExpectedId;     // ID of the next Data Message expecting a response
 
     // --- Lazy Config Propagation ---
@@ -826,12 +852,6 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   // --- Step 0: Preconditions ---
   0a. Require clprEnabled == true.
 
-  // --- Step 0b: Lazy Config Propagation ---
-  0b. If connection.localConfigVersion < globalConfigVersion:
-      - Enqueue a ConfigUpdate Control Message containing the current _ledgerConfiguration
-        in the Connection's outbound queue.
-      - Set connection.localConfigVersion = globalConfigVersion.
-
   // --- Step 1: Verifier Call ---
   1. Load connection = _connections[connectionId].
   2. Require connection.status == ACTIVE || connection.status == PAUSED.
@@ -861,6 +881,14 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   14. Update connection.ackedMessageId = metadata.receivedMessageId.
   15. Delete acknowledged Response Messages and Control Messages from outbound queue.
   16. Retain acknowledged Data Messages (needed for response ordering).
+
+  // --- Step 5a: Lazy Config Propagation ---
+  // Placed after ack update to ensure the ConfigUpdate appears at the correct
+  // position in the outbound message stream.
+  16a. If connection.localConfigVersion < globalConfigVersion:
+       - Enqueue a ConfigUpdate Control Message containing the current _ledgerConfiguration
+         in the Connection's outbound queue.
+       - Set connection.localConfigVersion = globalConfigVersion.
 
   // --- Step 6: Message Dispatch (see section 8 for details) ---
   17. For each message in order:
@@ -1159,6 +1187,10 @@ connection.nextResponseExpectedId = _nextDataMessageId(connectionId, response.me
 delete _messageQueue[connectionId][response.messageId];
 ```
 
+**`_nextDataMessageId(connectionId, messageId)` helper:** Scans the outbound queue forward from the given
+`messageId`, skipping Response and Control messages, returning the next Data Message ID. Returns
+`type(uint64).max` if no more Data Messages exist (meaning no further responses are expected).
+
 **Only response ordering violations trigger HALTED.** Verification failures in `submitBundle` (steps 1-4)
 simply revert the transaction with no Connection state change. The HALTED state is reserved exclusively
 for the case where a peer sends responses out of order, which indicates a protocol-level inconsistency
@@ -1217,6 +1249,11 @@ proxy provides a recovery path:
 This is a concrete motivation for the upgradeability strategy described in section 1.2. Without
 upgradeability, a HALTED Connection would be permanently unusable, requiring a completely new Connection
 registration and loss of all in-flight messages.
+
+> **Cross-platform deviation note:** This HALTED -> ACTIVE recovery path is a platform-specific extension
+> of the cross-platform state machine, which only defines HALTED -> SEVERED. Ethereum's upgradeability via
+> EIP-1967 proxy enables this additional recovery option. Implementations on other platforms that lack
+> upgradeability MUST follow the cross-platform spec's HALTED -> SEVERED path.
 
 ---
 
@@ -1539,11 +1576,13 @@ The following contradictions existed in earlier revisions and have been correcte
    global enable flag. **Fixed:** `require(clprEnabled)` is now step 0a.
 
 5. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
-   calls MUST return an error." All state-modifying functions MUST check `require(clprEnabled)` as their
-   first step. This includes: `registerConnection`, `registerConnector`, `updateConnectionVerifier`,
+   calls MUST return an error." All state-modifying non-admin functions MUST check `require(clprEnabled)` as
+   their first step. This includes: `registerConnection`, `registerConnector`, `updateConnectionVerifier`,
    `recoverEndpointRoster`, `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
-   `deregisterEndpoint`, `reportMisbehavior`, `redactMessage`, and `sendMessage`. Read-only query functions
-   (`getLedgerConfiguration`, `getConnectionState`) are exempt.
+   `registerEndpoint`, `deregisterEndpoint`, `reportMisbehavior`, `redactMessage`, and `sendMessage`.
+   Read-only query functions (`getLedgerConfiguration`, `getConnectionState`) are exempt. Admin operations
+   (`severConnection`, `pauseConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
+   `clprEnabled` check because the admin must be able to manage the system even when disabled.
 
 All remaining platform-specific decisions fill explicit gaps designated for platform resolution.
 

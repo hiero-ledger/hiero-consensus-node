@@ -341,6 +341,12 @@ For each Connection C where this node is a registered endpoint:
                acks, but there are no new outbound messages to push. Skip outbound sync
                initiation but remain available as a responder.
              - If ACTIVE: proceed with normal sync below.
+           Before syncing, the endpoint MUST verify it is still registered on each
+           Connection's endpoint roster. If this endpoint's account is no longer in the
+           roster (due to external deregistration, bond slashing to zero, or admin removal),
+           skip the Connection. The endpoint SHOULD check this by reading the on-chain
+           endpoint roster periodically (e.g., every N sync rounds) or by monitoring
+           `EndpointDeregistered` events.
         1. Read C's outbound queue metadata from contract state.
         2. If there are unacked messages (next_message_id > peer's received_message_id):
              a. Construct proof_bytes from local state.
@@ -661,14 +667,22 @@ verifies the proof as follows:
 2. **Verify finality branch.** Walk the `finality_branch` Merkle path from `attested_header.state_root` to
    `finalized_root`, confirming that the attested header commits to the finalized checkpoint containing
    `finalized_header`. This links the sync committee's attestation to the finalized block.
+
+   The verifier MUST check that `finalized_header` is not a zero/empty header (all fields zero). An empty
+   finalized header indicates no finality update is available and MUST be rejected. This prevents trivial Merkle
+   proof attacks against a zeroed state.
 3. **Verify execution payload inclusion.** Check that the `execution_payload_header` is committed to by the
    `finalized_header.body_root` using the `execution_payload_branch`. The `execution_payload_branch` proves
-   inclusion of the `ExecutionPayloadHeader` within the `finalized_header.body_root`. The generalized index for
-   the execution payload in the BeaconBlockBody Merkle tree is **25** (binary 11001) for post-Deneb Ethereum.
-   This index may change in future hard forks; verifier contracts MUST be parameterized by fork version.
+   inclusion of the `ExecutionPayloadHeader` within the `finalized_header.body_root`.
 
-   **Beacon API source:** The standard Beacon API endpoints (`/eth/v1/beacon/light_client/updates`,
-   `/eth/v1/beacon/light_client/finality_update`) include an `execution_branch` field in post-Capella responses.
+   The `execution_payload_branch` SHOULD be obtained from the Beacon API's `execution_branch` field in
+   `LightClientFinalityUpdate` responses. The standard Beacon API endpoints
+   (`/eth/v1/beacon/light_client/updates`, `/eth/v1/beacon/light_client/finality_update`) include this field in
+   post-Capella responses. The generalized index for the execution payload in the BeaconBlockBody Merkle tree is
+   **25** (binary 11001) for post-Deneb Ethereum, but this index may change in future hard forks — using the
+   API-provided branch avoids hardcoding fork-specific values. Verifier contracts MUST still be parameterized by
+   fork version as a defense-in-depth measure.
+
    If the Beacon API does not provide this branch directly (e.g., for specific block queries), the Besu endpoint
    MUST compute it locally from the full `BeaconBlockBody` SSZ tree. The Besu execution client has access to
    beacon block bodies via the Engine API or consensus client RPC.
@@ -982,6 +996,11 @@ function registerEndpoint(
 The bond is sent as `msg.value` in the transaction. The contract validates that `msg.value` meets or exceeds the
 minimum bond requirement.
 
+> **Cross-platform spec note:** The cross-platform spec defines a `bond` parameter in `registerEndpoint`. On EVM,
+> this maps to `msg.value` per the cross-platform spec's platform-specific delivery note (§6.5). No separate `bond`
+> parameter is needed in the Solidity ABI — `msg.value` is the authoritative bond amount, avoiding the ambiguity of
+> having two sources of truth.
+
 ### Auto-Registration
 
 If `clpr.auto-register = true`, the plugin automatically registers on startup for all configured Connections. The
@@ -1207,6 +1226,13 @@ These are out of scope for this specification but should be considered for the c
 | Auto-Register | `--clpr-auto-register` | `clpr.auto-register` | `false` | Automatically register as endpoint on startup. |
 | Bond Amount | `--clpr-bond-amount` | `clpr.bond-amount-wei` | (required if auto-register) | Bond to post during registration (wei). |
 | Connection IDs | `--clpr-connections` | `clpr.connections` | `[]` | List of Connection IDs to participate in. |
+
+> **Connection discovery note:** The static `clpr.connections` configuration is authoritative — the endpoint ONLY
+> serves Connections explicitly listed in its configuration. If a third party registers this endpoint on a new
+> Connection, the endpoint will not automatically discover or serve it. Operators must update the configuration and
+> restart (or trigger a config reload) to serve new Connections. This is a deliberate security choice: endpoints
+> should explicitly opt in to serving Connections rather than automatically serving any Connection that references
+> them.
 | MEV Strategy | `--clpr-mev-strategy` | `clpr.mev-protection.strategy` | `none` | MEV protection: `none`, `flashbots-protect`, `mev-share`. |
 | Flashbots RPC | `--clpr-flashbots-rpc` | `clpr.mev-protection.flashbots-rpc` | `https://rpc.flashbots.net` | Flashbots RPC endpoint. |
 | Skip Unprofitable | `--clpr-skip-unprofitable` | `clpr.skip-unprofitable-bundles` | `false` | Skip bundles where gas cost exceeds expected reimbursement. |
