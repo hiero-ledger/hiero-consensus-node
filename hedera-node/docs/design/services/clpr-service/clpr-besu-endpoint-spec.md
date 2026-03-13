@@ -662,7 +662,17 @@ verifies the proof as follows:
    `finalized_root`, confirming that the attested header commits to the finalized checkpoint containing
    `finalized_header`. This links the sync committee's attestation to the finalized block.
 3. **Verify execution payload inclusion.** Check that the `execution_payload_header` is committed to by the
-   `finalized_header.body_root` using the `execution_payload_branch`.
+   `finalized_header.body_root` using the `execution_payload_branch`. The `execution_payload_branch` proves
+   inclusion of the `ExecutionPayloadHeader` within the `finalized_header.body_root`. The generalized index for
+   the execution payload in the BeaconBlockBody Merkle tree is **25** (binary 11001) for post-Deneb Ethereum.
+   This index may change in future hard forks; verifier contracts MUST be parameterized by fork version.
+
+   **Beacon API source:** The standard Beacon API endpoints (`/eth/v1/beacon/light_client/updates`,
+   `/eth/v1/beacon/light_client/finality_update`) include an `execution_branch` field in post-Capella responses.
+   If the Beacon API does not provide this branch directly (e.g., for specific block queries), the Besu endpoint
+   MUST compute it locally from the full `BeaconBlockBody` SSZ tree. The Besu execution client has access to
+   beacon block bodies via the Engine API or consensus client RPC.
+
 4. **Extract state root.** The `execution_payload_header` contains the `state_root`.
 5. **Verify account proof.** Walk the `account_proof` MPT path from `state_root` to the CLPR Service contract's
    account, extracting the `storageRoot`.
@@ -699,6 +709,11 @@ and participation bits together. The tracker models this directly rather than in
 public class SyncCommitteeTracker {
     // Fetches and caches sync committee data from the Beacon API.
     // Returns the committee for a given slot.
+    // Convenience method for committee public key lookup. Returns the sync
+    // committee whose term covers the given slot. Note: for full proof
+    // construction, use getFinalityUpdateForBlock() or getLatestFinalityUpdate()
+    // which return the complete LightClientUpdate / LightClientFinalityUpdate
+    // required by Section 5.2 (proof construction steps).
     public SyncCommittee getCommitteeForSlot(long slot);
 
     // Returns the current finalized slot.
@@ -715,6 +730,13 @@ public class SyncCommitteeTracker {
     // (/eth/v1/beacon/light_client/finality_update). This provides the most
     // recent attested_header + finalized_header + signature for proof construction.
     public LightClientFinalityUpdate getLatestFinalityUpdate();
+
+    // Returns a finality update targeting a specific block/slot. The returned
+    // LightClientFinalityUpdate contains the complete package needed for proof
+    // construction: attested header, finalized header, finality branch,
+    // sync committee aggregate signature (BLS12-381), and participation bits.
+    // If the target slot is not yet finalized, returns empty.
+    public Optional<LightClientFinalityUpdate> getFinalityUpdateForBlock(long slot);
 }
 
 // Models the Beacon API LightClientUpdate structure.
@@ -1338,6 +1360,27 @@ reported peer exceeding the configured limit.
 The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, using the same
 nonce management and gas estimation strategies.
 
+### Cross-Endpoint Detection Coordination
+
+On a given ledger, each Besu endpoint is an independent process. To detect DUPLICATE_BROADCAST (where a remote
+endpoint pushes the same payload to multiple local endpoints), local endpoints must share information about
+received payloads. Detection mechanisms (in order of preference):
+
+1. **On-chain event monitoring.** Each endpoint monitors `BundleSubmitted` events on the CLPR Service contract.
+   If two events in the same block (or within a sync round window) reference the same `connection_id` and
+   overlapping `proof_bytes` from different submitters, the remote endpoint may be guilty of DUPLICATE_BROADCAST.
+   This is the simplest approach — no additional infrastructure needed.
+
+2. **Shared mempool observation.** Endpoints can observe pending `submitBundle` transactions in the mempool
+   before they are mined. This provides earlier detection but is less reliable (transactions may be
+   private/MEV-protected).
+
+3. **Off-chain gossip.** Endpoints on the same ledger run a lightweight gossip protocol to share payload
+   fingerprints. This adds infrastructure complexity but provides the fastest detection.
+
+The recommended approach for initial implementation is option 1 (on-chain event monitoring), as it requires no
+additional coordination infrastructure.
+
 ---
 
 # 13. Monitoring and Metrics
@@ -1584,6 +1627,11 @@ The plugin is behind a feature flag at multiple levels:
 - **Protobuf version.** Use the same protobuf version as Besu to avoid classpath conflicts.
 - **gRPC version.** Use a gRPC version compatible with Besu's existing gRPC dependencies (if any), or shade the
   dependency to avoid conflicts.
+- **SSZ serialization.** The CLPR endpoint plugin requires an SSZ (Simple Serialize) library for
+  encoding/decoding beacon chain structures (`BeaconBlockHeader`, `LightClientUpdate`, sync committee data).
+  Recommended Java SSZ libraries: Apache Tuweni SSZ (`org.apache.tuweni:tuweni-ssz`) or the Besu-internal
+  `tech.pegasys.teku:ssz` module. If using Besu's internal SSZ, the plugin must shade this dependency to avoid
+  version conflicts with Besu's own SSZ usage.
 
 ## 15.5 Code Style and Conventions
 
