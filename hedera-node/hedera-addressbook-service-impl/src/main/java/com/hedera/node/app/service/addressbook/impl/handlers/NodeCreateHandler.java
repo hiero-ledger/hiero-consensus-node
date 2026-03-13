@@ -144,6 +144,10 @@ public class NodeCreateHandler implements TransactionHandler {
             validateTrue(registeredNodeStore.get(nextNodeId) == null, INVALID_NODE_ID);
             node = nodeBuilder.nodeId(nextNodeId).build();
             if (maybeNodeIsInStateForSystemTxn) {
+                final var existingNode = requireNonNull(nodeStore.get(nextNodeId));
+                if (!existingNode.accountId().equals(node.accountId())) {
+                    accountNodeRelStore.remove(existingNode.accountId());
+                }
                 nodeStore.put(node);
             } else {
                 // Increment the nodes count. Update the highest node ID if needed.

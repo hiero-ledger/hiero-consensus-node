@@ -51,35 +51,7 @@ public final class VirtualHasher {
      */
     private static final Logger logger = LogManager.getLogger(VirtualHasher.class);
 
-    private static volatile ForkJoinPool hashingPool = null;
-
-    /**
-     * This method is invoked from a non-static method, passing the provided configuration.
-     * Consequently, the hashing pool will be initialized using the configuration provided
-     * with the first call of the hash method. Subsequent calls will reuse the same pool.
-     */
-    private static ForkJoinPool getHashingPool(final @NonNull VirtualMapConfig virtualMapConfig) {
-        requireNonNull(virtualMapConfig);
-
-        ForkJoinPool pool = hashingPool;
-        if (pool == null) {
-            synchronized (VirtualHasher.class) {
-                pool = hashingPool;
-                if (pool == null) {
-                    pool = new ForkJoinPool(
-                            virtualMapConfig.getNumHashThreads(),
-                            ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-                            (t, e) -> logger.error(
-                                    EXCEPTION.getMarker(),
-                                    "Virtual hasher thread terminated with exception: {}",
-                                    StackTrace.getStackTrace(e)),
-                            true);
-                    hashingPool = pool;
-                }
-            }
-        }
-        return pool;
-    }
+    private final ForkJoinPool hashingPool;
 
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
@@ -110,13 +82,31 @@ public final class VirtualHasher {
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
+    private final VirtualMapConfig virtualMapConfig;
+
     /**
-     * Indicate to the virtual hasher that it has been shut down. This method does not interrupt threads, but
-     * it indicates to threads that an interrupt may happen, and that the interrupt should not be treated as
-     * an error.
+     * @param virtualMapConfig platform configuration for VirtualMap
+     */
+    public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(virtualMapConfig);
+        this.virtualMapConfig = virtualMapConfig;
+        hashingPool = new ForkJoinPool(
+                virtualMapConfig.getNumHashThreads(),
+                ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                (t, e) -> logger.error(
+                        EXCEPTION.getMarker(),
+                        "Virtual hasher thread terminated with exception: {}",
+                        StackTrace.getStackTrace(e)),
+                true);
+    }
+
+    /**
+     * Indicate to the virtual hasher that it has been shut down. This method shuts down the
+     * hashing pool.
      */
     public void shutdown() {
         shutdown.set(true);
+        hashingPool.shutdown();
     }
 
     public static Hash hashInternal(final Hash left, final Hash right) {
@@ -441,8 +431,6 @@ public final class VirtualHasher {
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
      * @param listener
      *      Hash listener. May be {@code null}
-     * @param virtualMapConfig
-     *      Platform configuration for VirtualMap
      * @return
      *      The hash of the root of the tree, or {@code null} if the list of dirty leaves is empty
      */
@@ -453,8 +441,7 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @Nullable VirtualHashListener listener,
-            final @NonNull VirtualMapConfig virtualMapConfig) {
+            final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
         requireNonNull(virtualMapConfig);
 
@@ -469,9 +456,8 @@ public final class VirtualHasher {
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
-        final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
-                ? thread.getPool()
-                : getHashingPool(virtualMapConfig);
+        final ForkJoinPool pool =
+                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
 
         final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
                 () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
