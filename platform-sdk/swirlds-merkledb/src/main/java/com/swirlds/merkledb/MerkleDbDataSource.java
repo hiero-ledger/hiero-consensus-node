@@ -886,15 +886,22 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
         }
 
-        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId), hashChunkHeight);
+        VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId), hashChunkHeight);
         assert chunk != null;
         if (chunkId < hashChunkCacheThreshold) {
-            assert hashChunkCache.get(chunkId) == null;
-            hashChunkCache.put(chunkId, chunk.copy());
+            // This method is not expected to be called from multiple threads for the same chunk ID.
+            // However, current reconnect implementation does exactly that. It results in a thread
+            // race, so hashChunkCache.get() above may return null, but here a value is already put
+            // to the cache in a different thread. In this case, discard what's loaded from disk
+            // and use the value loaded by the other thread
+            final VirtualHashChunk existingChunk = hashChunkCache.putIfAbsent(chunkId, chunk);
+            if (existingChunk != null) {
+                chunk = existingChunk;
+            }
         }
         statisticsUpdater.countHashReads();
 
-        return chunk;
+        return chunk.copy();
     }
 
     /**

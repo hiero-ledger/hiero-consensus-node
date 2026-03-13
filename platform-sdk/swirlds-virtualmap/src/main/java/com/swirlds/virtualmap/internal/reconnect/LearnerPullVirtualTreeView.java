@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -143,7 +144,9 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
         final AtomicBoolean rootRequestSent = new AtomicBoolean(false);
         final AtomicBoolean lastPathSent = new AtomicBoolean(false);
         // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 4; i++) {
+        final int learnerSendTasks = 4;
+        final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
+        for (int i = 0; i < learnerSendTasks; i++) {
             final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
                     reconnectConfig,
                     workGroup,
@@ -152,7 +155,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                     rootResponseReceived,
                     expectedResponses,
                     rootRequestSent,
-                    lastPathSent);
+                    tasksDone);
             learnerSendTask.exec();
         }
     }
