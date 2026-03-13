@@ -721,19 +721,12 @@ Since Hiero endpoints are permissioned consensus nodes, misbehavior enforcement 
 - **No bond required.** Hiero consensus nodes are governed by the council; no separate CLPR endpoint bond is needed.
 - **Slashing via governance.** A misbehaving endpoint's node account can be penalized through existing governance
   mechanisms (council action, node removal from roster).
-- **Misbehavior evidence.** Evidence of remote endpoint misbehavior (duplicate broadcast, excess frequency) is
+- **Misbehavior evidence.** Evidence of remote endpoint misbehavior (excess frequency) is
   still collected and can be submitted via `ClprReportMisbehavior` transactions to the remote ledger.
 
-### 4.5.1 DUPLICATE_BROADCAST Initiator Constraint
-
-`DUPLICATE_BROADCAST` misbehavior only applies when the **remote endpoint initiated** the sync. If multiple
-local Hiero endpoints independently initiated syncs to the same remote peer and received the same payload,
-that is normal operation, NOT misbehavior.
-
-- The `ClprReportMisbehaviorHandler` MUST validate that submitted evidence demonstrates remote-initiated syncs
-  (i.e., the remote endpoint was the initiator in both sync exchanges that produced the duplicate payload).
-- Each endpoint MUST track sync directionality (initiator vs. responder) to correctly attribute misbehavior.
-  A sync in which the local endpoint was the initiator cannot be used as evidence of remote duplicate broadcast.
+> **Note:** DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove
+> sync direction (who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint
+> deduplication strategies.
 
 ---
 

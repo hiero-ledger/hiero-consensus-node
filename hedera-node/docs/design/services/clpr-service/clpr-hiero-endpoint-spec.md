@@ -872,36 +872,11 @@ Additionally:
 - For **permanent** unresponsiveness (all peers gone), the `recoverEndpointRoster` mechanism (Section 5.4 of the
   cross-platform spec) is the recovery path.
 
-## 12.5 Misbehavior Attribution — DUPLICATE_BROADCAST
+## 12.5 DUPLICATE_BROADCAST (Dropped)
 
-The `DUPLICATE_BROADCAST` misbehavior type requires careful attribution logic in the endpoint module. On Hiero,
-all consensus nodes independently initiate syncs with peer endpoints, which means multiple local nodes may
-receive the same payload from the same remote peer as part of normal operation. The endpoint module MUST
-distinguish between normal multi-endpoint sync behavior and actual misbehavior.
-
-**Sync direction tracking.** The endpoint module MUST track whether each sync was:
-- **Locally initiated** — this node called a peer's `sync()` RPC.
-- **Remotely initiated** — a peer called this node's `sync()` RPC.
-
-This distinction is critical for DUPLICATE_BROADCAST evidence assembly.
-
-**Attribution rules:**
-
-1. `DUPLICATE_BROADCAST` evidence can ONLY be assembled from **inbound** (remotely initiated) syncs where the
-   remote endpoint initiated the call to this node.
-2. When this node initiates a sync and receives a response, the remote endpoint's payload in that response is
-   NOT grounds for `DUPLICATE_BROADCAST`, even if other local nodes also received the same payload by
-   independently initiating their own syncs.
-3. On Hiero, all consensus nodes independently initiate syncs. Two nodes syncing with the same remote peer and
-   getting the same payload is **normal operation** — the remote peer is responding to requests, not
-   broadcasting unsolicited data.
-4. Evidence for `DUPLICATE_BROADCAST` MUST include proof that the remote endpoint **initiated** multiple syncs
-   to different local endpoints with the same payload in one round. This means the remote peer actively pushed
-   the same data to multiple local nodes without being asked.
-
-**Practical implication.** A remote endpoint that responds to sync requests from multiple local nodes with the
-same payload is behaving correctly. Only a remote endpoint that proactively opens connections to multiple local
-nodes and pushes the same payload constitutes a duplicate broadcast.
+DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove sync direction
+(who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
+strategies.
 
 ## 12.6 Node Account Security
 
@@ -1080,14 +1055,13 @@ assumes the Connector reimburses the submitting endpoint per-message.
 ### F-7: Deduplication Inefficiency
 
 Section 13.5 describes heuristics to reduce duplicate `submitBundle` transactions when multiple Hiero nodes
-receive the same sync payload. The design doc (Section 3.1.6) notes that if the same payload is submitted by
-multiple local endpoints, the **remote peer endpoint** is identified as the culprit for "duplicate broadcast."
-However, on Hiero, a peer endpoint legitimately contacts all Hiero nodes because any node can submit the bundle.
+receive the same sync payload. On Hiero, a peer endpoint legitimately contacts all Hiero nodes because any
+node can submit the bundle.
 
-**Resolved:** See Section 12.5 for the full attribution logic. DUPLICATE_BROADCAST evidence can only be
-assembled from remotely initiated (inbound) syncs. When local nodes independently initiate syncs and receive
-the same payload, this is normal operation, not misbehavior. Evidence requires proof that the remote endpoint
-initiated multiple syncs to different local endpoints with the same payload in one round.
+**Resolved:** DUPLICATE_BROADCAST was considered as a misbehavior type but dropped -- on-chain evidence cannot
+cryptographically prove sync direction (who initiated), and the economic harm (duplicate gas spend) is mitigated
+by natural endpoint deduplication strategies. Duplicate submissions are handled by the deduplication heuristics
+in Section 13.5, not by misbehavior reporting.
 
 ### F-8: Endpoint Bond on Hiero
 

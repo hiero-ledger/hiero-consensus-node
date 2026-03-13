@@ -655,11 +655,6 @@ and the transaction submitting it to the local ledger is signed by the **local e
 it. This two-signature property allows the receiving ledger to unambiguously attribute misbehavior to either a local or
 remote endpoint, and to produce cryptographically self-proving evidence that the remote ledger can verify independently.
 
-**Remote endpoint: duplicate broadcast** — If the same payload (identified by its remote endpoint signature) is
-submitted by multiple distinct local endpoints within a single sync round, the remote peer endpoint must have sent that
-payload to more than one local endpoint simultaneously. No honest local endpoint would fabricate a foreign signature, so
-the evidence is conclusive.
-
 **Remote endpoint: excess sync frequency** — If distinct payloads signed by the same remote endpoint arrive more
 frequently than the receiving ledger's `MaxSyncsPerSec`, the remote endpoint is not respecting the advertised throttle.
 
@@ -669,7 +664,6 @@ should submit the same payload twice.
 
 | Observation                                             | Culprit              |
 |---------------------------------------------------------|----------------------|
-| Same payload, multiple local endpoints                  | Remote peer endpoint |
 | Same remote endpoint signature, excess frequency        | Remote peer endpoint |
 | Same payload, same local endpoint, submitted repeatedly | Local endpoint       |
 
@@ -679,7 +673,7 @@ When a remote endpoint is identified as the culprit, the local ledger MAY assemb
 ```mermaid
 MisbehaviorReport {
   offendingEndpoint:  PublicKey       // the remote endpoint being reported
-  evidenceType:       EvidenceType    // DuplicateBroadcast | ExcessFrequency
+  evidenceType:       EvidenceType    // ExcessFrequency
   payloads:           SignedPayload[] // the signed payloads constituting the evidence
   reporterChainID:    ChainID         // the reporting ledger
 }

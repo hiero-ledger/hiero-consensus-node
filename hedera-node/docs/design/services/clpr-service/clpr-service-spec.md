@@ -311,8 +311,7 @@ message ClprSyncPayload {
   // This signature is NOT verified during bundle processing — the verifier's
   // proof_bytes provide the cryptographic assurance. The endpoint_signature
   // exists for attribution and misbehavior evidence: it proves which endpoint
-  // produced a given payload, enabling DUPLICATE_BROADCAST and EXCESS_FREQUENCY
-  // reports.
+  // produced a given payload, enabling EXCESS_FREQUENCY reports.
   //
   // The signing scheme is RSASSA-PSS with SHA-256 (preferred) or
   // RSASSA-PKCS1-v1_5 with SHA-256. Platform-specific specifications
@@ -381,15 +380,8 @@ enum ClprEvidenceType {
   // Unspecified — implementations MUST reject reports with this value.
   EVIDENCE_TYPE_UNSPECIFIED = 0;
 
-  // Remote endpoint initiated syncs to multiple local endpoints with the
-  // same payload in one sync round. Only applies when the remote endpoint
-  // was the initiator — if multiple local endpoints independently contacted
-  // the remote endpoint and received the same data, that is normal operation
-  // and NOT misbehavior.
-  DUPLICATE_BROADCAST = 1;
-
   // Sync frequency exceeds the receiving ledger's advertised max_syncs_per_sec.
-  EXCESS_FREQUENCY = 2;
+  EXCESS_FREQUENCY = 1;
 }
 
 // A misbehavior report submitted to the offending endpoint's home ledger.
@@ -409,11 +401,6 @@ message ClprMisbehaviorReport {
   // The sync payloads constituting the evidence. Each payload includes
   // the offending endpoint's signature (endpoint_signature field).
   //
-  // For DUPLICATE_BROADCAST: two or more ClprSyncPayloads with identical
-  //   proof_bytes, initiated by the remote endpoint, and submitted by
-  //   different local endpoints. Evidence MUST demonstrate that the remote
-  //   endpoint initiated the syncs (not that local endpoints independently
-  //   contacted the remote and received the same response).
   // For EXCESS_FREQUENCY: multiple ClprSyncPayloads from the same endpoint
   //   with consensus timestamps demonstrating frequency violation.
   //   Frequency MUST be measured in sync rounds or blocks, not wall-clock time.
