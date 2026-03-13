@@ -325,17 +325,13 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractStateChange> allStateChanges = new ArrayList<>();
+        final List<ContractStateChange> allStateChanges = new ArrayList<>(storageAccesses.size());
         for (final var storageAccess : storageAccesses) {
-            final List<StorageChange> changes = new ArrayList<>();
-            for (final var access : storageAccess.accesses()) {
+            final var accesses = storageAccess.accesses();
+            final List<StorageChange> changes = new ArrayList<>(accesses.size());
+            for (final var access : accesses) {
                 changes.add(new StorageChange(
-                        tuweniToPbjBytes(access.key().trimLeadingZeros()),
-                        tuweniToPbjBytes(access.value().trimLeadingZeros()),
-                        access.isReadOnly()
-                                ? null
-                                : tuweniToPbjBytes(
-                                        requireNonNull(access.writtenValue()).trimLeadingZeros())));
+                        access.trimmedKeyBytes(), access.trimmedValueBytes(), access.trimmedWrittenValueBytes()));
             }
             allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
         }
@@ -353,11 +349,12 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractSlotUsage> slotUsages = new ArrayList<>();
+        final List<ContractSlotUsage> slotUsages = new ArrayList<>(storageAccesses.size());
         for (final var storageAccess : storageAccesses) {
-            final List<SlotRead> reads = new ArrayList<>();
+            final var accesses = storageAccess.accesses();
+            final List<SlotRead> reads = new ArrayList<>(accesses.size());
             final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
-            for (final var access : storageAccess.accesses()) {
+            for (final var access : accesses) {
                 if (!access.isReadOnly()) {
                     if (writes != null) {
                         writes.add(access.trimmedKeyBytes());
