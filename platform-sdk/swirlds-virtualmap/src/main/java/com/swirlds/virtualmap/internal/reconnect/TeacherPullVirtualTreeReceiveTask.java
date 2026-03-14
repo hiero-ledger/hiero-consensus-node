@@ -104,13 +104,14 @@ public class TeacherPullVirtualTreeReceiveTask {
             boolean wasLeaf = false;
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
-                final PullVirtualTreeRequest request = in.readAnticipatedMessage(PullVirtualTreeRequest::new);
+                final PullVirtualTreeRequest request = in.readAnticipatedMessageSync(PullVirtualTreeRequest::new);
                 if (request == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+//                    if (!in.isAlive()) {
+//                        break;
+//                    }
+//                    Thread.sleep(0, 1);
+//                    continue;
+                    break;
                 }
                 requestCounter++;
                 if (request.getPath() == Path.INVALID_PATH) {
