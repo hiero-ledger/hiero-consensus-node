@@ -513,10 +513,8 @@ jobs:
         if: always()
         run: |
           # Get CN Logs
-          solo consensus diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
-          BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
-          LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
-          echo "Latest log folder is $LOG_FOLDER"
+          solo deployment diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          LOG_FOLDER="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
