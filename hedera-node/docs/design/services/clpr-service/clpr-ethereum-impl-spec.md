@@ -289,15 +289,17 @@ interface IClprService {
 
     /// @notice Submit a bundle received from a peer endpoint for on-chain processing.
     /// @dev Permissionless (typically called by endpoint nodes).
+    ///      The signer's identity is recovered from the ECDSA secp256k1 signature
+    ///      via ecrecover and matched against registered ecdsa_signing_key entries
+    ///      in the Connection's peer endpoint roster.
     /// @param connectionId The Connection ID.
     /// @param proofBytes Opaque proof bytes from ClprSyncPayload.
-    /// @param remoteEndpointSignature Endpoint signature for attribution.
-    /// @param remoteEndpointPublicKey Public key of the remote endpoint.
+    /// @param remoteEndpointSignature ECDSA secp256k1 signature over
+    ///        keccak256(abi.encodePacked(connectionId, proofBytes)).
     function submitBundle(
         bytes32 connectionId,
         bytes calldata proofBytes,
-        bytes calldata remoteEndpointSignature,
-        bytes calldata remoteEndpointPublicKey
+        bytes calldata remoteEndpointSignature
     ) external;
 
     /// @notice Redact a message from the outbound queue. ADMIN_ROLE only.
@@ -765,20 +767,29 @@ a single SLOAD per access.
 
 Ethereum endpoints require TWO distinct key types:
 
-1. **RSA key** -- Used for the CLPR protocol TLS layer and the `endpoint_signature` field in
-   `ClprSyncPayload`. This key is registered on-chain in the peer endpoint roster via the
-   `ClprEndpoint.signing_certificate` field. It is used for inter-endpoint authentication and
-   bundle signing, and is verifiable by both the local and remote CLPR Service.
+1. **RSA key (mTLS only)** -- Used exclusively for transport-layer authentication (mTLS) between
+   endpoints during gRPC sync calls. Registered on-chain via `ClprEndpoint.tls_certificate`. NOT
+   used for `endpoint_signature` or any on-chain verification. Minimum: RSA-3072.
 
-2. **ECDSA secp256k1 key** -- Used for Ethereum transaction signing (`msg.sender`). This is the
-   endpoint operator's standard Ethereum account. It is implicit in every transaction and is never
-   included in the CLPR wire format. This key is used for `submitBundle`, `registerEndpoint`,
-   `deregisterEndpoint`, and other on-chain operations.
+2. **ECDSA secp256k1 key (endpoint signing + Ethereum transactions)** -- Used for two purposes:
+   (a) signing the `endpoint_signature` field in `ClprSyncPayload` (over
+   `keccak256(connection_id || proof_bytes)`), and (b) Ethereum transaction signing (`msg.sender`).
+   On Ethereum, the `ClprEndpoint.ecdsa_signing_key` is typically the same key as the endpoint
+   operator's EOA key, since both use secp256k1. Registered on-chain via
+   `ClprEndpoint.ecdsa_signing_key`. Used for endpoint attribution, misbehavior evidence
+   verification (via ecrecover at ~3K gas), `registerEndpoint`, `deregisterEndpoint`, and other
+   on-chain operations.
 
-The RSA key and ECDSA key are independent. The RSA key identifies the endpoint in the CLPR protocol;
-the ECDSA key identifies the endpoint's Ethereum account. The `registerEndpoint` function binds the
-two by requiring `endpoint.account_id == msg.sender` (the ECDSA-derived address) while the endpoint
-struct contains the RSA `signing_certificate`.
+The RSA key and ECDSA key serve different layers. The RSA key secures the transport (mTLS); the
+ECDSA key secures the protocol (`endpoint_signature`) and the chain (`msg.sender`). The
+`registerEndpoint` function binds the ECDSA signing key to the Ethereum account by requiring
+`endpoint.account_id == msg.sender` while the endpoint struct contains both `tls_certificate` and
+`ecdsa_signing_key`.
+
+> **Post-quantum note:** ECDSA secp256k1 is not quantum-safe. The protocol anticipates migrating
+> `endpoint_signature` to a post-quantum scheme (e.g., Falcon, CRYSTALS-Dilithium) once mainline
+> ledgers add native support. This migration will use the existing ConfigUpdate mechanism to rotate
+> endpoint keys across all Connections.
 
 ## 4.2 Registration Flow
 

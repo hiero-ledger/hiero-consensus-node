@@ -276,19 +276,16 @@ symmetric: each side provides its proof bytes for the other's ledger.
 
 ## 3.3 TLS Configuration
 
-The gRPC server MUST use TLS. The endpoint's RSA signing certificate (DER-encoded RSA public certificate, as
-specified in `ClprEndpoint.signing_certificate`) doubles as the TLS server certificate. This provides:
+The gRPC server MUST use TLS. The endpoint's RSA TLS certificate (DER-encoded RSA public certificate, as
+specified in `ClprEndpoint.tls_certificate`) is the TLS server certificate. This provides:
 
 - **Transport encryption** — All gRPC traffic is encrypted.
 - **Server authentication** — Peer endpoints can verify they are connecting to the endpoint they expect by checking
   the certificate against the on-chain endpoint roster.
 
-Because the RSA signing certificate is reused as the TLS certificate, the `--clpr-signing-certificate` parameter
-and the `clpr.tls.certificate-file` parameter refer to the same certificate. Operators SHOULD configure only
-`--clpr-signing-certificate`; the TLS certificate configuration is derived from it. If both are specified and they
-differ, the plugin MUST fail with a configuration error. A future version may allow separate TLS and signing
-certificates if a use case arises (e.g., TLS termination at a load balancer with a separate cert), but for now
-they MUST be identical.
+The RSA TLS certificate is used exclusively for transport-layer authentication. It is NOT used for
+`endpoint_signature` (which uses ECDSA secp256k1). Operators configure the TLS certificate via
+`--clpr-tls-certificate`.
 
 Configuration:
 ```toml
@@ -775,7 +772,7 @@ When the endpoint receives a `ClprSyncPayload` from a peer (either as initiator 
 responder receiving the initial payload):
 
 1. **Deserialize** the `ClprSyncPayload`.
-2. **Extract** `connection_id`, `proof_bytes`, `endpoint_signature`, `endpoint_public_key`.
+2. **Extract** `connection_id`, `proof_bytes`, `endpoint_signature`.
 3. **Pre-validate** the proof locally by simulating a call to the verifier contract:
    ```
    verifierContract.verifyBundle(proof_bytes)  // via eth_call, no on-chain execution
@@ -792,16 +789,15 @@ The endpoint constructs an Ethereum transaction calling `submitBundle()` on the 
 function submitBundle(
     bytes32 connection_id,
     bytes calldata proof_bytes,
-    bytes calldata remote_endpoint_signature,
-    bytes calldata remote_endpoint_public_key
+    bytes calldata remote_endpoint_signature
 ) external;
 ```
 
 The ABI-encoded calldata is:
 
 ```
-selector: keccak256("submitBundle(bytes32,bytes,bytes,bytes)")[:4]
-data: abi.encode(connection_id, proof_bytes, remote_endpoint_signature, remote_endpoint_public_key)
+selector: keccak256("submitBundle(bytes32,bytes,bytes)")[:4]
+data: abi.encode(connection_id, proof_bytes, remote_endpoint_signature)
 ```
 
 The transaction is a standard EIP-1559 (Type 2) transaction:
@@ -1210,12 +1206,11 @@ These are out of scope for this specification but should be considered for the c
 |---|---|---|---|---|
 | Enable CLPR | `--clpr-enabled` | `clpr.enabled` | `false` | Master switch. When false, the plugin does nothing. |
 | Contract Address | `--clpr-contract-address` | `clpr.contract-address` | (required) | Address of the CLPR Service contract on this chain. |
-| Signing Key File | `--clpr-signing-key-file` | `clpr.signing-key-file` | (required) | Path to the ECDSA private key file for transaction signing. |
-| Signing Certificate | `--clpr-signing-certificate` | `clpr.signing-certificate` | (required) | Path to the DER-encoded RSA certificate for TLS and payload signing. |
+| Signing Key File | `--clpr-signing-key-file` | `clpr.signing-key-file` | (required) | Path to the ECDSA secp256k1 private key file for transaction signing AND endpoint_signature. |
+| TLS Certificate | `--clpr-tls-certificate` | `clpr.tls-certificate` | (required) | Path to the DER-encoded RSA certificate for mTLS only (NOT payload signing). |
 | gRPC Port | `--clpr-grpc-port` | `clpr.grpc-port` | `9545` | Port for the CLPR gRPC server. |
 | gRPC Host | `--clpr-grpc-host` | `clpr.grpc-host` | `0.0.0.0` | Interface for the CLPR gRPC server. |
-| TLS Certificate | `--clpr-tls-cert` | `clpr.tls.certificate-file` | (derived from signing-certificate) | TLS certificate for the gRPC server. Defaults to the RSA signing certificate. If specified, MUST match the signing certificate. |
-| TLS Key | `--clpr-tls-key` | `clpr.tls.key-file` | (derived from signing certificate key) | TLS private key for the gRPC server. Defaults to the RSA signing key. |
+| TLS Key | `--clpr-tls-key` | `clpr.tls.key-file` | (required) | RSA private key for the gRPC TLS server. Corresponds to `--clpr-tls-certificate`. |
 | Client Auth | `--clpr-tls-client-auth` | `clpr.tls.client-auth` | `OPTIONAL` | TLS client authentication mode: `NONE`, `OPTIONAL`, `REQUIRE`. |
 | Sync Frequency | `--clpr-sync-frequency` | `clpr.sync-frequency-ms` | `5000` | Milliseconds between sync attempts per Connection. |
 | Beacon API URL | `--clpr-beacon-api-url` | `clpr.beacon-api-url` | `http://localhost:5052` | Beacon chain API endpoint for sync committee data. |
@@ -1465,7 +1460,7 @@ When `clpr.tls.client-auth = "REQUIRE"`, the gRPC server enforces mutual TLS:
 
 - The connecting peer must present a certificate.
 - The server validates that the certificate matches an entry in the Connection's peer endpoint roster
-  (`ClprEndpoint.signing_certificate`).
+  (`ClprEndpoint.tls_certificate`).
 - Connections from unknown certificates are rejected at the TLS handshake level.
 
 This provides strong authentication — only registered peer endpoints can connect. The tradeoff is that roster updates
@@ -1479,16 +1474,19 @@ authentication.
 
 ## 14.3 Signing Key Management
 
-The endpoint requires **two distinct signing keys** for different purposes:
+The endpoint requires **two distinct key types** for different purposes:
 
-- **RSA private key** — Signs `ClprSyncPayload.endpoint_signature` (per cross-platform spec Section 1.5) and
-  provides the TLS server certificate. The corresponding RSA public certificate is registered on-chain as
-  `ClprEndpoint.signing_certificate`.
-- **ECDSA secp256k1 private key** — Signs Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.).
-  This is the standard Ethereum account key.
+- **RSA private key (mTLS only)** — Provides the TLS server certificate for gRPC transport authentication.
+  The corresponding RSA public certificate is registered on-chain as `ClprEndpoint.tls_certificate`. NOT used
+  for `endpoint_signature` or any on-chain verification.
+- **ECDSA secp256k1 private key (signing + transactions)** — Used for TWO purposes: (a) signing
+  `ClprSyncPayload.endpoint_signature` over `keccak256(connection_id || proof_bytes)`, and (b) signing
+  Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.). On EVM, these are the same key
+  (the endpoint operator's EOA key). Registered on-chain as `ClprEndpoint.ecdsa_signing_key`.
 
-These keys MUST NOT be conflated. The `endpoint_signature` field in the CLPR protocol is always RSA (for
-cross-platform compatibility with non-EVM ledgers), while Ethereum transactions always use secp256k1 ECDSA.
+> **Post-quantum note:** ECDSA secp256k1 is not quantum-safe. The protocol anticipates migrating
+> `endpoint_signature` to a post-quantum scheme (e.g., Falcon, CRYSTALS-Dilithium) once mainline
+> ledgers add native support.
 
 Key management options (apply to both keys — each key may use a different storage mechanism):
 
@@ -1639,17 +1637,14 @@ specification, after cross-referencing with the source documents.
 
 ### 16.1.1 Signing Key Type Mismatch (Resolved)
 
-The cross-platform spec (Section 1.2) specifies that `ClprEndpoint.signing_certificate` is a "DER-encoded RSA
-public certificate" used for TLS and payload signing. However, Ethereum transactions are signed with ECDSA
-(secp256k1), not RSA. This means the endpoint node needs **two distinct keys**:
+The cross-platform spec (Section 1.2) defines `ClprEndpoint.tls_certificate` (RSA, mTLS only) and
+`ClprEndpoint.ecdsa_signing_key` (ECDSA secp256k1, for `endpoint_signature` and misbehavior evidence).
+On Ethereum, the ECDSA signing key is the same key as the endpoint operator's EOA (both use secp256k1).
 
-- An **RSA keypair** for TLS and `endpoint_signature` (as specified in the protocol).
-- An **ECDSA secp256k1 keypair** for Ethereum transaction signing.
-
-This dual-key requirement is explicitly addressed in Section 14.3 of this specification. The `signing-key-file`
-configuration refers to the ECDSA key (for Ethereum transactions), while the `signing-certificate` refers to the
-RSA certificate (for TLS and protocol-level `endpoint_signature`). The RSA signing certificate also serves as the
-TLS server certificate (see Section 3.3).
+This dual-key requirement is addressed in Section 14.3. The `signing-key-file` configuration refers to the ECDSA
+key (for both Ethereum transactions AND `endpoint_signature`), while `tls-certificate` refers to the RSA
+certificate (for mTLS only). The signer's identity is recovered from `endpoint_signature` via ecrecover and
+matched against registered `ecdsa_signing_key` entries in the endpoint roster.
 
 ### 16.1.2 Sidecar vs. Plugin Discrepancy
 

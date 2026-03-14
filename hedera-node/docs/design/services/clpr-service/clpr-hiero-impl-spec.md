@@ -196,14 +196,16 @@ message ClprSendMessageTransactionBody {
 }
 
 // Submits a bundle received from a peer endpoint for on-chain processing.
+// The signer's identity is recovered from the ECDSA signature via ecrecover
+// and matched against registered ecdsa_signing_key entries in the Connection's
+// endpoint roster — no explicit public key field is needed.
 message ClprSubmitBundleTransactionBody {
   bytes connection_id = 1;
   // Opaque proof bytes from ClprSyncPayload.proof_bytes.
   bytes proof_bytes = 2;
-  // Endpoint signature from ClprSyncPayload.endpoint_signature.
+  // ECDSA secp256k1 endpoint signature from ClprSyncPayload.endpoint_signature.
+  // Signed data: keccak256(connection_id || proof_bytes).
   bytes remote_endpoint_signature = 3;
-  // Public key from ClprSyncPayload.endpoint_public_key.
-  bytes remote_endpoint_public_key = 4;
 }
 
 // Redacts a message from the outbound queue before delivery.
@@ -636,8 +638,11 @@ When CLPR is enabled (config `clpr.enabled = true`):
 1. On node startup and on every roster change event, the node software reads the active roster from platform state.
 2. For each node in the active roster, a `ClprEndpoint` entry is constructed:
    - `service_endpoint`: The node's gRPC address and CLPR port (configurable, default TBD).
-   - `signing_certificate`: The node's DER-encoded RSA certificate (from the node's TLS keypair, or a dedicated
-     CLPR signing key stored in the node's key material).
+   - `tls_certificate`: The node's DER-encoded RSA certificate (from the node's TLS keypair), used exclusively
+     for mTLS between endpoints. Minimum RSA key size: 2048 bits; RSA-3072 or higher is RECOMMENDED.
+   - `ecdsa_signing_key`: An ECDSA secp256k1 public key used for `endpoint_signature` in `ClprSyncPayload` and
+     misbehavior evidence verification. Hiero nodes MAY reuse their existing ECDSA secp256k1 key if available,
+     or generate a dedicated CLPR signing key.
    - `account_id`: The node's account ID (`AccountID` serialized as bytes).
 3. The local endpoint set is stored in state and propagated to peers via `EndpointJoin` / `EndpointLeave`
    control messages on every active Connection.
@@ -647,22 +652,27 @@ joins or leaves the active roster, the CLPR endpoint code enqueues the appropria
 (`EndpointJoin` or `EndpointLeave`) on every active Connection. This is done as part of the roster change
 handling in `handle()`, not as a separate transaction.
 
-### 4.1.1 Dual-Key Requirement
+### 4.1.1 Key Requirements
 
-Each Hiero endpoint node has **two distinct keys** used in different contexts:
+Each Hiero endpoint node has **three distinct keys** used in different contexts:
 
-1. **RSA signing certificate** — used for CLPR protocol TLS and `endpoint_signature` in `ClprSyncPayload`;
-   published in `ClprEndpoint.signing_certificate`. This key authenticates the endpoint in the peer-to-peer
-   CLPR sync protocol.
-2. **Ed25519/ECDSA key on the node's account** — used exclusively for signing HAPI transactions
+1. **RSA TLS certificate** — used exclusively for mTLS between endpoints during gRPC sync calls;
+   published in `ClprEndpoint.tls_certificate`. NOT used for `endpoint_signature` or any on-chain verification.
+2. **ECDSA secp256k1 signing key** — used for `endpoint_signature` in `ClprSyncPayload` (signed data:
+   `keccak256(connection_id || proof_bytes)`) and misbehavior evidence verification; published in
+   `ClprEndpoint.ecdsa_signing_key`. ECDSA secp256k1 was chosen because it can be verified cheaply on all
+   target platforms (EVM ecrecover at ~3K gas, Hiero native support).
+3. **Ed25519/ECDSA key on the node's account** — used exclusively for signing HAPI transactions
    (`submitBundle`, etc.); never exposed in the CLPR protocol wire format. This is the node's existing
    signing key (already in the address book) and requires no additional setup.
 
-The RSA certificate is CLPR-specific and establishes endpoint identity to remote peers. The platform-native
-account key is used only for on-ledger transaction authorization and is invisible to the CLPR protocol layer.
+The RSA certificate provides transport security. The ECDSA secp256k1 key establishes endpoint identity for
+protocol-level signing and misbehavior attribution. The platform-native account key is used only for on-ledger
+transaction authorization.
 
-**RSA signing scheme:** Hiero endpoints use **RSASSA-PSS with SHA-256** for `endpoint_signature` computation,
-satisfying the cross-platform spec's MUST requirement for platform-specific scheme declaration.
+> **Post-quantum note:** ECDSA secp256k1 is not quantum-safe. The protocol anticipates migrating
+> `endpoint_signature` to a post-quantum scheme (e.g., Falcon, CRYSTALS-Dilithium) once mainline ledgers
+> add native support. This migration will use the existing ConfigUpdate mechanism to rotate endpoint keys.
 
 ## 4.2 gRPC Endpoint Service
 
@@ -1143,11 +1153,16 @@ because Hiero verifiers are deployed as EVM smart contracts.
 
 ## 11.5 ECDSA Signature Verification
 
-**Spec says:** Connection registration requires ECDSA_secp256k1 signature verification.
+**Spec says:** Connection registration and `endpoint_signature` both require ECDSA secp256k1 verification.
+Endpoint identity is recovered via ecrecover from the signature rather than being passed explicitly.
 
-**Hiero decision:** Use Hiero's native `ECDSA_SECP256K1` key support. The signature is verified using the
-platform's built-in cryptographic utilities (same code path as `ecrecover` in the EVM). The signed payload
-format for Connection registration is: `keccak256(connection_id || verifier_contract_address || caller_account_id)`.
+**Hiero decision:** Use Hiero's native `ECDSA_SECP256K1` key support. Signatures are verified using the
+platform's built-in cryptographic utilities (same code path as `ecrecover` in the EVM).
+
+- **Connection registration:** Signed payload is `keccak256(connection_id || verifier_contract_address || caller_account_id)`.
+- **Endpoint signature:** Signed payload is `keccak256(connection_id || proof_bytes)`. The signer's public key
+  is recovered via ecrecover and matched against `ecdsa_signing_key` entries in the Connection's endpoint roster.
+- **Misbehavior evidence:** Uses the same ecrecover mechanism on the `endpoint_signature` from evidence payloads.
 
 ## 11.6 Minimum Connector Bond
 
