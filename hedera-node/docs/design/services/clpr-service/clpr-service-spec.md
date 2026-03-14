@@ -113,23 +113,37 @@ message ClprEndpoint {
   // only initiate outbound syncs.
   ServiceEndpoint service_endpoint = 1;
 
-  // DER-encoded RSA public certificate used for TLS and payload signing.
-  // This is the endpoint's CLPR protocol key, used for endpoint_signature
-  // in ClprSyncPayload and for mTLS with peer endpoints.
+  // DER-encoded RSA public certificate used for mTLS between endpoints.
+  // This key is used ONLY for transport-layer authentication (mTLS) during
+  // gRPC sync calls. It is NOT used for endpoint_signature or any on-chain
+  // verification.
   //
   // Minimum RSA key size: 2048 bits. RSA-3072 or higher is RECOMMENDED.
+  bytes tls_certificate = 2;
+
+  // ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes
+  // uncompressed x||y without 0x04 prefix) used for endpoint_signature
+  // in ClprSyncPayload. This key is used for payload signing and
+  // misbehavior evidence verification. ECDSA secp256k1 was chosen because
+  // it can be verified cheaply on all target platforms (EVM ecrecover at
+  // ~3K gas, Hiero native ECDSA support).
   //
-  // Note: endpoints also need a platform-native transaction signing key
-  // (e.g., ECDSA secp256k1 on Ethereum, Ed25519 or ECDSA on Hiero) for
-  // submitting transactions to their own ledger. The platform key is NOT
-  // part of the CLPR protocol — it is managed by the endpoint operator
-  // and is not included in the roster.
-  bytes signing_certificate = 2;
+  // On EVM platforms, this is typically the same key that signs
+  // transactions (the endpoint operator's EOA key). On Hiero, nodes
+  // MAY use their ECDSA secp256k1 key if available, or generate a
+  // dedicated CLPR signing key.
+  //
+  // Future: ECDSA secp256k1 is not quantum-safe. The protocol anticipates
+  // migrating endpoint_signature to a post-quantum scheme (e.g., Falcon,
+  // CRYSTALS-Dilithium) once mainline ledgers add native support. This
+  // migration will use the existing ConfigUpdate mechanism to rotate
+  // endpoint keys across all Connections.
+  bytes ecdsa_signing_key = 3;
 
   // On-ledger account associated with this endpoint node.
   // Length is platform-dependent (e.g., 20 bytes for EVM/Hiero).
   // MUST be unique within a Connection's endpoint roster.
-  bytes account_id = 3;
+  bytes account_id = 4;
 }
 
 // Network address for an endpoint.
@@ -306,22 +320,24 @@ message ClprSyncPayload {
   // TSS signatures, BLS aggregate signatures, etc.).
   bytes proof_bytes = 2;
 
-  // Signature of the sending endpoint over (connection_id || proof_bytes),
-  // using the endpoint's signing key (from its signing_certificate).
-  // This signature is NOT verified during bundle processing — the verifier's
-  // proof_bytes provide the cryptographic assurance. The endpoint_signature
-  // exists for attribution and misbehavior evidence: it proves which endpoint
-  // produced a given payload, enabling EXCESS_FREQUENCY reports.
+  // ECDSA secp256k1 signature of the sending endpoint over
+  // keccak256(connection_id || proof_bytes). This signature is NOT verified
+  // during bundle processing — the verifier's proof_bytes provide the
+  // cryptographic assurance. The endpoint_signature exists for attribution
+  // and misbehavior evidence: it proves which endpoint produced a given
+  // payload, enabling EXCESS_FREQUENCY reports.
   //
-  // The signing scheme is RSASSA-PSS with SHA-256 (preferred) or
-  // RSASSA-PKCS1-v1_5 with SHA-256. Platform-specific specifications
-  // MUST declare which scheme they use.
+  // ECDSA secp256k1 is used because it can be verified cheaply on-chain
+  // on all target platforms (EVM ecrecover ~3K gas, Hiero native support).
+  // The signed data is the keccak256 hash of (connection_id || proof_bytes)
+  // to produce a fixed 32-byte digest suitable for ECDSA signing.
+  //
+  // The verifier recovers the signer's public key from the signature
+  // (via ecrecover or equivalent) and matches it against the registered
+  // ecdsa_signing_key in the Connection's endpoint roster. The public key
+  // is NOT included in the payload — it MUST be looked up from on-chain
+  // state to prevent self-attestation attacks.
   bytes endpoint_signature = 3;
-
-  // Public key of the sending endpoint, matching its signing_certificate.
-  // Included so that misbehavior reporters can identify the offender without
-  // needing the full certificate.
-  bytes endpoint_public_key = 4;
 }
 
 // Queue metadata extracted and verified by a verifier contract from proof_bytes.
@@ -1060,14 +1076,15 @@ sendMessage(
 // Submit a bundle received from a peer endpoint for on-chain processing.
 // Authority: any caller (typically an endpoint node).
 // The connection_id identifies which Connection to process against.
-// The proof_bytes, remote_endpoint_signature, and remote_endpoint_public_key
-// correspond to the fields of a ClprSyncPayload received during sync.
+// The proof_bytes and remote_endpoint_signature correspond to the fields
+// of a ClprSyncPayload received during sync. The signer's identity is
+// recovered from the ECDSA signature (via ecrecover or equivalent) and
+// matched against registered endpoint keys in the Connection's roster.
 submitBundle(
   [auth] caller,
   connection_id: bytes(32),
-  proof_bytes: bytes,             // ClprSyncPayload.proof_bytes
-  remote_endpoint_signature: bytes,  // ClprSyncPayload.endpoint_signature
-  remote_endpoint_public_key: bytes  // ClprSyncPayload.endpoint_public_key
+  proof_bytes: bytes,                // ClprSyncPayload.proof_bytes
+  remote_endpoint_signature: bytes   // ClprSyncPayload.endpoint_signature
 ) → success | error
 ```
 

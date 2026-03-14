@@ -64,27 +64,27 @@ plugin. It is loaded and initialized as part of the node's standard startup sequ
 
 The endpoint implementation spans two Gradle modules:
 
-| Module | Contents |
-|--------|----------|
-| `hiero-clpr-interledger-service` | API interfaces: `ClprService`, `ClprClient`, store interfaces, `ClprStateProofUtils` |
+| Module                                | Contents                                                                                                           |
+|---------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `hiero-clpr-interledger-service`      | API interfaces: `ClprService`, `ClprClient`, store interfaces, `ClprStateProofUtils`                               |
 | `hiero-clpr-interledger-service-impl` | Endpoint implementation: handlers, stores, gRPC client/server, sync orchestrator, proof constructor, Dagger wiring |
 
 ## 1.3 Dependencies on Existing Node Infrastructure
 
 The endpoint module depends on — but does not modify — the following existing node subsystems:
 
-| Subsystem | Dependency | Usage |
-|-----------|------------|-------|
-| **gRPC Server** | Netty-based gRPC infrastructure | Hosts the `ClprEndpointService` alongside existing HAPI services |
-| **Merkle State Tree** | `MerkleTree`, `VirtualMap`, `SingletonNode` | All CLPR state (connections, queues, endpoints, configuration) is stored here |
-| **State Proof Infrastructure** | `StateProofBuilder`, `MerklePathBuilder`, block proofs | Constructs proofs over CLPR state for outbound syncs |
-| **Transaction Submission** | `TransactionDispatcher`, ingest pipeline | Submits `submitBundle` HAPI transactions after receiving sync payloads |
-| **Roster Management** | `RosterService`, active roster state | Reads the consensus roster to derive the CLPR endpoint set |
-| **TSS (Threshold Signature Scheme)** | TSS signing infrastructure | Provides aggregate signatures over state roots for proof construction |
-| **Platform Wiring** | `PlatformWiring`, component lifecycle | Manages endpoint module startup, shutdown, and threading |
-| **Configuration** | `ConfigProvider`, `ClprConfig` record | Runtime configuration for all endpoint parameters |
-| **Metrics** | `Metrics` infrastructure | Exposes endpoint-specific counters, gauges, and histograms |
-| **Node Identity** | Node's signing key, TLS certificates, account ID | Used for endpoint identity, TLS, and payload signing |
+| Subsystem                            | Dependency                                             | Usage                                                                                                                                        |
+|--------------------------------------|--------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| **gRPC Server**                      | Netty-based gRPC infrastructure                        | Hosts the `ClprEndpointService` alongside existing HAPI services                                                                             |
+| **State APIs**                       | `ReadableStates`, `WritableStates`, etc.               | All CLPR state (connections, queues, endpoints, configuration) is accessed here                                                              |
+| **State Proof Infrastructure**       | `StateProofBuilder`, `MerklePathBuilder`, block proofs | Constructs proofs over CLPR state for outbound syncs                                                                                         |
+| **Transaction Submission**           | `SubmissionManager`                                    | Submits node-signed `submitBundle` transactions directly for consensus (bypasses `IngestWorkflow`, which is for external client submissions) |
+| **Roster Management**                | `RosterService`, active roster state                   | Reads the consensus roster to derive the CLPR endpoint set                                                                                   |
+| **TSS (Threshold Signature Scheme)** | TSS signing infrastructure                             | Provides aggregate signatures over state roots for proof construction                                                                        |
+| **Dagger DI**                        | `HederaInjectionComponent`, component lifecycle        | Manages endpoint module startup, shutdown, and threading                                                                                     |
+| **Configuration**                    | `ConfigProvider`, `ClprConfig` record                  | Runtime configuration for all endpoint parameters                                                                                            |
+| **Metrics**                          | `Metrics` infrastructure                               | Exposes endpoint-specific counters, gauges, and histograms                                                                                   |
+| **Node Identity**                    | Node's TLS certificate, ECDSA secp256k1 signing key, account ID | Used for endpoint identity (TLS authentication via RSA certificate, payload signing via ECDSA secp256k1 key)                                |
 
 ## 1.4 Dagger Integration
 
@@ -137,37 +137,50 @@ gRPC server instance within the same node process.
 
 All CLPR endpoint-to-endpoint communication MUST use TLS. The node's existing TLS configuration is reused:
 
-- **Server TLS.** The node's signing certificate (RSA, DER-encoded) is used as the server certificate. This is the
-  same certificate advertised in the node's `ClprEndpoint.signing_certificate` field in the endpoint roster.
-- **Client TLS.** Outbound gRPC connections to peer endpoints use TLS with the node's signing key for client
+- **Server TLS.** The node's TLS certificate (RSA, DER-encoded) is used as the server certificate. This is the
+  same certificate advertised in the node's `ClprEndpoint.tls_certificate` field in the endpoint roster.
+- **Client TLS.** Outbound gRPC connections to peer endpoints use TLS with the node's RSA certificate for client
   authentication.
 - **Peer verification.** When a node receives an inbound sync call, it MUST verify that the caller's TLS certificate
-  matches a `signing_certificate` in the Connection's peer endpoint roster. Connections from unknown certificates
+  matches a `tls_certificate` in the Connection's peer endpoint roster. Connections from unknown certificates
   MUST be rejected.
 
-**Mutual TLS (mTLS).** The endpoint module SHOULD use mutual TLS where both sides present their signing certificates.
-This provides bidirectional authentication at the transport layer. The endpoint's signing certificate is already
+**Mutual TLS (mTLS).** The endpoint module SHOULD use mutual TLS where both sides present their TLS certificates.
+This provides bidirectional authentication at the transport layer. The endpoint's TLS certificate is already
 published in the on-ledger roster, making verification straightforward.
 
-**Dual-key architecture.** Hiero nodes use two distinct keys for CLPR operations:
+**Triple-key architecture.** Hiero nodes use three distinct keys for CLPR operations:
 
-1. **RSA key** (from the node's signing certificate) — used for CLPR protocol TLS authentication and the
-   `endpoint_signature` field in `ClprSyncPayload`. This key is published in `ClprEndpoint.signing_certificate`
-   and is the sole cryptographic identity visible in the CLPR wire format.
-2. **Ed25519/ECDSA key** (on the node's account) — used exclusively for signing HAPI transactions
+1. **RSA key** (from the node's TLS certificate) — used **exclusively** for mTLS transport authentication.
+   This key is published in `ClprEndpoint.tls_certificate` and authenticates the transport channel between
+   endpoints. It is NOT used for payload signing.
+2. **ECDSA secp256k1 key** — used for the `endpoint_signature` field in `ClprSyncPayload` and for misbehavior
+   evidence attribution. This key is published in `ClprEndpoint.ecdsa_signing_key`. ECDSA secp256k1 was chosen
+   because it can be verified cheaply on all target platforms (EVM `ecrecover` at ~3K gas, Hiero native ECDSA
+   support). The signer is recovered from the signature via `ecrecover` (or equivalent) and matched against
+   the registered `ecdsa_signing_key` in the Connection's endpoint roster.
+3. **Ed25519/ECDSA key** (on the node's account) — used exclusively for signing HAPI transactions
    (`submitBundle`, etc.) submitted to the local ledger's ingest pipeline. This key is never exposed in the
    CLPR protocol wire format.
 
-On Hiero, the RSA signing key is the node's existing signing key already published in the address book, so no
-additional key provisioning is required. Account key changes (e.g., rotating the node account's Ed25519 key) do
-NOT affect the CLPR protocol — only the RSA signing certificate matters for endpoint identity, TLS authentication,
-and payload signatures.
+On Hiero, the RSA TLS certificate is the node's existing signing certificate already published in the address book,
+so no additional TLS key provisioning is required. The ECDSA secp256k1 signing key MAY be the node's existing
+ECDSA secp256k1 key if available, or a dedicated key generated for CLPR endpoint operations. Account key changes
+(e.g., rotating the node account's Ed25519 key) do NOT affect the CLPR protocol — only the `tls_certificate` and
+`ecdsa_signing_key` matter for endpoint identity.
+
+**Post-quantum note.** ECDSA secp256k1 is not quantum-safe. The protocol anticipates a future migration to a
+post-quantum signature scheme (e.g., Falcon or CRYSTALS-Dilithium) for the `endpoint_signature`. The
+`ecdsa_signing_key` field in `ClprEndpoint` would be replaced by a `pq_signing_key` field, and the signature
+algorithm in `ClprSyncPayload` would change accordingly. This migration is out of scope for the initial
+implementation.
 
 ## 2.4 gRPC Message Size
 
 The gRPC server and client MUST configure max message sizes to accommodate `max_sync_payload_bytes` from the
-ledger's configuration. The max inbound message size MUST be set to at least `max_sync_payload_bytes` plus a
-reasonable overhead for protobuf framing (recommended: `max_sync_payload_bytes + 4096`).
+ledger's configuration. The max inbound message size MUST be set to `max_sync_payload_bytes`. This value
+bounds the serialized `ClprSyncPayload` protobuf message, which IS the gRPC message — no additional padding
+is required.
 
 ---
 
@@ -176,7 +189,7 @@ reasonable overhead for protobuf framing (recommended: `max_sync_payload_bytes +
 ## 3.1 Sync Loop
 
 Each node runs a **sync orchestrator** — a scheduled task that periodically initiates sync calls to peer endpoints.
-The orchestrator runs on a dedicated thread pool managed by the Platform wiring framework.
+The orchestrator runs on a dedicated thread pool managed by the Dagger DI framework.
 
 **Tick frequency.** The orchestrator wakes every `connectionFrequency` milliseconds (default: 5000 ms). On each tick,
 it evaluates all active Connections to determine which need syncing.
@@ -246,10 +259,10 @@ When a node initiates a sync to a peer endpoint:
    - Package into opaque proof_bytes blob (see Section 5)
 
 3. Sign the payload:
-   - Compute endpoint_signature = RSA_SIGN(node_signing_key, connection_id || proof_bytes)
-     The signing scheme is RSASSA-PSS with SHA-256 (preferred) or RSASSA-PKCS1-v1_5 with SHA-256.
-     The data (connection_id || proof_bytes) is hashed per the scheme's requirements before signing.
-   - Set endpoint_public_key from signing certificate
+   - Compute endpoint_signature = ECDSA_SIGN(ecdsa_signing_key, keccak256(connection_id || proof_bytes))
+     The signing scheme is ECDSA over secp256k1. The data (connection_id || proof_bytes) is hashed with
+     keccak256 to produce a fixed 32-byte digest suitable for ECDSA signing.
+   - The signer's public key is NOT included in the payload — the verifier recovers it via ecrecover
 
 4. Open gRPC connection to peer endpoint (with TLS)
 
@@ -278,7 +291,7 @@ When a node receives an inbound sync call:
    - If verification fails, return an error response
 
 3. Construct this node's outbound payload:
-   - Same steps as initiator side (read state, build proof, sign)
+   - Same steps as initiator side (read state, build proof, sign with ECDSA secp256k1 key)
 
 4. Return ClprSyncPayload to the caller
 
@@ -349,7 +362,7 @@ A verifier contract on a peer ledger can verify this signature if it knows the c
 
 **Trust anchor tracking.** The peer ledger's verifier contract must track the Hiero network's TSS aggregate
 public key. The TSS aggregate public key is a separate cryptographic artifact derived from TSS key shares
-distributed across the consensus roster — it is NOT the same as any individual node's RSA signing certificate.
+distributed across the consensus roster — it is NOT the same as any individual node's TLS certificate or ECDSA signing key.
 
 TSS public key changes (resulting from roster changes) are communicated through the proof itself. Each
 `HieroBlockProof` includes the full `tss_public_key` field (field 5). The verifier bootstraps from a known TSS
@@ -357,10 +370,10 @@ public key and accepts transitions when a proof is validly signed by the current
 new `tss_public_key` value, establishing a chain of trust. This allows the verifier to track key rotations
 without any out-of-band communication.
 
-EndpointJoin/EndpointLeave Control Messages carry RSA signing certificates for endpoint authentication (TLS
-and `endpoint_signature` verification) — they do NOT carry TSS key shares or TSS public key updates. These
-control messages update the peer's view of which endpoints exist and how to authenticate them, which is
-entirely separate from the TSS trust anchor used for proof verification.
+EndpointJoin/EndpointLeave Control Messages carry TLS certificates and ECDSA secp256k1 signing keys for
+endpoint authentication (mTLS and `endpoint_signature` verification respectively) — they do NOT carry TSS key
+shares or TSS public key updates. These control messages update the peer's view of which endpoints exist and
+how to authenticate them, which is entirely separate from the TSS trust anchor used for proof verification.
 
 ## 4.4 State Freshness
 
@@ -494,13 +507,17 @@ TransactionBody {
   clprProcessSyncResult: ClprProcessSyncResultTransactionBody {
     connection_id: payload.connection_id,
     proof_bytes: payload.proof_bytes,
-    remote_endpoint_signature: payload.endpoint_signature,
-    remote_endpoint_public_key: payload.endpoint_public_key
+    remote_endpoint_signature: payload.endpoint_signature
   }
 }
 ```
 
 The transaction is signed with the node's account key and submitted to the standard ingest pipeline.
+
+**Note on `endpoint_public_key` removal.** The `remote_endpoint_public_key` parameter has been removed from
+`ClprProcessSyncResultTransactionBody`. The signer's public key is recovered from the ECDSA secp256k1
+`endpoint_signature` via `ecrecover` (or equivalent) and matched against the registered `ecdsa_signing_key` in
+the Connection's endpoint roster. Explicit public key transmission is unnecessary.
 
 **Naming note.** The `clprProcessSyncResult` / `ClprProcessSyncResultTransactionBody` HAPI transaction type maps
 to the cross-platform spec's `submitBundle` pseudo-API. A rename to `clprSubmitBundle` /
@@ -546,17 +563,19 @@ on startup and watches for roster change events. The active roster contains:
 
 - Node ID
 - Account ID
-- Signing certificate (RSA, DER-encoded)
+- TLS certificate (RSA, DER-encoded)
+- ECDSA secp256k1 signing key (33 bytes compressed)
 - Service endpoints (IP address and port for each gRPC listener)
 - Stake weight
 
 **Mapping to CLPR endpoint fields:**
 
-| CLPR Endpoint Field | Source |
-|---------------------|--------|
-| `service_endpoint` | Node's gRPC service endpoint (IP + CLPR port) |
-| `signing_certificate` | Node's RSA signing certificate (DER-encoded) |
-| `account_id` | Node's account ID (serialized as bytes, 20 bytes for Hiero) |
+| CLPR Endpoint Field   | Source                                                                      |
+|-----------------------|-----------------------------------------------------------------------------|
+| `service_endpoint`    | Node's gRPC service endpoint (IP + CLPR port)                               |
+| `tls_certificate`     | Node's RSA TLS certificate (DER-encoded)                                    |
+| `ecdsa_signing_key`   | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
+| `account_id`          | Node's account ID (serialized as bytes, 20 bytes for Hiero)                 |
 
 ## 7.2 Roster Change Detection
 
@@ -565,10 +584,11 @@ occurs (node join, leave, or key rotation), the endpoint module:
 
 1. **Compares** the new roster against the previous roster.
 2. **For each joining node:** Enqueues an `EndpointJoin` Control Message on every active Connection. The message
-   carries the new node's `signing_certificate`, `service_endpoint`, and `account_id`.
+   carries the new node's `tls_certificate`, `ecdsa_signing_key`, `service_endpoint`, and `account_id`.
 3. **For each leaving node:** Enqueues an `EndpointLeave` Control Message on every active Connection. The message
    carries the departing node's `account_id`.
-4. **For key rotation:** Enqueues an `EndpointLeave` followed by an `EndpointJoin` with the new certificate.
+4. **For key rotation:** Enqueues an `EndpointLeave` followed by an `EndpointJoin` with the new certificate and
+   signing key.
 
 **Enqueue semantics.** When this section says the endpoint module "enqueues" a Control Message, this means the
 endpoint module submits a HAPI transaction that, when processed post-consensus, causes the CLPR Service handler
@@ -657,51 +677,51 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 
 ## 9.1 Core Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `clpr.enabled` | `boolean` | `false` | Master enable switch. When false, the endpoint module is dormant. |
-| `clpr.connectionFrequency` | `long` (ms) | `5000` | How frequently the sync orchestrator wakes to evaluate Connections. |
-| `clpr.publicizeNetworkAddresses` | `boolean` | `true` | Whether to include service endpoints in the roster. |
+| Parameter                        | Type        | Default | Description                                                         |
+|----------------------------------|-------------|---------|---------------------------------------------------------------------|
+| `clpr.enabled`                   | `boolean`   | `false` | Master enable switch. When false, the endpoint module is dormant.   |
+| `clpr.connectionFrequency`       | `long` (ms) | `5000`  | How frequently the sync orchestrator wakes to evaluate Connections. |
+| `clpr.publicizeNetworkAddresses` | `boolean`   | `true`  | Whether to include service endpoints in the roster.                 |
 
 ## 9.2 Sync Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `clpr.maxConcurrentSyncs` | `int` | `4` | Maximum simultaneous outbound sync calls per node. |
-| `clpr.syncTimeoutSeconds` | `int` | `30` | Timeout for a single sync gRPC call. |
-| `clpr.maxPayloadBufferAge` | `long` (ms) | `60000` | Maximum age of a buffered inbound payload before discard. |
-| `clpr.maxStateAgeSeconds` | `int` | `30` | Maximum acceptable age of signed state for proof construction. |
+| Parameter                  | Type        | Default | Description                                                    |
+|----------------------------|-------------|---------|----------------------------------------------------------------|
+| `clpr.maxConcurrentSyncs`  | `int`       | `4`     | Maximum simultaneous outbound sync calls per node.             |
+| `clpr.syncTimeoutSeconds`  | `int`       | `30`    | Timeout for a single sync gRPC call.                           |
+| `clpr.maxPayloadBufferAge` | `long` (ms) | `60000` | Maximum age of a buffered inbound payload before discard.      |
+| `clpr.maxStateAgeSeconds`  | `int`       | `30`    | Maximum acceptable age of signed state for proof construction. |
 
 ## 9.3 Peer Selection Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `clpr.reputationDecaySeconds` | `int` | `300` | Half-life for peer reputation score decay. |
-| `clpr.reputationSuccessBonus` | `double` | `1.0` | Reputation score added for a successful sync. |
-| `clpr.reputationFailurePenalty` | `double` | `5.0` | Reputation score subtracted for a failed sync. |
-| `clpr.recentPeerPenaltyFactor` | `double` | `0.5` | Weight multiplier for a peer selected on the previous tick. |
+| Parameter                       | Type     | Default | Description                                                 |
+|---------------------------------|----------|---------|-------------------------------------------------------------|
+| `clpr.reputationDecaySeconds`   | `int`    | `300`   | Half-life for peer reputation score decay.                  |
+| `clpr.reputationSuccessBonus`   | `double` | `1.0`   | Reputation score added for a successful sync.               |
+| `clpr.reputationFailurePenalty` | `double` | `5.0`   | Reputation score subtracted for a failed sync.              |
+| `clpr.recentPeerPenaltyFactor`  | `double` | `0.5`   | Weight multiplier for a peer selected on the previous tick. |
 
 ## 9.4 Retry Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `clpr.retryInitialDelayMs` | `long` | `1000` | Initial delay for exponential backoff on transient failures. |
-| `clpr.retryMaxDelayMs` | `long` | `30000` | Maximum delay for exponential backoff. |
-| `clpr.retryMaxAttempts` | `int` | `5` | Maximum retry attempts before circuit breaker opens. |
-| `clpr.circuitBreakerCooldownSeconds` | `int` | `120` | Time a circuit breaker stays open before allowing a probe. |
+| Parameter                            | Type   | Default | Description                                                  |
+|--------------------------------------|--------|---------|--------------------------------------------------------------|
+| `clpr.retryInitialDelayMs`           | `long` | `1000`  | Initial delay for exponential backoff on transient failures. |
+| `clpr.retryMaxDelayMs`               | `long` | `30000` | Maximum delay for exponential backoff.                       |
+| `clpr.retryMaxAttempts`              | `int`  | `5`     | Maximum retry attempts before circuit breaker opens.         |
+| `clpr.circuitBreakerCooldownSeconds` | `int`  | `120`   | Time a circuit breaker stays open before allowing a probe.   |
 
 ## 9.5 Throttle Parameters (Published to Peers)
 
 These are the per-ledger throttle values published in `ClprThrottles` and advertised to peer ledgers:
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `clpr.maxMessagesPerBundle` | `int` | TBD | Maximum messages per inbound bundle. |
-| `clpr.maxMessagePayloadBytes` | `int` | TBD | Maximum single message payload size. |
-| `clpr.maxGasPerMessage` | `long` | TBD | Maximum ops budget per message. |
-| `clpr.maxQueueDepth` | `int` | TBD | Maximum unacked messages per Connection. |
-| `clpr.maxSyncsPerSec` | `int` | TBD | Advisory max sync frequency. |
-| `clpr.maxSyncPayloadBytes` | `long` | TBD | Maximum sync payload size. |
+| Parameter                     | Type   | Default | Description                              |
+|-------------------------------|--------|---------|------------------------------------------|
+| `clpr.maxMessagesPerBundle`   | `int`  | TBD     | Maximum messages per inbound bundle.     |
+| `clpr.maxMessagePayloadBytes` | `int`  | TBD     | Maximum single message payload size.     |
+| `clpr.maxGasPerMessage`       | `long` | TBD     | Maximum ops budget per message.          |
+| `clpr.maxQueueDepth`          | `int`  | TBD     | Maximum unacked messages per Connection. |
+| `clpr.maxSyncsPerSec`         | `int`  | TBD     | Advisory max sync frequency.             |
+| `clpr.maxSyncPayloadBytes`    | `long` | TBD     | Maximum sync payload size.               |
 
 ---
 
@@ -770,54 +790,54 @@ No manual intervention is required for partition recovery.
 
 ## 11.1 Counters
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `clpr.syncs.initiated` | Counter | Total outbound sync calls initiated. |
-| `clpr.syncs.completed` | Counter | Total outbound sync calls that completed successfully. |
-| `clpr.syncs.failed` | Counter | Total outbound sync calls that failed (timeout, error, verification failure). |
-| `clpr.syncs.received` | Counter | Total inbound sync calls received from peers. |
-| `clpr.bundles.submitted` | Counter | Total `submitBundle` transactions submitted to the ingest pipeline. |
-| `clpr.bundles.accepted` | Counter | Total bundles accepted post-consensus. |
-| `clpr.bundles.rejected` | Counter | Total bundles rejected post-consensus (replay, verification failure, etc.). |
-| `clpr.bundles.rejected.replay` | Counter | Bundles rejected specifically due to replay (already-received messages). |
-| `clpr.bundles.rejected.verification` | Counter | Bundles rejected due to proof verification failure. |
-| `clpr.bundles.rejected.hashMismatch` | Counter | Bundles rejected due to running hash chain mismatch. |
-| `clpr.bundles.rejected.oversized` | Counter | Bundles rejected due to exceeding size limits. |
-| `clpr.bundles.rejected.halted` | Counter | Bundles rejected because the Connection is HALTED. |
-| `clpr.messages.sent` | Counter | Total messages enqueued in outbound queues (all Connections). |
-| `clpr.messages.received` | Counter | Total messages received via bundles (all Connections). |
-| `clpr.messages.acked` | Counter | Total messages acknowledged by peers. |
-| `clpr.controlMessages.sent` | Counter | Total Control Messages enqueued (EndpointJoin, EndpointLeave, ConfigUpdate). |
-| `clpr.misbehavior.reported` | Counter | Total misbehavior reports submitted against remote endpoints. |
+| Metric Name                          | Type    | Description                                                                   |
+|--------------------------------------|---------|-------------------------------------------------------------------------------|
+| `clpr.syncs.initiated`               | Counter | Total outbound sync calls initiated.                                          |
+| `clpr.syncs.completed`               | Counter | Total outbound sync calls that completed successfully.                        |
+| `clpr.syncs.failed`                  | Counter | Total outbound sync calls that failed (timeout, error, verification failure). |
+| `clpr.syncs.received`                | Counter | Total inbound sync calls received from peers.                                 |
+| `clpr.bundles.submitted`             | Counter | Total `submitBundle` transactions submitted to the ingest pipeline.           |
+| `clpr.bundles.accepted`              | Counter | Total bundles accepted post-consensus.                                        |
+| `clpr.bundles.rejected`              | Counter | Total bundles rejected post-consensus (replay, verification failure, etc.).   |
+| `clpr.bundles.rejected.replay`       | Counter | Bundles rejected specifically due to replay (already-received messages).      |
+| `clpr.bundles.rejected.verification` | Counter | Bundles rejected due to proof verification failure.                           |
+| `clpr.bundles.rejected.hashMismatch` | Counter | Bundles rejected due to running hash chain mismatch.                          |
+| `clpr.bundles.rejected.oversized`    | Counter | Bundles rejected due to exceeding size limits.                                |
+| `clpr.bundles.rejected.halted`       | Counter | Bundles rejected because the Connection is HALTED.                            |
+| `clpr.messages.sent`                 | Counter | Total messages enqueued in outbound queues (all Connections).                 |
+| `clpr.messages.received`             | Counter | Total messages received via bundles (all Connections).                        |
+| `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                         |
+| `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (EndpointJoin, EndpointLeave, ConfigUpdate).  |
+| `clpr.misbehavior.reported`          | Counter | Total misbehavior reports submitted against remote endpoints.                 |
 
 ## 11.2 Gauges
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `clpr.connections.active` | Gauge | Number of Connections in ACTIVE status. |
-| `clpr.connections.paused` | Gauge | Number of Connections in PAUSED status. |
-| `clpr.connections.halted` | Gauge | Number of Connections in HALTED status. |
-| `clpr.queue.depth.{connection_id}` | Gauge | Current outbound queue depth per Connection. |
+| Metric Name                            | Type  | Description                                        |
+|----------------------------------------|-------|----------------------------------------------------|
+| `clpr.connections.active`              | Gauge | Number of Connections in ACTIVE status.            |
+| `clpr.connections.paused`              | Gauge | Number of Connections in PAUSED status.            |
+| `clpr.connections.halted`              | Gauge | Number of Connections in HALTED status.            |
+| `clpr.queue.depth.{connection_id}`     | Gauge | Current outbound queue depth per Connection.       |
 | `clpr.peers.reachable.{connection_id}` | Gauge | Number of reachable peer endpoints per Connection. |
-| `clpr.syncs.inflight` | Gauge | Current number of in-progress outbound syncs. |
+| `clpr.syncs.inflight`                  | Gauge | Current number of in-progress outbound syncs.      |
 
 ## 11.3 Histograms
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `clpr.sync.duration` | Histogram | Duration of outbound sync calls (ms). |
-| `clpr.proof.construction.duration` | Histogram | Time to construct proof bytes (ms). |
-| `clpr.bundle.submission.latency` | Histogram | Time from receiving a sync payload to submitting the transaction (ms). |
-| `clpr.bundle.consensus.latency` | Histogram | Time from submitting a bundle transaction to it being processed post-consensus (ms). |
-| `clpr.proof.size` | Histogram | Size of constructed proof bytes (bytes). |
+| Metric Name                        | Type      | Description                                                                          |
+|------------------------------------|-----------|--------------------------------------------------------------------------------------|
+| `clpr.sync.duration`               | Histogram | Duration of outbound sync calls (ms).                                                |
+| `clpr.proof.construction.duration` | Histogram | Time to construct proof bytes (ms).                                                  |
+| `clpr.bundle.submission.latency`   | Histogram | Time from receiving a sync payload to submitting the transaction (ms).               |
+| `clpr.bundle.consensus.latency`    | Histogram | Time from submitting a bundle transaction to it being processed post-consensus (ms). |
+| `clpr.proof.size`                  | Histogram | Size of constructed proof bytes (bytes).                                             |
 
 ## 11.4 Health Indicators
 
-| Indicator | Condition |
-|-----------|-----------|
-| `clpr.healthy` | At least one active Connection has at least one reachable peer endpoint. |
-| `clpr.stateStale` | The latest signed state is older than `maxStateAgeSeconds`. |
-| `clpr.allCircuitBreakersOpen.{connection_id}` | All peer endpoints for a Connection have open circuit breakers. |
+| Indicator                                     | Condition                                                                |
+|-----------------------------------------------|--------------------------------------------------------------------------|
+| `clpr.healthy`                                | At least one active Connection has at least one reachable peer endpoint. |
+| `clpr.stateStale`                             | The latest signed state is older than `maxStateAgeSeconds`.              |
+| `clpr.allCircuitBreakersOpen.{connection_id}` | All peer endpoints for a Connection have open circuit breakers.          |
 
 ---
 
@@ -831,7 +851,7 @@ following protections apply:
 - **Connection-level rate limiting.** The gRPC server SHOULD limit the number of concurrent connections from a
   single IP address. This reuses the node's existing gRPC server configuration.
 - **Request-level rate limiting.** The endpoint module tracks inbound sync frequency per `(connection_id,
-  remote_endpoint_public_key)` pair. If a peer exceeds `max_syncs_per_sec`, subsequent calls are rejected with
+  remote_endpoint_account_id)` pair. If a peer exceeds `max_syncs_per_sec`, subsequent calls are rejected with
   `RESOURCE_EXHAUSTED` without processing.
 - **Payload size enforcement.** The gRPC server enforces `max_sync_payload_bytes` at the frame level. Payloads
   exceeding this size are rejected before deserialization.
@@ -841,14 +861,17 @@ following protections apply:
 
 Inbound sync calls are authenticated at two levels:
 
-1. **TLS layer.** The caller's certificate is verified against the Connection's peer endpoint roster. Unknown
-   certificates are rejected before any protocol processing.
-2. **Payload signature.** The `endpoint_signature` in the `ClprSyncPayload` is verified against the
-   `endpoint_public_key`. This signature serves misbehavior attribution purposes — it provides non-repudiable
-   evidence that a specific endpoint produced a given payload. The `endpoint_signature` is NOT part of the
-   on-chain bundle verification algorithm; the CLPR Service does not verify `endpoint_signature` during
-   `handle()`. On-chain cryptographic assurance comes from the verifier's `proof_bytes` (TSS signature over
-   the state root and Merkle paths to the proven data).
+1. **TLS layer.** The caller's TLS certificate is verified against the Connection's peer endpoint roster
+   (`tls_certificate` field). Unknown certificates are rejected before any protocol processing.
+2. **Payload signature (ECDSA secp256k1).** The `endpoint_signature` in the `ClprSyncPayload` is an ECDSA
+   secp256k1 signature over `keccak256(connection_id || proof_bytes)`. The signer's public key is recovered
+   via `ecrecover` (or equivalent) and matched against the registered `ecdsa_signing_key` in the Connection's
+   endpoint roster. The `endpoint_public_key` field is NOT present in the payload — the signer is always
+   recovered from the signature. This signature serves misbehavior attribution purposes — it provides
+   non-repudiable evidence that a specific endpoint produced a given payload. The `endpoint_signature` is NOT
+   part of the on-chain bundle verification algorithm; the CLPR Service does not verify `endpoint_signature`
+   during `handle()`. On-chain cryptographic assurance comes from the verifier's `proof_bytes` (TSS signature
+   over the state root and Merkle paths to the proven data).
 
 ## 12.3 Malicious Payload Protection
 
@@ -878,11 +901,21 @@ DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot crypt
 (who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
 strategies.
 
-## 12.6 Node Account Security
+## 12.6 Misbehavior Attribution via ECDSA Signatures
+
+The `endpoint_signature` (ECDSA secp256k1) provides non-repudiable evidence that a specific endpoint produced a
+given payload. When misbehavior is detected (e.g., a malformed proof or fabricated messages), the receiving endpoint
+can present the signed payload as evidence. The misbehaving endpoint's identity is recovered from the ECDSA
+signature via `ecrecover` and matched against the on-chain endpoint roster's `ecdsa_signing_key` entries. This
+provides cryptographic attribution without requiring the signer's public key to be explicitly transmitted in
+every payload.
+
+## 12.7 Node Account Security
 
 The endpoint module submits `submitBundle` transactions signed by the node's account key. On Hiero, consensus
-node accounts are privileged. The endpoint module MUST NOT expose the node's signing key through any external
-interface. All signing operations happen within the node process.
+node accounts are privileged. The endpoint module MUST NOT expose the node's signing keys (neither the ECDSA
+secp256k1 endpoint signing key nor the account key) through any external interface. All signing operations happen
+within the node process.
 
 ---
 
@@ -932,14 +965,14 @@ When all peer endpoints for a Connection have open circuit breakers:
 
 ## 13.4 Graceful Degradation
 
-| Condition | Behavior |
-|-----------|----------|
-| CLPR disabled at runtime | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved. |
-| No active Connections | Endpoint module runs but does nothing. No resource consumption beyond the tick timer. |
-| All Connections PAUSED | Inbound bundles still processed. Outbound enqueue rejected. Syncs still run (to receive inbound). |
-| Connection HALTED | Endpoint stops syncing for this Connection. Inbound bundles rejected by the CLPR Service. No automatic recovery — admin must sever and re-register the Connection. |
-| Node catching up (reconnect) | Endpoint dormant until state is recovered. |
-| Signed state unavailable | Syncs deferred until signed state is available (startup or reconnect edge case). |
+| Condition                    | Behavior                                                                                                                                                           |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CLPR disabled at runtime     | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved.                                                                                 |
+| No active Connections        | Endpoint module runs but does nothing. No resource consumption beyond the tick timer.                                                                              |
+| All Connections PAUSED       | Inbound bundles still processed. Outbound enqueue rejected. Syncs still run (to receive inbound).                                                                  |
+| Connection HALTED            | Endpoint stops syncing for this Connection. Inbound bundles rejected by the CLPR Service. No automatic recovery — admin must sever and re-register the Connection. |
+| Node catching up (reconnect) | Endpoint dormant until state is recovered.                                                                                                                         |
+| Signed state unavailable     | Syncs deferred until signed state is available (startup or reconnect edge case).                                                                                   |
 
 **HALTED Connection handling.** When a Connection transitions to HALTED (typically due to confirmed misbehavior),
 the sync orchestrator MUST read the Connection status from immutable state and skip HALTED Connections entirely.
@@ -1100,13 +1133,13 @@ this significantly, but the impact on the node's transaction throughput budget m
 
 ## 14.3 Assumptions to Validate
 
-| # | Assumption | Validation Path |
-|---|-----------|-----------------|
-| V-1 | TSS signatures are available for every (or nearly every) signed state. | Consult Platform team. |
-| V-2 | The Merkle tree uses SHA-384 for internal node hashing. | Verify against `MerkleTree` implementation. |
-| V-3 | `LatestCompleteStateNexus` provides reference-counted reservations that prevent GC of held state. | Verify against Platform SDK source. |
-| V-4 | The gRPC server supports registering additional services after initial configuration (for conditional CLPR enablement). | Verify against `GrpcServerManager`. |
-| V-5 | Node signing certificates are RSA, DER-encoded, and suitable for TLS server/client authentication. | Verify against node certificate generation code. |
-| V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation). | Verify SPI contract and existing listeners. |
-| V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling. | Verify transaction dispatch and throttle configuration. |
-| V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths. | Benchmark required. |
+| #   | Assumption                                                                                                              | Validation Path                                         |
+|-----|-------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------|
+| V-1 | TSS signatures are available for every (or nearly every) signed state.                                                  | Consult Platform team.                                  |
+| V-2 | The Merkle tree uses SHA-384 for internal node hashing.                                                                 | Verify against `MerkleTree` implementation.             |
+| V-3 | `LatestCompleteStateNexus` provides reference-counted reservations that prevent GC of held state.                       | Verify against Platform SDK source.                     |
+| V-4 | The gRPC server supports registering additional services after initial configuration (for conditional CLPR enablement). | Verify against `GrpcServerManager`.                     |
+| V-5 | Node TLS certificates are RSA, DER-encoded, and suitable for TLS server/client authentication. Node ECDSA secp256k1 signing keys are available or can be generated. | Verify against node certificate generation code and key management. |
+| V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                        | Verify SPI contract and existing listeners.             |
+| V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                       | Verify transaction dispatch and throttle configuration. |
+| V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.               | Benchmark required.                                     |
