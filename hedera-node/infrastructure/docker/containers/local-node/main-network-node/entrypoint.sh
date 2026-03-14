@@ -48,5 +48,15 @@ id
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END USER IDENT   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo
 
-/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "data/lib/*"  com.swirlds.platform.Browser  > >(tee stdout.log) 2>&1
+# Setup Main Class
+[[ -z "${JAVA_MAIN_CLASS}" ]] && JAVA_MAIN_CLASS="com.hedera.node.app.ServicesMain"
+
+# Setup Classpath
+JAVA_CLASS_PATH="data/lib/*:data/apps/*"
+
+# Setup Consensus Node Arguments
+CONSENSUS_NODE_ARGS=""
+[[ -n "${CONSENSUS_NODE_ID}" && "${CONSENSUS_NODE_ID}" -ge 0 ]] && CONSENSUS_NODE_ARGS="-local ${CONSENSUS_NODE_ID}"
+
+/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS} > >(tee stdout.log) 2>&1
 printf "java exit code %s" "${?}\n" >> stdout.log
