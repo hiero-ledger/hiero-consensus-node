@@ -72,31 +72,40 @@ jobs:
           echo "Latest stable tag: ${LATEST_STABLE}"
           echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
 
-      #  Checkout the block-node repository
-      - name: Checkout Block-Node Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: block-node
-          repository: hiero-ledger/hiero-block-node
-          fetch-depth: 0
-          fetch-tags: true
-
-      # checkout the latest block node tag if needed
-      - name: Checkout Latest BN Tag
+      - name: Retrieve Latest BN Tag
         run: |
-          cd block-node
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Block Node tag: $LATEST_TAG"
-          git checkout $LATEST_TAG
-          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
+          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
+          LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+
+          if [[ -z "${LATEST_BN_TAG}" ]]; then
+            echo "ERROR: Could not parse LATEST_BN_TAG from response"
+            return 1
+          fi
+
+          echo "Latest Block Node tag: ${LATEST_BN_TAG}"
+          echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
+
+      - name: Retrieve Latest MN Tag
+        run: |
+          mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
+          LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+
+          if [[ -z "${LATEST_MN_TAG}" ]]; then
+            echo "ERROR: Could not parse LATEST_MN_TAG from response"
+            return 1
+          fi
+
+          echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
+          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       # Set up Java Environment
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25
 
       # Set up the node environment
       # Version 20.18.0 is the recommended version for solo.
@@ -111,7 +120,7 @@ jobs:
 
       # Set up the gradle environment
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -145,18 +154,12 @@ jobs:
                 mirror:
                   importer:
                     block:
-                      enabled: true
                       nodes:
                         - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                           port: 40840
-                      sourceType: BLOCK_NODE
-                    downloader:
-                      record:
-                        enabled: false
-                    startDate: 1970-01-01T00:00:00Z
-                    stream:
-                      maxSubscribeAttempts: 10
-                      responseTimeout: 10s
+              spring
+                profiles
+                  active: blocknode
           EOF
 
       - name: Print MN Override Values
@@ -241,6 +244,18 @@ jobs:
           solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes "${{ env.SOLO_NETWORK_SIZE }}"
           solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
 
+          # Add to step summary
+          {
+            echo "### Cluster Configuration"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Cluster Name | ${CLUSTER_NAME} |"
+            echo "| Namespace | ${NAMESPACE} |"
+            echo ""
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       # node deployment
       - name: Solo Nodes deployment (BN/CN/MN)
         run: |
@@ -248,13 +263,32 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" -f bn2-values.yaml
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" -f bn3-values.yaml
           solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
-          solo consensus network deploy --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}" --block-node-cfg '{"node1":[1], "node2":[2], "node3":[3]}'
+          solo consensus network deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}" --block-node-cfg '{"node1":[1], "node2":[2], "node3":[3]}'
           solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.143.0 -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
+          
+          # Add to step summary - comprehensive version summary
+          {
+            echo "### Component Versions"
+            echo ""
+            echo "| Component | Requested | Resolved |"
+            echo "|-----------|-----------|----------|"
+            echo "| Consensus Node | \`${{ inputs.consensus-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.cn_version }}\` |"
+            echo "| Mirror Node | \`${{ inputs.mirror-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.mn_version }}\` |"
+            echo "| Block Node | \`${{ inputs.block-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.bn_version }}\` |"
+            echo "| Solo CLI | \`${{ inputs.solo-version || 'latest' }}\` | \`${{ steps.solo.outputs.solo_version }}\` |"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Show running pods and services
+        run: |
+          kubectl --context "${CONTEXT}" get pods -n ${NAMESPACE}
+          kubectl --context "${CONTEXT}" get svc -n ${NAMESPACE}
 
       # port forwards
       - name: Solo Port forwards
+        id: deploy_end
         run: |
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
@@ -263,6 +297,8 @@ jobs:
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
           kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
           kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
+          
+          echo "deploy_end=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Prepare NLG parameters
         run: |
