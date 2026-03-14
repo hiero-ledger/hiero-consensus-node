@@ -2,9 +2,10 @@
 package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
@@ -21,26 +22,30 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
-import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyCutoverBlockStreamOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.io.IOException;
@@ -51,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -74,7 +80,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 "blockStream.enableCutover",
                 "blockStream.streamMode"
             })
-    final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
+    final Stream<DynamicTest> executesAllCutoverPhases() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
@@ -112,16 +118,17 @@ class JumpstartFileSuite implements LifecycleTest {
                         buildDynamicJumpstartFile(jumpstartFileContents)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
-                cryptoCreate("shouldWork").payingWith(GENESIS),
+                cryptoCreate("shouldWork").payingWith(GENESIS).via("postJumpstartTxn"),
+                getTxnRecord("postJumpstartTxn").hasPriority(recordWith().status(SUCCESS)),
                 logIt("Phase 4: Verify jumpstart file processed successfully"),
                 assertHgcaaLogDoesNotContainText(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Resuming calculation of wrapped record file hashes until next attempt, but this node will likely experience an ISS",
-                        Duration.ofSeconds(30)),
+                        Duration.ofSeconds(1)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                 "Completed processing all \\d+ recent wrapped record hashes\\. Final wrapped record block hash \\(as of expected freeze block (\\d+)\\): (\\S+)",
-                                Duration.ofSeconds(30))
+                                Duration.ofSeconds(1))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
                 // Verify the jumpstart file was archived after successful migration
@@ -134,7 +141,7 @@ class JumpstartFileSuite implements LifecycleTest {
                         final var workingDir = requireNonNull(node.metadata().workingDir());
                         final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
                         final var original = cutoverDir.resolve("jumpstart.bin");
-                        org.junit.jupiter.api.Assertions.assertFalse(
+                        assertFalse(
                                 Files.exists(original),
                                 "Jumpstart file should have been archived on node " + node.getNodeId()
                                         + " but still exists at " + original);
@@ -174,7 +181,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
                 logIt("Phase 7: Ops burst prior to cutover"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                logIt("Phase 8: Execute cutover logic"),
+                logIt("Phase 8: Execute cutover"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
                         Map.of(
@@ -187,321 +194,26 @@ class JumpstartFileSuite implements LifecycleTest {
                                 "blockStream.enableCutover",
                                 "true",
                                 "blockStream.streamMode",
+                                // The real cutover value will be BLOCKS, but to keep record stream balance validation
+                                // working, keep BOTH enabled
                                 "BOTH"),
-                        // Pre-restart: capture the final BlockInfo from the last block before cutover
-                        withOpContext((spec, opLog) -> {
-                            final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                            final var blockStreamsDir = node0.getExternalPath(BLOCK_STREAMS_DIR);
-                            final var allBlocks =
-                                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(blockStreamsDir);
-                            final var captured = BlockStreamAccess.computeSingletonValueFromUpdates(
-                                    allBlocks, SingletonUpdateChange::blockInfoValue, 19);
-                            org.junit.jupiter.api.Assertions.assertNotNull(
-                                    captured, "BlockInfo should be present in block state changes");
-                            capturedBlockInfo.set(captured);
-                            // Also capture RunningHashes (state ID 18) for trailing output hash verification
-                            final var capturedRH = BlockStreamAccess.computeSingletonValueFromUpdates(
-                                    allBlocks, SingletonUpdateChange::runningHashesValue, 18);
-                            org.junit.jupiter.api.Assertions.assertNotNull(
-                                    capturedRH, "RunningHashes should be present in block state changes");
-                            capturedRunningHashes.set(capturedRH);
-                            opLog.info(
-                                    "Captured pre-cutover BlockInfo: blockNum={}, blockHashesLen={},"
-                                            + " runningHash={}",
-                                    captured.lastBlockNumber(),
-                                    captured.blockHashes().length(),
-                                    capturedRH.runningHash().toHex());
-
-                            // Preserve preview block files before cutover deletes them,
-                            // so StateChangesValidator can replay state from genesis
-                            for (final var node :
-                                    spec.targetNetworkOrThrow().nodesFor(NodeSelector.exceptNodeIds(LATER_NODE_IDS))) {
-                                final var srcDir = node.getExternalPath(BLOCK_STREAMS_DIR);
-                                final var destDir = node.metadata()
-                                        .workingDir()
-                                        .resolve("data")
-                                        .resolve("cutover")
-                                        .resolve("preservedPreviewBlocks");
-                                opLog.info("Preserving preview blocks from {} to {}", srcDir, destDir);
-                                copyDirectory(srcDir, destDir);
-                            }
-                        })),
+                        // Pre-restart: capture the final BlockInfo before cutover, and save preview block stream files
+                        // for later replay
+                        withOpContext((spec, opLog) ->
+                                capturePreCutoverLogged(spec, opLog, capturedBlockInfo, capturedRunningHashes))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Block streams cutover is enabled, performing cutover initialization",
+                        "Block streams cutover executed; loading block stream info from cutover",
                         Duration.ofSeconds(1)),
-                // Verify logged BlockInfo fields match what we captured pre-restart
-                withOpContext((spec, opLog) -> {
-                    final var bi = capturedBlockInfo.get();
-                    final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                    final var log = Files.readString(node0.getExternalPath(APPLICATION_LOG));
-
-                    // Verify BlockInfo fields
-                    assertLogContains(log, "lastBlockNumber", bi.lastBlockNumber());
-                    assertLogContains(log, "blockHashesLength", bi.blockHashes().length());
-                    assertLogContains(
-                            log,
-                            "previousWrappedRecordBlockRootHash",
-                            bi.previousWrappedRecordBlockRootHash().toHex());
-                    assertLogContains(
-                            log,
-                            "wrappedIntermediateCount",
-                            bi.wrappedIntermediatePreviousBlockRootHashes().size());
-                    assertLogContains(log, "wrappedIntermediateLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
-
-                    // Verify block stream info fields derived from BlockInfo
-                    assertTrue(log.contains("Cutover initial BlockStreamInfo:"), "Log should contain cutover BSI dump");
-                    assertLogContains(log, "blockNumber", bi.lastBlockNumber());
-                    // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
-                    final var fullBlockHashes = bi.blockHashes().toByteArray();
-                    final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - 48);
-                    assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
-                    // trailingOutputHashes must be exactly the final four record stream running hashes
-                    final var rh = capturedRunningHashes.get();
-                    Bytes expectedOutputHashes = BlockImplUtils.appendHash(
-                            Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(
-                            Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(
-                            Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(
-                            Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4);
-                    assertLogContains(log, "trailingOutputHashes", expectedOutputHashes.toHex());
-
-                    // Verify the logged RunningHashes hex values match what we captured
-                    assertLogContains(log, "runningHash", rh.runningHash().toHex());
-                    assertLogContains(log, "nMinus1", rh.nMinus1RunningHash().toHex());
-                    assertLogContains(log, "nMinus2", rh.nMinus2RunningHash().toHex());
-                    assertLogContains(log, "nMinus3", rh.nMinus3RunningHash().toHex());
-                    assertLogContains(
-                            log,
-                            "intermediatePreviousBlockRootHashes",
-                            bi.wrappedIntermediatePreviousBlockRootHashes());
-                    assertLogContains(
-                            log, "intermediateBlockRootsLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
-
-                    opLog.info("All cutover log field verifications passed");
-                }),
+                // Verify logged BlockInfo fields match what we captured before the last restart
+                doingContextual(spec -> verifyCutoverLogFields(spec, capturedBlockInfo, capturedRunningHashes)),
                 // Verify the cutover transferred record stream state into the block stream correctly
-                withOpContext((spec, opLog) -> {
-                    final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                    final var blockStreamsDir = node0.getExternalPath(BLOCK_STREAMS_DIR);
-                    final var allBlocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamsDir);
-                    org.junit.jupiter.api.Assertions.assertFalse(
-                            allBlocks.isEmpty(), "Expected blocks after cutover but found none");
-
-                    final long liveBlock = Long.parseLong(liveBlockNum.get());
-
-                    // Find blocks produced after cutover (number > liveBlock)
-                    final var postCutoverBlocks = allBlocks.stream()
-                            .filter(b -> b.items().stream()
-                                    .filter(BlockItem::hasBlockHeader)
-                                    .findFirst()
-                                    .map(item -> item.blockHeaderOrThrow().number() > liveBlock)
-                                    .orElse(false))
-                            .toList();
-                    org.junit.jupiter.api.Assertions.assertFalse(
-                            postCutoverBlocks.isEmpty(),
-                            "Expected blocks with number > " + liveBlock + " after cutover");
-
-                    final var firstPostCutover = postCutoverBlocks.getFirst();
-                    final long firstBlockNum = firstPostCutover.items().stream()
-                            .filter(BlockItem::hasBlockHeader)
-                            .findFirst()
-                            .orElseThrow()
-                            .blockHeaderOrThrow()
-                            .number();
-                    opLog.info("First post-cutover block: {}, liveBlockNum: {}", firstBlockNum, liveBlock);
-
-                    // Block number must be exactly one greater than BlockInfo.lastBlockNumber
-                    org.junit.jupiter.api.Assertions.assertEquals(
-                            capturedBlockInfo.get().lastBlockNumber() + 1,
-                            firstBlockNum,
-                            "First post-cutover block number should be exactly one greater"
-                                    + " than BlockInfo.lastBlockNumber ("
-                                    + capturedBlockInfo.get().lastBlockNumber() + 1 + ")");
-
-                    // === Verify first block's trailingBlockHashes ===
-                    final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
-                            List.of(firstPostCutover), SingletonUpdateChange::blockStreamInfoValue, 24);
-                    org.junit.jupiter.api.Assertions.assertNotNull(
-                            blockStreamInfo, "First post-cutover block should contain BlockStreamInfo state change");
-                    org.junit.jupiter.api.Assertions.assertEquals(
-                            capturedBlockInfo.get().blockHashes(),
-                            blockStreamInfo.trailingBlockHashes(),
-                            "BlockStreamInfo.trailingBlockHashes should equal BlockInfo.blockHashes"
-                                    + " (original record hashes)");
-
-                    // === Verify trailingOutputHashes by evolving captured RunningHashes ===
-                    // The BSI from endRound has trailingOutputHashes AFTER processing all
-                    // TRANSACTION_RESULT items in this block. So we seed from the captured
-                    // RunningHashes and evolve through each TRANSACTION_RESULT to verify
-                    // the chain is correct end-to-end.
-                    final var runningHashes = capturedRunningHashes.get();
-                    byte[] nMinus3 = runningHashes.nMinus3RunningHash().toByteArray();
-                    byte[] nMinus2 = runningHashes.nMinus2RunningHash().toByteArray();
-                    byte[] nMinus1 = runningHashes.nMinus1RunningHash().toByteArray();
-                    byte[] current = runningHashes.runningHash().toByteArray();
-                    int resultCount = 0;
-                    for (final var item : firstPostCutover.items()) {
-                        if (item.hasTransactionResult()) {
-                            final var serialized =
-                                    BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                            // Rotate: shift all four slots left
-                            nMinus3 = nMinus2;
-                            nMinus2 = nMinus1;
-                            nMinus1 = current;
-                            // Compute: SHA384(previousHash || hashedLeaf)
-                            final var digest = CommonUtils.sha384DigestOrThrow();
-                            digest.update(current);
-                            digest.update(hashedLeaf);
-                            current = digest.digest();
-                            resultCount++;
-                        }
-                    }
-                    opLog.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
-                    assertTrue(
-                            resultCount > 0, "First post-cutover block should contain at least one transaction result");
-                    // Build expected trailingOutputHashes from the evolved state
-                    Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
-                    expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4);
-                    org.junit.jupiter.api.Assertions.assertEquals(
-                            expectedOutputHashes,
-                            blockStreamInfo.trailingOutputHashes(),
-                            "trailingOutputHashes should match RunningHashes evolved"
-                                    + " through first post-cutover block's transaction results");
-
-                    // === Verify first block's footer previousBlockRootHash is the wrapped record block hash ===
-                    final var firstFooter = firstPostCutover.items().stream()
-                            .filter(BlockItem::hasBlockFooter)
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("No footer in first post-cutover block"))
-                            .blockFooterOrThrow();
-                    org.junit.jupiter.api.Assertions.assertEquals(
-                            capturedBlockInfo.get().previousWrappedRecordBlockRootHash(),
-                            firstFooter.previousBlockRootHash(),
-                            "Footer previousBlockRootHash should match"
-                                    + " block info's previousWrappedRecordBlockRootHash");
-
-                    // === Verify hash chain by computing block root hashes from items ===
-                    // Initialize the previous block hashes tree with wrapped record block hashes,
-                    // then add real block stream hashes for post-cutover blocks.
-                    final var prevBlockHashesTree = new IncrementalStreamingHasher(
-                            CommonUtils.sha384DigestOrThrow(),
-                            capturedBlockInfo.get().wrappedIntermediatePreviousBlockRootHashes().stream()
-                                    .map(Bytes::toByteArray)
-                                    .toList(),
-                            capturedBlockInfo.get().wrappedIntermediateBlockRootsLeafCount());
-                    prevBlockHashesTree.addNodeByHash(capturedBlockInfo
-                            .get()
-                            .previousWrappedRecordBlockRootHash()
-                            .toByteArray());
-
-                    var prevBlockHash = capturedBlockInfo.get().previousWrappedRecordBlockRootHash();
-
-                    for (int i = 0; i < postCutoverBlocks.size(); i++) {
-                        final var block = postCutoverBlocks.get(i);
-                        final long blockNum = block.items().stream()
-                                .filter(BlockItem::hasBlockHeader)
-                                .findFirst()
-                                .orElseThrow()
-                                .blockHeaderOrThrow()
-                                .number();
-
-                        // Verify sequential block numbers
-                        if (i > 0) {
-                            final long prevNum = postCutoverBlocks.get(i - 1).items().stream()
-                                    .filter(BlockItem::hasBlockHeader)
-                                    .findFirst()
-                                    .orElseThrow()
-                                    .blockHeaderOrThrow()
-                                    .number();
-                            org.junit.jupiter.api.Assertions.assertEquals(
-                                    prevNum + 1, blockNum, "Block numbers should be sequential");
-                        }
-
-                        // Verify footer's previousBlockRootHash matches our computed hash
-                        final var footer = block.items().stream()
-                                .filter(BlockItem::hasBlockFooter)
-                                .findFirst()
-                                .orElseThrow(() -> new AssertionError("No footer in block #" + blockNum))
-                                .blockFooterOrThrow();
-                        org.junit.jupiter.api.Assertions.assertEquals(
-                                prevBlockHash,
-                                footer.previousBlockRootHash(),
-                                "Block #" + blockNum + " footer.previousBlockRootHash"
-                                        + " should match computed hash of previous block");
-
-                        // Verify rootHashOfAllBlockHashesTree
-                        final var expectedTreeHash = Bytes.wrap(prevBlockHashesTree.computeRootHash());
-                        org.junit.jupiter.api.Assertions.assertEquals(
-                                expectedTreeHash,
-                                footer.rootHashOfAllBlockHashesTree(),
-                                "Block #" + blockNum + " footer.rootHashOfAllBlockHashesTree"
-                                        + " should match incrementally computed tree hash");
-
-                        // Sanity-check that the first post-cutover block has a real state hash;
-                        // the actual value will be verified by StateChangesValidator
-                        if (i == 0) {
-                            org.junit.jupiter.api.Assertions.assertNotEquals(
-                                    Bytes.wrap(new byte[48]),
-                                    footer.startOfBlockStateRootHash(),
-                                    "Block #" + blockNum + " footer.startOfBlockStateRootHash"
-                                            + " should not be the hash of zero");
-                        }
-
-                        // Compute this block's root hash from its items
-                        final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree);
-
-                        opLog.info("Block #{}: computed root hash {}", blockNum, computedRootHash.toHex());
-
-                        // Update state for next block
-                        prevBlockHash = computedRootHash;
-                        prevBlockHashesTree.addNodeByHash(computedRootHash.toByteArray());
-                    }
-
-                    opLog.info("Hash chain verified for {} post-cutover blocks", postCutoverBlocks.size());
-                }),
+                new VerifyCutoverBlockStreamOp(liveBlockNum, capturedBlockInfo, capturedRunningHashes),
                 logIt("Phase 9: First post-cutover burst"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 10: Verify clean cutover with additional blocks"),
-                doingContextual(spec -> {
-                    final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                    final var blockStreamsDir = node0.getExternalPath(BLOCK_STREAMS_DIR);
-                    final var allBlocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamsDir);
-                    final long liveBlock = Long.parseLong(liveBlockNum.get());
-
-                    final var postCutoverBlocks = allBlocks.stream()
-                            .filter(b -> b.items().stream()
-                                    .filter(BlockItem::hasBlockHeader)
-                                    .findFirst()
-                                    .map(item -> item.blockHeaderOrThrow().number() > liveBlock)
-                                    .orElse(false))
-                            .toList();
-                    assertTrue(
-                            postCutoverBlocks.size() >= 2,
-                            "Expected at least 2 post-cutover blocks after burst, found " + postCutoverBlocks.size());
-
-                    // Verify block numbers are sequential
-                    long prevBlockNum = -1;
-                    for (final var block : postCutoverBlocks) {
-                        final long blockNum = block.items().stream()
-                                .filter(BlockItem::hasBlockHeader)
-                                .findFirst()
-                                .orElseThrow()
-                                .blockHeaderOrThrow()
-                                .number();
-                        if (prevBlockNum != -1) {
-                            org.junit.jupiter.api.Assertions.assertEquals(
-                                    prevBlockNum + 1, blockNum, "Block numbers should be sequential");
-                        }
-                        prevBlockNum = blockNum;
-                    }
-                }),
+                doingContextual(spec -> verifyPostCutoverBlocks(spec, liveBlockNum)),
                 // restart with cutover enabled one more time, to verify it doesn't do anything
                 logIt("Phase 11: Restart with cutover enabled to verify idempotent operation"),
                 prepareFakeUpgrade(),
@@ -519,81 +231,135 @@ class JumpstartFileSuite implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Block streams cutover already executed, skipping cutover initialization",
+                        "Block streams cutover not applicable, skipping",
                         Duration.ofSeconds(1)),
                 // Verify blocks are still produced after idempotent restart
                 cryptoCreate("postIdempotentRestart").payingWith(GENESIS));
     }
 
-    /**
-     * Computes a block's root hash from its items, following the same merkle tree structure
-     * used by {@code BlockStreamManagerImpl.combine()}.
-     *
-     * @param block the block whose root hash to compute
-     * @param previousBlockHash the root hash of the previous block (branch 1)
-     * @param prevBlockHashesTree the incremental hasher for all previous block root hashes (branch 2);
-     *                            note: {@code computeRootHash()} is called but does not consume the hasher
-     * @return the computed block root hash
-     */
-    private static Bytes computeBlockRootHash(
-            final Block block, final Bytes previousBlockHash, final IncrementalStreamingHasher prevBlockHashesTree) {
-        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var outputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var consensusHeaderHasher =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var stateChangesHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+    private static void capturePreCutoverLogged(
+            final HapiSpec spec,
+            final Logger opLog,
+            final AtomicReference<BlockInfo> capturedBlockInfo,
+            final AtomicReference<RunningHashes> capturedRunningHashes)
+            throws Exception {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        final var blockStreamsDir = node0.getExternalPath(BLOCK_STREAMS_DIR);
+        final var allBlocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(blockStreamsDir);
+        final var captured = BlockStreamAccess.computeSingletonValueFromUpdates(
+                allBlocks, SingletonUpdateChange::blockInfoValue, 19);
+        assertNotNull(captured, "BlockInfo should be present in block state changes");
+        capturedBlockInfo.set(captured);
+        // Also capture RunningHashes for trailing output hash verification
+        final var capturedRH = BlockStreamAccess.computeSingletonValueFromUpdates(
+                allBlocks, SingletonUpdateChange::runningHashesValue, 18);
+        assertNotNull(capturedRH, "RunningHashes should be present in block state changes");
+        capturedRunningHashes.set(capturedRH);
+        opLog.info(
+                "Captured pre-cutover BlockInfo: blockNum={}, blockHashesLen={}," + " runningHash={}",
+                captured.lastBlockNumber(),
+                captured.blockHashes().length(),
+                capturedRH.runningHash().toHex());
 
-        Timestamp blockTimestamp = null;
-        for (final var item : block.items()) {
-            if (blockTimestamp == null && item.hasBlockHeader()) {
-                blockTimestamp = item.blockHeaderOrThrow().blockTimestamp();
-            }
-            final var serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-            switch (item.item().kind()) {
-                case EVENT_HEADER, ROUND_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-                case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
-                default -> {
-                    // BlockFooter, BlockProof, and other items are not part of the merkle subtrees
-                }
-            }
+        // Preserve preview block files so StateChangesValidator can replay state from genesis
+        for (final var node : spec.targetNetworkOrThrow().nodesFor(NodeSelector.exceptNodeIds(LATER_NODE_IDS))) {
+            final var srcDir = node.getExternalPath(BLOCK_STREAMS_DIR);
+            final var destDir = node.metadata()
+                    .workingDir()
+                    .resolve("data")
+                    .resolve("cutover")
+                    .resolve("preservedPreviewBlocks");
+            opLog.info("Preserving preview blocks from {} to {}", srcDir, destDir);
+            copyDirectory(srcDir, destDir);
         }
-        requireNonNull(blockTimestamp, "Block has no header with timestamp");
+    }
 
-        final var footer = block.items().stream()
-                .filter(BlockItem::hasBlockFooter)
-                .findFirst()
-                .orElseThrow()
-                .blockFooterOrThrow();
+    private static void verifyCutoverLogFields(
+            final HapiSpec spec,
+            final AtomicReference<BlockInfo> capturedBlockInfo,
+            final AtomicReference<RunningHashes> capturedRunningHashes) {
+        final var bi = capturedBlockInfo.get();
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        final String log;
+        try {
+            log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+        } catch (IOException e) {
+            fail(e);
+            return;
+        }
 
-        // Use footer values for branches 1-3; compute branches 4-8 from items
-        final var prevBlockRootsHash = Bytes.wrap(prevBlockHashesTree.computeRootHash());
-        final var startOfBlockStateHash = footer.startOfBlockStateRootHash();
-        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputsHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputsHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
-        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+        // Verify BlockInfo fields
+        assertLogContains(log, "lastBlockNumber", bi.lastBlockNumber());
+        assertLogContains(log, "blockHashesLength", bi.blockHashes().length());
+        assertLogContains(
+                log,
+                "previousWrappedRecordBlockRootHash",
+                bi.previousWrappedRecordBlockRootHash().toHex());
+        assertLogContains(
+                log,
+                "wrappedIntermediateCount",
+                bi.wrappedIntermediatePreviousBlockRootHashes().size());
+        assertLogContains(log, "wrappedIntermediateLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
 
-        // Depth 5
-        final var d5n1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var d5n2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var d5n3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var d5n4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        // Depth 4
-        final var d4n1 = BlockImplUtils.hashInternalNode(d5n1, d5n2);
-        final var d4n2 = BlockImplUtils.hashInternalNode(d5n3, d5n4);
-        // Depth 3
-        final var d3n1 = BlockImplUtils.hashInternalNode(d4n1, d4n2);
-        // Depth 2
-        final var tsBytes = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var d2n1 = BlockImplUtils.hashLeaf(tsBytes);
-        final var d2n2 = BlockImplUtils.hashInternalNodeSingleChild(d3n1);
-        // Root
-        return BlockImplUtils.hashInternalNode(d2n1, d2n2);
+        // Verify block stream info fields derived from BlockInfo
+        assertTrue(log.contains("Cutover initial BlockStreamInfo:"), "Log should contain cutover BSI dump");
+        assertLogContains(log, "blockNumber", bi.lastBlockNumber());
+        // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
+        final var fullBlockHashes = bi.blockHashes().toByteArray();
+        final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - 48);
+        assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
+        // trailingOutputHashes must be exactly the final four record stream running hashes
+        final var rh = capturedRunningHashes.get();
+        Bytes expectedOutputHashes =
+                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
+        expectedOutputHashes =
+                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4);
+        expectedOutputHashes =
+                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4);
+        expectedOutputHashes =
+                BlockImplUtils.appendHash(Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4);
+        assertLogContains(log, "trailingOutputHashes", expectedOutputHashes.toHex());
+
+        // Verify the logged RunningHashes hex values match what we captured
+        assertLogContains(log, "runningHash", rh.runningHash().toHex());
+        assertLogContains(log, "nMinus1", rh.nMinus1RunningHash().toHex());
+        assertLogContains(log, "nMinus2", rh.nMinus2RunningHash().toHex());
+        assertLogContains(log, "nMinus3", rh.nMinus3RunningHash().toHex());
+        assertLogContains(log, "intermediatePreviousBlockRootHashes", bi.wrappedIntermediatePreviousBlockRootHashes());
+        assertLogContains(log, "intermediateBlockRootsLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
+    }
+
+    private static void verifyPostCutoverBlocks(final HapiSpec spec, final AtomicReference<String> liveBlockNum) {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        final var blockStreamsDir = node0.getExternalPath(BLOCK_STREAMS_DIR);
+        final var allBlocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamsDir);
+        final long liveBlock = Long.parseLong(liveBlockNum.get());
+
+        final var postCutoverBlocks = allBlocks.stream()
+                .filter(b -> b.items().stream()
+                        .filter(BlockItem::hasBlockHeader)
+                        .findFirst()
+                        .map(item -> item.blockHeaderOrThrow().number() > liveBlock)
+                        .orElse(false))
+                .toList();
+        assertTrue(
+                postCutoverBlocks.size() >= 2,
+                "Expected at least 2 post-cutover blocks after burst, found " + postCutoverBlocks.size());
+
+        // Verify block numbers are sequential
+        long prevBlockNum = -1;
+        for (final var block : postCutoverBlocks) {
+            final long blockNum = block.items().stream()
+                    .filter(BlockItem::hasBlockHeader)
+                    .findFirst()
+                    .orElseThrow()
+                    .blockHeaderOrThrow()
+                    .number();
+            if (prevBlockNum != -1) {
+                assertEquals(prevBlockNum + 1, blockNum, "Block numbers should be sequential");
+            }
+            prevBlockNum = blockNum;
+        }
     }
 
     private static void assertLogContains(final String log, final String key, final Object expected) {

@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
+import com.hedera.node.app.blocks.schemas.V0730BlockStreamSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -36,6 +37,8 @@ public class BlockStreamService implements Service {
     @Nullable
     private Bytes migratedLastBlockHash;
 
+    private boolean cutoverExecuted;
+
     @NonNull
     @Override
     public String getServiceName() {
@@ -46,6 +49,7 @@ public class BlockStreamService implements Service {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V0560BlockStreamSchema(this::setMigratedLastBlockHash));
+        registry.register(new V0730BlockStreamSchema(this::markCutoverExecuted));
     }
 
     @Override
@@ -73,8 +77,20 @@ public class BlockStreamService implements Service {
         migratedLastBlockHash = null;
     }
 
+    /**
+     * Returns whether the block stream cutover was executed during the most recent schema migration.
+     */
+    public boolean isCutoverExecuted() {
+        return cutoverExecuted;
+    }
+
     private void setMigratedLastBlockHash(@NonNull final Bytes migratedLastBlockHash) {
         this.migratedLastBlockHash = requireNonNull(migratedLastBlockHash);
         log.info("Migrated last block hash '{}'", migratedLastBlockHash);
+    }
+
+    private void markCutoverExecuted() {
+        this.cutoverExecuted = true;
+        log.info("Block stream cutover executed during schema migration");
     }
 }

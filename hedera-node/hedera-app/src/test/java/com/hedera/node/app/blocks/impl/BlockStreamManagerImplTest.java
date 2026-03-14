@@ -15,8 +15,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -47,7 +45,6 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
@@ -82,9 +79,6 @@ import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -111,7 +105,6 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -211,9 +204,6 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
-
-    @TempDir
-    Path cutoverTempDir;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
@@ -1417,11 +1407,12 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void cutoverSkippedWhenAlreadyExecuted() {
-        // Even with enableCutover=true, if cutoverExecuted is already true, skip cutover
-        final var cutoverBlockInfo = BlockInfo.newBuilder()
+    void cutoverSkippedWhenSchemaDidNotExecute() {
+        // Cutover is enabled, but cutoverExecuted=false means the schema did not run, and therefore init should not run
+        // cutover scenario
+        final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
-                .cutoverExecuted(true)
+                .cutoverExecuted(false)
                 .build();
 
         final var config = HederaTestConfigBuilder.create()
@@ -1444,95 +1435,19 @@ class BlockStreamManagerImplTest {
                 quiescedHeartbeat,
                 metrics);
 
-        // Wire up BlockRecordService readable state with cutoverExecuted=true
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
-                .willReturn(new FunctionReadableSingletonState<>(
-                        BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> cutoverBlockInfo));
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
-        // init with HASH_OF_ZERO — cutover check should see cutoverExecuted=true and skip
+        // init with HASH_OF_ZERO — loadCutoverData should see cutoverExecuted=false and skip
         subject.init(state, HASH_OF_ZERO);
-
-        // Cutover writes to BlockRecordService to mark cutoverExecuted; verify that never happened
-        verify(state, never()).getWritableStates(BlockRecordService.NAME);
     }
 
     @Test
-    void cutoverExecutesAndMarksCutoverExecuted() throws IOException {
-        final var blockDirPath = cutoverTempDir.resolve("blocks");
-        Files.createDirectories(blockDirPath);
-
-        // Create some preview block files that should be deleted
-        final var subdir = blockDirPath.resolve("000000000000042");
-        Files.createDirectories(subdir);
-        Files.createFile(subdir.resolve("block-42.blk.gz"));
-        Files.createFile(subdir.resolve("block-42.mf"));
-        Files.createFile(subdir.resolve("pending.pnd.gz"));
-        Files.createFile(subdir.resolve("proof.pnd.json"));
-        // Non-matching file should survive
-        Files.createFile(subdir.resolve("readme.txt"));
-
-        // Prepare state data
-        final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
-        // blockHashes needs at least 2*HASH_SIZE bytes (cutover trims the last HASH_SIZE)
-        final var twoHashes = new byte[HASH_SIZE * 2];
-        final var blockInfo = BlockInfo.newBuilder()
-                .lastBlockNumber(100)
-                .blockHashes(Bytes.wrap(twoHashes))
-                .previousWrappedRecordBlockRootHash(wrappedHash)
-                .wrappedIntermediatePreviousBlockRootHashes(List.of(wrappedHash))
-                .wrappedIntermediateBlockRootsLeafCount(1)
-                .firstConsTimeOfCurrentBlock(new Timestamp(1000, 0))
-                .lastUsedConsTime(new Timestamp(1001, 0))
-                .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
-                .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(false)
-                .build();
-
-        final var runningHashes = new RunningHashes(
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
-
-        final var previewBlockStreamInfo = BlockStreamInfo.newBuilder()
-                .blockNumber(50)
-                .creationSoftwareVersion(CREATION_VERSION)
-                .startOfBlockStateHash(HASH_OF_ZERO)
-                .build();
-
-        // Track what gets written to state
-        final var writtenBlockInfo = new AtomicReference<BlockInfo>();
-        final var writtenBsi = new AtomicReference<BlockStreamInfo>();
-
-        givenCutoverSubject(
-                blockInfo, runningHashes, previewBlockStreamInfo, blockDirPath, writtenBlockInfo, writtenBsi);
-
-        subject.init(state, null);
-
-        // Verify cutoverExecuted was set to true
-        assertNotNull(writtenBlockInfo.get());
-        assertTrue(writtenBlockInfo.get().cutoverExecuted());
-
-        // Verify the BlockStreamInfo was overwritten with record block data
-        assertNotNull(writtenBsi.get());
-        assertEquals(100, writtenBsi.get().blockNumber());
-        assertEquals(new Timestamp(1000, 0), writtenBsi.get().blockTime());
-
-        // Verify preview block files were deleted
-        assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
-        assertFalse(Files.exists(subdir.resolve("block-42.mf")));
-        assertFalse(Files.exists(subdir.resolve("pending.pnd.gz")));
-        assertFalse(Files.exists(subdir.resolve("proof.pnd.json")));
-        // Non-matching file should still exist
-        assertTrue(Files.exists(subdir.resolve("readme.txt")));
-    }
-
-    @Test
-    void cutoverToleratesMissingBlockDirectory() {
-        final var blockDirPath = cutoverTempDir.resolve("nonexistent-blocks");
-
+    void cutoverLoadsInMemoryStateWhenSchemaExecuted() {
+        // When enableCutover=true, cutoverExecuted=true, and BlockStreamInfo.blockNumber matches
+        // BlockInfo.lastBlockNumber, init should load in-memory structures from BlockInfo
         final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
         final var twoHashes = new byte[HASH_SIZE * 2];
         final var blockInfo = BlockInfo.newBuilder()
@@ -1545,43 +1460,15 @@ class BlockStreamManagerImplTest {
                 .lastUsedConsTime(new Timestamp(1001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
                 .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(false)
+                .cutoverExecuted(true)
                 .build();
-        final var runningHashes = new RunningHashes(
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
-        final var previewBsi = BlockStreamInfo.newBuilder()
-                .blockNumber(50)
-                .creationSoftwareVersion(CREATION_VERSION)
-                .startOfBlockStateHash(HASH_OF_ZERO)
-                .build();
+        // BlockStreamInfo.blockNumber must match BlockInfo.lastBlockNumber for cutover loading
+        final var cutoverBsi = BlockStreamInfo.newBuilder().blockNumber(100).build();
 
-        final var writtenBlockInfo = new AtomicReference<BlockInfo>();
-        final var writtenBsi = new AtomicReference<BlockStreamInfo>();
-        givenCutoverSubject(blockInfo, runningHashes, previewBsi, blockDirPath, writtenBlockInfo, writtenBsi);
-
-        assertDoesNotThrow(() -> subject.init(state, null));
-        // Cutover should still have completed (marked executed)
-        assertTrue(writtenBlockInfo.get().cutoverExecuted());
-    }
-
-    /**
-     * Full cutover subject setup with writable state tracking and configurable block directory.
-     */
-    private void givenCutoverSubject(
-            @NonNull final BlockInfo blockInfo,
-            @Nullable final RunningHashes runningHashes,
-            @Nullable final BlockStreamInfo previewBlockStreamInfo,
-            @NonNull final Path blockDirPath,
-            @NonNull final AtomicReference<BlockInfo> writtenBlockInfo,
-            @NonNull final AtomicReference<BlockStreamInfo> writtenBsi) {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", 1)
                 .withValue("blockStream.enableCutover", true)
-                .withValue("blockStream.blockFileDir", blockDirPath.toString())
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenReturn(indirectProofsCounter);
@@ -1602,54 +1489,62 @@ class BlockStreamManagerImplTest {
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
-        if (runningHashes != null) {
-            given(blockRecordReadable.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID))
-                    .willReturn(new FunctionReadableSingletonState<>(
-                            RUNNING_HASHES_STATE_ID, RUNNING_HASHES_STATE_LABEL, () -> runningHashes));
-        }
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
-        if (previewBlockStreamInfo != null) {
-            final var blockStreamReadable = mock(ReadableStates.class);
-            given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
-                    .willReturn(new FunctionReadableSingletonState<>(
-                            BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> previewBlockStreamInfo));
-            given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
-        }
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> cutoverBsi));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
-        if (previewBlockStreamInfo != null) {
-            final var bsiWritableState = new FunctionWritableSingletonState<>(
-                    BLOCK_STREAM_INFO_STATE_ID,
-                    BLOCK_STREAM_INFO_STATE_LABEL,
-                    () -> previewBlockStreamInfo,
-                    writtenBsi::set);
-            final var blockStreamWritable =
-                    mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
-            given(blockStreamWritable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
-                    .willReturn(bsiWritableState);
-            lenient()
-                    .doAnswer(ignored -> {
-                        bsiWritableState.commit();
-                        return null;
-                    })
-                    .when((CommittableWritableStates) blockStreamWritable)
-                    .commit();
-            given(state.getWritableStates(BlockStreamService.NAME)).willReturn(blockStreamWritable);
-        }
+        // init with null lastBlockHash — should trigger the cutover loading path
+        subject.init(state, null);
+    }
 
-        final var blockInfoWritableState = new FunctionWritableSingletonState<>(
-                BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo, writtenBlockInfo::set);
-        final var blockRecordWritable =
-                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
-        given(blockRecordWritable.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoWritableState);
-        lenient()
-                .doAnswer(ignored -> {
-                    blockInfoWritableState.commit();
-                    return null;
-                })
-                .when((CommittableWritableStates) blockRecordWritable)
-                .commit();
-        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordWritable);
+    @Test
+    void cutoverSkippedWhenBlockStreamInfoHasAdvanced() {
+        // After post-cutover blocks are produced, BlockStreamInfo.blockNumber advances beyond
+        // BlockInfo.lastBlockNumber; subsequent restarts should use the normal init path
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .cutoverExecuted(true)
+                .build();
+        // BlockStreamInfo has advanced — real blocks were produced after cutover
+        final var advancedBsi = BlockStreamInfo.newBuilder().blockNumber(137).build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
+
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> advancedBsi));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
+
+        // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
+        subject.init(state, HASH_OF_ZERO);
     }
 
     private void givenSubjectWith(
