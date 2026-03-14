@@ -273,6 +273,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
             final var fullBlockHashes = lastBlockInfoEver.blockHashes().toByteArray();
+            if (fullBlockHashes.length < HASH_SIZE) {
+                throw new IllegalStateException(
+                        "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
+                                + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+            }
             final List<Bytes> wrappedPrevRecordBlockRootHashes =
                     lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
             effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();

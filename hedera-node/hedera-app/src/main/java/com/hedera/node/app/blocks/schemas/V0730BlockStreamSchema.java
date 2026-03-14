@@ -112,6 +112,11 @@ public class V0730BlockStreamSchema extends Schema<SemanticVersion> {
         // 2.1. Record block hashes (excluding the last hash); BlockHashManager.startBlock() will append
         // prevBlockHash to trailingBlockHashes, so write all but the final record hash to avoid an off-by-one
         final var fullBlockHashes = blockInfo.blockHashes().toByteArray();
+        if (fullBlockHashes.length < HASH_SIZE) {
+            throw new IllegalStateException(
+                    "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
+                            + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+        }
         final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
         // 2.2. Running hashes
         Bytes lastFourHashes =

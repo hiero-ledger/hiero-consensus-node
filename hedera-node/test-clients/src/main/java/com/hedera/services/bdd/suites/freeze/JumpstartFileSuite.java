@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -51,6 +52,7 @@ import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -306,7 +308,7 @@ class JumpstartFileSuite implements LifecycleTest {
         assertLogContains(log, "blockNumber", bi.lastBlockNumber());
         // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
         final var fullBlockHashes = bi.blockHashes().toByteArray();
-        final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - 48);
+        final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
         assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
         // trailingOutputHashes must be exactly the final four record stream running hashes
         final var rh = capturedRunningHashes.get();
@@ -376,7 +378,7 @@ class JumpstartFileSuite implements LifecycleTest {
                         Files.createDirectories(target);
                     } else {
                         Files.createDirectories(target.getParent());
-                        Files.copy(source, target);
+                        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
                     }
                 } catch (final IOException e) {
                     throw new java.io.UncheckedIOException(e);
