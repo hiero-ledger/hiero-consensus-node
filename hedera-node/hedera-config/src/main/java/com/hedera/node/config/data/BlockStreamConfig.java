@@ -12,7 +12,7 @@ import java.time.Duration;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode Value of BLOCKS produces only block-streams; BOTH also produces record-streams; RECORDS disables the block stream
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param hashCombineBatchSize the number of items to hash in a batch
@@ -27,7 +27,7 @@ import java.time.Duration;
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
         @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
