@@ -79,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.13.0
+  NLG_VERSION: 0.13.1
 
   #Thresholds for performance
   #benchmarks
@@ -436,7 +436,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -488,7 +488,7 @@ jobs:
           set +e
           cd "${{ github.workspace }}"/solo
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          helm install --set name=merkle --set appName=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
@@ -501,6 +501,19 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
+
+      - name: JDK25 for SwirldsMerkleDB test
+        run: |
+          set +x
+          set +e
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "\
+          rm -rf /opt/java/openjdk; \
+          apt install -y wget apt-transport-https gpg; \
+          wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
+          echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
+          apt update; \
+          apt install -y temurin-25-jdk"
 
       - name: Distribution of K8S nodes, SysAdmin Grafana
         run: |
