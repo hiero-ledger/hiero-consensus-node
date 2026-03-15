@@ -56,7 +56,6 @@ import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -179,7 +178,6 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
-    private final WrapsProvingKeyVerification wrapsProvingKeyVerification;
 
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private int nextDispatchNonce = 1;
@@ -212,8 +210,7 @@ public class SystemTransactions {
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
-            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
-            @NonNull final WrapsProvingKeyVerification wrapsProvingKeyVerification) {
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -234,7 +231,6 @@ public class SystemTransactions {
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
         this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
-        this.wrapsProvingKeyVerification = requireNonNull(wrapsProvingKeyVerification);
     }
 
     /**
@@ -521,8 +517,6 @@ public class SystemTransactions {
             log.info("Applied wrapped record block hash migration result to state");
         }
 
-        // If appropriate, persist a valid pending WRAPS proving key hash to state
-        wrapsProvingKeyVerification.maybePersistPendingHash(state, configProvider.getConfiguration());
     }
 
     /**

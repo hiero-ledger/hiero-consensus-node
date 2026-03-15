@@ -18,8 +18,6 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -44,7 +42,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -116,9 +113,6 @@ class SystemTransactionsTest {
     private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
 
     @Mock
-    private WrapsProvingKeyVerification wrapsProvingKeyVerification;
-
-    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -161,8 +155,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
     }
 
     @Test
@@ -219,8 +212,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -427,8 +419,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -470,8 +461,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -552,8 +542,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -606,8 +595,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -653,8 +641,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         // Set up a non-null migration result
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
@@ -731,8 +718,7 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
+                wrappedRecordBlockHashMigration);
 
         // Migration result is null (no migration ran)
         given(wrappedRecordBlockHashMigration.result()).willReturn(null);
@@ -744,115 +730,4 @@ class SystemTransactionsTest {
         verify(state, never()).getWritableStates(eq(BlockRecordService.NAME));
     }
 
-    @Test
-    void postUpgradeSetupPersistsWrapsProvingKeyHashWhenPendingHashIsSet() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("consensus.handleMaxPrecedingRecords", 3)
-                .withValue("scheduling.reservedSystemTxnNanos", 1000)
-                .withValue("hedera.firstUserEntity", 1001)
-                .withValue("hedera.transactionMaxValidDuration", 180)
-                .withValue("accounts.systemAdmin", 50)
-                .withValue("nodes.enableDAB", false)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
-        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        @SuppressWarnings("unchecked")
-        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
-        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
-        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
-        given(filesState.get(any())).willReturn(File.DEFAULT);
-        given(wrappedRecordBlockHashMigration.result()).willReturn(null);
-
-        // Simulate a non-empty pending hash by making maybePersistPendingHash write to state
-        doAnswer(invocation -> {
-                    final State s = invocation.getArgument(0);
-                    // Mimics WrapsProvingKeyVerification when pending hash is non-empty
-                    final var historyStates = s.getWritableStates(HistoryService.NAME);
-                    ((CommittableWritableStates) historyStates).commit();
-                    return null;
-                })
-                .when(wrapsProvingKeyVerification)
-                .maybePersistPendingHash(any(State.class), any(Configuration.class));
-
-        final var historyWritableStates =
-                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
-        given(state.getWritableStates(eq(HistoryService.NAME))).willReturn(historyWritableStates);
-
-        subject = new SystemTransactions(
-                initTrigger,
-                parentTxnFactory,
-                fileService,
-                networkInfo,
-                configProvider,
-                dispatchProcessor,
-                appContext,
-                servicesRegistry,
-                blockRecordManager,
-                blockStreamManager,
-                exchangeRateManager,
-                recordCache,
-                startupNetworks,
-                stakePeriodChanges,
-                selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
-
-        subject.doPostUpgradeSetup(NOW, state);
-
-        verify(wrapsProvingKeyVerification).maybePersistPendingHash(eq(state), any(Configuration.class));
-        verify(state).getWritableStates(eq(HistoryService.NAME));
-        verify((CommittableWritableStates) historyWritableStates).commit();
-    }
-
-    @Test
-    void postUpgradeSetupSkipsWrapsProvingKeyHashWhenNoPendingHash() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("consensus.handleMaxPrecedingRecords", 3)
-                .withValue("scheduling.reservedSystemTxnNanos", 1000)
-                .withValue("hedera.firstUserEntity", 1001)
-                .withValue("hedera.transactionMaxValidDuration", 180)
-                .withValue("accounts.systemAdmin", 50)
-                .withValue("nodes.enableDAB", false)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
-        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        @SuppressWarnings("unchecked")
-        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
-        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
-        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
-        given(filesState.get(any())).willReturn(File.DEFAULT);
-        given(wrappedRecordBlockHashMigration.result()).willReturn(null);
-
-        // Default mock behavior: maybePersistPendingHash is a no-op (simulates empty pending hash)
-
-        subject = new SystemTransactions(
-                initTrigger,
-                parentTxnFactory,
-                fileService,
-                networkInfo,
-                configProvider,
-                dispatchProcessor,
-                appContext,
-                servicesRegistry,
-                blockRecordManager,
-                blockStreamManager,
-                exchangeRateManager,
-                recordCache,
-                startupNetworks,
-                stakePeriodChanges,
-                selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                wrapsProvingKeyVerification);
-
-        subject.doPostUpgradeSetup(NOW, state);
-
-        verify(wrapsProvingKeyVerification).maybePersistPendingHash(eq(state), any(Configuration.class));
-        verify(state, never()).getWritableStates(eq(HistoryService.NAME));
-    }
 }

@@ -264,10 +264,6 @@ public interface HederaInjectionComponent {
         Builder wrappedRecordBlockHashMigration(
                 com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration);
 
-        @BindsInstance
-        Builder wrapsProvingKeyVerification(
-                com.hedera.node.app.history.WrapsProvingKeyVerification wrapsProvingKeyVerification);
-
         HederaInjectionComponent build();
     }
 }

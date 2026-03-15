@@ -104,8 +104,13 @@ public class HgcaaLogValidator {
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
-                // Expected as part of `WrapsProvingKeyVerificationHttpDownloadTest`
-                List.of("WRAPS proving key hash mismatch at data/config/invalid-wraps-proving-key.tar.gz"));
+                // Expected as part of WRAPS proving key verification tests
+                List.of("WRAPS proving key hash mismatch at"),
+                List.of("Failed to extract WRAPS proving key archive"),
+                List.of("Failed to download WRAPS proving key"),
+                List.of("WRAPS proving key download failed"),
+                List.of("Downloaded WRAPS proving key hash mismatch"),
+                List.of("WRAPS proving key download did not complete"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

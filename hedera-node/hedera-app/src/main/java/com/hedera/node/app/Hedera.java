@@ -325,8 +325,8 @@ public final class Hedera
             new WrappedRecordBlockHashMigration();
 
     /**
-     * The WRAPS proving key verification instance, shared between Hedera (verify) and
-     * SystemTransactions (persist) via Dagger.
+     * The WRAPS proving key verification instance. Verification and state persistence
+     * both happen during {@link #onStateInitialized}.
      */
     private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
 
@@ -773,7 +773,7 @@ public final class Hedera
 
         // Verify the WRAPS proving key hash (if configured)
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
-            verifyWrapsProvingKeyHash(state);
+            ensureWrapsProvingKey(state);
         }
 
         // Perform any service initialization that has to be postponed until Dagger is available
@@ -806,10 +806,11 @@ public final class Hedera
     }
 
     /**
-     * Verifies the WRAPS proving key file hash against the configured hash (if any).
+     * Ensures the WRAPS proving key is set up — persists the hash to state,
+     * verifies the on-disk file, and downloads if needed.
      */
-    private void verifyWrapsProvingKeyHash(@NonNull final State state) {
-        wrapsProvingKeyVerification.verify(
+    private void ensureWrapsProvingKey(@NonNull final State state) {
+        wrapsProvingKeyVerification.ensureProvingKey(
                 state, configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
     }
 
@@ -1314,7 +1315,6 @@ public final class Hedera
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
-                .wrapsProvingKeyVerification(wrapsProvingKeyVerification)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

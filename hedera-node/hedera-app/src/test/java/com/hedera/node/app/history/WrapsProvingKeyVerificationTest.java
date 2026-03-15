@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,14 +22,12 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,9 +57,6 @@ class WrapsProvingKeyVerificationTest {
     @Mock
     private HttpWrapsProvingKeyDownloader downloader;
 
-    @Mock(answer = org.mockito.Answers.RETURNS_DEEP_STUBS)
-    private ReadableStates readableStates;
-
     @TempDir
     Path tempDir;
 
@@ -73,14 +66,11 @@ class WrapsProvingKeyVerificationTest {
     void setUp() {
         // Use synchronous executor so async downloads run inline for testing
         subject = new WrapsProvingKeyVerification(Runnable::run);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
-    // ===== verify() tests =====
-
-    @Test
-    void pendingHashStartsAsEmpty() {
-        assertEquals(Bytes.EMPTY, subject.pendingHash());
-    }
+    // ===== ensureProvingKey() tests =====
 
     @Test
     void throwsWhenWrapsEnabledAndBootstrapHashIsBlank() {
@@ -88,7 +78,8 @@ class WrapsProvingKeyVerificationTest {
         given(tssConfig.wrapsEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn("");
 
-        assertThrows(IllegalArgumentException.class, () -> subject.verify(state, configuration, downloader));
+        assertThrows(
+                IllegalArgumentException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
     }
 
     @Test
@@ -96,35 +87,34 @@ class WrapsProvingKeyVerificationTest {
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(tssConfig.wrapsEnabled()).willReturn(false);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
-        assertEquals(Bytes.EMPTY, subject.pendingHash());
         verifyNoInteractions(downloader);
     }
 
     @Test
-    void setsPendingHashWhenFileMatchesHash() throws IOException {
+    void persistsAndSkipsDownloadWhenFileMatchesHash() throws IOException {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, CONTENT_A);
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
-        givenReadableHistoryStates(null);
+        final var writableStates = givenWritableHistoryStates(null);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
-        assertEquals(HASH_A, subject.pendingHash());
         verifyNoInteractions(downloader);
+        verify(state).getWritableStates(HistoryService.NAME);
+        verify((CommittableWritableStates) writableStates).commit();
     }
 
     @Test
-    void setsPendingHashEvenWhenAlreadyInState() throws IOException {
+    void skipsCommitWhenHashAlreadyInState() throws IOException {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, CONTENT_A);
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
-        givenReadableHistoryStates(HASH_A);
+        givenWritableHistoryStates(HASH_A);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
-        assertEquals(HASH_A, subject.pendingHash());
         verifyNoInteractions(downloader);
     }
 
@@ -134,177 +124,98 @@ class WrapsProvingKeyVerificationTest {
         Files.createDirectory(path);
         final var hash = "aa".repeat(48);
         givenConfigWithHashAndPath(hash, path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
 
-        assertThrows(UncheckedIOException.class, () -> subject.verify(state, configuration, downloader));
+        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
     }
 
     // ===== async download tests =====
 
     @Test
-    void downloadsAndSetsPendingHashWhenFileMissing() throws Exception {
+    void downloadsWhenFileMissing() throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
-        assertEquals(HASH_A, subject.pendingHash());
         verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     @Test
-    void downloadsAndSetsPendingHashOnHashMismatch() throws Exception {
+    void downloadsOnHashMismatch() throws Exception {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, "wrong content on disk".getBytes());
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
-        assertEquals(HASH_A, subject.pendingHash());
         verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     @Test
-    void throwsWhenDownloadedFileHashStillMismatches() throws Exception {
+    void continuesWhenDownloadedFileHashStillMismatches() throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         final var configHash = "aa".repeat(48); // won't match CONTENT_B's hash
         givenConfigWithHashAndPath(configHash, path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
         givenDownloaderWritesContent(path, CONTENT_B);
 
-        // verify() captures the exception in the CompletableFuture
-        subject.verify(state, configuration, downloader);
-        assertEquals(Bytes.EMPTY, subject.pendingHash());
-
-        // The exception surfaces when maybePersistPendingHash waits for the download
-        final var thrown =
-                assertThrows(CompletionException.class, () -> subject.maybePersistPendingHash(state, configuration));
-        assertEquals(IllegalStateException.class, thrown.getCause().getClass());
+        subject.ensureProvingKey(state, configuration, downloader);
     }
 
     @Test
-    void pendingHashStaysEmptyOnDownloadIOException() throws Exception {
+    void continuesOnDownloadIOException() throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         final var configHash = "aa".repeat(48);
         givenConfigWithHashAndPath(configHash, path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
         doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
 
-        // IOException is caught and logged; should not propagate
-        subject.verify(state, configuration, downloader);
-
-        assertEquals(Bytes.EMPTY, subject.pendingHash());
+        subject.ensureProvingKey(state, configuration, downloader);
     }
 
     @Test
     void passesConfiguredDownloadUrlToDownloader() throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
-        givenReadableHistoryStates(null);
+        givenWritableHistoryStates(null);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.verify(state, configuration, downloader);
+        subject.ensureProvingKey(state, configuration, downloader);
 
         verify(downloader).download(eq(DOWNLOAD_URL), eq(path));
     }
 
-    // ===== maybePersistPendingHash() tests =====
-
     @Test
-    void persistIsNoOpWhenPendingHashIsEmpty() {
-        subject.maybePersistPendingHash(state, configuration);
-
-        verify(state, never()).getWritableStates(any());
-    }
-
-    @Test
-    void persistWritesHashToStateWhenStateIsEmptyAndPendingHashIsSet() throws IOException {
-        givenSubjectWithPendingHash(CONTENT_A);
+    void persistsHashEvenWhenFileMissingAndDownloadFails() throws Exception {
+        final var path = tempDir.resolve("nonexistent.key");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
         final var writableStates = givenWritableHistoryStates(null);
+        doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
 
-        subject.maybePersistPendingHash(state, configuration);
+        subject.ensureProvingKey(state, configuration, downloader);
 
         verify(state).getWritableStates(HistoryService.NAME);
         verify((CommittableWritableStates) writableStates).commit();
     }
 
-    @Test
-    void persistLogsMatchWhenStateValueEqualsPendingHash() throws IOException {
-        givenSubjectWithPendingHash(CONTENT_A);
-        final var writableStates = givenWritableHistoryStates(HASH_A);
-
-        subject.maybePersistPendingHash(state, configuration);
-
-        verify((CommittableWritableStates) writableStates, never()).commit();
-    }
+    // ===== persistence during ensureProvingKey() tests =====
 
     @Test
-    void persistOverwritesStateWhenConfigHashMatchesPendingHash() throws IOException {
-        givenSubjectWithPendingHash(CONTENT_A);
+    void overwritesStateWhenConfigHashDiffers() throws IOException {
+        final var path = tempDir.resolve("proving.key");
+        Files.write(path, CONTENT_A);
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
         final var writableStates = givenWritableHistoryStates(HASH_B);
-        // givenConfigWithHashAndPath already set wrapsProvingKeyHash to HASH_A.toHex(),
-        // which matches pendingHash, thereby triggering the overwrite branch
 
-        subject.maybePersistPendingHash(state, configuration);
+        subject.ensureProvingKey(state, configuration, downloader);
 
         verify(state).getWritableStates(HistoryService.NAME);
         verify((CommittableWritableStates) writableStates).commit();
-    }
-
-    @Test
-    void persistThrowsWhenConfigHashDoesNotMatchPendingHash() throws IOException {
-        givenSubjectWithPendingHash(CONTENT_A);
-        givenWritableHistoryStates(HASH_B);
-        // Override the config hash to something that doesn't match pendingHash (HASH_A)
-        given(tssConfig.wrapsProvingKeyHash())
-                .willReturn(Bytes.wrap("something-else").toHex());
-
-        assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
-    }
-
-    @Test
-    void persistThrowsWhenConfigHashIsBlankAndStateValueDiffers() throws IOException {
-        givenSubjectWithPendingHash(CONTENT_A);
-        givenWritableHistoryStates(HASH_B);
-
-        given(tssConfig.wrapsProvingKeyHash()).willReturn("");
-
-        assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
-    }
-
-    // ===== awaitDownloadIfPending() tests =====
-
-    @Test
-    void throwsOnDownloadTimeout() {
-        subject = new WrapsProvingKeyVerification(task -> {}, Duration.ofMillis(100));
-        final var path = tempDir.resolve("missing.key");
-        givenConfigWithHashAndPath("aa".repeat(48), path);
-        givenReadableHistoryStates(null);
-
-        // verify() creates a future that never completes (no-op executor)
-        subject.verify(state, configuration, downloader);
-
-        assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
-    }
-
-    @Test
-    void throwsOnInterruptDuringDownloadWait() {
-        subject = new WrapsProvingKeyVerification(task -> {}, Duration.ofSeconds(30));
-        final var path = tempDir.resolve("missing.key");
-        givenConfigWithHashAndPath("aa".repeat(48), path);
-        givenReadableHistoryStates(null);
-
-        // verify() creates a future that never completes (no-op executor)
-        subject.verify(state, configuration, downloader);
-
-        Thread.currentThread().interrupt();
-        assertThrows(IllegalStateException.class, () -> subject.maybePersistPendingHash(state, configuration));
-        // Clear interrupt flag so it doesn't affect other tests
-        assertTrue(Thread.interrupted());
     }
 
     // ===== helpers =====
@@ -315,6 +226,7 @@ class WrapsProvingKeyVerificationTest {
         given(tssConfig.wrapsProvingKeyHash()).willReturn(bootstrapHash);
         given(tssConfig.wrapsProvingKeyPath()).willReturn(provingKeyPath.toString());
         given(tssConfig.wrapsProvingKeyDownloadUrl()).willReturn(DOWNLOAD_URL);
+        Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
     private void givenDownloaderWritesContent(final Path path, final byte[] content) throws IOException {
@@ -324,28 +236,6 @@ class WrapsProvingKeyVerificationTest {
                 })
                 .when(downloader)
                 .download(anyString(), eq(path));
-    }
-
-    private void givenReadableHistoryStates(final Bytes existingHash) {
-        final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
-        Mockito.lenient()
-                .when(readableStates
-                        .<ProtoBytes>getSingleton(V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
-                        .get())
-                .thenReturn(protoBytes);
-    }
-
-    /**
-     * Sets pendingHash naturally by writing a file and calling verify() — no reflection needed.
-     */
-    private void givenSubjectWithPendingHash(final byte[] content) throws IOException {
-        final var path = tempDir.resolve("pending-" + System.nanoTime() + ".key");
-        Files.write(path, content);
-        final var hash = CommonUtils.noThrowSha384HashOf(Bytes.wrap(content));
-        givenConfigWithHashAndPath(hash.toHex(), path);
-        givenReadableHistoryStates(null);
-        subject.verify(state, configuration, downloader);
-        assertEquals(hash, subject.pendingHash());
     }
 
     private WritableStates givenWritableHistoryStates(final Bytes existingHash) {
