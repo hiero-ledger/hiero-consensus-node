@@ -2,7 +2,6 @@
 package com.hedera.node.app.history;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,7 +10,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.withSettings;
@@ -79,8 +77,7 @@ class WrapsProvingKeyVerificationTest {
         given(tssConfig.wrapsEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn("");
 
-        assertThrows(
-                IllegalArgumentException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
+        assertThrows(IllegalArgumentException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
     }
 
     @Test
@@ -237,28 +234,6 @@ class WrapsProvingKeyVerificationTest {
                 })
                 .when(downloader)
                 .download(anyString(), eq(path));
-    }
-
-    private void givenReadableHistoryStates(final Bytes existingHash) {
-        final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
-        Mockito.lenient()
-                .when(readableStates
-                        .<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
-                        .get())
-                .thenReturn(protoBytes);
-    }
-
-    /**
-     * Sets pendingHash naturally by writing a file and calling verify() — no reflection needed.
-     */
-    private void givenSubjectWithPendingHash(final byte[] content) throws IOException {
-        final var path = tempDir.resolve("pending-" + System.nanoTime() + ".key");
-        Files.write(path, content);
-        final var hash = noThrowSha384HashOf(Bytes.wrap(content));
-        givenConfigWithHashAndPath(hash.toHex(), path);
-        givenReadableHistoryStates(null);
-        subject.verify(state, configuration, downloader);
-        assertEquals(hash, subject.pendingHash());
     }
 
     private WritableStates givenWritableHistoryStates(final Bytes existingHash) {

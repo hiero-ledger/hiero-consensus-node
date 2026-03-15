@@ -49,7 +49,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
@@ -773,5 +772,4 @@ class SystemTransactionsTest {
     private static @NonNull NodeRewardGroups emptyNodeGroups() {
         return nodeRewardGroups(List.of(), List.of());
     }
-
 }

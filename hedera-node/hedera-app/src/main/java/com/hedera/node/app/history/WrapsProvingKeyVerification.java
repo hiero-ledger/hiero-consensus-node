@@ -12,9 +12,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -29,9 +27,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.zip.GZIPInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,14 +50,6 @@ public class WrapsProvingKeyVerification {
 
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
 
-    // Tar extraction security limits (aligned with UnzipUtility)
-    private static final int MAX_TAR_ENTRIES = 10_000;
-    private static final long MAX_TAR_TOTAL_BYTES = 10L * 1024L * 1024L * 1024L; // 10 GiB
-    private static final long MAX_TAR_ENTRY_BYTES = 2L * 1024L * 1024L * 1024L; // 2 GiB
-    private static final int MAX_TAR_DEPTH = 20;
-    private static final int MAX_TAR_NAME_LENGTH = 4096;
-    private static final int EXTRACT_BUFFER_SIZE = 8192;
-
     private final Executor downloadExecutor;
 
     @Nullable
@@ -80,8 +67,7 @@ public class WrapsProvingKeyVerification {
     }
 
     public WrapsProvingKeyVerification(
-            @NonNull final Executor downloadExecutor,
-            @Nullable final ScheduledExecutorService retryScheduler) {
+            @NonNull final Executor downloadExecutor, @Nullable final ScheduledExecutorService retryScheduler) {
         this.downloadExecutor = requireNonNull(downloadExecutor);
         this.retryScheduler = retryScheduler;
     }
@@ -252,130 +238,10 @@ public class WrapsProvingKeyVerification {
 
     private static void tryExtractTarGz(@NonNull final Path tarGzPath) {
         try {
-            extractTarGz(tarGzPath, tarGzPath.getParent());
+            TarGzExtractor.extract(tarGzPath, tarGzPath.getParent());
             log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, tarGzPath.getParent());
         } catch (final IOException e) {
             log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
-        }
-    }
-
-    static void extractTarGz(@NonNull final Path tarGzPath, @NonNull final Path destDir) throws IOException {
-        requireNonNull(tarGzPath);
-        requireNonNull(destDir);
-        final Path resolvedDestDir = destDir.toAbsolutePath().normalize();
-        final Path canonicalDestDir =
-                resolvedDestDir.toFile().getCanonicalFile().toPath();
-
-        try (var fis = new FileInputStream(tarGzPath.toFile());
-                var gis = new GZIPInputStream(fis);
-                var tis = new TarArchiveInputStream(gis)) {
-            TarArchiveEntry entry;
-            int entryCount = 0;
-            long totalExtractedBytes = 0L;
-
-            while ((entry = tis.getNextEntry()) != null) {
-                entryCount++;
-                if (entryCount > MAX_TAR_ENTRIES) {
-                    throw new IOException("Tar archive contains too many entries (>" + MAX_TAR_ENTRIES + ")");
-                }
-
-                final String entryName = entry.getName();
-                validateTarEntryName(entryName);
-
-                final int depth = Path.of(entryName).normalize().getNameCount();
-                if (depth > MAX_TAR_DEPTH) {
-                    throw new IOException("Tar entry nested too deeply (depth=" + depth + ", max=" + MAX_TAR_DEPTH
-                            + "): " + entryName);
-                }
-
-                // Reject symbolic and hard links for security
-                if (entry.isSymbolicLink() || entry.isLink()) {
-                    log.warn("Skipping symbolic/hard link in tar archive: {}", entryName);
-                    continue;
-                }
-
-                final Path filePath = resolvedDestDir.resolve(entryName).normalize();
-                if (!filePath.startsWith(resolvedDestDir)) {
-                    throw new IOException("Tar entry is outside destination directory: " + entryName);
-                }
-
-                final Path canonicalPath = filePath.toFile().getCanonicalFile().toPath();
-                if (!canonicalPath.startsWith(canonicalDestDir)) {
-                    throw new IOException("Tar entry is outside destination directory (symlink): " + entryName);
-                }
-
-                if (entry.isDirectory()) {
-                    Files.createDirectories(filePath);
-                } else {
-                    Files.createDirectories(filePath.getParent());
-                    final long remaining = MAX_TAR_TOTAL_BYTES - totalExtractedBytes;
-                    totalExtractedBytes += extractTarEntry(tis, filePath, MAX_TAR_ENTRY_BYTES, remaining);
-                }
-            }
-        }
-    }
-
-    private static long extractTarEntry(
-            @NonNull final TarArchiveInputStream tis,
-            @NonNull final Path filePath,
-            final long maxEntryBytes,
-            final long remainingTotalBytes)
-            throws IOException {
-        long written = 0L;
-        try (var bos = new BufferedOutputStream(new FileOutputStream(filePath.toFile()))) {
-            final var buffer = new byte[EXTRACT_BUFFER_SIZE];
-            int read;
-            while ((read = tis.read(buffer)) != -1) {
-                if (written + read > maxEntryBytes) {
-                    throw new IOException("Tar entry exceeds max size (" + maxEntryBytes + " bytes): " + filePath);
-                }
-                if (written + read > remainingTotalBytes) {
-                    throw new IOException(
-                            "Tar archive exceeds max total extracted size (" + MAX_TAR_TOTAL_BYTES + " bytes)");
-                }
-                bos.write(buffer, 0, read);
-                written += read;
-            }
-        } catch (final IOException e) {
-            // Best-effort cleanup of partially written output
-            try {
-                final var f = filePath.toFile();
-                if (f.exists() && !f.delete()) {
-                    log.warn("Unable to delete partially extracted file {}", filePath);
-                }
-            } catch (final Exception ignored) {
-                // ignore cleanup failures
-            }
-            throw e;
-        }
-        return written;
-    }
-
-    private static void validateTarEntryName(@NonNull final String name) throws IOException {
-        if (name == null || name.isEmpty()) {
-            throw new IOException("Tar entry has an empty name");
-        }
-        if (name.length() > MAX_TAR_NAME_LENGTH) {
-            throw new IOException("Tar entry name is too long (>" + MAX_TAR_NAME_LENGTH + " chars)");
-        }
-        // Reject null bytes and control characters
-        for (int i = 0; i < name.length(); i++) {
-            final char c = name.charAt(i);
-            if (c == 0 || Character.isISOControl(c)) {
-                throw new IOException("Tar entry name contains a control character");
-            }
-        }
-        // Reject absolute paths and Windows drive-letter paths
-        if (name.startsWith("/") || name.startsWith("\\") || name.matches("^[A-Za-z]:[\\\\/].*")) {
-            throw new IOException("Tar entry name is an absolute path");
-        }
-        // Reject backslashes to avoid platform-specific traversal quirks
-        if (name.indexOf('\\') != -1) {
-            throw new IOException("Tar entry name contains invalid path separator");
-        }
-        // Reject obvious traversal attempts
-        if (name.equals("..") || name.startsWith("../") || name.contains("/../") || name.endsWith("/..")) {
-            throw new IOException("Tar entry name contains path traversal");
         }
     }
 
