@@ -154,12 +154,22 @@ jobs:
                 mirror:
                   importer:
                     block:
+                      enabled: true
                       nodes:
                         - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                           port: 40840
-              spring
-                profiles
-                  active: blocknode
+                        - host: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                        - host: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                      sourceType: BLOCK_NODE
+                    downloader:
+                      record:
+                        enabled: false
+                    startDate: 1970-01-01T00:00:00Z
+                    stream:
+                      maxSubscribeAttempts: 10
+                      responseTimeout: 10s
           EOF
 
       - name: Print MN Override Values
