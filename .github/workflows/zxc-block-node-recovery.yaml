@@ -131,7 +131,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hashgraph/solo@v0.61.0
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -264,7 +264,7 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node3=1,node1=2,node2=3 -f bn3-values.yaml
           solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
           solo consensus network deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
-          solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
           
