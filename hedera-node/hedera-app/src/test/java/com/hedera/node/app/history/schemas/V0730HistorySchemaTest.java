@@ -6,10 +6,14 @@ import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVI
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.config.data.TssConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -21,8 +25,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class V0730HistorySchemaTest {
 
+    private static final String HASH_HEX = "aa".repeat(48);
+
     @Mock
     private MigrationContext ctx;
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private TssConfig tssConfig;
 
     @Mock
     private WritableStates writableStates;
@@ -44,15 +56,37 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void restartPutsDefaultWhenNotGenesis() {
-        given(ctx.isGenesis()).willReturn(false);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
-                .willReturn(singletonState);
+    void restartInitializesDefaultAndPersistsConfiguredHash() {
+        givenNonGenesisRestart(null, HASH_HEX);
 
         subject.restart(ctx);
 
         verify(singletonState).put(ProtoBytes.DEFAULT);
+        verify(singletonState)
+                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+    }
+
+    @Test
+    void restartSkipsWriteWhenConfiguredHashIsBlank() {
+        givenNonGenesisRestart(null, "");
+
+        subject.restart(ctx);
+
+        verify(singletonState).put(ProtoBytes.DEFAULT);
+        verify(singletonState, never())
+                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+    }
+
+    @Test
+    void restartOverwritesWhenHashDiffers() {
+        final var existingHash = "bb".repeat(48);
+        givenNonGenesisRestart(new ProtoBytes(Bytes.fromHex(existingHash)), HASH_HEX);
+
+        subject.restart(ctx);
+
+        verify(singletonState, never()).put(ProtoBytes.DEFAULT);
+        verify(singletonState)
+                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
     }
 
     @Test
@@ -62,5 +96,16 @@ class V0730HistorySchemaTest {
         subject.restart(ctx);
 
         verifyNoInteractions(writableStates, singletonState);
+    }
+
+    private void givenNonGenesisRestart(final ProtoBytes existingValue, final String configuredHash) {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(singletonState);
+        given(singletonState.get()).willReturn(existingValue);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        given(tssConfig.wrapsProvingKeyHash()).willReturn(configuredHash);
     }
 }

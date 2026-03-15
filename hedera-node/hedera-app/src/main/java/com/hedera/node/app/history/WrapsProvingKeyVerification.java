@@ -4,12 +4,10 @@ package com.hedera.node.app.history;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileInputStream;
@@ -102,33 +100,10 @@ public class WrapsProvingKeyVerification {
         final var expectedHash = Bytes.fromHex(bootstrapHash);
         log.info("WRAPS proving key hash from config: {}", expectedHash);
 
-        // Persist the hash to state immediately (before kicking off any download)
-        persistHashToState(state, expectedHash);
-
         final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
         final var retryInterval = tssConfig.wrapsProvingKeyRetryInterval();
         verifyFileAndDownloadIfNeeded(provingKeyPath, bootstrapHash, downloadUrl, downloader, retryInterval);
-    }
-
-    private void persistHashToState(@NonNull final State state, @NonNull final Bytes expectedHash) {
-        final var historyStates = state.getWritableStates(HistoryService.NAME);
-        final var historyStore = new WritableHistoryStoreImpl(historyStates);
-        final var currProvingKeyHash = historyStore.getWrapsProvingKeyHash();
-        if (currProvingKeyHash == null) {
-            historyStore.setWrapsProvingKeyHash(expectedHash);
-            ((CommittableWritableStates) historyStates).commit();
-            log.info("Persisted first WRAPS proving key hash {} to state", expectedHash);
-        } else if (currProvingKeyHash.equals(expectedHash)) {
-            log.info("WRAPS proving key hash {} matches proving key in state", expectedHash);
-        } else {
-            log.info(
-                    "Overwriting previous WRAPS proving key hash {} with new hash {}",
-                    currProvingKeyHash,
-                    expectedHash);
-            historyStore.setWrapsProvingKeyHash(expectedHash);
-            ((CommittableWritableStates) historyStates).commit();
-        }
     }
 
     private void verifyFileAndDownloadIfNeeded(

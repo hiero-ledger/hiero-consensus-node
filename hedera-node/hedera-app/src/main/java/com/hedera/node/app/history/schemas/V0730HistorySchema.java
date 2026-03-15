@@ -15,11 +15,15 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Registers the expected WRAPS proving key hash singleton state for the {@link HistoryService}.
  */
 public class V0730HistorySchema extends Schema<SemanticVersion> {
+    private static final Logger log = LogManager.getLogger(V0730HistorySchema.class);
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(73).patch(0).build();
 
@@ -40,23 +44,29 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis()) {
-            // Initialize (if needed)
-            final var currentHash = ctx.newStates()
-                    .<String>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID)
-                    .get();
-            if (currentHash == null) {
-                ctx.newStates().getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(ProtoBytes.DEFAULT);
+            final var hashState = ctx.newStates().<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
+            final var currentProtoBytes = hashState.get();
+            if (currentProtoBytes == null) {
+                hashState.put(ProtoBytes.DEFAULT);
             }
 
             // If a configured hash exists, unconditionally accept as valid and put in state
             final var configuredHash =
                     ctx.appConfig().getConfigData(TssConfig.class).wrapsProvingKeyHash();
             if (!isBlank(configuredHash)) {
-                ctx.newStates()
-                        .getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID)
-                        .put(ProtoBytes.newBuilder()
-                                .value(Bytes.fromHex(configuredHash))
-                                .build());
+                final var newHash = Bytes.fromHex(configuredHash);
+                final var existingHash = currentProtoBytes != null ? currentProtoBytes.value() : Bytes.EMPTY;
+                if (Bytes.EMPTY.equals(existingHash)) {
+                    log.info("Persisted first WRAPS proving key hash {} to state", newHash);
+                } else if (!existingHash.equals(newHash)) {
+                    log.info(
+                            "Overwriting previous WRAPS proving key hash {} with new pending hash {}",
+                            existingHash,
+                            newHash);
+                } else {
+                    log.info("WRAPS proving key hash {} matches proving key in state", newHash);
+                }
+                hashState.put(ProtoBytes.newBuilder().value(newHash).build());
             }
         }
     }
