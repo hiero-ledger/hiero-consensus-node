@@ -660,9 +660,6 @@ public final class Hedera
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
-                if (daggerApp != null) {
-                    daggerApp.blockRecordManager().writeFreezeBlockWrappedRecordFileBlockHashes();
-                }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
@@ -801,7 +798,7 @@ public final class Hedera
         logger.info("Locale to set to US en");
 
         // It is possible a network interrupt could make a node reconnect in a window where
-        // the hinTS signing scheme was ; so we clear the cached assets just-in-case
+        // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         HintsLibraryBridge.getInstance().resetCache();
     }
 

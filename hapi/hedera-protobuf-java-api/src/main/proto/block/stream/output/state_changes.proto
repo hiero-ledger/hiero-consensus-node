@@ -495,9 +495,14 @@ enum StateIdentifier {
     STATE_ID_REGISTERED_NODES = 56;
 
     /**
+     * A state identifier for the highest node identifier allocated so far.
+     */
+    STATE_ID_HIGHEST_NODE_ID = 57;
+
+    /**
      * A state identifier for the expected WRAPS proving key hash. Singleton state.
      */
-    STATE_ID_WRAPS_PROVING_KEY_HASH = 57;
+    STATE_ID_WRAPS_PROVING_KEY_HASH = 58;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -741,6 +746,11 @@ message SingletonUpdateChange {
          * Node payments SHALL be updated for every non-empty block.
          */
         com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
+
+        /**
+         * A change to the highest node id singleton.
+         */
+        com.hedera.hapi.platform.state.NodeId node_id_value = 20;
     }
 }
 

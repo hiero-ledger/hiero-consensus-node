@@ -623,9 +623,14 @@ message StateValue {
     com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for the next node Identifier. Singleton state.
+     */
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_HIGHEST_NODE_ID = 57;
+
+    /**
      * A state identifier for the expected WRAPS proving key hash. Singleton state.
      */
-    proto.ProtoBytes HistoryService_I_WRAPS_PROVING_KEY_HASH = 57;
+    proto.ProtoBytes HistoryService_I_WRAPS_PROVING_KEY_HASH = 58;
 
     /**
      * Metadata of the round receipts queue.
@@ -812,9 +817,9 @@ enum SingletonType {
   TokenService_I_NODE_PAYMENTS = 55;
 
   /**
-   * A state identifier for the expected WRAPS proving key hash. Singleton state.
+   * A state identifier for the highest node identifier allocated so far. Singleton state.
    */
-  HistoryService_I_WRAPS_PROVING_KEY_HASH = 57;
+  EntityIdService_I_HIGHEST_NODE_ID = 57;
 
   /**
    * A state identifier for the expected WRAPS proving key hash. Singleton state.
