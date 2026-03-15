@@ -153,7 +153,7 @@ jobs:
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22.22.1
 
       - name: Setup PNPM
         run: |
@@ -261,7 +261,7 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
