@@ -257,6 +257,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
+
         // Cutover case
         if (loadCutoverData(
                 configProvider
@@ -266,9 +267,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 state)) {
             log.info("Block streams cutover executed; loading block stream info from cutover");
 
-            // Step 2: Reshape hashes into the expected block stream format. Note
-            // BlockHashManager.startBlock() will append prevBlockHash to trailingBlockHashes, so
-            // include all hashes <b>except the final record hash</b> to avoid an off-by-one error
+            // Reshape hashes into the expected block stream format. Note BlockHashManager.startBlock() will append
+            // prevBlockHash to trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid
+            // an off-by-one error
             final var lastBlockInfoEver = state.getReadableStates(BlockRecordService.NAME)
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
@@ -282,7 +283,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
             effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();
 
-            // Step 5: Update in-memory vars
+            // Update in-memory vars
             this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
             this.previousBlockHashes = new IncrementalStreamingHasher(
                     sha384DigestOrThrow(),
