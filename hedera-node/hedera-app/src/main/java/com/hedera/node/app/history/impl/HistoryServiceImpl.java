@@ -5,7 +5,7 @@ import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -19,7 +19,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
-import com.hedera.node.app.history.schemas.V073HistorySchema;
+import com.hedera.node.app.history.schemas.V0730HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -152,7 +152,7 @@ public class HistoryServiceImpl implements HistoryService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V071HistorySchema(this));
-        registry.register(new V073HistorySchema());
+        registry.register(new V0730HistorySchema());
     }
 
     @Override

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,8 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.history.schemas.V073HistorySchema;
+import com.hedera.node.app.history.schemas.V0730HistorySchema;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -41,8 +42,8 @@ class WrapsProvingKeyVerificationTest {
 
     private static final byte[] CONTENT_A = "test-content-a-for-proving-key".getBytes();
     private static final byte[] CONTENT_B = "test-content-b-different-key!!".getBytes();
-    private static final Bytes HASH_A = CommonUtils.noThrowSha384HashOf(Bytes.wrap(CONTENT_A));
-    private static final Bytes HASH_B = CommonUtils.noThrowSha384HashOf(Bytes.wrap(CONTENT_B));
+    private static final Bytes HASH_A = noThrowSha384HashOf(Bytes.wrap(CONTENT_A));
+    private static final Bytes HASH_B = noThrowSha384HashOf(Bytes.wrap(CONTENT_B));
     private static final String DOWNLOAD_URL = "https://s3.example.com/bucket/proving-key.tar.gz";
 
     @Mock
@@ -238,6 +239,28 @@ class WrapsProvingKeyVerificationTest {
                 .download(anyString(), eq(path));
     }
 
+    private void givenReadableHistoryStates(final Bytes existingHash) {
+        final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
+        Mockito.lenient()
+                .when(readableStates
+                        .<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
+                        .get())
+                .thenReturn(protoBytes);
+    }
+
+    /**
+     * Sets pendingHash naturally by writing a file and calling verify() — no reflection needed.
+     */
+    private void givenSubjectWithPendingHash(final byte[] content) throws IOException {
+        final var path = tempDir.resolve("pending-" + System.nanoTime() + ".key");
+        Files.write(path, content);
+        final var hash = noThrowSha384HashOf(Bytes.wrap(content));
+        givenConfigWithHashAndPath(hash.toHex(), path);
+        givenReadableHistoryStates(null);
+        subject.verify(state, configuration, downloader);
+        assertEquals(hash, subject.pendingHash());
+    }
+
     private WritableStates givenWritableHistoryStates(final Bytes existingHash) {
         final var writableStates = Mockito.mock(
                 WritableStates.class,
@@ -246,7 +269,7 @@ class WrapsProvingKeyVerificationTest {
         final var protoBytes = existingHash != null ? new ProtoBytes(existingHash) : new ProtoBytes(Bytes.EMPTY);
         Mockito.lenient()
                 .when(writableStates
-                        .<ProtoBytes>getSingleton(V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
+                        .<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID)
                         .get())
                 .thenReturn(protoBytes);
         return writableStates;

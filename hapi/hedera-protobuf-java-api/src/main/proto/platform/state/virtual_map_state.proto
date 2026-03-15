@@ -816,6 +816,11 @@ enum SingletonType {
    */
   HistoryService_I_WRAPS_PROVING_KEY_HASH = 57;
 
+  /**
+   * A state identifier for the expected WRAPS proving key hash. Singleton state.
+   */
+  HistoryService_I_WRAPS_PROVING_KEY_HASH = 58;
+
   // Queue metadata
 
   /**

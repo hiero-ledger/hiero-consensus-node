@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -385,7 +385,7 @@ public class WrapsProvingKeyVerification {
         requireNonNull(path);
 
         try {
-            final MessageDigest digest = CommonUtils.sha384DigestOrThrow();
+            final MessageDigest digest = sha384DigestOrThrow();
             // We expect these files to be large, so allocate a large buffer
             final byte[] buffer = new byte[READ_BUFFER_SIZE];
             try (final FileInputStream fileInputStream = new FileInputStream(path.toFile())) {

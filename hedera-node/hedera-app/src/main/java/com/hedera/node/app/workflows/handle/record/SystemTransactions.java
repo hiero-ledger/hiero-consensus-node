@@ -178,7 +178,6 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
-
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private int nextDispatchNonce = 1;
 

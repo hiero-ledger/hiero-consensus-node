@@ -9,7 +9,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_C
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V073HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
