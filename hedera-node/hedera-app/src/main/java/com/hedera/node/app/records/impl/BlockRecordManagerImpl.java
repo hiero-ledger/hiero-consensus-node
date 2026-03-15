@@ -518,7 +518,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
 
-        final var blockInfoInState = blockInfoState.get();
+        final var blockInfoInState = requireNonNull(blockInfoState.get());
         if (blockInfoInState.cutoverExecuted()) {
             // If cutover has already executed, preserve the cutover-related fields from state rather than overwriting
             // with in-memory values. This is necessary to preserve the integrity of the cutover process when stream

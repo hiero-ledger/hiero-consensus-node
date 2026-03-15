@@ -293,18 +293,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             this.previousBlockHashes.addNodeByHash(
                     lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
             previousBlockHashesUpdated = true;
-            log.fatal("matt:init:cutover effectiveLastBlockHash={}", effectiveLastBlockHash.toHex());
-            log.fatal("matt:init:cutover cutoverTrailingBlockHash={}", cutoverTrailingBlockHash.toHex());
-            log.fatal(
-                    "matt:init:cutover wrappedIntermediateCount={} leafCount={}",
-                    wrappedPrevRecordBlockRootHashes.size(),
-                    lastBlockInfoEver.wrappedIntermediateBlockRootsLeafCount());
-            log.fatal(
-                    "matt:init:cutover previousWrappedRecordBlockRootHash={}",
-                    lastBlockInfoEver.previousWrappedRecordBlockRootHash().toHex());
-            log.fatal(
-                    "matt:init:cutover prevBlockHashesTreeRoot={}",
-                    Bytes.wrap(this.previousBlockHashes.computeRootHash()).toHex());
         } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
             // Genesis case
             effectiveLastBlockHash = lastBlockHash;
@@ -377,7 +365,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockRootHash();
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        log.fatal("matt:init lastBlockHash set to {}", effectiveLastBlockHash.toHex());
         if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
@@ -411,12 +398,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
             final var wasCutover = cutoverTrailingBlockHash != null;
             cutoverTrailingBlockHash = null;
-            log.fatal(
-                    "matt:startRound blockNum={} lastBlockHash={} trailingHash={} wasCutover={}",
-                    blockStreamInfo.blockNumber() + 1,
-                    lastBlockHash != null ? lastBlockHash.toHex() : "null",
-                    trailingHash != null ? trailingHash.toHex() : "null",
-                    wasCutover);
             blockHashManager.startBlock(blockStreamInfo, trailingHash);
             runningHashManager.startBlock(blockStreamInfo);
 
@@ -618,15 +599,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
-            log.fatal("matt:endRound block#{} lastBlockHash={}", blockNumber, lastBlockHash.toHex());
-            log.fatal("matt:endRound block#{} prevBlockRootsHash={}", blockNumber, prevBlockRootsHash.toHex());
-            log.fatal("matt:endRound block#{} blockStartStateHash={}", blockNumber, blockStartStateHash.toHex());
-            log.fatal("matt:endRound block#{} consensusHeaderHash={}", blockNumber, consensusHeaderHash.toHex());
-            log.fatal("matt:endRound block#{} inputsHash={}", blockNumber, inputsHash.toHex());
-            log.fatal("matt:endRound block#{} outputsHash={}", blockNumber, outputsHash.toHex());
-            log.fatal("matt:endRound block#{} stateChangesHash={}", blockNumber, stateChangesHash.toHex());
-            log.fatal("matt:endRound block#{} traceDataHash={}", blockNumber, traceDataHash.toHex());
-            log.fatal("matt:endRound block#{} blockTime={}", blockNumber, newBlockStreamInfo.blockTime());
+
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
                     prevBlockRootsHash,
@@ -638,7 +611,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
-            log.fatal("matt:endRound block#{} finalBlockRootHash={}", blockNumber, finalBlockRootHash.toHex());
 
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
@@ -670,12 +642,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = finalBlockRootHash;
-            log.fatal("matt:endRound block#{} lastBlockHash updated to {}", blockNumber, lastBlockHash.toHex());
             previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
-            log.fatal(
-                    "matt:endRound block#{} prevBlockHashesTreeRoot after add={}",
-                    blockNumber,
-                    Bytes.wrap(previousBlockHashes.computeRootHash()).toHex());
             writer = null;
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
@@ -860,16 +827,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
         final long blockNumber = signedBlock.number();
-        log.fatal(
-                "matt:finishProof block#{} signedBlockHash={} vk={}",
-                blockNumber,
-                blockHash.toHex(),
-                verificationKey != null
-                        ? verificationKey
-                                .toHex()
-                                .substring(
-                                        0, Math.min(40, verificationKey.toHex().length()))
-                        : "null");
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {

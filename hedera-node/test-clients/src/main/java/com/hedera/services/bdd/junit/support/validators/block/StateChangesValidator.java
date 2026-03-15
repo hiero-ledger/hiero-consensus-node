@@ -104,6 +104,7 @@ import org.junit.jupiter.api.Assertions;
  * A validator that asserts the state changes in the block stream, when applied directly to a {@link VirtualMapState}
  * initialized with the genesis {@link Service} schemas, result in the given root hash.
  */
+@SuppressWarnings("removal")
 public class StateChangesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
@@ -488,11 +489,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             this.state = stateLifecycleManager.copyMutableState();
             startOfStateHash = requireNonNull(previewState.getRoot().getHash()).getBytes();
             logger.info("State hash after preview blocks: {}", startOfStateHash.toHex());
-            logger.fatal("matt:validator cutover boundary previousBlockHash={}", previousBlockHash.toHex());
-            logger.fatal(
-                    "matt:validator cutover boundary prevBlockHashesTreeRoot={}",
-                    Bytes.wrap(incrementalBlockHashes.computeRootHash()).toHex());
-            logger.fatal("matt:validator cutover boundary startOfStateHash={}", startOfStateHash.toHex());
         }
 
         final int n = blocks.size();
@@ -510,7 +506,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var block = blocks.get(i);
             final var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
-                    || true
                     || indirectProofSeq != null
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
@@ -625,26 +620,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
                     final var thisBlockNum =
                             block.items().getFirst().blockHeaderOrThrow().number();
-                    final var prevBlockRootsHash = Bytes.wrap(incrementalBlockHashes.computeRootHash());
-                    final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-                    final var inputTreeHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-                    final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-                    final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
-                    logger.fatal(
-                            "matt:validator block#{} previousBlockHash={}", thisBlockNum, previousBlockHash.toHex());
-                    logger.fatal(
-                            "matt:validator block#{} prevBlockRootsHash={}", thisBlockNum, prevBlockRootsHash.toHex());
-                    logger.fatal("matt:validator block#{} startOfStateHash={}", thisBlockNum, startOfStateHash.toHex());
-                    logger.fatal(
-                            "matt:validator block#{} consensusHeaderHash={}",
-                            thisBlockNum,
-                            consensusHeaderHash.toHex());
-                    logger.fatal("matt:validator block#{} inputTreeHash={}", thisBlockNum, inputTreeHash.toHex());
-                    logger.fatal("matt:validator block#{} outputTreeHash={}", thisBlockNum, outputTreeHash.toHex());
-                    logger.fatal(
-                            "matt:validator block#{} stateChangesHash={}", thisBlockNum, finalStateChangesHash.toHex());
-                    logger.fatal("matt:validator block#{} traceDataHash={}", thisBlockNum, traceDataHash.toHex());
-                    logger.fatal("matt:validator block#{} blockTime={}", thisBlockNum, firstConsensusTimestamp);
                     final var expectedRootAndSiblings = computeBlockHash(
                             firstConsensusTimestamp,
                             previousBlockHash,
@@ -656,8 +631,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                             finalStateChangesHash,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
-                    logger.fatal(
-                            "matt:validator block#{} expectedBlockHash={}", thisBlockNum, expectedBlockHash.toHex());
                     blockNumbers.put(expectedBlockHash, thisBlockNum);
                     validateBlockProof(
                             thisBlockNum,
@@ -670,10 +643,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                             firstConsensusTimestamp,
                             expectedRootAndSiblings.siblingHashes());
                     previousBlockHash = expectedBlockHash;
-                    logger.fatal(
-                            "matt:validator block#{} previousBlockHash updated to {}",
-                            thisBlockNum,
-                            previousBlockHash.toHex());
                 } else {
                     final var nextBlock = blocks.get(i + 1);
                     final var nextBlockFooterIndex = nextBlock.items().size() - 2;
@@ -944,12 +913,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final boolean valid =
                         hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
-                    logger.fatal(
-                            "matt:validator INVALID SIG block#{} expectedBlockHash={} vk={} sig={}",
-                            blockNumber,
-                            expectedBlockHash.toHex(),
-                            vk.toHex().substring(0, Math.min(40, vk.toHex().length())),
-                            sig.toHex().substring(0, Math.min(40, sig.toHex().length())));
                     Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
                 } else {
                     logger.info("Verified signature on #{}", proof.block());
