@@ -65,7 +65,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchDelegationTest() {
+    final Stream<DynamicTest> atomicBatchRevertsAllDelegationTransactionsOnInnerTxFailureTest() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var batchTxn = "BatchDelegationRollback";
@@ -139,7 +139,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchType4PartialCommitAcrossAccountsTest() {
+    final Stream<DynamicTest> atomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccountsTest() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegatingAccount1 = DELEGATING_ACCOUNT + "Batch1";
         final var delegatingAccount2 = DELEGATING_ACCOUNT + "Batch2";
