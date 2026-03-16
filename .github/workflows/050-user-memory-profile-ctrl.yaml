@@ -194,13 +194,13 @@ jobs:
 
       - name: Version update
         run: |
-          cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          /usr/bin/echo -e "${{ inputs.versions }}" > .env
+          /usr/bin/echo -e "${{ inputs.versions }}" > hiero-block-node/tools-and-tests/scripts/solo-e2e-test/.env
 
       - name: Deploy K8S pod
         run: |
           ls -l
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
+          cat .env
           task up
 
       - name: Start Memory capturing
