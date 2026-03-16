@@ -94,6 +94,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -181,6 +182,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -191,6 +193,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -941,10 +944,10 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents raw bytes of the jumpstart file
-     * @param wrappedHashes     per-block entries from the wrapped record hashes file
-     * @param nodeComputedHash  the hash the node logged during migration
-     * @param freezeBlockNum    the last block the migration processed
+     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param wrappedHashes              per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash           the hash the node logged during migration
+     * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final byte[] jumpstartContents,
@@ -952,6 +955,19 @@ public class UtilVerbs {
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
         return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+    }
+
+    /**
+     * Verifies the node's persisted live wrapped record block root hash by replaying
+     * {@code .rcd} files from genesis through the given block and comparing the final
+     * chained hash against the node's persisted value.
+     *
+     * @param nodeComputedHash the hash the node persisted (from log scraping)
+     * @param liveBlockNum     the block number at which the live hash was persisted
+     */
+    public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
+            @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
+        return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -2516,16 +2532,24 @@ public class UtilVerbs {
     }
 
     public static CustomSpecAssert validateNodePaymentAmountForQuery(
-            @NonNull final String txn, final long expectedTinybars) {
+            @NonNull final String txn, final long expectedTinycents) {
         requireNonNull(txn);
         return assertionsHold((spec, assertLog) -> {
             final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            final var rate = getExchangeRateForQuery(spec, txn);
+            final var expectedTinybars = expectedTinycents * rate.getHbarEquiv() / rate.getCentEquiv();
             assertEquals(
                     expectedTinybars,
                     actualNodePayment,
                     String.format(
-                            "Node payment for query '%s' was %d tinybars, expected %d tinybars",
-                            txn, actualNodePayment, expectedTinybars));
+                            "Node payment for query '%s' was %d tinybars, expected %d tinybars"
+                                    + " (from %d tinycents at rate %d/%d)",
+                            txn,
+                            actualNodePayment,
+                            expectedTinybars,
+                            expectedTinycents,
+                            rate.getHbarEquiv(),
+                            rate.getCentEquiv()));
         });
     }
 
@@ -3343,6 +3367,14 @@ public class UtilVerbs {
                 .sum();
     }
 
+    private static ExchangeRate getExchangeRateForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn);
+        allRunFor(spec, subOp);
+        return subOp.getResponseRecord().getReceipt().getExchangeRate().getCurrentRate();
+    }
+
     private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -3668,5 +3700,22 @@ public class UtilVerbs {
                 return null;
             }
         }
+    }
+
+    public static Function<HapiSpec, BlockStreamAssertion> matchStateChange(@NonNull StateChange stateChange) {
+        return spec -> block -> {
+            final var items = block.items();
+            for (final com.hedera.hapi.block.stream.BlockItem item : items) {
+                if (item.hasStateChanges()) {
+                    final var stateChanges = item.stateChanges().stateChanges();
+                    for (final StateChange change : stateChanges) {
+                        if (change.equals(stateChange)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        };
     }
 }

@@ -331,4 +331,25 @@ public class StandaloneFeeCalculatorTest {
         // 1 sig included, so only one charged
         assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE + SIG_EXTRA);
     }
+
+    @Test
+    public void testUnsignedTransaction() throws ParseException {
+
+        final StandaloneFeeCalculator calc = setupCalculator();
+        // 0.01000
+        final long topicEntityNum = 1L;
+        final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final Transaction txn = Transaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final FeeResult result = calc.calculateIntrinsic(txn);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
+        assertThat(result.totalTinycents()).isEqualTo(7_000_000 + 1_000_000L); // add in the node + network fee
+    }
 }

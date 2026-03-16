@@ -435,6 +435,7 @@ public class TransactionExecutorsTest {
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
+        entityIdStore.incrementHighestNodeIdAndGet();
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {

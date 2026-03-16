@@ -167,6 +167,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final boolean isActive,
             @NonNull final NetworkInfo networkInfo) {
         requireNonNull(hintsStore);
+        requireNonNull(tssConfig);
         requireNonNull(now);
         final var controller = component.controllers().getAnyInProgress();
         // On the very first round the hinTS controller won't be available yet
