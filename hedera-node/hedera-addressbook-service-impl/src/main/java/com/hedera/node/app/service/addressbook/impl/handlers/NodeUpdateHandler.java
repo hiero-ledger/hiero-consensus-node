@@ -91,7 +91,7 @@ public class NodeUpdateHandler implements TransactionHandler {
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
-        validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
+        validateFalsePreCheck(requireNonNull(existingNode).deleted(), INVALID_NODE_ID);
 
         if (op.hasAccountId()) {
             validateTruePreCheck(config.updateAccountIdAllowed(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
@@ -128,7 +128,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasAccountId()) {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
-            if (!accountId.equals(existingNode.accountId())) {
+            if (!accountId.equals(requireNonNull(existingNode).accountId())) {
                 final var account = addressBookValidator.validateAccount(
                         accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
 
@@ -160,7 +160,7 @@ public class NodeUpdateHandler implements TransactionHandler {
             }
         }
 
-        final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);
+        final var nodeBuilder = updateNode(op, requireNonNull(existingNode), proxyIsSentinelValue);
         final var updatedNode = nodeBuilder.build();
         nodeStore.put(updatedNode);
         log.info(
