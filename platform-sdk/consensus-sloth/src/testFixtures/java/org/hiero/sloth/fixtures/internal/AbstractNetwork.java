@@ -116,14 +116,6 @@ public abstract class AbstractNetwork implements Network {
     protected abstract TimeManager timeManager();
 
     /**
-     * The {@link TransactionGenerator} for this network.
-     *
-     * @return the {@link TransactionGenerator} instance
-     */
-    @NonNull
-    protected abstract TransactionGenerator transactionGenerator();
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -228,8 +220,6 @@ public abstract class AbstractNetwork implements Network {
             ((AbstractNode) node).roster(roster);
             node.start();
         }
-
-        transactionGenerator().start();
 
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
@@ -450,8 +440,6 @@ public abstract class AbstractNetwork implements Network {
         }
 
         lifecycle = Lifecycle.SHUTDOWN;
-
-        transactionGenerator().stop();
 
         log.info("Nodes have been killed.");
     }

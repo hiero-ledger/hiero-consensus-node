@@ -38,7 +38,6 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Network network = Network.newNetwork();
     private final RegularTimeManager timeManager;
     private final Path rootOutputDirectory;
-    private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
     private final Executor executor = Executors.newCachedThreadPool();
 
@@ -49,7 +48,6 @@ public class ContainerNetwork extends AbstractNetwork {
      * Constructor for {@link ContainerNetwork}.
      *
      * @param timeManager          the time manager to use
-     * @param transactionGenerator the transaction generator to use
      * @param rootOutputDirectory  the root output directory for the network
      * @param useRandomNodeIds     {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      * @param gcLoggingEnabled     {@code true} if GC logging should be enabled for all node processes; {@code false} otherwise
@@ -57,17 +55,14 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
-            @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory,
             final boolean useRandomNodeIds,
             final boolean gcLoggingEnabled,
             @NonNull final List<String> jvmArgs) {
         super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
-        this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile().withDockerfile(Path.of("build", "data", "Dockerfile"));
-        transactionGenerator.setNodesSupplier(this::nodes);
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs));
     }
@@ -79,15 +74,6 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected TimeManager timeManager() {
         return timeManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected TransactionGenerator transactionGenerator() {
-        return transactionGenerator;
     }
 
     /**
@@ -136,7 +122,6 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     void destroy() {
         log.info("Destroying network...");
-        transactionGenerator.stop();
         nodes().forEach(node -> ((ContainerNode) node).destroy());
         network.close();
     }
