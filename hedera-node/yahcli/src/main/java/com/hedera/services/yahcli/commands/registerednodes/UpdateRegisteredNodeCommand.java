@@ -12,7 +12,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.UpdateRegisteredNodeSuite;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,7 +83,7 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
         final var yahcli = registeredNodesCommand.getYahcli();
         final var config = ConfigUtils.configFrom(yahcli);
         final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
-        final var targetNodeId = validatedNodeId(normalizedNodeId);
+        final var targetNodeId = registeredNodesCommand.validatedNodeId(normalizedNodeId);
 
         if (adminKeyPath == null) {
             config.output().warn("No --adminKey option, payer signature alone must meet signing requirements");
@@ -111,12 +110,6 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
 
     @Nullable
     private List<RegisteredServiceEndpoint> buildEndpoints() {
-        if (blockNodeEndpoints == null
-                && mirrorNodeEndpoints == null
-                && rpcRelayEndpoints == null
-                && generalServiceEndpoints == null) {
-            return null;
-        }
         final List<RegisteredServiceEndpoint> endpoints = new ArrayList<>();
         if (blockNodeEndpoints != null) {
             for (final var s : blockNodeEndpoints) {
@@ -138,20 +131,6 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
                 endpoints.add(asGeneralServiceEndpoint(s));
             }
         }
-        return endpoints;
-    }
-
-    private long validatedNodeId(@NonNull final String nodeId) {
-        try {
-            final long id = Long.parseLong(nodeId);
-            if (id < 0) {
-                throw new IllegalArgumentException("Negative node id");
-            }
-            return id;
-        } catch (Exception e) {
-            throw new CommandLine.ParameterException(
-                    registeredNodesCommand.getYahcli().getSpec().commandLine(),
-                    "Invalid registered node id '" + nodeId + "'");
-        }
+        return endpoints.isEmpty() ? null : endpoints;
     }
 }

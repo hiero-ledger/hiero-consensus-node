@@ -2,6 +2,7 @@
 package com.hedera.services.yahcli.commands.registerednodes;
 
 import com.hedera.services.yahcli.Yahcli;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.ParentCommand;
@@ -26,5 +27,18 @@ public class RegisteredNodesCommand implements Callable<Integer> {
 
     public Yahcli getYahcli() {
         return yahcli;
+    }
+
+    long validatedNodeId(@NonNull final String nodeId) {
+        try {
+            final long id = Long.parseLong(nodeId);
+            if (id < 0) {
+                throw new IllegalArgumentException("Negative node id");
+            }
+            return id;
+        } catch (Exception e) {
+            throw new CommandLine.ParameterException(
+                    yahcli.getSpec().commandLine(), "Invalid registered node id '" + nodeId + "'");
+        }
     }
 }
