@@ -27,7 +27,7 @@ public class BroadcastExperiment {
     @Benchmark
     void broadcast(@NonNull final TestEnvironment env) {
         log.info("=== Broadcast Experiment: enabled ===");
-        runBenchmark(env, "broadcast", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "broadcast",  network -> {
             network.withConfigValue("broadcast.enableBroadcast", true);
         });
     }

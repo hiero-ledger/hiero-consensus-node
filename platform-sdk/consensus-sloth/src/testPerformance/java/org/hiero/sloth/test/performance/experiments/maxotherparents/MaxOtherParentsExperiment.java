@@ -34,7 +34,7 @@ public class MaxOtherParentsExperiment {
     @Order(1)
     void maxOtherParentsHalf(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=half ===");
-        runBenchmark(env, "maxOtherParentsHalf", DEFAULTS, network -> {
+        runBenchmark(env, "maxOtherParentsHalf", network -> {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes() / 2);
         });
     }
@@ -43,7 +43,7 @@ public class MaxOtherParentsExperiment {
     @Order(2)
     void maxOtherParentsTwoThirdsPlusOne(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=2/3+1 ===");
-        runBenchmark(env, "maxOtherParentsTwoThirdsPlusOne", DEFAULTS, network -> {
+        runBenchmark(env, "maxOtherParentsTwoThirdsPlusOne", network -> {
             network.withConfigValue("event.creation.maxOtherParents", 2 * DEFAULTS.numberOfNodes() / 3 + 1);
         });
     }
@@ -55,7 +55,7 @@ public class MaxOtherParentsExperiment {
     @Order(3)
     void maxOtherParentsAll(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=All ===");
-        runBenchmark(env, "maxOtherParentsAll", DEFAULTS, network -> {
+        runBenchmark(env, "maxOtherParentsAll", network -> {
             network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes());
         });
     }

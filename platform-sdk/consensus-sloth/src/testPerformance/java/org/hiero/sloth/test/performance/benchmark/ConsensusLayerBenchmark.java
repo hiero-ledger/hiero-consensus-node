@@ -4,6 +4,10 @@ package org.hiero.sloth.test.performance.benchmark;
 import static org.hiero.sloth.test.performance.benchmark.fixtures.BenchmarkServiceLogParser.parseFromLogs;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -42,19 +46,23 @@ public class ConsensusLayerBenchmark {
      * @param benchmarkTime     duration of the benchmark generation phase (seconds)
      * @param collectionTime    time to wait after stopping generation for results to propagate (seconds)
      */
+    @ConfigData("sloth")
     public record BenchmarkParameters(
-            int numberOfNodes,
-            int tps,
-            long stabilizationTime,
-            long warmupTime,
-            long benchmarkTime,
-            long collectionTime) {
+            @ConfigProperty(defaultValue = "4") int numberOfNodes,
+            @ConfigProperty(defaultValue = "20") int tps,
+            @ConfigProperty(defaultValue = "3s") @NonNull Duration stabilizationTime,
+            @ConfigProperty(defaultValue = "5s") @NonNull Duration warmupTime,
+            @ConfigProperty(defaultValue = "50s") @NonNull Duration benchmarkTime,
+            @ConfigProperty(defaultValue = "10s") @NonNull Duration collectionTime) {
 
         /**
          * Creates default benchmark parameters.
          */
         public static BenchmarkParameters defaults() {
-            return new BenchmarkParameters(4, 20, 3L, 5L, 50L, 10L);
+            return ConfigurationBuilder.create()
+                    .withConfigDataType(BenchmarkParameters.class)
+                    .build()
+                    .getConfigData(BenchmarkParameters.class);
         }
     }
 
@@ -67,7 +75,7 @@ public class ConsensusLayerBenchmark {
     @Order(1)
     void benchmarkBaseline(@NonNull final TestEnvironment env) {
         log.info("=== BASELINE BENCHMARK (defaults) ===");
-        runBenchmark(env, "benchmarkBaseline", BenchmarkParameters.defaults(), _ -> {
+        runBenchmark(env, "benchmarkBaseline", _ -> {
             // No config changes - use defaults
         });
     }
@@ -81,13 +89,11 @@ public class ConsensusLayerBenchmark {
      *
      * @param env the test environment
      * @param configName name of the configuration being tested
-     * @param params benchmark execution parameters
      * @param networkConfigurator function to configure the network before adding nodes
      */
     public static void runBenchmark(
             @NonNull final TestEnvironment env,
             @NonNull final String configName,
-            @NonNull final BenchmarkParameters params,
             @NonNull final NetworkConfigurator networkConfigurator) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -95,6 +101,12 @@ public class ConsensusLayerBenchmark {
         // Enable the BenchmarkService
         network.withConfigValue(
                 "slothApp.services", "org.hiero.sloth.fixtures.app.services.benchmark.BenchmarkService");
+
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withConfigDataType(BenchmarkParameters.class)
+                //.withSource()
+                .build();
+        final BenchmarkParameters params = configuration.getConfigData(BenchmarkParameters.class);
 
         network.addNodes(params.numberOfNodes());
 
@@ -105,7 +117,7 @@ public class ConsensusLayerBenchmark {
         network.start();
 
         // Wait for network to stabilize
-        timeManager.waitFor(Duration.ofSeconds(params.stabilizationTime()));
+        timeManager.waitFor(params.stabilizationTime());
         log.info("[{}] Network stabilized", configName);
 
         // Per-node TPS: spread the total network TPS evenly across all nodes.
@@ -119,7 +131,7 @@ public class ConsensusLayerBenchmark {
                 perNodeTps,
                 params.warmupTime());
         nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.EMPTY));
-        timeManager.waitFor(Duration.ofSeconds(params.warmupTime()));
+        timeManager.waitFor(params.warmupTime());
         nodes.forEach(Node::stopTransactionGeneration);
         log.info("[{}] Warm-up phase complete", configName);
 
@@ -130,12 +142,12 @@ public class ConsensusLayerBenchmark {
                 perNodeTps,
                 params.benchmarkTime());
         nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
-        timeManager.waitFor(Duration.ofSeconds(params.benchmarkTime()));
+        timeManager.waitFor(params.benchmarkTime());
         final long totalGenerated = nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
         // Wait for all transactions to reach consensus and be logged.
-        timeManager.waitFor(Duration.ofSeconds(params.collectionTime()));
+        timeManager.waitFor(params.collectionTime());
         log.info("[{}] Collecting results...", configName);
 
         // Collect measurements from all nodes' logs and print the benchmark report.

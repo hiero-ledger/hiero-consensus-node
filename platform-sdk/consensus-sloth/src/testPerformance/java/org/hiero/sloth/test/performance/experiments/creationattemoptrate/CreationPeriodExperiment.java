@@ -29,7 +29,7 @@ public class CreationPeriodExperiment {
     @Order(1)
     void creationPeriod(@NonNull final TestEnvironment env) {
         log.info("=== CreationPeriod Experiment: period=1ms ===");
-        runBenchmark(env, "creationPeriod", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "creationPeriod", network -> {
             network.withConfigValue("event.creation.period", "1ms");
         });
     }
@@ -41,7 +41,7 @@ public class CreationPeriodExperiment {
     @Order(2)
     void creationPeriod500us(@NonNull final TestEnvironment env) {
         log.info("=== CreationPeriod Experiment: frequency=500us ===");
-        runBenchmark(env, "creationPeriod500us", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "creationPeriod500us",  network -> {
             network.withConfigValue("event.creation.period", "500us");
         });
     }
