@@ -46,6 +46,11 @@ on:
         default: "100"
         type: string
         description: 'Transactions Per Second'
+      version:
+        required: true
+        default: "CN_VERSION=v0.72.0-rc.3\nMN_VERSION=v0.150.0-rc3\nBN_VERSION=v0.29.0-rc3\nRELAY_VERSION=latest\nTSS_ENABLED=true\nSOLO_VERSION=latest\nTCK_VERSION=latest"
+        type: string
+        description: 'Versions of containers'
 defaults:
   run:
     shell: bash
@@ -186,6 +191,11 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive gs://performance-engineering-reports/permanent/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip ${HOME}/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip
           unzip -q -d ${HOME} ${HOME}/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip
           ls ${HOME}/mat
+
+      - name: Version update
+        run: |
+          cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
+          /usr/bin/echo -e "${{ inputs.versions }}" > .env
 
       - name: Deploy K8S pod
         run: |
