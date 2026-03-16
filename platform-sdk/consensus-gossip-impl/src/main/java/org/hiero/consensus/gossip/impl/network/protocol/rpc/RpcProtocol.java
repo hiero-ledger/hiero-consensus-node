@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -32,6 +39,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -69,6 +77,7 @@ public class RpcProtocol implements Protocol, GossipController {
 
     private final FallenBehindMonitor fallenBehindMonitor;
     private final Consumer<PlatformEvent> receivedEventHandler;
+    private final DatagramSocket udpIncoming;
 
     private volatile boolean started;
 
@@ -80,17 +89,17 @@ public class RpcProtocol implements Protocol, GossipController {
     /**
      * Constructs a new sync protocol
      *
-     * @param configuration the platform configuration
-     * @param metrics  the platform metrics
-     * @param time source of time
-     * @param synchronizer the shadow graph synchronizer, responsible for actually doing the sync
-     * @param executor  executor to run read/write threads
-     * @param intakeEventCounter keeps track of how many events have been received from each peerr
-     * @param rosterSize estimated roster size
-     * @param networkMetrics network metrics to register data about communication traffic and latencies
-     * @param syncMetrics metrics tracking syncing platform
-     * @param selfId id of the current node
-     * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
+     * @param configuration        the platform configuration
+     * @param metrics              the platform metrics
+     * @param time                 source of time
+     * @param synchronizer         the shadow graph synchronizer, responsible for actually doing the sync
+     * @param executor             executor to run read/write threads
+     * @param intakeEventCounter   keeps track of how many events have been received from each peerr
+     * @param rosterSize           estimated roster size
+     * @param networkMetrics       network metrics to register data about communication traffic and latencies
+     * @param syncMetrics          metrics tracking syncing platform
+     * @param selfId               id of the current node
+     * @param fallenBehindMonitor  shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
      */
     public RpcProtocol(
@@ -130,6 +139,34 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), rosterSize);
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
+
+        try {
+            this.udpIncoming = new DatagramSocket((int) (10000 + selfId.id()));
+            logger.info(RECONNECT.getMarker(), "Opening udp socket on port {}", (10000 + selfId.id()));
+
+            new Thread() {
+                @Override
+                public void run() {
+                    final byte[] buf = new byte[10 * 1024];
+                    final DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                    while (true) {
+                        try {
+                            udpIncoming.receive(packet);
+                            final GossipEvent gossipEvent = GossipEvent.PROTOBUF.parse(
+                                    Bytes.wrap(packet.getData(), 0, packet.getLength()));
+                            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
+                            receivedEventHandler.accept(platformEvent);
+                        } catch (Exception e) {
+                            logger.error(EXCEPTION.getMarker(), "Error while receiving UDP event", e);
+                        }
+
+                    }
+                }
+            }.start();
+
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.BROADCAST_EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
@@ -17,6 +18,10 @@ import com.hedera.hapi.platform.message.GossipSyncData;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -103,6 +108,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * Configuration for sync parameters
      */
     private final SyncConfig syncConfig;
+    private final DatagramSocket updOutSocket;
+    private final InetAddress outAddress;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
@@ -223,6 +230,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
                 broadcastConfig, syncMetrics, time, (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
+
+        try {
+            this.updOutSocket = new DatagramSocket();
+            this.outAddress = InetAddress.getByName("node-" + remotePeerId.id());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -435,7 +449,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 // and they haven't for long enough, break the connection, they might be malicious
                 if (conversationFinishPending > 0
                         && time.currentTimeMillis() - conversationFinishPending
-                                > syncConfig.maxSyncTime().toMillis()) {
+                        > syncConfig.maxSyncTime().toMillis()) {
                     inputQueue.clear();
                     throw new SyncTimeoutException(
                             Duration.ofMillis(time.currentTimeMillis() - conversationFinishPending),
@@ -537,15 +551,25 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         });
     }
 
+
+    final byte[] udpData = new byte[10 * 1024];
     /**
      * {@inheritDoc}
      */
     @Override
     public void sendBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
         outputQueue.add(out -> {
-            out.writeShort(1); // single message
-            out.write(BROADCAST_EVENT);
-            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
+
+            try {
+                final int len = GossipEvent.PROTOBUF.write(gossipEvent, udpData, 0);
+                final DatagramPacket packet = new DatagramPacket(udpData, len, outAddress, (int) (10000 + remotePeerId.id()));
+                updOutSocket.send(packet);
+            } catch (final Exception exc) {
+                logger.info(EXCEPTION.getMarker(), "Failure when sending UDP broadcast, falling back to TCP", exc);
+                out.writeShort(1); // single message
+                out.write(BROADCAST_EVENT);
+                out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
+            }
         });
     }
 
