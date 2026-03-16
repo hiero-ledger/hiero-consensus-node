@@ -202,12 +202,12 @@ public class LearnerPushTask {
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
             workGroup.handleError(ex);
-        }
-
-        // In some cases, e.g. empty tree or equivalent trees, the teacher may not send any lessons
-        // with child hashes. In this case, the async out is not closed after the loop. Close it here
-        if (!receivingLeaves) {
-            out.done();
+        } finally {
+            // In some cases, e.g. empty tree or equivalent trees, the teacher may not send any lessons
+            // with child hashes. In this case, the async out is not closed after the loop. Close it here
+            if (!receivingLeaves) {
+                out.done();
+            }
         }
 
         logger.info(RECONNECT.getMarker(), "Learner thread closed the view");
