@@ -929,7 +929,7 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Creates a new instance of a {@link VirtualNodeCache}
+     * Creates a new immutable instance of a {@link VirtualNodeCache}
      * with {@code pathToDirtyHashIndex}, {@code pathToDirtyLeafIndex}, and
      * {@code keyToDirtyLeafIndex}, containing only elements not marked for deletion,
      * and only the latest mutation with version less than or equal to the current
