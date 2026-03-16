@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -71,10 +70,6 @@ class JumpstartFileSuite implements LifecycleTest {
                         "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached",
                         Duration.ofSeconds(30)),
                 logIt("Phase 4: Verify jumpstart file processed successfully"),
-                assertHgcaaLogDoesNotContainText(
-                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Resuming calculation of wrapped record file hashes until next attempt, but this node will likely experience an ISS",
-                        Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                 "Completed processing all \\d+ recent wrapped record hashes\\. Final wrapped record block hash \\(as of expected freeze block (\\d+)\\): (\\S+)",

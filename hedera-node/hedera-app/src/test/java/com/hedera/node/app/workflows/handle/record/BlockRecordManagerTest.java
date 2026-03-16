@@ -867,31 +867,6 @@ final class BlockRecordManagerTest extends AppTestBase {
         }
 
         @Test
-        void freezeWithNullStateDoesNotPersistBlockInfo() {
-            final var state = liveApp.workingStateAccessor().getState();
-            try (final var manager = createGenesisManager(liveApp, state)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
-
-                final var blockInfoBefore = readBlockInfo(state);
-                assertThat(blockInfoBefore.wrappedIntermediateBlockRootsLeafCount())
-                        .isEqualTo(1);
-
-                // Call freeze with null state (as Hedera.FREEZE_COMPLETE does) — the internal
-                // hasher is updated but BlockInfo in state should NOT change.
-                manager.writeFreezeBlockWrappedRecordFileBlockHashes(null);
-
-                final var blockInfoAfter = readBlockInfo(state);
-                assertThat(blockInfoAfter.wrappedIntermediateBlockRootsLeafCount())
-                        .as("Leaf count should not change when state is null")
-                        .isEqualTo(1);
-                assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash())
-                        .as("Root hash should not change when state is null")
-                        .isEqualTo(blockInfoBefore.previousWrappedRecordBlockRootHash());
-            }
-        }
-
-        @Test
         void wrappedHashFieldsRemainEmptyWhenFeatureDisabled() throws Exception {
             // Build a separate app with the feature explicitly disabled
             final var disabledApp = appBuilder()

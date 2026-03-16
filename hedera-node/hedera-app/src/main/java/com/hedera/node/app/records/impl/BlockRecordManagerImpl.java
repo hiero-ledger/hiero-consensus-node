@@ -228,10 +228,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private boolean migrationRootHashVotingPendingAtStartup(@NonNull final State state) {
         try {
-            final var votingState = state.getReadableStates(BlockRecordService.NAME)
+            final var singleton = state.getReadableStates(BlockRecordService.NAME)
                     .<MigrationRootHashVotingState>getSingleton(
-                            V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
-                    .get();
+                            V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+            if (singleton == null) {
+                return false;
+            }
+            final var votingState = singleton.get();
             return votingState != null && !votingState.votingComplete();
         } catch (final IllegalArgumentException e) {
             // On states without this schema yet, there is no migration voting workflow.
@@ -241,10 +244,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private boolean migrationRootHashVotingCompleteAtStartup(@NonNull final State state) {
         try {
-            final var votingState = state.getReadableStates(BlockRecordService.NAME)
+            final var singleton = state.getReadableStates(BlockRecordService.NAME)
                     .<MigrationRootHashVotingState>getSingleton(
-                            V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
-                    .get();
+                            V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+            final var votingState = singleton.get();
             return votingState != null && votingState.votingComplete();
         } catch (final IllegalArgumentException e) {
             // On states without this schema yet, there is no migration voting workflow.
@@ -315,15 +318,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
 
             if (liveWritePrevWrappedRecordHashes()) {
-                final var votingComplete = migrationRootHashVotingComplete(state);
-                final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, currentBlockNumber);
+                final var votingComplete = state != null && migrationRootHashVotingComplete(state);
+                final var queueingEnabled =
+                        state != null && migrationRootHashVotingQueueingEnabled(state, currentBlockNumber);
                 // Update the in-memory values
                 final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                         currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-                if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
+                if (wrappedRecordFileBlockHashes != null && queueingEnabled && state != null) {
                     putMigrationWrappedHashesQueueEntry(state, currentBlockNumber, wrappedRecordFileBlockHashes);
                 }
-                if (votingComplete) {
+                if (votingComplete && state != null) {
                     // Persist the updated values to BlockInfo only after voting finalizes
                     lastBlockInfo = lastBlockInfo
                             .copyBuilder()
@@ -899,9 +903,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     private @Nullable MigrationRootHashVotingState migrationRootHashVotingState(@NonNull final State state) {
-        return state.getReadableStates(BlockRecordService.NAME)
-                .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
-                .get();
+        final var singleton = state.getReadableStates(BlockRecordService.NAME)
+                .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+        return singleton == null ? null : singleton.get();
     }
 
     private boolean migrationRootHashVotingComplete(@NonNull final State state) {
