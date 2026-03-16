@@ -55,7 +55,7 @@ public class NodeCreateTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .entityNumberKeyOrThrow();
-                                if (nodeId == createdNodeId) {
+                                if (createdNodeId == -1L || nodeId == createdNodeId) {
                                     receiptBuilder.nodeId(nodeId);
                                     iter.remove();
                                     return;
