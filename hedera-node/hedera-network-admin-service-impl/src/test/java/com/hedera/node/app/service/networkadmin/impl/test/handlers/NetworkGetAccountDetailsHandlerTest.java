@@ -63,6 +63,7 @@ class NetworkGetAccountDetailsHandlerTest extends NetworkAdminHandlerTestBase {
         networkGetAccountDetailsHandler = new NetworkGetAccountDetailsHandler(cryptoOpsUsage);
         final var configuration = HederaTestConfigBuilder.createConfig();
         lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(context.ledgerId()).thenReturn(ledgerId);
     }
 
     @Test

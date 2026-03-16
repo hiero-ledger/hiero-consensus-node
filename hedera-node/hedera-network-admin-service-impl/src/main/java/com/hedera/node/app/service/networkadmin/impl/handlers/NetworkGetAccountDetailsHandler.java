@@ -47,8 +47,8 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -111,7 +111,6 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
         final var op = query.accountDetailsOrThrow();
         final var responseBuilder = GetAccountDetailsResponse.newBuilder();
         final var account = op.accountIdOrElse(AccountID.DEFAULT);
-        final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
 
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         responseBuilder.header(header);
@@ -120,7 +119,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             final var readableTokenStore = context.createStore(ReadableTokenStore.class);
             final var tokenRelationStore = context.createStore(ReadableTokenRelationStore.class);
             final var optionalInfo = infoForAccount(
-                    account, accountStore, tokensConfig, readableTokenStore, tokenRelationStore, ledgerConfig);
+                    account, accountStore, tokensConfig, readableTokenStore, tokenRelationStore, context.ledgerId());
 
             if (optionalInfo.isEmpty()) {
                 responseBuilder.header(header.copyBuilder()
@@ -146,7 +145,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             @NonNull final TokensConfig tokensConfig,
             @NonNull final ReadableTokenStore readableTokenStore,
             @NonNull final ReadableTokenRelationStore tokenRelationStore,
-            @NonNull final LedgerConfig ledgerConfig) {
+            @NonNull final Bytes ledgerId) {
         final var account = accountStore.getAliasedAccountById(accountID);
         if (account == null) {
             return Optional.empty();
@@ -166,7 +165,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             info.ownedNfts(account.numberOwnedNfts());
             info.maxAutomaticTokenAssociations(account.maxAutoAssociations());
             info.alias(account.alias());
-            info.ledgerId(ledgerConfig.id());
+            info.ledgerId(ledgerId);
             info.grantedCryptoAllowances(getCryptoGrantedAllowancesList(account));
             info.grantedNftAllowances(getNftGrantedAllowancesList(account));
             info.grantedTokenAllowances(getFungibleGrantedTokenAllowancesList(account));
