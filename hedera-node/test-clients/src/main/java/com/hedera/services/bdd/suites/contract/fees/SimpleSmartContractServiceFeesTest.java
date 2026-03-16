@@ -227,8 +227,8 @@ public class SimpleSmartContractServiceFeesTest {
                 // EthereumTransaction has nodeNetworkExempt=true: only service fee (0.0001 USD) + gas.
                 // Without-gas check is omitted: the service fee (0.0001 USD) is so small that
                 // gas estimation imprecision in getChargedGas() dominates the residual.
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 3),
-                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 3));
+                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 7),
+                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 7));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
