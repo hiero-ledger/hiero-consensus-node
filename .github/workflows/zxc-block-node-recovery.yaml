@@ -83,7 +83,7 @@ jobs:
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
           LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
-          LATEST_BN_PROTO_URL=$(echo "curl_response" | jq -r '.assets[0].browser_download_url=')
+          LATEST_BN_PROTO_URL=$(echo "curl_response" | jq -r '.assets[0].browser_download_url')
 
           if [[ -z "${LATEST_BN_TAG}" ]]; then
             echo "ERROR: Could not parse BN tag_name from response"
