@@ -31,9 +31,6 @@
 /hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 
-# Hedera Node Docker Definitions
-/hedera-node/docker/                            @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/github-maintainers
-
 # Hedera Node Modules
 /hedera-node/hapi*/                             @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/hedera-admin*/                     @hiero-ledger/hiero-consensus-node-execution-codeowners
