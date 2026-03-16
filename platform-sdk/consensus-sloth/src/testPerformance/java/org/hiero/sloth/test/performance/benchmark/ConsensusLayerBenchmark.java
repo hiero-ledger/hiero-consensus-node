@@ -26,6 +26,8 @@ import org.hiero.sloth.test.performance.benchmark.fixtures.MeasurementsCollector
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
+import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
+
 
 /**
  * Performance benchmark test that measures consensus layer latency.
@@ -104,7 +106,7 @@ public class ConsensusLayerBenchmark {
 
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(BenchmarkParameters.class)
-                //.withSource()
+                .withSource(SystemPropertiesConfigSource.getInstance())
                 .build();
         final BenchmarkParameters params = configuration.getConfigData(BenchmarkParameters.class);
 

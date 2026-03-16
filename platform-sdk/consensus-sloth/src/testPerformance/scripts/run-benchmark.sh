@@ -80,6 +80,9 @@ echo "Experiment(s): ${EXPERIMENTS_TO_RUN[*]}"
 echo "Number of runs per experiment: $NUM_RUNS"
 echo "Results directory: $RESULTS_BASE_DIR"
 echo "Clean between runs: $CLEAN_BETWEEN_RUNS"
+if [[ -n "${SLOTH_JVM_PROPS:-}" ]]; then
+    echo "Benchmark params: ${SLOTH_JVM_PROPS}"
+fi
 echo ""
 
 echo -e "${BLUE}=== Assembling project (one-time) ===${NC}"
@@ -129,8 +132,12 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         echo "=== Running ALL test methods for ${EXPERIMENT_CLASS} ==="
         echo "Log file: $LOG_FILE"
 
-        # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date")
-        if ! ./gradlew :consensus-sloth:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks 2>&1 | tee "$LOG_FILE"; then
+        # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date").
+        # SLOTH_JVM_PROPS (e.g. "-Dsloth.tps=100 -Dsloth.benchmarkTime=60s") is forwarded to
+        # the Gradle JVM, which in turn passes matching sloth.* properties to the test JVM
+        # (see the testPerformance task configuration in build.gradle.kts).
+        # shellcheck disable=SC2086
+        if ! ./gradlew :consensus-sloth:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks ${SLOTH_JVM_PROPS:-} 2>&1 | tee "$LOG_FILE"; then
             echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS}${NC}"
             echo "Check log file: $LOG_FILE"
             continue
