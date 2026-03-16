@@ -42,7 +42,7 @@ merkleDb.maxNumOfKeys,                           5000
 merkleDb.hashesRamToDiskThreshold,                  0
 merkleDb.hashStoreRamBufferSize,                10000
 merkleDb.longListChunkSize,                     65536
-merkleDb.leafRecordCacheSize,                   65536
+merkleDb.leafRecordCacheSize,                       0
 merkleDb.maxFileChannelsPerFileReader,              2
 merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1

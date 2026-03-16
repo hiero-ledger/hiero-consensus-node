@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jdk-noble
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libsodium23 && \
