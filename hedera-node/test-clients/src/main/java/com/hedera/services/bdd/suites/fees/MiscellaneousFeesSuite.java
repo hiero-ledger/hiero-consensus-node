@@ -18,6 +18,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -50,7 +52,7 @@ public class MiscellaneousFeesSuite {
                 validateChargedUsd(baseTxn, BASE_FEE_MISC_PRNG_TRX),
                 hapiPrng(10).payingWith(BOB).via(plusRangeTxn).blankMemo().logged(),
                 getTxnRecord(plusRangeTxn).hasOnlyPseudoRandomNumberInRange(10).logged(),
-                validateChargedUsd(plusRangeTxn, EXPECTED_FEE_PRNG_RANGE_TRX, 0.5));
+                validateFees(plusRangeTxn, EXPECTED_FEE_PRNG_RANGE_TRX, BASE_FEE_MISC_PRNG_TRX));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
@@ -90,7 +92,7 @@ public class MiscellaneousFeesSuite {
                         .logged(),
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(baseTransactionGetRecord),
                 sleepFor(1000),
-                validateChargedUsd(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD));
+                validateFees(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD, QUERY_BASE_FEE));
     }
 
     @HapiTest

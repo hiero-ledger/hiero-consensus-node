@@ -16,7 +16,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final int NETWORK_MULTIPLIER = 9;
     public static final double NETWORK_BASE_FEE = NODE_BASE_FEE_USD * NETWORK_MULTIPLIER;
     public static final double NODE_AND_NETWORK_BASE_FEE = NODE_BASE_FEE_USD + NETWORK_BASE_FEE;
-    public static final double UNREADABLE_FEE_USD = 0.00000001;
+    public static final double QUERY_BASE_FEE = 0.0001;
 
     /* ---------- Global extras price table ("extras") ---------- */
 
@@ -64,6 +64,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Crypto service ---------- */
 
+    public static final double CRYPTO_CREATE_TOTAL_FEE = 0.05;
     public static final double CRYPTO_CREATE_BASE_FEE_USD = 0.0499;
     public static final long CRYPTO_CREATE_INCLUDED_KEYS = 1L;
     public static final long CRYPTO_CREATE_INCLUDED_HOOKS = 0L;
@@ -92,6 +93,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Consensus service ---------- */
     public static final double TOPIC_CREATE_FEE = 0.01;
+    public static final double TOPIC_CREATE_WITH_CUSTOM_FEE = TOPIC_CREATE_FEE + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
     public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
     public static final long CONS_CREATE_TOPIC_INCLUDED_KEYS = 0L;
     public static final long CONS_CREATE_TOPIC_WITH_CUSTOM_FEES = 0L;
