@@ -130,15 +130,15 @@ jobs:
         run: |
           DOCKER_REGISTRY="gcr.io"
           [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.registry-name }}" == "gcp" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
-          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_REGISTRY="artifacts.swirldslabs.io"
+          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_REGISTRY="artifacts.hashgraph.io"
           echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
           DOCKER_TAG_BASE="gcr.io/hedera-registry"
-          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.swirldslabs.io/consensus-node-docker-release"
+          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-release"
 
           if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
              [[ "${{ inputs.registry-name }}" == "gcp" ]] && DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/docker-adhoc-commits"
-             [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.swirldslabs.io/consensus-node-docker-dev"
+             [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-dev"
           elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
              DOCKER_TAG_BASE="localhost:5000"
           fi
@@ -203,9 +203,9 @@ jobs:
              CONSENSUS_NODE_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/consensus-node:${{ inputs.version }})"
              if [[ "${{ inputs.registry-name }}" == "jfrog" ]]; then
                 if [[ "${{ inputs.version-policy }}" == "branch-commit" ]]; then
-                   CONSENSUS_NODE_LINK="[Artifactory](https://artifacts.swirldslabs.io/ui/native/consensus-node-docker-dev)"
+                   CONSENSUS_NODE_LINK="[Artifactory](https://artifacts.hashgraph.io/ui/native/consensus-node-docker-dev)"
                 else
-                   CONSENSUS_NODE_LINK="[Artifactory](https://artifacts.swirldslabs.io/ui/native/consensus-node-docker-release)"
+                   CONSENSUS_NODE_LINK="[Artifactory](https://artifacts.hashgraph.io/ui/native/consensus-node-docker-release)"
                 fi
             fi
           fi
