@@ -319,6 +319,9 @@ public class TipsetEventCreator implements EventCreator {
         if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
+            if (selflessParent == null) {
+                return null;
+            }
             // if we already contain that event, everything is good
             if (!contains(chosenBestParents, selflessParent)) {
                 // otherwise, replace the least important parent with one we have chosen to reduce selfishness
@@ -363,7 +366,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @NonNull PlatformEvent selectParentToReduceSelfishness() {
+    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
