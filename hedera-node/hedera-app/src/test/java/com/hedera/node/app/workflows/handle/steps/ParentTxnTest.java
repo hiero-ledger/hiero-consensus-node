@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNPARSABLE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static java.util.Collections.emptyMap;
@@ -15,6 +16,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
@@ -262,6 +265,35 @@ class ParentTxnTest {
                         .map(BlockItem::transactionResultOrThrow)
                         .orElseThrow();
         assertEquals(0L, result.congestionPricingMultiplier());
+    }
+
+    @Test
+    void createsDispatchForUnreadablePreHandleFailureWithFixedUnreadableFee() {
+        given(preHandleWorkflow.getCurrentPreHandleResult(
+                        any(NodeInfo.class),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(shortCircuitTxnCallback)))
+                .willReturn(preHandleResult);
+        given(preHandleResult.txInfo()).willReturn(null);
+        given(preHandleResult.isUnreadableTransactionFailure()).willReturn(true);
+        given(creatorInfo.accountId()).willReturn(PAYER_ID);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(feeManager.unreadableTransactionFee(CONSENSUS_NOW)).willReturn(123L);
+        given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
+        given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
+
+        final var factory = createUserTxnFactory();
+        final var subject =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+        assertNotNull(subject);
+        assertEquals(UNPARSABLE_TRANSACTION, subject.functionality());
+
+        final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
+        assertEquals(123L, dispatch.fees().networkFee());
+        assertEquals(0L, dispatch.fees().nodeFee());
+        assertEquals(0L, dispatch.fees().serviceFee());
+        verify(dispatcher, never()).dispatchComputeFees(any());
     }
 
     private ParentTxnFactory createUserTxnFactory() {

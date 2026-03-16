@@ -215,6 +215,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     e.txInfo(),
                     configProvider.getConfiguration().getVersion());
         } catch (PreCheckException e) {
+            // If parsing failed, this will be INVALID_TRANSACTION or INVALID_TRANSACTION_BODY; in handle,
+            // that due-diligence failure is charged the fixed unreadable transaction fee.
             return nodeDueDiligenceFailure(
                     creatorInfo.accountId(),
                     e.responseCode(),

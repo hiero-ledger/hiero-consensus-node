@@ -665,6 +665,8 @@ tasks.register<Test>("testEmbedded") {
     ) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
+        // Prevent node fee/reward distribution during this task
+        systemProperty("staking.periodMins", "10000")
     }
 
     // Limit heap and number of processors

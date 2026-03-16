@@ -2,7 +2,9 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNPARSABLE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
@@ -20,8 +22,12 @@ import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICIN
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -41,6 +47,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -56,6 +63,7 @@ import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -168,7 +176,14 @@ public class ParentTxnFactory {
      */
     public static HandleContext.TransactionCategory getTxnCategory(@NonNull final PreHandleResult preHandleResult) {
         requireNonNull(preHandleResult);
-        return preHandleResult.txnInfoOrThrow().signatureMap().sigPair().isEmpty() ? NODE : USER;
+        return preHandleResult.txInfo() == null
+                        || preHandleResult
+                                .txnInfoOrThrow()
+                                .signatureMap()
+                                .sigPair()
+                                .isEmpty()
+                ? NODE
+                : USER;
     }
 
     /**
@@ -204,14 +219,17 @@ public class ParentTxnFactory {
             platformTxn.setMetadata(preHandleResult);
         }
         final var txnInfo = preHandleResult.txInfo();
-        if (txnInfo == null) {
+        final var effectiveTxnInfo = txnInfo != null
+                ? txnInfo
+                : syntheticUnreadableTxnInfo(preHandleResult, creatorInfo, consensusNow, platformTxn);
+        if (effectiveTxnInfo == null) {
             log.error(
                     "Node {} submitted an unparseable transaction {}",
                     creatorInfo != null ? creatorInfo.nodeId() : null,
                     platformTxn);
             return null;
         }
-        if (creatorInfo == null || txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
+        if (creatorInfo == null || effectiveTxnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
@@ -220,10 +238,10 @@ public class ParentTxnFactory {
                 consensusNow,
                 new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
-                txnInfo.functionality(),
+                effectiveTxnInfo.functionality(),
                 consensusNow,
                 state,
-                txnInfo,
+                effectiveTxnInfo,
                 tokenContext,
                 stack,
                 preHandleResult,
@@ -399,7 +417,9 @@ public class ParentTxnFactory {
                 preHandleResult.innerResults(),
                 preHandleWorkflow,
                 transactionCategory);
-        final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
+        final var fees = isUnreadableTxnCharge(preHandleResult)
+                ? new Fees(0, feeManager.unreadableTransactionFee(consensusNow), 0)
+                : dispatcher.dispatchComputeFees(dispatchHandleContext);
         final boolean isHighVolumePriced =
                 txnInfo.txBody().highVolume() && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality());
         // High-volume pricing and congestion multipliers are mutually exclusive; only record the
@@ -457,6 +477,46 @@ public class ParentTxnFactory {
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
                 blockStreamConfig.streamMode());
+    }
+
+    /**
+     * Returns a synthetic transaction info for an unreadable transaction fee charge if the pre-handle result
+     * represents an unreadable due diligence failure; otherwise returns {@code null}.
+     */
+    private @Nullable TransactionInfo syntheticUnreadableTxnInfo(
+            @NonNull final PreHandleResult preHandleResult,
+            @Nullable final NodeInfo creatorInfo,
+            @NonNull final Instant consensusNow,
+            @NonNull final ConsensusTransaction platformTxn) {
+        if (!isUnreadableTxnCharge(preHandleResult) || creatorInfo == null) {
+            return null;
+        }
+        final var syntheticBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(creatorInfo.accountId())
+                        .transactionValidStart(asTimestamp(consensusNow))
+                        .build())
+                .nodeAccountID(creatorInfo.accountId())
+                // Keep the synthetic tx body classifiable in stream validation.
+                .uncheckedSubmit(UncheckedSubmitBody.newBuilder()
+                        .transactionBytes(platformTxn.getApplicationTransaction())
+                        .build())
+                .build();
+        final var syntheticSignedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(syntheticBody))
+                .build();
+        final var serializedSyntheticSignedTx = SignedTransaction.PROTOBUF.toBytes(syntheticSignedTx);
+        return new TransactionInfo(
+                syntheticSignedTx,
+                syntheticBody,
+                SignatureMap.DEFAULT,
+                platformTxn.getApplicationTransaction(),
+                UNPARSABLE_TRANSACTION,
+                serializedSyntheticSignedTx);
+    }
+
+    private static boolean isUnreadableTxnCharge(@NonNull final PreHandleResult preHandleResult) {
+        return preHandleResult.isUnreadableTransactionFailure();
     }
 
     /**

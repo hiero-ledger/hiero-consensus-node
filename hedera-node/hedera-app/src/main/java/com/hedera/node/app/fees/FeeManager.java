@@ -309,6 +309,19 @@ public final class FeeManager {
     }
 
     /**
+     * Returns the fixed network fee to charge for an unreadable transaction.
+     *
+     * @param consensusTime the consensus time used to resolve exchange rates
+     * @return the unreadable transaction fee in tinybars, or {@code 0} if unavailable
+     */
+    public long unreadableTransactionFee(@NonNull final Instant consensusTime) {
+        requireNonNull(consensusTime);
+        requireNonNull(simpleFeesSchedule.unreadable());
+        final var unreadableFeeTinycents = simpleFeesSchedule.unreadable().fee();
+        return exchangeRateManager.getTinybarsFromTinycents(unreadableFeeTinycents, consensusTime);
+    }
+
+    /**
      * Gets the current exchange rate manager.
      */
     @NonNull
