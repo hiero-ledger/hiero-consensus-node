@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -713,6 +714,56 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         assertEquals(WELL_KNOWN_NODE_ID, createdNode.nodeId());
         assertEquals("System node", createdNode.description());
         verify(recordBuilder).nodeID(WELL_KNOWN_NODE_ID);
+    }
+
+    @Test
+    void handleRemovesPreviousAccountRelationForSystemTxnWithExistingNode() throws CertificateEncodingException {
+        rebuildState(1);
+
+        final var systemAccountId = AccountID.newBuilder().accountNum(99L).build();
+        txn = new NodeCreateBuilder()
+                .withAccountId(systemAccountId)
+                .withDescription("System node")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withAdminKey(key)
+                .build(payerId);
+
+        final var dispatchMetadata = new HandleContext.DispatchMetadata(
+                HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, WELL_KNOWN_NODE_ID);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 100)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.maxNumber", 1)
+                .getOrCreateConfig();
+
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+
+        final var systemAccount = mock(Account.class);
+        given(accountStore.getAccountById(systemAccountId)).willReturn(systemAccount);
+        given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
+
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        assertNull(writableAccountNodeRelStore.get(accountId));
+        assertEquals(WELL_KNOWN_NODE_ID, writableAccountNodeRelStore.get(systemAccountId));
     }
 
     @Test

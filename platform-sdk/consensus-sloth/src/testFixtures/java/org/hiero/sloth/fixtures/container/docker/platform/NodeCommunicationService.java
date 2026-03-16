@@ -137,9 +137,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
-
-        consensusNodeManager.registerConsensusRoundListener(
-                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
     }
 
     private static boolean isInvalidRequest(
