@@ -57,7 +57,6 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -377,16 +376,8 @@ class FileServiceFeeCalculatorsTest {
                                 HederaFunctionality.FILE_GET_CONTENTS,
                                 7,
                                 makeExtraIncluded(Extra.PROCESSING_BYTES, 1000)),
-                        ServiceFeeDefinition.newBuilder()
-                                .name(HederaFunctionality.SYSTEM_DELETE)
-                                .baseFee(50000000)
-                                .nodeNetworkFeeExempt(true)
-                                .build(),
-                        ServiceFeeDefinition.newBuilder()
-                                .name(HederaFunctionality.SYSTEM_UNDELETE)
-                                .baseFee(50000000)
-                                .nodeNetworkFeeExempt(true)
-                                .build()))
+                        makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
+                        makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();
     }
 

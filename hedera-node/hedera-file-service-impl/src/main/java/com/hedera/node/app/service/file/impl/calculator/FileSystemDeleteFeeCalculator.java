@@ -19,8 +19,9 @@ public class FileSystemDeleteFeeCalculator implements ServiceFeeCalculator {
             @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        // SystemDelete is a privileged operation; node/network exemption is handled by the
-        // nodeNetworkFeeExempt flag in the fee schedule, and baseFee is 0 with no extras.
+        // SystemDelete is a privileged operation; we clear the node and network fee
+        // previously set by SimpleFeeCalculatorImpl, and baseFee is 0 with no extras.
+        feeResult.clearFees();
     }
 
     @Override

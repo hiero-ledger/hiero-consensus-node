@@ -605,14 +605,12 @@
         {
           "name": "SystemDelete",
           "baseFee": 0,
-          "extras": [],
-          "nodeNetworkFeeExempt": true
+          "extras": []
         },
         {
           "name": "SystemUndelete",
           "baseFee": 0,
-          "extras": [],
-          "nodeNetworkFeeExempt": true
+          "extras": []
         }
       ]
     },
