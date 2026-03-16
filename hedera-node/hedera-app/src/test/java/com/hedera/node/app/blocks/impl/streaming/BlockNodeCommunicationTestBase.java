@@ -122,7 +122,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
-                .withValue("blockNode.highLatencyThresholdMs", 500);
+                .withValue("blockNode.highLatencyThresholdMs", 500)
+                .withValue("blockNode.streamResetPeriodJitter", "0s");
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
