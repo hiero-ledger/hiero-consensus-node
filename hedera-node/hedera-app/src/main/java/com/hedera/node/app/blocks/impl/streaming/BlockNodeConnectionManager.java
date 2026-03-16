@@ -46,7 +46,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -132,11 +131,6 @@ public class BlockNodeConnectionManager {
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
     private final AtomicReference<BlockNodeStreamingConnection> activeConnectionRef = new AtomicReference<>();
-    /**
-     * Cached IP address (as an integer) of the currently active block node connection. This avoids repeated DNS
-     * resolution and allows the worker loop to cheaply re-emit the metric on every iteration.
-     */
-    private final AtomicLong cachedActiveConnectionIp = new AtomicLong(-1L);
     /**
      * Tracks health and connection history for each block node across multiple connection instances.
      * This data persists beyond individual BlockNodeConnection lifecycles.
@@ -1055,7 +1049,7 @@ public class BlockNodeConnectionManager {
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
                     // we were able to elevate this connection to the new active one
                     connection.updateConnectionState(ConnectionState.ACTIVE);
-                    recordActiveConnectionIp(connection.configuration());
+                    recordActiveConnectionIp(connection);
                 } else {
                     // Another connection task has preempted this task, reschedule and try again
                     logger.info("{} Current connection task was preempted, rescheduling.", connection);
@@ -1374,7 +1368,8 @@ public class BlockNodeConnectionManager {
         return octet1 + octet2 + octet3 + octet4;
     }
 
-    private void recordActiveConnectionIp(final BlockNodeConfiguration nodeConfig) {
+    private void recordActiveConnectionIp(final BlockNodeStreamingConnection connection) {
+        final BlockNodeConfiguration nodeConfig = connection.configuration();
         long ipAsInteger;
 
         // Attempt to resolve the address of the block node
@@ -1406,18 +1401,8 @@ public class BlockNodeConnectionManager {
             ipAsInteger = -1L;
         }
 
-        cachedActiveConnectionIp.set(ipAsInteger);
+        connection.setCachedIpAsInteger(ipAsInteger);
         blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
-    }
-
-    /**
-     * Returns the cached IP address (as an integer) of the currently active block node connection,
-     * or -1 if no active connection exists or the address could not be resolved.
-     *
-     * @return the cached active connection IP as an integer
-     */
-    public long getActiveConnectionIpValue() {
-        return cachedActiveConnectionIp.get();
     }
 
     /**
@@ -1485,9 +1470,7 @@ public class BlockNodeConnectionManager {
      */
     public void notifyConnectionClosed(@NonNull final BlockNodeStreamingConnection connection) {
         // Remove from active connection if it is the current active
-        if (activeConnectionRef.compareAndSet(connection, null)) {
-            cachedActiveConnectionIp.set(-1L);
-        }
+        activeConnectionRef.compareAndSet(connection, null);
 
         // Remove from connections map
         connections.remove(connection.configuration());

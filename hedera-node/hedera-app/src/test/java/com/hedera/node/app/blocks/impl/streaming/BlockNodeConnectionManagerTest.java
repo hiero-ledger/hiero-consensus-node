@@ -769,6 +769,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection, times(2)).configuration();
         verify(newConnection).initialize();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(newConnection).setCachedIpAsInteger(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(newConnection);
@@ -800,6 +801,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection, times(2)).configuration();
         verify(newConnection).initialize();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(newConnection).setCachedIpAsInteger(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
@@ -839,6 +841,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(newConnection).initialize();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(newConnection).setCachedIpAsInteger(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(newConnection);
@@ -872,6 +875,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection, times(2)).configuration();
         verify(newConnection).initialize();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(newConnection).setCachedIpAsInteger(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
@@ -1829,49 +1833,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testRecordActiveConnectionIp() throws Exception {
         final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
-                "recordActiveConnectionIp", BlockNodeConfiguration.class);
+                "recordActiveConnectionIp", BlockNodeStreamingConnection.class);
         method.setAccessible(true);
 
         final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
-
-        method.invoke(connectionManager, config);
-
-        verify(metrics).recordActiveConnectionIp(anyLong());
-    }
-
-    @Test
-    void testGetActiveConnectionIpValue_defaultIsNegativeOne() {
-        assertThat(connectionManager.getActiveConnectionIpValue()).isEqualTo(-1L);
-    }
-
-    @Test
-    void testGetActiveConnectionIpValue_updatedAfterRecording() throws Exception {
-        final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
-                "recordActiveConnectionIp", BlockNodeConfiguration.class);
-        method.setAccessible(true);
-
-        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
-        method.invoke(connectionManager, config);
-
-        assertThat(connectionManager.getActiveConnectionIpValue()).isGreaterThan(-1L);
-    }
-
-    @Test
-    void testGetActiveConnectionIpValue_resetOnConnectionClosed() throws Exception {
-        final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
-                "recordActiveConnectionIp", BlockNodeConfiguration.class);
-        method.setAccessible(true);
-
-        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
-        method.invoke(connectionManager, config);
-        assertThat(connectionManager.getActiveConnectionIpValue()).isGreaterThan(-1L);
-
         final BlockNodeStreamingConnection mockConnection = mock(BlockNodeStreamingConnection.class);
         doReturn(config).when(mockConnection).configuration();
-        activeConnection().set(mockConnection);
 
-        connectionManager.notifyConnectionClosed(mockConnection);
-        assertThat(connectionManager.getActiveConnectionIpValue()).isEqualTo(-1L);
+        method.invoke(connectionManager, mockConnection);
+
+        verify(mockConnection).setCachedIpAsInteger(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test

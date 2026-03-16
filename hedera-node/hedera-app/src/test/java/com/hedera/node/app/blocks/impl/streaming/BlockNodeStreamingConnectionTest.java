@@ -1318,8 +1318,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getBlockState(101);
         verifyNoMoreInteractions(bufferService);
-        verify(connectionManager).getActiveConnectionIpValue();
-        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(connectionManager);
         verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
@@ -1343,8 +1342,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
-        verify(connectionManager).getActiveConnectionIpValue();
-        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(connectionManager);
         verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
@@ -1368,8 +1366,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService).getBlockState(10);
         verifyNoMoreInteractions(bufferService);
-        verify(connectionManager).getActiveConnectionIpValue();
-        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(connectionManager);
         verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
@@ -1393,14 +1390,12 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(10);
 
-        verify(metrics).recordActiveConnectionIp(0L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(connectionManager).getActiveConnectionIpValue();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
 
@@ -1475,7 +1470,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
-        verify(connectionManager, atLeastOnce()).getActiveConnectionIpValue();
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1585,7 +1579,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(bufferService, times(6)).getEarliestAvailableBlockNumber();
         verify(bufferService, times(6)).getHighestAckedBlockNumber();
-        verify(connectionManager, atLeastOnce()).getActiveConnectionIpValue();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
@@ -1602,14 +1595,13 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.setCachedIpAsInteger(42L);
 
-        doReturn(42L).when(connectionManager).getActiveConnectionIpValue();
         doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
 
         final Object worker = createWorker();
         invokeDoWork(worker);
 
-        verify(connectionManager).getActiveConnectionIpValue();
         verify(metrics).recordActiveConnectionIp(42L);
     }
 

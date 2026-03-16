@@ -133,6 +133,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * once it is finished it will close the connection.
      */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
+    /**
+     * Cached IP address (as an integer) of this connection's block node, resolved once when the connection is
+     * promoted to active. Re-emitted on every worker loop iteration so the metric is always available for scraping.
+     */
+    private final AtomicLong cachedIpAsInteger = new AtomicLong(-1L);
 
     /**
      * Construct a new BlockNodeConnection.
@@ -176,6 +181,16 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     BlockNodeStreamingConnection.this,
                     initialBlockToStream);
         }
+    }
+
+    /**
+     * Sets the cached IP address (as an integer) for this connection's block node. Called by the connection manager
+     * when this connection is promoted to active.
+     *
+     * @param ipAsInteger the resolved IP address as an integer, or -1 if unresolvable
+     */
+    void setCachedIpAsInteger(final long ipAsInteger) {
+        cachedIpAsInteger.set(ipAsInteger);
     }
 
     /**
@@ -1059,7 +1074,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          */
         private boolean doWork() {
             // Re-emit the active connection IP metric so it is available on every metrics scrape
-            blockStreamMetrics.recordActiveConnectionIp(connectionManager.getActiveConnectionIpValue());
+            blockStreamMetrics.recordActiveConnectionIp(cachedIpAsInteger.get());
 
             switchBlockIfNeeded();
 

@@ -380,6 +380,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
 
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(connectionManager);
@@ -428,14 +429,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         block.addItem(item);
 
-        // Wait for the final close-side metric in the close() path; this avoids racing the async worker thread.
+        // Wait for the close() path to complete; use recordConnectionClosed since it is only called from close().
         final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
                     connectionClosedLatch.countDown();
                     return null;
                 })
                 .when(metrics)
-                .recordActiveConnectionIp(-1L);
+                .recordConnectionClosed();
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -457,13 +458,13 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
 
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -622,6 +623,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -734,7 +736,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -859,7 +861,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1074,6 +1076,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
