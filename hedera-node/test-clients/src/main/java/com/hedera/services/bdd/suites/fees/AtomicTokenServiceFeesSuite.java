@@ -290,8 +290,7 @@ class AtomicTokenServiceFeesSuite {
                         .payingWith(BATCH_OPERATOR),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateInnerTxnChargedUsd(
-                                "claimTxn", ATOMIC_BATCH, TOKEN_CLAIM_FEE, 0.1);
+                        return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, TOKEN_CLAIM_FEE, 0.1);
                     } else {
                         return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, 0.001, 1);
                     }
