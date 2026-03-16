@@ -381,7 +381,7 @@ jobs:
       - name: Download Protobuf proto artifact
         working-directory: block-node-protobuf
         run: |
-          BN_VERSION=echo "${{ env.BLOCK_NODE_TAG }}" | 's/^v//'
+          BN_VERSION=$(echo "${{ env.BLOCK_NODE_TAG }}" | sed 's/^v//')
           curl -L https://github.com/hiero-ledger/hiero-block-node/releases/download/${{ env.BLOCK_NODE_TAG }}/block-node-protobuf-${{ BN_VERSION }}.tgz
 
       # untar protobuf sources
