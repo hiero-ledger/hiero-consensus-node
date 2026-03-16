@@ -46,6 +46,7 @@ import org.apache.logging.log4j.Logger;
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
 
+    static final String WRAPS_ARTIFACTS_ENV_VAR = "TSS_LIB_WRAPS_ARTIFACTS_PATH";
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
 
     private final Executor downloadExecutor;
@@ -101,6 +102,8 @@ public class WrapsProvingKeyVerification {
         log.info("WRAPS proving key hash from config: {}", expectedHash);
 
         final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
+        validateArtifactsPathConsistency(provingKeyPath, System.getenv(WRAPS_ARTIFACTS_ENV_VAR));
+
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
         final var retryInterval = tssConfig.wrapsProvingKeyRetryInterval();
         verifyFileAndDownloadIfNeeded(provingKeyPath, bootstrapHash, downloadUrl, downloader, retryInterval);
@@ -209,14 +212,64 @@ public class WrapsProvingKeyVerification {
         }
     }
 
+    // --- Artifacts path validation ---
+
+    /**
+     * Validates that the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable (which the native
+     * WRAPS library reads to locate unpacked artifacts) is consistent with the extraction directory
+     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file).
+     *
+     * @param provingKeyPath the configured path to the packed proving key archive
+     * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
+     * @throws IllegalStateException if the env var is set but points outside the extraction directory
+     */
+    static void validateArtifactsPathConsistency(
+            @NonNull final Path provingKeyPath, @Nullable final String envArtifactsPath) {
+        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+            log.warn(
+                    "{} environment variable is not set; native WRAPS library may not find extracted artifacts",
+                    WRAPS_ARTIFACTS_ENV_VAR);
+            return;
+        }
+        final var extractionTarget = provingKeyPath.getParent();
+        if (extractionTarget == null) {
+            return;
+        }
+        final var envPath = Paths.get(envArtifactsPath).normalize();
+        final var normalizedTarget = extractionTarget.normalize();
+        if (!envPath.startsWith(normalizedTarget)) {
+            throw new IllegalStateException(WRAPS_ARTIFACTS_ENV_VAR + " (" + envArtifactsPath
+                    + ") is not under the extraction directory (" + normalizedTarget
+                    + ") derived from tss.wrapsProvingKeyPath (" + provingKeyPath
+                    + "). The native WRAPS library requires these to be consistent.");
+        }
+    }
+
     // --- Tar.gz extraction ---
 
     private static void tryExtractTarGz(@NonNull final Path tarGzPath) {
         try {
             TarGzExtractor.extract(tarGzPath, tarGzPath.getParent());
             log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, tarGzPath.getParent());
+            verifyArtifactsDirectoryExists();
         } catch (final IOException e) {
             log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
+        }
+    }
+
+    private static void verifyArtifactsDirectoryExists() {
+        final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
+        if (envArtifactsPath != null && !envArtifactsPath.isBlank()) {
+            final var artifactsDir = Paths.get(envArtifactsPath);
+            if (Files.isDirectory(artifactsDir)) {
+                log.info("Verified WRAPS artifacts directory exists at {}", artifactsDir);
+            } else {
+                log.error(
+                        "After extraction, {} ({}) does not exist as a directory. "
+                                + "Verify the archive contents match the expected directory structure.",
+                        WRAPS_ARTIFACTS_ENV_VAR,
+                        envArtifactsPath);
+            }
         }
     }
 

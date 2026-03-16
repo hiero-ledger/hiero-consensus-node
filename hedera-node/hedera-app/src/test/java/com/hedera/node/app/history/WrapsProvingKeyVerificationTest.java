@@ -2,6 +2,8 @@
 package com.hedera.node.app.history;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.history.WrapsProvingKeyVerification.validateArtifactsPathConsistency;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +61,7 @@ class WrapsProvingKeyVerificationTest {
     void setUp() {
         // Use synchronous executor so async downloads run inline for testing
         subject = new WrapsProvingKeyVerification(Runnable::run);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        Mockito.lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
         Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
@@ -156,6 +159,39 @@ class WrapsProvingKeyVerificationTest {
         subject.ensureProvingKey(state, configuration, downloader);
 
         verify(downloader).download(eq(DOWNLOAD_URL), eq(path));
+    }
+
+    // ===== artifacts path consistency validation =====
+
+    @Test
+    void throwsWhenEnvArtifactsPathNotUnderExtractionDir() {
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+        final var wrongEnvPath = "/completely/different/path";
+
+        assertThrows(
+                IllegalStateException.class, () -> validateArtifactsPathConsistency(provingKeyPath, wrongEnvPath));
+    }
+
+    @Test
+    void succeedsWhenEnvArtifactsPathIsUnderExtractionDir() {
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+        final var correctEnvPath = "/opt/hgcapp/wraps-v0.2.0";
+
+        assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, correctEnvPath));
+    }
+
+    @Test
+    void doesNotThrowWhenEnvArtifactsPathIsNull() {
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+
+        assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, null));
+    }
+
+    @Test
+    void doesNotThrowWhenEnvArtifactsPathIsBlank() {
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+
+        assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, ""));
     }
 
     // ===== helpers =====
