@@ -196,8 +196,8 @@ public class RecordCacheImpl implements HederaRecordCache {
         public @NonNull List<TransactionReceipt> duplicateReceipts(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
             final List<TransactionReceipt> receipts = new ArrayList<>();
-            recordSources.forEach(source ->
-                    receipts.add(withBlockNumber(source.source().receiptOf(txnId), source.blockNumber())));
+            recordSources.forEach(
+                    source -> receipts.add(withBlockNumber(source.source().receiptOf(txnId), source.blockNumber())));
             receipts.remove(priorityReceipt(txnId));
             return receipts;
         }
@@ -317,7 +317,8 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var historyRecordSource = new HistoryRecordSource(recordSource, blockNumber);
         final var identifiedReceipts = historyRecordSource.source().identifiedReceipts().stream()
                 .map(identifiedReceipt -> new RecordSource.IdentifiedReceipt(
-                        identifiedReceipt.txnId(), withBlockNumber(identifiedReceipt.receipt(), historyRecordSource.blockNumber())))
+                        identifiedReceipt.txnId(),
+                        withBlockNumber(identifiedReceipt.receipt(), historyRecordSource.blockNumber())))
                 .toList();
         for (final var identifiedReceipt : identifiedReceipts) {
             final var txnId = identifiedReceipt.txnId();
