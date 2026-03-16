@@ -28,6 +28,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTim
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -526,8 +527,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl = new RosterServiceImpl(
-                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
+        final var rosterServiceImpl =
+                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -784,6 +785,10 @@ public final class Hedera
                 System.exit(1);
             }
         }
+
+        // It is possible a network interrupt could make a node reconnect in a window where
+        // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
+        HintsLibraryBridge.getInstance().resetCache();
     }
 
     /**
@@ -1418,16 +1423,27 @@ public final class Hedera
         final var rosterHash = RosterUtils.hash(roster).getBytes();
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, we should not put any TSS preconditions on adopting a roster,
+            // **even if** the hinTS or history feature flags are enabled (at a cutover upgrade)
+            return true;
+        }
         return (!tssConfig.hintsEnabled()
                         || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
-                        || new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME))
-                                .isReadyToAdopt(rosterHash));
+                        || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, this is the cutover upgrade, and TSS machinery won't have prepared
+            // the "normal" preconditions for roster adoption during the previous release; so skip everything
+            return;
+        }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.historyEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
