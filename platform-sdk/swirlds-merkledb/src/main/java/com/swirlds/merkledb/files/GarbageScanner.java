@@ -3,6 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -42,6 +43,7 @@ public class GarbageScanner {
     private final double garbageThreshold;
     private final long maxCompactionDataPerLevelInKB;
     private final int maxCompactionLevel;
+    private final long minCompactionSizeKB;
 
     public GarbageScanner(
             final CASableLongIndex index,
@@ -54,6 +56,7 @@ public class GarbageScanner {
         this.garbageThreshold = config.garbageThreshold();
         this.maxCompactionDataPerLevelInKB = config.maxCompactionDataPerLevelInKB();
         this.maxCompactionLevel = config.maxCompactionLevel();
+        this.minCompactionSizeKB = config.minCompactionSizeKb();
     }
 
     /**
@@ -93,12 +96,60 @@ public class GarbageScanner {
             sizeByLevel[value.compactionLevel()] += value.fileReader.getSize();
         }
 
+        // Filter out levels where the estimated alive size of compaction candidates
+        // is below the minimum threshold. This prevents premature promotion of small
+        // amounts of data through compaction levels, which would otherwise cause tiny
+        // files to cascade through levels and waste I/O.
+        if (minCompactionSizeKB > 0) {
+            result.entrySet().removeIf(entry -> {
+                final int level = entry.getKey();
+                final List<DataFileReader> candidates = entry.getValue();
+                final long estimatedAliveSizeBytes = estimateAliveSize(candidates, statsByFileIndex);
+                final long threshold = (long) (minCompactionSizeKB * Math.pow(2, level)) * KIBIBYTES_TO_BYTES;
+                if (estimatedAliveSizeBytes < threshold) {
+                    logger.info(
+                            MERKLE_DB.getMarker(),
+                            "[{}] Skipping compaction at level {}: estimated alive size {} is below minimum {}",
+                            storeName,
+                            level,
+                            formatSizeBytes(estimatedAliveSizeBytes),
+                            formatSizeBytes(threshold));
+                    return true;
+                }
+                return false;
+            });
+        }
+
         logLevelStats(statsByFileIndex);
 
         final long tookMillis = System.currentTimeMillis() - start;
         logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
         return result;
+    }
+
+    /**
+     * Estimates the total alive data size across the given candidate files. For each file,
+     * the alive fraction is derived from the garbage stats, and the file's on-disk size is
+     * scaled accordingly. Files with zero total items contribute nothing.
+     *
+     * @param candidates files selected for compaction
+     * @param statsByFileIndex per-file garbage statistics
+     * @return estimated alive data size in bytes
+     */
+    static long estimateAliveSize(
+            final List<DataFileReader> candidates,
+            final Map<Integer, GarbageFileStats> statsByFileIndex) {
+        long estimatedAliveSizeBytes = 0;
+        for (final DataFileReader reader : candidates) {
+            final GarbageFileStats stats = statsByFileIndex.get(reader.getIndex());
+            if (stats != null && stats.totalItems() > 0) {
+                final double aliveRatio = (double) stats.aliveItems() / stats.totalItems();
+                estimatedAliveSizeBytes += (long) (reader.getSize() * aliveRatio);
+            }
+            // Files with totalItems == 0 are truly empty and contribute 0 bytes
+        }
+        return estimatedAliveSizeBytes;
     }
 
     private boolean isToBeCompacted(GarbageFileStats value, long[] sizeByLevel) {
@@ -125,13 +176,8 @@ public class GarbageScanner {
 
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[{}] Garbage scan level {}: files={}, totalItems={}, aliveItems={}, garbageRatio={}",
-                    storeName,
-                    level,
-                    levelFilesCount,
-                    levelTotalItems,
-                    levelAliveItems,
-                    levelGarbageRatio);
+                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f".
+                            formatted(storeName, level, levelFilesCount, levelTotalItems, levelAliveItems, levelGarbageRatio));
         });
     }
 
