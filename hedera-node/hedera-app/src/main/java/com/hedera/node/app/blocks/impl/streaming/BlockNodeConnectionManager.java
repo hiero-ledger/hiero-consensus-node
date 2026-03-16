@@ -46,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -131,6 +132,11 @@ public class BlockNodeConnectionManager {
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
     private final AtomicReference<BlockNodeStreamingConnection> activeConnectionRef = new AtomicReference<>();
+    /**
+     * Cached IP address (as an integer) of the currently active block node connection. This avoids repeated DNS
+     * resolution and allows the worker loop to cheaply re-emit the metric on every iteration.
+     */
+    private final AtomicLong cachedActiveConnectionIp = new AtomicLong(-1L);
     /**
      * Tracks health and connection history for each block node across multiple connection instances.
      * This data persists beyond individual BlockNodeConnection lifecycles.
@@ -1384,8 +1390,6 @@ public class BlockNodeConnectionManager {
             // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use
             // the
             // label value and show which block node the consensus node is connected to at any given time.
-            // It may also be better to have a background task that runs every second or something that
-            // continuously emits the metric instead of just when a connection is promoted to active.
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
             if (logger.isInfoEnabled()) {
@@ -1402,7 +1406,18 @@ public class BlockNodeConnectionManager {
             ipAsInteger = -1L;
         }
 
+        cachedActiveConnectionIp.set(ipAsInteger);
         blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
+    }
+
+    /**
+     * Returns the cached IP address (as an integer) of the currently active block node connection,
+     * or -1 if no active connection exists or the address could not be resolved.
+     *
+     * @return the cached active connection IP as an integer
+     */
+    public long getActiveConnectionIpValue() {
+        return cachedActiveConnectionIp.get();
     }
 
     /**
@@ -1470,7 +1485,9 @@ public class BlockNodeConnectionManager {
      */
     public void notifyConnectionClosed(@NonNull final BlockNodeStreamingConnection connection) {
         // Remove from active connection if it is the current active
-        activeConnectionRef.compareAndSet(connection, null);
+        if (activeConnectionRef.compareAndSet(connection, null)) {
+            cachedActiveConnectionIp.set(-1L);
+        }
 
         // Remove from connections map
         connections.remove(connection.configuration());

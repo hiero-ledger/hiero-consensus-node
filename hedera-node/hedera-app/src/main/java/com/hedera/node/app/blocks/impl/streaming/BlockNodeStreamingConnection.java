@@ -1058,6 +1058,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          * sleep and instead immediately try to do more work
          */
         private boolean doWork() {
+            // Re-emit the active connection IP metric so it is available on every metrics scrape
+            blockStreamMetrics.recordActiveConnectionIp(connectionManager.getActiveConnectionIpValue());
+
             switchBlockIfNeeded();
 
             if (block == null) {

@@ -1840,6 +1840,41 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testGetActiveConnectionIpValue_defaultIsNegativeOne() {
+        assertThat(connectionManager.getActiveConnectionIpValue()).isEqualTo(-1L);
+    }
+
+    @Test
+    void testGetActiveConnectionIpValue_updatedAfterRecording() throws Exception {
+        final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
+                "recordActiveConnectionIp", BlockNodeConfiguration.class);
+        method.setAccessible(true);
+
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        method.invoke(connectionManager, config);
+
+        assertThat(connectionManager.getActiveConnectionIpValue()).isGreaterThan(-1L);
+    }
+
+    @Test
+    void testGetActiveConnectionIpValue_resetOnConnectionClosed() throws Exception {
+        final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
+                "recordActiveConnectionIp", BlockNodeConfiguration.class);
+        method.setAccessible(true);
+
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        method.invoke(connectionManager, config);
+        assertThat(connectionManager.getActiveConnectionIpValue()).isGreaterThan(-1L);
+
+        final BlockNodeStreamingConnection mockConnection = mock(BlockNodeStreamingConnection.class);
+        doReturn(config).when(mockConnection).configuration();
+        activeConnection().set(mockConnection);
+
+        connectionManager.notifyConnectionClosed(mockConnection);
+        assertThat(connectionManager.getActiveConnectionIpValue()).isEqualTo(-1L);
+    }
+
+    @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
         // Ensure the watcher monitors the temp directory used by this test
         blockNodeConfigDirectoryHandle.set(connectionManager, tempDir);
