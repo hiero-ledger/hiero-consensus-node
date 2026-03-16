@@ -30,11 +30,15 @@ import org.hiero.sloth.fixtures.container.docker.EventMessageFactory;
 import org.hiero.sloth.fixtures.container.docker.OutboundDispatcher;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
 import org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.sloth.fixtures.container.proto.StartRequest;
+import org.hiero.sloth.fixtures.container.proto.StartTransactionGenerationRequest;
+import org.hiero.sloth.fixtures.container.proto.StopTransactionGenerationResponse;
 import org.hiero.sloth.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.sloth.fixtures.container.proto.TransactionRequest;
 import org.hiero.sloth.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.sloth.fixtures.container.proto.TransactionType;
 import org.hiero.sloth.fixtures.internal.KeysAndCertsConverter;
 import org.hiero.sloth.fixtures.internal.ProtobufConverter;
 import org.hiero.sloth.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -221,6 +225,47 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
             consensusNodeManager.sendQuiescenceCommand(command);
             responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public synchronized void startTransactionGeneration(
+            @NonNull final StartTransactionGenerationRequest request,
+            @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info(
+                DEMO_INFO.getMarker(),
+                "Received start transaction generation request: {} TPS, type={}",
+                request.getTps(),
+                request.getType());
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+        wrapWithErrorHandling(responseObserver, () -> {
+            final SlothTransactionType type = request.getType() == TransactionType.BENCHMARK_TRANSACTION
+                    ? SlothTransactionType.BENCHMARK
+                    : SlothTransactionType.EMPTY;
+            consensusNodeManager.startTransactionGeneration(request.getTps(), type);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public synchronized void stopTransactionGeneration(
+            @NonNull final Empty request,
+            @NonNull final StreamObserver<StopTransactionGenerationResponse> responseObserver) {
+        log.info(DEMO_INFO.getMarker(), "Received stop transaction generation request");
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+        wrapWithErrorHandling(responseObserver, () -> {
+            final long count = consensusNodeManager.stopTransactionGeneration();
+            responseObserver.onNext(StopTransactionGenerationResponse.newBuilder()
+                    .setGeneratedCount(count)
+                    .build());
             responseObserver.onCompleted();
         });
     }

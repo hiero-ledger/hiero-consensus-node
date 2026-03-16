@@ -1,29 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.test.performance.benchmark;
 
-import static com.swirlds.common.utility.InstantUtils.instantToMicros;
 import static org.hiero.sloth.test.performance.benchmark.fixtures.BenchmarkServiceLogParser.parseFromLogs;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.sloth.fixtures.Benchmark;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionFactory;
-import org.hiero.sloth.fixtures.network.transactions.BenchmarkTransaction;
-import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
 import org.hiero.sloth.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
-import org.hiero.sloth.test.performance.benchmark.fixtures.LoadThrottler;
 import org.hiero.sloth.test.performance.benchmark.fixtures.MeasurementsCollector;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -42,12 +36,12 @@ public class ConsensusLayerBenchmark {
      * Record holding benchmark execution parameters.
      *
      * @param numberOfNodes the number of nodes in the network
-     * @param warmupCount the number of warmup transactions
-     * @param transactionCount the number of benchmark transactions
-     * @param maxTps the maximum transactions per second rate
+     * @param warmupCount the number of warmup transactions (unused, retained for API compatibility)
+     * @param transactionCount the target number of benchmark transactions
+     * @param maxTps the maximum transactions per second rate for the whole network
      * @param stabilizationTime time to wait for network stabilization (seconds)
-     * @param warmupTime time to wait after warmup transactions (seconds)
-     * @param collectionTime time to wait for transaction collection (seconds)
+     * @param warmupTime duration of the warmup generation phase (seconds)
+     * @param collectionTime time to wait after stopping generation for results to propagate (seconds)
      */
     public record BenchmarkParameters(
             int numberOfNodes,
@@ -75,13 +69,17 @@ public class ConsensusLayerBenchmark {
     @Order(1)
     void benchmarkBaseline(@NonNull final TestEnvironment env) {
         log.info("=== BASELINE BENCHMARK (defaults) ===");
-        runBenchmark(env, "benchmarkBaseline", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "benchmarkBaseline", BenchmarkParameters.defaults(), _ -> {
             // No config changes - use defaults
         });
     }
 
     /**
      * Common benchmark execution logic.
+     *
+     * <p>Transactions are generated inside each node's execution layer rather than submitted by the
+     * test controller.  The controller tells each node to start/stop generating at the required rate
+     * via GRPC, and collects latency measurements from the nodes' logs afterwards.
      *
      * @param env the test environment
      * @param configName name of the configuration being tested
@@ -95,7 +93,6 @@ public class ConsensusLayerBenchmark {
             @NonNull final NetworkConfigurator networkConfigurator) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
-        final AtomicLong nonceGenerator = new AtomicLong(0);
 
         // Enable the BenchmarkService
         network.withConfigValue(
@@ -113,43 +110,47 @@ public class ConsensusLayerBenchmark {
         timeManager.waitFor(Duration.ofSeconds(params.stabilizationTime()));
         log.info("[{}] Network stabilized", configName);
 
-        // Warm-up phase: submit empty transactions to warm up all nodes
-        log.info(
-                "[{}] Starting warm-up phase: submitting {} empty transactions across all nodes...",
-                configName,
-                params.warmupCount());
+        // Per-node TPS: spread the total network TPS evenly across all nodes.
         final List<Node> nodes = network.nodes();
-        for (int i = 0; i < params.warmupCount(); i++) {
-            final Node targetNode = nodes.get(i % nodes.size());
-            targetNode.submitTransaction(TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet()));
-        }
+        final int perNodeTps = Math.max(1, params.maxTps() / nodes.size());
 
-        // Wait for warm-up to complete
+        // Warm-up phase: generate empty transactions on each node for warmupTime seconds.
+        log.info(
+                "[{}] Starting warm-up phase: generating empty transactions at {} TPS per node for {}s...",
+                configName,
+                perNodeTps,
+                params.warmupTime());
+        nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.EMPTY));
         timeManager.waitFor(Duration.ofSeconds(params.warmupTime()));
+        nodes.forEach(Node::stopTransactionGeneration);
         log.info("[{}] Warm-up phase complete", configName);
 
+        // Benchmark phase: generate benchmark transactions on each node.
+        final long benchmarkDurationSeconds = (long) params.transactionCount() / params.maxTps();
         log.info(
-                "[{}] Starting benchmark: It will take approximately {}s submitting {} transactions at a rate of {} ops/s...",
+                "[{}] Starting benchmark: generating BENCHMARK transactions at {} TPS per node for {}s...",
                 configName,
-                params.transactionCount() / params.maxTps(),
-                params.transactionCount(),
-                params.maxTps());
+                perNodeTps,
+                benchmarkDurationSeconds);
+        nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
+        timeManager.waitFor(Duration.ofSeconds(benchmarkDurationSeconds));
+        final long totalGenerated = nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
+        log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
-        final LoadThrottler throttler = new LoadThrottler(
-                env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
-        throttler.submitWithRate(params.transactionCount(), params.maxTps());
-        // Wait for all transactions to be processed
+        // Wait for all transactions to reach consensus and be logged.
         timeManager.waitFor(Duration.ofSeconds(params.collectionTime()));
-        log.info("[{}] Benchmark transactions submitted, collecting results...", configName);
+        log.info("[{}] Collecting results...", configName);
 
-        // Collect measurements from all nodes' logs and print the benchmark report
+        // Collect measurements from all nodes' logs and print the benchmark report.
         final MeasurementsCollector collector = new MeasurementsCollector();
         parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
-        // Make sure the benchmark run is valid
+
+        // Every generated transaction is handled by every node, so the total measurement count
+        // must equal totalGenerated * numberOfNodes.
         assertEquals(
-                (long) params.transactionCount() * params.numberOfNodes(),
+                totalGenerated * params.numberOfNodes(),
                 collector.computeStatistics().totalMeasurements(),
-                "The benchmark is invalid as some of the transactions sent were not measured");
+                "The benchmark is invalid as some of the transactions generated were not measured");
         final String report = collector.generateReport();
         log.info("[{}] Benchmark complete. Results:\n {}", configName, report);
         System.out.println("\n=== " + configName + " RESULTS ===");
@@ -162,23 +163,5 @@ public class ConsensusLayerBenchmark {
     @FunctionalInterface
     public interface NetworkConfigurator {
         void configure(@NonNull Network network);
-    }
-
-    /**
-     * Creates a new benchmark transaction with the specified submission timestamp.
-     *
-     * @param nonce the nonce for the benchmark transaction
-     * @param submissionTime the submission timestamp
-     * @return a benchmark transaction
-     */
-    @NonNull
-    public static SlothTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
-        final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
-                .setSubmissionTimeMicros(instantToMicros(submissionTime))
-                .build();
-        return SlothTransaction.newBuilder()
-                .setNonce(nonce)
-                .setBenchmarkTransaction(benchmarkTransaction)
-                .build();
     }
 }
