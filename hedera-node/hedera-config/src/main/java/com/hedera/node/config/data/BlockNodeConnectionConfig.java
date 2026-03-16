@@ -34,6 +34,7 @@ import java.time.Duration;
  * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
  * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
  * @param blockNodeStatusTimeout the timeout for retrieving block node server status (millisecond precision)
+ * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 37748736 bytes (36 MB).
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -76,4 +77,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty
         int streamingRequestItemPaddingBytes,
 
-        @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout) {}
+        @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
+
+        @ConfigProperty(defaultValue = "37748736") @Min(1) @NodeProperty
+        long defaultMessageHardLimitBytes) {}
