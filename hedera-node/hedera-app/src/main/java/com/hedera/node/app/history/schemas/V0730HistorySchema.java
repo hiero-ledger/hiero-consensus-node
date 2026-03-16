@@ -64,7 +64,7 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
                             existingHash,
                             newHash);
                 } else {
-                    log.info("WRAPS proving key hash {} matches proving key in state", newHash);
+                    log.info("Pending WRAPS proving key hash {} matches proving key in state", newHash);
                 }
                 hashState.put(ProtoBytes.newBuilder().value(newHash).build());
             }

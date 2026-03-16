@@ -134,7 +134,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
-                        "Overwriting previous WRAPS proving key hash \\S+ with new hash \\S+",
+                        "Overwriting previous WRAPS proving key hash \\S+ with new pending hash \\S+",
                         Duration.ofSeconds(5)));
     }
 
