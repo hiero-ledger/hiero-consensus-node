@@ -16,9 +16,26 @@ permissions:
   contents: write
 
 jobs:
+  # Trigger the MATS Tests
+  trigger-mats-tests:
+    name: MQ MATS
+    uses: ./.github/workflows/zxc-mats-tests.yaml
+    with:
+      ref: ${{ github.ref }}
+      enable-snyk-scan: "true" # for Snyk
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
   # Trigger the MQ XTS Tests
   trigger-merge-queue-xts-tests:
-    name: Merge Queue XTS Required Tests
+    name: MQ XTS
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
@@ -51,7 +68,7 @@ jobs:
 
   # Trigger the MQ Performance/Longevity Tests
   trigger-merge-queue-performance-tests:
-    name: Merge Queue Performance Test
+    name: MQPT
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ vars.MQPT_CLUSTER }}"
@@ -66,42 +83,3 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
-
-  # Update the variable `MQPT_CLUSTER` in GitHub
-  # Options are: Dallas_n10, Dallas_n11, Dallas_n12
-  # This job will be removed before Merge Queues are required
-  # This job is ONLY for testing purposes to rapidly iterate and test
-  update-mqpt-cluster-variable:
-    name: Update MQPT_CLUSTER Variable
-    needs:
-      - trigger-merge-queue-performance-tests
-    runs-on: hl-cn-default-lin-sm
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Calculate Next Dallas Cluster Name
-        run: |
-          current_cluster="${{ vars.MQPT_CLUSTER }}"
-          if [[ "${current_cluster}" == "Dallas_n10" ]]; then
-              next_cluster="Dallas_n11"
-          elif [[ "${current_cluster}" == "Dallas_n11" ]]; then
-              next_cluster="Dallas_n12"
-          elif [[ "${current_cluster}" == "Dallas_n12" ]]; then
-              next_cluster="Dallas_n10"
-          else
-              echo "Error: Invalid cluster name '${current_cluster}'. Expected 'Dallas_n10', 'Dallas_n11', or 'Dallas_n12'."
-              exit 1
-          fi
-          echo "Next cluster: ${next_cluster}"
-          echo "NEXT_CLUSTER=$next_cluster" >> "${GITHUB_ENV}"
-
-      - name: Update MQPT_CLUSTER to input value
-        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
-        with:
-          name: "MQPT_CLUSTER"
-          value: "${{ env.NEXT_CLUSTER }}"
-          repository: ${{ github.repository }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
