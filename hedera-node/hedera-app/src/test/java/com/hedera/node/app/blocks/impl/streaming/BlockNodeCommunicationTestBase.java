@@ -194,7 +194,7 @@ public abstract class BlockNodeCommunicationTestBase {
                 port,
                 priority,
                 BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
-                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+                (36L * 1024 * 1024) + 1024);
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(
