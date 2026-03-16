@@ -560,20 +560,16 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     public void sendBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
         outputQueue.add(out -> {
 
-//            try {
-//                final int len = GossipEvent.PROTOBUF.write(gossipEvent, udpData, 0);
-//                final DatagramPacket packet = new DatagramPacket(udpData, len, outAddress, (int) (10000 + remotePeerId.id()));
-//                updOutSocket.send(packet);
-//            } catch (final Exception exc) {
-//                logger.info(EXCEPTION.getMarker(), "Failure when sending UDP broadcast, falling back to TCP", exc);
-//                out.writeShort(1); // single message
-//                out.write(BROADCAST_EVENT);
-//                out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
-//            }
-
-                            out.writeShort(1); // single message
+            try {
+                final int len = GossipEvent.PROTOBUF.write(gossipEvent, udpData, 0);
+                final DatagramPacket packet = new DatagramPacket(udpData, len, outAddress, (int) (10000 + remotePeerId.id()));
+                updOutSocket.send(packet);
+            } catch (final Exception exc) {
+                logger.info(EXCEPTION.getMarker(), "Failure when sending UDP broadcast, falling back to TCP", exc);
+                out.writeShort(1); // single message
                 out.write(BROADCAST_EVENT);
                 out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
+            }
         });
     }
 
