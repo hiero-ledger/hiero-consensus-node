@@ -183,6 +183,29 @@ class SavepointStackImplTest extends StateTestBase {
     }
 
     @Test
+    void rootHasPrecedingCapacityUntilLimitReached() {
+        final var subject = SavepointStackImpl.newRootStack(
+                baseState, 2, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+        assertThat(subject.rootHasPrecedingCapacity()).isTrue();
+
+        subject.createIrreversiblePrecedingBuilder();
+        assertThat(subject.rootHasPrecedingCapacity()).isTrue();
+
+        subject.createIrreversiblePrecedingBuilder();
+        assertThat(subject.rootHasPrecedingCapacity()).isFalse();
+    }
+
+    @Test
+    void rootHasPrecedingCapacityThrowsForChildStack() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+        final var child = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, HandleContext.TransactionCategory.CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+
+        assertThatThrownBy(child::rootHasPrecedingCapacity).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
     void testConstructor() {
         // when
         final var stack = SavepointStackImpl.newRootStack(

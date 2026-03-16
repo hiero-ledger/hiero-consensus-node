@@ -300,7 +300,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 retryCount++;
                 try {
                     // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 1000 : 10);
+                    sleep(isTransientPlatformError ? 100 : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
@@ -551,6 +551,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     // This smooths the case of getting the receipt for a transaction that was submitted
                     // to the non-default node in embedded mode, bypassing ingest; we retry until the default
                     // node caches the receipt at consensus
+                    continue;
+                } else if (lookupStatus == PLATFORM_NOT_ACTIVE
+                        || lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
+                        || lookupStatus == BUSY) {
+                    // Retry transient platform errors from the receipt query precheck, consistent
+                    // with how the transaction submission loop and query submission loop handle them
                     continue;
                 } else {
                     return statusNow;

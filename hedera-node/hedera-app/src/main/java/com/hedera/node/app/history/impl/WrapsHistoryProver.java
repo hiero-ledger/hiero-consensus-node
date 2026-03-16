@@ -57,6 +57,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
+    public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -143,6 +144,11 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     private WrapsPhase wrapsPhase = R1;
 
+    /**
+     * Indicates this prover's construction has been canceled and any post-output work should be skipped.
+     */
+    private volatile boolean constructionCanceled = false;
+
     private sealed interface WrapsPhaseOutput
             permits NoopOutput, MessagePhaseOutput, ProofPhaseOutput, AggregatePhaseOutput {}
 
@@ -152,7 +158,18 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private record AggregatePhaseOutput(byte[] signature, List<Long> nodeIds) implements WrapsPhaseOutput {}
 
-    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {}
+    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {
+        @NonNull
+        @Override
+        public String toString() {
+            return "WRAPS{compressed="
+                    + compressed.length
+                    + " bytes (" + Bytes.wrap(noThrowSha384HashOf(compressed)) + "), " + "uncompressed="
+                    + uncompressed.length
+                    + " bytes (" + Bytes.wrap(noThrowSha384HashOf(uncompressed)) + ")"
+                    + "}";
+        }
+    }
 
     private enum VoteChoice {
         SUBMIT,
@@ -230,7 +247,7 @@ public class WrapsHistoryProver implements HistoryProver {
             final var missingNodes = phaseMessages.get(R1).keySet().stream()
                     .filter(nodeId -> !submittingNodes.contains(nodeId))
                     .toList();
-            return new Outcome.Failed("Still missing messages from R1 nodes " + missingNodes
+            return new Outcome.Failed(MISSING_MESSAGES_FAILURE_PREFIX + missingNodes
                     + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
@@ -251,6 +268,11 @@ public class WrapsHistoryProver implements HistoryProver {
                     construction.targetProof());
         }
         return Outcome.InProgress.INSTANCE;
+    }
+
+    public static boolean isRecoverableFailure(@NonNull final String reason) {
+        requireNonNull(reason);
+        return reason.startsWith(MISSING_MESSAGES_FAILURE_PREFIX);
     }
 
     @Override
@@ -300,6 +322,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     @Override
     public boolean cancelPendingWork() {
+        constructionCanceled = true;
         final var sb = new StringBuilder("Canceled work on WRAPS prover");
         boolean canceledSomething = false;
         if (r1Future != null && !r1Future.isDone()) {
@@ -366,6 +389,9 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final TssConfig tssConfig,
             @Nullable final Bytes ledgerId,
             @Nullable final HistoryProof aggregatedSignatureProof) {
+        if (shouldSkipAfterCancellation(constructionId, phase)) {
+            return;
+        }
         if (futureOf(phase) == null
                 && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
@@ -397,8 +423,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                             }
                                             return;
                                         }
+                                        if (shouldSkipAfterCancellation(constructionId, phase)) {
+                                            return;
+                                        }
                                         switch (output) {
                                             case MessagePhaseOutput messageOutput -> {
+                                                if (shouldSkipAfterCancellation(constructionId, phase)) {
+                                                    return;
+                                                }
                                                 final var wrapsMessage = Bytes.wrap(messageOutput.message());
                                                 submissions
                                                         .submitWrapsSigningMessage(phase, wrapsMessage, constructionId)
@@ -456,6 +488,10 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private void scheduleVoteWithJitter(
             final long constructionId, @NonNull final TssConfig tssConfig, @NonNull final HistoryProof proof) {
+        if (constructionCanceled) {
+            log.info("Skipping vote scheduling on canceled construction #{}", constructionId);
+            return;
+        }
         this.historyProof = proof;
 
         final var selfProofHash = hashOf(proof);
@@ -499,6 +535,14 @@ public class WrapsHistoryProver implements HistoryProver {
         if (f != null && !f.isDone()) {
             f.complete(decision);
         }
+    }
+
+    private boolean shouldSkipAfterCancellation(final long constructionId, @NonNull final WrapsPhase phase) {
+        if (constructionCanceled) {
+            log.info("Skipping post-output work for WRAPS {} on canceled construction #{}", phase, constructionId);
+            return true;
+        }
+        return false;
     }
 
     private long computeJitterMs(@NonNull final TssConfig tssConfig, final long constructionId) {
@@ -596,7 +640,24 @@ public class WrapsHistoryProver implements HistoryProver {
                                 throw new IllegalStateException("Invalid aggregate signature using nodes " + signers);
                             }
                             final long now = System.nanoTime();
-                            log.info("Constructing incremental WRAPS proof...");
+                            log.info(
+                                    """
+                                            Constructing incremental WRAPS proof with:
+                                              ledgerId={}
+                                              sourceBook={}
+                                              sourceProofHash={}
+                                              targetMetadata={}
+                                              aggregateSignature={}
+                                              signers={}
+                                              targetBook={}
+                                            """,
+                                    ledgerId,
+                                    sourceBook,
+                                    noThrowSha384HashOf(sourceProof.uncompressedWrapsProof()),
+                                    targetMetadata,
+                                    Bytes.wrap(signature),
+                                    signers,
+                                    targetBook);
                             final var proof = historyLibrary.constructIncrementalWrapsProof(
                                     requireNonNull(ledgerId).toByteArray(),
                                     sourceProof.uncompressedWrapsProof().toByteArray(),
@@ -605,8 +666,13 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     signature,
                                     signers);
-                            logElapsed("constructing incremental WRAPS proof", now);
-                            yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            logElapsed(
+                                    constructionCanceled
+                                            ? "constructing canceled incremental WRAPS proof"
+                                            : "constructing incremental WRAPS proof -> " + output,
+                                    now);
+                            yield output;
                         }
                     }
                     case POST_AGGREGATION -> {
@@ -623,15 +689,23 @@ public class WrapsHistoryProver implements HistoryProver {
                                 .aggregatedNodeSignaturesOrThrow()
                                 .signingNodeIds());
                         final long now = System.nanoTime();
-                        log.info("Constructing genesis WRAPS proof...");
+                        log.info("""
+                                        Constructing genesis WRAPS proof with:
+                                          ledgerId={}
+                                          targetMetadata={}
+                                          aggregateSignature={}
+                                          signers={}
+                                          targetBook={}
+                                        """, ledgerId, targetMetadata, Bytes.wrap(signature), signers, targetBook);
                         final var proof = historyLibrary.constructGenesisWrapsProof(
                                 requireNonNull(ledgerId).toByteArray(),
                                 targetMetadata.toByteArray(),
                                 signature,
                                 signers,
                                 targetBook);
-                        logElapsed("constructing genesis WRAPS proof", now);
-                        yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                        final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                        logElapsed("constructing genesis WRAPS proof -> " + output, now);
+                        yield output;
                     }
                 },
                 executor);

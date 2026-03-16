@@ -243,12 +243,55 @@ public class ContractServiceFeeCalculatorsTest {
     }
 
     @Test
+    void testContractCallLocalWithGasExtra() {
+        final var query = Query.newBuilder()
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(12L))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        assertThat(result.totalTinycents()).isEqualTo(570);
+    }
+
+    @Test
     void testContractGetBytecode() {
         final var contractId = ContractID.newBuilder().contractNum(12333).build();
         final var contractStoreMock = mock(ContractStateStore.class);
         when(queryContext.createStore(ContractStateStore.class)).thenReturn(contractStoreMock);
         when(contractStoreMock.getBytecode(contractId))
                 .thenReturn(Bytecode.newBuilder().code(Bytes.EMPTY).build());
+
+        final var query = Query.newBuilder()
+                .contractGetBytecode(ContractGetBytecodeQuery.newBuilder().contractID(contractId))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        assertThat(result.totalTinycents()).isEqualTo(666);
+    }
+
+    @Test
+    void testContractGetBytecodeWithProcessingBytesExtra() {
+        final var contractId = ContractID.newBuilder().contractNum(12333).build();
+        final var contractStoreMock = mock(ContractStateStore.class);
+        when(queryContext.createStore(ContractStateStore.class)).thenReturn(contractStoreMock);
+        when(contractStoreMock.getBytecode(contractId))
+                .thenReturn(
+                        Bytecode.newBuilder().code(Bytes.wrap(new byte[20_005])).build());
+
+        final var query = Query.newBuilder()
+                .contractGetBytecode(ContractGetBytecodeQuery.newBuilder().contractID(contractId))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        // ContractGetBytecode includes 20_000 processing bytes; this query uses 20_005.
+        assertThat(result.totalTinycents()).isEqualTo(691);
+    }
+
+    @Test
+    void testContractGetBytecodeWithoutBytecodeInStateStore() {
+        final var contractId = ContractID.newBuilder().contractNum(12333).build();
+        final var contractStoreMock = mock(ContractStateStore.class);
+        when(queryContext.createStore(ContractStateStore.class)).thenReturn(contractStoreMock);
+        when(contractStoreMock.getBytecode(contractId)).thenReturn(null);
 
         final var query = Query.newBuilder()
                 .contractGetBytecode(ContractGetBytecodeQuery.newBuilder().contractID(contractId))
@@ -280,7 +323,9 @@ public class ContractServiceFeeCalculatorsTest {
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
                         makeExtraDef(Extra.STATE_BYTES, 10),
-                        makeExtraDef(Extra.HOOK_UPDATES, 20000000))
+                        makeExtraDef(Extra.PROCESSING_BYTES, 5),
+                        makeExtraDef(Extra.HOOK_UPDATES, 20000000),
+                        makeExtraDef(Extra.GAS, 3))
                 .services(makeService(
                         "ContractService",
                         makeServiceFee(
@@ -298,8 +343,11 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_DELETE, 69000000),
                         makeServiceFee(ETHEREUM_TRANSACTION, 0),
-                        makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555),
-                        makeServiceFee(HederaFunctionality.CONTRACT_GET_BYTECODE, 666),
+                        makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555, makeExtraIncluded(Extra.GAS, 7)),
+                        makeServiceFee(
+                                HederaFunctionality.CONTRACT_GET_BYTECODE,
+                                666,
+                                makeExtraIncluded(Extra.PROCESSING_BYTES, 20_000)),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_INFO, 777)))
                 .build();
     }
