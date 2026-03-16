@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -354,6 +355,7 @@ public class ScheduleServiceSimpleFeesTest {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     @DisplayName("Scheduled ContractCall full lifecycle - create, sign, execute fees")
     final Stream<DynamicTest> scheduledContractCallFullLifecycleFees() {
         final var schedulePayer = "contractSchedulePayer";
