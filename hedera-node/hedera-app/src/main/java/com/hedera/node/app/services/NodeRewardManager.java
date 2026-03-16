@@ -12,6 +12,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -24,6 +25,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
@@ -39,6 +41,8 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Instant;
@@ -225,49 +229,37 @@ public class NodeRewardManager {
             final var nodeGroups = NodeRewardGroups.from(excludeNodesDecliningRewards(nodeActivities));
 
             // And pay whatever rewards the network can afford
-            final var rewardsAccountId = entityIdFactory.newAccountId(
-                    config.getConfigData(AccountsConfig.class).nodeRewardAccount());
-            final var entityCounters = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
-            final var accountStore = new ReadableAccountStoreImpl(writableStates, entityCounters);
-            final long rewardAccountBalance = requireNonNull(accountStore.getAccountById(rewardsAccountId))
-                    .tinybarBalance();
+            final long rewardAccountBalance = getRewardAccountBalance(state, writableStates);
             final long prePaidRewards = nodesConfig.adjustNodeFees()
                     ? nodeRewardStore.get().nodeFeesCollected() / currentRoster.size()
                     : 0L;
 
-            final var targetPayInTinycents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
-                    .multiply(USD_TO_TINYCENTS.toBigInteger())
-                    .divide(BigInteger.valueOf(nodesConfig.numPeriodsToTargetUsd()));
-            final var minimumRewardInTinycents = exchangeRateManager.getTinybarsFromTinycents(
-                    Math.max(
-                            0L,
-                            BigInteger.valueOf(nodesConfig.minPerPeriodNodeRewardUsd())
-                                    .multiply(USD_TO_TINYCENTS.toBigInteger())
-                                    .longValue()),
-                    now);
-            final long nodeReward = exchangeRateManager.getTinybarsFromTinycents(targetPayInTinycents.longValue(), now);
-            final var perActiveNodeReward = Math.max(minimumRewardInTinycents, nodeReward - prePaidRewards);
+            // Calculate the reward amounts with budget constraints applied
+            final var rewardAmounts =
+                    calculateRewardAmounts(nodeGroups, rewardAccountBalance, nodesConfig, now, prePaidRewards);
 
-            systemTransactions.dispatchNodeRewards(
-                    state,
-                    now,
-                    nodeGroups,
-                    perActiveNodeReward,
-                    rewardsAccountId,
-                    rewardAccountBalance,
-                    minimumRewardInTinycents);
+            // Dispatch the calculated rewards
+            systemTransactions.dispatchNodeRewards(state, now, rewardAmounts);
         }
         // Record this as the last time node rewards were paid
+        updateRewardLastPaymentTime(now, writableStates);
+        resetStakingPeriodRewards(nodeRewardStore);
+        ((CommittableWritableStates) writableStates).commit();
+        return true;
+    }
+
+    private void updateRewardLastPaymentTime(@NonNull final Instant now, final WritableStates writableStates) {
         final var rewardsStore = new WritableNetworkStakingRewardsStore(writableStates);
         rewardsStore.put(rewardsStore
                 .get()
                 .copyBuilder()
                 .lastNodeRewardPaymentsTime(asTimestamp(now))
                 .build());
+    }
+
+    private void resetStakingPeriodRewards(final WritableNodeRewardsStoreImpl nodeRewardStore) {
         nodeRewardStore.resetForNewStakingPeriod();
         resetNodeRewards();
-        ((CommittableWritableStates) writableStates).commit();
-        return true;
     }
 
     private static @NonNull List<RosterEntry> getRosterEntries(@NonNull State state) {
@@ -394,6 +386,227 @@ public class NodeRewardManager {
                     return nodeInfo != null && !nodeInfo.declineReward();
                 })
                 .toList();
+    }
+
+    /**
+     * Calculates reward amounts for all nodes based on activity and available balance.
+     * This method centralizes all reward calculation and budget constraint logic,
+     * including computing per-node amounts from configuration and applying budget constraints.
+     *
+     * @param nodeGroups the groups of active and inactive nodes
+     * @param rewardAccountBalance the available balance in the rewards account
+     * @param nodesConfig the nodes configuration
+     * @param now the current consensus time (used for exchange rate conversion)
+     * @param prePaidRewards the per-node amount already pre-paid via node fees
+     * @return the calculated reward amounts ready for dispatch
+     */
+    @VisibleForTesting
+    NodeRewardAmounts calculateRewardAmounts(
+            @NonNull final NodeRewardGroups nodeGroups,
+            final long rewardAccountBalance,
+            @NonNull final NodesConfig nodesConfig,
+            @NonNull final Instant now,
+            final long prePaidRewards) {
+        final var payerId = rewardsAccountId();
+        final long minNodeReward = computeMinNodeReward(nodesConfig, now);
+        final var rewardAmounts = new NodeRewardAmounts(payerId);
+        final var activeAccounts = nodeGroups.activeNodeAccountIds();
+        final var inactiveAccounts = nodeGroups.inactiveNodeAccountIds();
+
+        if (!activeAccounts.isEmpty()) {
+            log.info("Found eligible active node accounts {}", activeAccounts);
+        }
+
+        // Step 1: Add consensus rewards for active nodes (per-node amount computed inside)
+        computeActiveConsensusNodeRewards(
+                nodeGroups.activeNodeActivities(), nodesConfig, now, prePaidRewards, minNodeReward, rewardAmounts);
+
+        // Step 2: Add block node rewards for active nodes (stub for HIP-1357)
+        computeActiveBlockNodeRewards(nodeGroups.activeNodeActivities(), rewardAmounts);
+
+        // Step 3: Add consensus rewards for inactive nodes (only if minimum reward > 0)
+        if (minNodeReward > 0 && !inactiveAccounts.isEmpty()) {
+            log.info(
+                    "Found inactive node accounts {} that will receive minimum node reward {}",
+                    inactiveAccounts,
+                    minNodeReward);
+            computeInactiveConsensusNodeRewards(nodeGroups.inactiveNodeActivities(), minNodeReward, rewardAmounts);
+        }
+
+        // Step 4: Apply budget constraints
+        final var constrained = applyBudgetConstraints(rewardAmounts, rewardAccountBalance, payerId);
+        log.info("Calculated rewards: {}", constrained);
+        return constrained;
+    }
+
+    /**
+     * Computes the per-consensus-node reward and adds it to the reward amounts for all active nodes.
+     * The per-node amount is the target yearly reward adjusted for pre-paid fees, floored at {@code minNodeReward}.
+     *
+     * @param activities the active node activities to reward
+     * @param nodesConfig the nodes configuration
+     * @param now the current consensus time (used for exchange rate conversion)
+     * @param prePaidRewards the per-node amount already pre-paid via node fees
+     * @param minNodeReward the minimum reward floor (shared with inactive reward computation)
+     * @param rewardAmounts the mutable reward amounts to update
+     */
+    @VisibleForTesting
+    void computeActiveConsensusNodeRewards(
+            @NonNull final Collection<NodeRewardActivity> activities,
+            @NonNull final NodesConfig nodesConfig,
+            @NonNull final Instant now,
+            final long prePaidRewards,
+            final long minNodeReward,
+            @NonNull final NodeRewardAmounts rewardAmounts) {
+        final var targetPayInTinycents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
+                .multiply(USD_TO_TINYCENTS.toBigInteger())
+                .divide(BigInteger.valueOf(nodesConfig.numPeriodsToTargetUsd()));
+        final long targetNodeReward =
+                exchangeRateManager.getTinybarsFromTinycents(targetPayInTinycents.longValue(), now);
+        final long perNodeReward = Math.max(minNodeReward, targetNodeReward - prePaidRewards);
+        for (final var activity : activities) {
+            rewardAmounts.addConsensusNodeReward(activity.nodeId(), activity.accountId(), perNodeReward);
+        }
+    }
+
+    /**
+     * Computes and adds block node rewards for active nodes.
+     * This is a stub for future HIP-1357 implementation.
+     *
+     * @param activities the active node activities to reward
+     * @param rewardAmounts the mutable reward amounts to update
+     */
+    @VisibleForTesting
+    void computeActiveBlockNodeRewards(
+            @NonNull final Collection<NodeRewardActivity> activities, @NonNull final NodeRewardAmounts rewardAmounts) {
+        // Stub implementation for future HIP-1357
+        // Block node rewards will be calculated and added here
+        // For now, no block rewards are added
+    }
+
+    /**
+     * Computes and adds consensus node rewards for inactive nodes.
+     *
+     * @param activities the inactive node activities to reward
+     * @param amount the minimum reward amount per node
+     * @param rewardAmounts the mutable reward amounts to an update
+     */
+    @VisibleForTesting
+    void computeInactiveConsensusNodeRewards(
+            @NonNull final Collection<NodeRewardActivity> activities,
+            final long amount,
+            @NonNull final NodeRewardAmounts rewardAmounts) {
+        for (final var activity : activities) {
+            rewardAmounts.addInactiveConsensusNodeReward(activity.nodeId(), activity.accountId(), amount);
+        }
+    }
+
+    /**
+     * Returns the account ID of the node rewards account, derived from configuration.
+     */
+    private AccountID rewardsAccountId() {
+        return entityIdFactory.newAccountId(configProvider
+                .getConfiguration()
+                .getConfigData(AccountsConfig.class)
+                .nodeRewardAccount());
+    }
+
+    /**
+     * Applies budget constraints to the desired reward amounts.
+     * If the total desired rewards exceed the available balance, this method
+     * adjusts the amounts according to the following priority:
+     * 1. If balance greater than or equal to activeTotal + inactiveTotal: keep all amounts
+     * 2. If balance greater than activeTotal: keep active, partially fund inactive with the remainder
+     * 3. If balance is less than or equal to activeTotal: divide balance equally among active nodes, drop inactive
+     * 4. When there are no active nodes, inactive nodes are treated as the sole recipients
+     * and the budget is divided equally among them, using the minimal rewards.
+     *
+     * @param desiredAmounts the desired reward amounts
+     * @param availableBalance the available balance in the rewards account
+     * @param payerId the account that will pay for the rewards
+     * @return the adjusted reward amounts that fit within the budget
+     */
+    @VisibleForTesting
+    NodeRewardAmounts applyBudgetConstraints(
+            @NonNull final NodeRewardAmounts desiredAmounts,
+            final long availableBalance,
+            @NonNull final AccountID payerId) {
+        final long activeTotal = desiredAmounts.activeTotalAmount();
+        final long inactiveTotal = desiredAmounts.inactiveTotalAmount();
+        final long totalDesired = activeTotal + inactiveTotal;
+
+        // Case 1: Sufficient balance for all rewards
+        if (totalDesired <= availableBalance) {
+            return desiredAmounts;
+        }
+
+        // Case 2: Sufficient balance for active nodes, partially fund inactive with the remainder
+        if (availableBalance > activeTotal && activeTotal > 0) {
+            final long inactiveBudget = Math.min(availableBalance - activeTotal, inactiveTotal);
+            return desiredAmounts.withCappedInactiveRewards(inactiveBudget);
+        }
+
+        // Case 3: Insufficient balance even for active nodes — divide equally among active nodes.
+        // Drops inactive nodes rewards.
+        if (activeTotal > 0) {
+            final var constrainedAmounts = new NodeRewardAmounts(payerId);
+            final var activeNodeCount = countActiveNodes(desiredAmounts);
+            if (activeNodeCount > 0) {
+                final long perNodeAmount = availableBalance / activeNodeCount;
+                log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", perNodeAmount);
+                distributeEquallyAmongActiveNodes(desiredAmounts, constrainedAmounts, perNodeAmount);
+            }
+            return constrainedAmounts;
+        }
+
+        // Case 4: No active nodes — divide balance equally among inactive nodes
+        final long inactiveBudget = Math.min(availableBalance, inactiveTotal);
+        return desiredAmounts.withCappedInactiveRewards(inactiveBudget);
+    }
+
+    /**
+     * Returns the tinybar balance of the rewards account.
+     */
+    private long getRewardAccountBalance(@NonNull final State state, @NonNull final ReadableStates tokenStates) {
+        final var rewardsAccountId = rewardsAccountId();
+        final var entityCounters = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+        final var accountStore = new ReadableAccountStoreImpl(tokenStates, entityCounters);
+        return requireNonNull(accountStore.getAccountById(rewardsAccountId)).tinybarBalance();
+    }
+
+    /**
+     * Computes the minimum per-node reward in tinybars for the given period, converting the value in USD
+     * to tinybars.
+     */
+    private long computeMinNodeReward(@NonNull final NodesConfig nodesConfig, @NonNull final Instant now) {
+        final long usdAsTinycents = BigInteger.valueOf(nodesConfig.minPerPeriodNodeRewardUsd())
+                .multiply(USD_TO_TINYCENTS.toBigInteger())
+                .longValue();
+        final long minTinycents = Math.max(0L, usdAsTinycents);
+        return exchangeRateManager.getTinybarsFromTinycents(minTinycents, now);
+    }
+
+    /**
+     * Counts the number of unique active nodes with rewards.
+     */
+    private long countActiveNodes(@NonNull final NodeRewardAmounts amounts) {
+        return amounts.activeNodeCount();
+    }
+
+    /**
+     * Distributes the given amount equally among all active nodes.
+     */
+    private void distributeEquallyAmongActiveNodes(
+            @NonNull final NodeRewardAmounts source,
+            @NonNull final NodeRewardAmounts destination,
+            final long perNodeAmount) {
+        // set to prevent duplicate node rewards, as now we are paying each node just once.
+        final var seenNodes = new HashSet<Long>();
+        for (final var reward : source.activeNodeRewards()) {
+            if (seenNodes.add(reward.nodeId())) {
+                destination.addConsensusNodeReward(reward.nodeId(), reward.accountId(), perNodeAmount);
+            }
+        }
     }
 
     @VisibleForTesting

@@ -145,11 +145,16 @@ public interface HintsService extends Service {
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
      *
-     * @param hintsStore            the hints store
-     * @param now                   the current consensus time
-     * @param isActive               if the platform is active
+     * @param hintsStore the hints store
+     * @param now the current consensus time
+     * @param isActive if the platform is active
+     * @param tssConfig the TSS configuration
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
+    void executeCrsWork(
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            boolean isActive,
+            @NonNull TssConfig tssConfig);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.
