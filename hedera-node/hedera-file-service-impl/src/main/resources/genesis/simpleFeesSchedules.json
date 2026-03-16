@@ -659,7 +659,7 @@
         },
         {
           "name": "EthereumTransaction",
-          "baseFee": 10000,
+          "baseFee": 0,
           "extras": []
         },
         {
