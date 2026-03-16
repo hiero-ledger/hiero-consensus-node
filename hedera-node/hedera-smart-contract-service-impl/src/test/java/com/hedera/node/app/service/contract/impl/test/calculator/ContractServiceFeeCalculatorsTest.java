@@ -49,6 +49,7 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -227,9 +228,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
-        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(10000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
     }
 
     @Test
@@ -334,7 +335,11 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.KEYS, 0),
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
-                        makeServiceFee(CONTRACT_CALL, 0),
+                        ServiceFeeDefinition.newBuilder()
+                                .name(CONTRACT_CALL)
+                                .baseFee(0)
+                                .nodeNetworkExempt(true)
+                                .build(),
                         makeServiceFee(
                                 CONTRACT_UPDATE,
                                 499000000,
@@ -342,7 +347,11 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_DELETE, 69000000),
-                        makeServiceFee(ETHEREUM_TRANSACTION, 0),
+                        ServiceFeeDefinition.newBuilder()
+                                .name(ETHEREUM_TRANSACTION)
+                                .baseFee(10000)
+                                .nodeNetworkExempt(true)
+                                .build(),
                         makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555, makeExtraIncluded(Extra.GAS, 7)),
                         makeServiceFee(
                                 HederaFunctionality.CONTRACT_GET_BYTECODE,

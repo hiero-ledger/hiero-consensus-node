@@ -123,18 +123,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
         final long bytes = simpleFeeContext.numTxnBytes();
         final var result = new FeeResult();
-        // Add node base and extras (bytes and payer signatures)
-        result.setNodeBaseFeeTinycents(requireNonNull(feeSchedule.node()).baseFee());
-        addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
-        // Add network fee
-        final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
-        result.setNetworkMultiplier(multiplier);
+        final var functionality = simpleFeeContext.functionality();
+        final var serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
+        final boolean nodeNetworkExempt = serviceFeeDefinition != null && serviceFeeDefinition.nodeNetworkExempt();
+        if (!nodeNetworkExempt) {
+            // Add node base and extras (bytes and payer signatures)
+            result.setNodeBaseFeeTinycents(requireNonNull(feeSchedule.node()).baseFee());
+            addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
+            // Add network fee
+            final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
+            result.setNetworkMultiplier(multiplier);
+        }
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
-
-        final var functionality = simpleFeeContext.functionality();
         final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313).
