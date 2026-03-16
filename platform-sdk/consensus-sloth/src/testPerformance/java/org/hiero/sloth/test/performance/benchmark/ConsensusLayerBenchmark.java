@@ -36,7 +36,7 @@ public class ConsensusLayerBenchmark {
      * Record holding benchmark execution parameters.
      *
      * @param numberOfNodes     the number of nodes in the network
-     * @param maxTps            total network transactions per second (distributed evenly across nodes)
+     * @param tps               total network transactions per second (distributed evenly across nodes)
      * @param stabilizationTime time to wait for network stabilization (seconds)
      * @param warmupTime        duration of the warmup generation phase (seconds)
      * @param benchmarkTime     duration of the benchmark generation phase (seconds)
@@ -44,7 +44,7 @@ public class ConsensusLayerBenchmark {
      */
     public record BenchmarkParameters(
             int numberOfNodes,
-            int maxTps,
+            int tps,
             long stabilizationTime,
             long warmupTime,
             long benchmarkTime,
@@ -110,7 +110,7 @@ public class ConsensusLayerBenchmark {
 
         // Per-node TPS: spread the total network TPS evenly across all nodes.
         final List<Node> nodes = network.nodes();
-        final int perNodeTps = Math.max(1, params.maxTps() / nodes.size());
+        final int perNodeTps = Math.max(1, params.tps() / nodes.size());
 
         // Warm-up phase: generate empty transactions on each node for warmupTime seconds.
         log.info(
