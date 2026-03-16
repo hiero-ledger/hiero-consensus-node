@@ -234,7 +234,7 @@ public class CodeDelegationAtomicBatchTest {
                                 .payingWith(RELAYER)
                                 .hasKnownStatus(SUCCESS)),
                         getTxnRecord(partialCommitTxn).andAllChildRecords().logged(),
-                        // Atomic batch failure rolls back all delegation effects from inner txns.
+                        // Atomic batch commits back all delegations.
                         getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()),
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()),
                         getAliasedAccountInfo(delegatingAccount1).hasDelegationAddress(DELEGATION_TARGET.get()),
