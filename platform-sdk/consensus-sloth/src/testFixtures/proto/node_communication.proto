@@ -137,23 +137,6 @@ message ProtoPlatformEvent {
   com.hedera.hapi.platform.event.EventConsensusData consensus_data = 2;
 }
 
-// Represents a single consensus round.
-message ProtoConsensusRound {
-  // Events that reached consensus in this round.
-  repeated ProtoPlatformEvent consensus_events = 1;
-  // Window of events for this round.
-  EventWindow event_window = 2;
-  // Number of application transactions in this round.
-  int32 num_app_transactions = 3;
-  // Snapshot of the consensus state.
-  com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = 4;
-  // Roster of nodes participating in consensus.
-  com.hedera.hapi.node.state.roster.Roster consensus_roster = 5;
-  // Indicates if this is a PCES round.
-  bool pces_round = 6;
-  // Timestamp when consensus was reached.
-  uint64 reached_cons_timestamp = 7;
-}
 
 // Wrapper for different types of event messages.
 message EventMessage {
@@ -163,8 +146,6 @@ message EventMessage {
     PlatformStatusChange platform_status_change = 1;
     // Log entry event.
     LogEntry log_entry = 2;
-    // Consensus rounds event.
-    ProtoConsensusRound consensus_round = 3;
   }
 }
 
