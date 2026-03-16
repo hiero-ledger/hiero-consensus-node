@@ -19,7 +19,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.AbstractNetwork;
 import org.hiero.sloth.fixtures.internal.RegularTimeManager;
 import org.hiero.sloth.fixtures.internal.network.ConnectionKey;

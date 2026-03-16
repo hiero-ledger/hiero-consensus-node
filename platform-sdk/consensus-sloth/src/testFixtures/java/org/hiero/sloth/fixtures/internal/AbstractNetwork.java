@@ -37,7 +37,6 @@ import org.hiero.sloth.fixtures.AsyncNetworkActions;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.network.ConnectionKey;
 import org.hiero.sloth.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.sloth.fixtures.internal.result.MultipleNodeLogResultsImpl;

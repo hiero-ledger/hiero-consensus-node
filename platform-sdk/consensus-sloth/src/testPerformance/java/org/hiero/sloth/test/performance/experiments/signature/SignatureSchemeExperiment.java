@@ -16,7 +16,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 
 /**
  * Experiment testing the effect of signature scheme on consensus latency.

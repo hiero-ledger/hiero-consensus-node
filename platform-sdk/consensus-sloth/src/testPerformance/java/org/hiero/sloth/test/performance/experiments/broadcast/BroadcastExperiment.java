@@ -10,7 +10,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.TestMethodOrder;
 
@@ -27,7 +26,7 @@ public class BroadcastExperiment {
     @Benchmark
     void broadcast(@NonNull final TestEnvironment env) {
         log.info("=== Broadcast Experiment: enabled ===");
-        runBenchmark(env, "broadcast",  network -> {
+        runBenchmark(env, "broadcast", network -> {
             network.withConfigValue("broadcast.enableBroadcast", true);
         });
     }

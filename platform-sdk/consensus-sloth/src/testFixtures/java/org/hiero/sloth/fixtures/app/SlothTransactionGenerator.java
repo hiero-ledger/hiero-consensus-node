@@ -54,8 +54,7 @@ public class SlothTransactionGenerator {
      * @param transactionPool the pool to submit generated transactions to
      * @param time            source of time for benchmark transaction timestamps
      */
-    public SlothTransactionGenerator(
-            @NonNull final TransactionPoolNexus transactionPool, @NonNull final Time time) {
+    public SlothTransactionGenerator(@NonNull final TransactionPoolNexus transactionPool, @NonNull final Time time) {
         this.transactionPool = requireNonNull(transactionPool);
         this.time = requireNonNull(time);
     }
@@ -85,8 +84,8 @@ public class SlothTransactionGenerator {
 
         final long intervalMillis = 1000L / tps;
         log.info("Starting transaction generation: {} TPS, type={}, interval={}ms", tps, type, intervalMillis);
-        generationTask = scheduler.scheduleAtFixedRate(
-                () -> generateAndSubmit(type), 0, intervalMillis, TimeUnit.MILLISECONDS);
+        generationTask =
+                scheduler.scheduleAtFixedRate(() -> generateAndSubmit(type), 0, intervalMillis, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -109,11 +108,12 @@ public class SlothTransactionGenerator {
     }
 
     private void generateAndSubmit(@NonNull final SlothTransactionType type) {
-        final SlothTransaction tx = switch (type) {
-            case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
-            case BENCHMARK ->
-                TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
-        };
+        final SlothTransaction tx =
+                switch (type) {
+                    case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
+                    case BENCHMARK ->
+                        TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
+                };
         if (transactionPool.submitApplicationTransaction(Bytes.wrap(tx.toByteArray()))) {
             generatedCount.incrementAndGet();
         }

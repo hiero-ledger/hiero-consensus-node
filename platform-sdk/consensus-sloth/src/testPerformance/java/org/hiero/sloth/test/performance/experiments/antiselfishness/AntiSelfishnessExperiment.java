@@ -10,7 +10,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -45,7 +44,7 @@ public class AntiSelfishnessExperiment {
     @Order(2)
     void antiSelfishnessFactor5(@NonNull final TestEnvironment env) {
         log.info("=== AntiSelfishness Experiment: antiSelfishnessFactor=5 ===");
-        runBenchmark(env, "antiSelfishnessFactor5",  network -> {
+        runBenchmark(env, "antiSelfishnessFactor5", network -> {
             network.withConfigValue("event.creation.antiSelfishnessFactor", 5);
         });
     }

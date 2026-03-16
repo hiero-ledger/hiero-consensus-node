@@ -43,9 +43,9 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.ProfilerEvent;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TimeManager;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceGrpc;
@@ -336,8 +336,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     @Override
     public long stopTransactionGeneration() {
-        final StopTransactionGenerationResponse response =
-                nodeCommBlockingStub.stopTransactionGeneration(Empty.newBuilder().build());
+        final StopTransactionGenerationResponse response = nodeCommBlockingStub.stopTransactionGeneration(
+                Empty.newBuilder().build());
         return response.getGeneratedCount();
     }
 

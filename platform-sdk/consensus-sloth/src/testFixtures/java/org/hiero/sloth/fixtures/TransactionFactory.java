@@ -60,8 +60,7 @@ public class TransactionFactory {
      * @param submissionTime the time at which this transaction is submitted
      * @return a benchmark transaction
      */
-    public static SlothTransaction createBenchmarkTransaction(
-            final long nonce, @NonNull final Instant submissionTime) {
+    public static SlothTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
         final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
                 .setSubmissionTimeMicros(instantToMicros(submissionTime))
                 .build();

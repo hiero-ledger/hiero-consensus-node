@@ -10,7 +10,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -41,7 +40,7 @@ public class CreationPeriodExperiment {
     @Order(2)
     void creationPeriod500us(@NonNull final TestEnvironment env) {
         log.info("=== CreationPeriod Experiment: frequency=500us ===");
-        runBenchmark(env, "creationPeriod500us",  network -> {
+        runBenchmark(env, "creationPeriod500us", network -> {
             network.withConfigValue("event.creation.period", "500us");
         });
     }

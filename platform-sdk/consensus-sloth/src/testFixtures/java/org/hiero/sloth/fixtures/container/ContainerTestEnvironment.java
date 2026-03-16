@@ -18,7 +18,6 @@ import org.hiero.sloth.fixtures.Capability;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.RegularTimeManager;
 
 /**
@@ -73,8 +72,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(
-                timeManager, rootOutputDirectory, useRandomNodeIds, gcLoggingEnabled, jvmArgs);
+        network = new ContainerNetwork(timeManager, rootOutputDirectory, useRandomNodeIds, gcLoggingEnabled, jvmArgs);
     }
 
     /**

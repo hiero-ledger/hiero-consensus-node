@@ -8,15 +8,16 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.sloth.fixtures.Benchmark;
-import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.TimeManager;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
@@ -26,8 +27,6 @@ import org.hiero.sloth.test.performance.benchmark.fixtures.MeasurementsCollector
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
-import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-
 
 /**
  * Performance benchmark test that measures consensus layer latency.
@@ -145,7 +144,8 @@ public class ConsensusLayerBenchmark {
                 params.benchmarkTime());
         nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
         timeManager.waitFor(params.benchmarkTime());
-        final long totalGenerated = nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
+        final long totalGenerated =
+                nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
         // Wait for all transactions to reach consensus and be logged.
