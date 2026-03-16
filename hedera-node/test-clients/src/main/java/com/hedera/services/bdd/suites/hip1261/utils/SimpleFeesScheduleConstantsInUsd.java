@@ -112,7 +112,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
     public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_UPDATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_UPDATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
     public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
 
@@ -129,6 +129,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double FILE_UPDATE_BASE_FEE = 0.05;
     public static final double FILE_APPEND_BASE_FEE = 0.05;
     public static final double FILE_DELETE_BASE_FEE = 0.007;
+    public static final double FILE_GET_CONTENTS_QUERY_BASE_FEE_USD = 0.0001;
+    public static final double FILE_GET_INFO_QUERY_BASE_FEE_USD = 0.0001;
 
     /* ---------- Token service ---------- */
     public static final long TOKEN_CREATE_WITH_CUSTOM_FEE_USD = 1L;
@@ -175,6 +177,9 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_REJECT_FEE_USD = 0.0009;
     public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_AIRDROP_BASE_FEE_USD = 0;
+    public static final long TOKEN_AIRDROPS_INCLUDED_COUNT = 0L;
 
     /* ---------- Schedule service ---------- */
 

@@ -11,8 +11,6 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,20 +46,12 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      *
      * @param map
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
-     * @param state
-     * 		The state of the virtual tree that we are synchronizing.
-     * @param pipeline
-     * 		The pipeline managing the virtual map.
      */
-    public TeacherPullVirtualTreeView(
-            final ReconnectConfig reconnectConfig,
-            final VirtualMap map,
-            final VirtualMapMetadata state,
-            final VirtualPipeline pipeline) {
+    public TeacherPullVirtualTreeView(final ReconnectConfig reconnectConfig, final VirtualMap map) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(map, state, state);
+        super(map, map.getMetadata(), map.getMetadata());
         this.reconnectConfig = reconnectConfig;
-        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
+        this.records = map.detach();
     }
 
     @Override
