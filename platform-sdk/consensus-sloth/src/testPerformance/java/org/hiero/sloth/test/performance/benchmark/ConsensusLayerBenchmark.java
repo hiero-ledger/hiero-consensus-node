@@ -35,28 +35,26 @@ public class ConsensusLayerBenchmark {
     /**
      * Record holding benchmark execution parameters.
      *
-     * @param numberOfNodes the number of nodes in the network
-     * @param warmupCount the number of warmup transactions (unused, retained for API compatibility)
-     * @param transactionCount the target number of benchmark transactions
-     * @param maxTps the maximum transactions per second rate for the whole network
+     * @param numberOfNodes     the number of nodes in the network
+     * @param maxTps            total network transactions per second (distributed evenly across nodes)
      * @param stabilizationTime time to wait for network stabilization (seconds)
-     * @param warmupTime duration of the warmup generation phase (seconds)
-     * @param collectionTime time to wait after stopping generation for results to propagate (seconds)
+     * @param warmupTime        duration of the warmup generation phase (seconds)
+     * @param benchmarkTime     duration of the benchmark generation phase (seconds)
+     * @param collectionTime    time to wait after stopping generation for results to propagate (seconds)
      */
     public record BenchmarkParameters(
             int numberOfNodes,
-            int warmupCount,
-            int transactionCount,
             int maxTps,
             long stabilizationTime,
             long warmupTime,
+            long benchmarkTime,
             long collectionTime) {
 
         /**
          * Creates default benchmark parameters.
          */
         public static BenchmarkParameters defaults() {
-            return new BenchmarkParameters(4, 1000, 1000, 20, 3L, 5L, 10L);
+            return new BenchmarkParameters(4, 20, 3L, 5L, 50L, 10L);
         }
     }
 
@@ -126,14 +124,13 @@ public class ConsensusLayerBenchmark {
         log.info("[{}] Warm-up phase complete", configName);
 
         // Benchmark phase: generate benchmark transactions on each node.
-        final long benchmarkDurationSeconds = (long) params.transactionCount() / params.maxTps();
         log.info(
                 "[{}] Starting benchmark: generating BENCHMARK transactions at {} TPS per node for {}s...",
                 configName,
                 perNodeTps,
-                benchmarkDurationSeconds);
+                params.benchmarkTime());
         nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
-        timeManager.waitFor(Duration.ofSeconds(benchmarkDurationSeconds));
+        timeManager.waitFor(Duration.ofSeconds(params.benchmarkTime()));
         final long totalGenerated = nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
