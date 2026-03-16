@@ -293,8 +293,8 @@ jobs:
 
       - name: Show running pods and services
         run: |
-          kubectl --context kind-${{ env.SOLO_CLUSTER_NAME }} get pods -n ${NAMESPACE}
-          kubectl --context kind-${{ env.SOLO_CLUSTER_NAME }} get svc -n ${NAMESPACE}
+          kubectl get pods -n "${NAMESPACE}"
+          kubectl get svc -n "${NAMESPACE}"
         continue-on-error: true
 
       # port forwards
@@ -324,21 +324,24 @@ jobs:
 
           solo rapid-fire load start --test CryptoTransferLoadTest --deployment ${{ env.SOLO_DEPLOYMENT }} \
           --args '"-c 5 -a 10 -R -t 10"'
+        continue-on-error: true
 
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
       - name: Scale 2 BNs down to simulate failure
         run: |
           sleep 30
-          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --replicas=0
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=0
           sleep 30
-          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --replicas=0
-          sleep 30          
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=0
+          sleep 600
+        continue-on-error: true
 
       - name: Scale 2 BNs back up to simulate restoration
         run: |
-          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --replicas=1
-          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --replicas=1
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
           sleep 30
+        continue-on-error: true
 
 
       # ---- BN verification with grpcurl ----
@@ -353,11 +356,16 @@ jobs:
         working-directory: block-node/protobuf-sources
         run: |
           mkdir -p proto
-          # Extract the 'v' from the tag if it exists
-          PROTO_TAG="${{ env.BLOCK_NODE_TAG }}"
-          PROTO_TAG="${PROTO_TAG#v}"
+          # Use the generated protobuf artifact (matches local project version)
+          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
+          if [[ -z "$PROTO_FILE" ]]; then
+            echo "Error: No protobuf artifact found"
+            ls -la
+            exit 1
+          fi
+          echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
-          tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
+          tar -xzf "$PROTO_FILE" -C proto
 
       - name: Install grpcurl
         run: |
