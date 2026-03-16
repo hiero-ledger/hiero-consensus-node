@@ -380,12 +380,12 @@ class FileServiceFeeCalculatorsTest {
                         ServiceFeeDefinition.newBuilder()
                                 .name(HederaFunctionality.SYSTEM_DELETE)
                                 .baseFee(50000000)
-                                .nodeNetworkExempt(true)
+                                .nodeNetworkFeeExempt(true)
                                 .build(),
                         ServiceFeeDefinition.newBuilder()
                                 .name(HederaFunctionality.SYSTEM_UNDELETE)
                                 .baseFee(50000000)
-                                .nodeNetworkExempt(true)
+                                .nodeNetworkFeeExempt(true)
                                 .build()))
                 .build();
     }

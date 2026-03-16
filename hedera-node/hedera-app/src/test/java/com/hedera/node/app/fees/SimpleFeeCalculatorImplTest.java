@@ -374,13 +374,13 @@ class SimpleFeeCalculatorImplTest {
     }
 
     @Test
-    @DisplayName("Transaction with nodeNetworkExempt=true has zero node and network fees")
+    @DisplayName("Transaction with nodeNetworkFeeExempt=true has zero node and network fees")
     void calculateTxFee_withNodeNetworkExempt_returnsZeroNodeAndNetworkFees() {
-        // Create a fee schedule with a nodeNetworkExempt service fee definition
+        // Create a fee schedule with a nodeNetworkFeeExempt service fee definition
         final var exemptServiceFee = ServiceFeeDefinition.newBuilder()
                 .name(CONTRACT_CALL)
                 .baseFee(0)
-                .nodeNetworkExempt(true)
+                .nodeNetworkFeeExempt(true)
                 .build();
         final var schedule = FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -425,13 +425,13 @@ class SimpleFeeCalculatorImplTest {
     }
 
     @Test
-    @DisplayName("Transaction with nodeNetworkExempt=true still charges service fee")
+    @DisplayName("Transaction with nodeNetworkFeeExempt=true still charges service fee")
     void calculateTxFee_withNodeNetworkExempt_chargesServiceFee() {
-        // Create a fee schedule with a nodeNetworkExempt service fee with non-zero baseFee
+        // Create a fee schedule with a nodeNetworkFeeExempt service fee with non-zero baseFee
         final var exemptServiceFee = ServiceFeeDefinition.newBuilder()
                 .name(CONTRACT_CALL)
                 .baseFee(10000)
-                .nodeNetworkExempt(true)
+                .nodeNetworkFeeExempt(true)
                 .build();
         final var schedule = FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -476,7 +476,7 @@ class SimpleFeeCalculatorImplTest {
     }
 
     @Test
-    @DisplayName("Transaction with nodeNetworkExempt=false (default) computes all fees normally")
+    @DisplayName("Transaction with nodeNetworkFeeExempt=false (default) computes all fees normally")
     void calculateTxFee_withoutNodeNetworkExempt_computesAllFees() {
         var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
         when(simpleFeeContext.feeContext()).thenReturn(null);

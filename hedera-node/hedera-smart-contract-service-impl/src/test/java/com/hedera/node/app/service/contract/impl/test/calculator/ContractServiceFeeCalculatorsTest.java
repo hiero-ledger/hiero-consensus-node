@@ -228,9 +228,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(10000L);
-        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test
@@ -338,7 +338,7 @@ public class ContractServiceFeeCalculatorsTest {
                         ServiceFeeDefinition.newBuilder()
                                 .name(CONTRACT_CALL)
                                 .baseFee(0)
-                                .nodeNetworkExempt(true)
+                                .nodeNetworkFeeExempt(true)
                                 .build(),
                         makeServiceFee(
                                 CONTRACT_UPDATE,
@@ -347,11 +347,7 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_DELETE, 69000000),
-                        ServiceFeeDefinition.newBuilder()
-                                .name(ETHEREUM_TRANSACTION)
-                                .baseFee(10000)
-                                .nodeNetworkExempt(true)
-                                .build(),
+                        makeServiceFee(ETHEREUM_TRANSACTION, 10000),
                         makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555, makeExtraIncluded(Extra.GAS, 7)),
                         makeServiceFee(
                                 HederaFunctionality.CONTRACT_GET_BYTECODE,

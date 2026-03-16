@@ -606,13 +606,13 @@
           "name": "SystemDelete",
           "baseFee": 0,
           "extras": [],
-          "nodeNetworkExempt": true
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "SystemUndelete",
           "baseFee": 0,
           "extras": [],
-          "nodeNetworkExempt": true
+          "nodeNetworkFeeExempt": true
         }
       ]
     },
@@ -638,7 +638,7 @@
           "name": "ContractCall",
           "baseFee": 0,
           "extras": [],
-          "nodeNetworkExempt": true
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ContractUpdate",
@@ -662,8 +662,7 @@
         {
           "name": "EthereumTransaction",
           "baseFee": 10000,
-          "extras": [],
-          "nodeNetworkExempt": true
+          "extras": []
         },
         {
           "name": "ContractCreate",

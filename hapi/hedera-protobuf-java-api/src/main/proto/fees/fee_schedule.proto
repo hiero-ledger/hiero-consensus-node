@@ -215,7 +215,7 @@ message ServiceFeeDefinition {
    * <p>If `free` is also true, `free` takes precedence and the transaction
    * is entirely free.
    */
-  bool node_network_exempt = 6;
+  bool node_network_fee_exempt = 6;
 }
 
 /**

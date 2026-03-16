@@ -16,7 +16,7 @@ public class ContractCallFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         // ContractCall is paid only in gas; node/network exemption is handled by the
-        // nodeNetworkExempt flag in the fee schedule, and baseFee is 0 with no extras.
+        // nodeNetworkFeeExempt flag in the fee schedule, and baseFee is 0 with no extras.
     }
 
     @Override

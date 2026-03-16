@@ -125,8 +125,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var functionality = simpleFeeContext.functionality();
         final var serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
-        final boolean nodeNetworkExempt = serviceFeeDefinition != null && serviceFeeDefinition.nodeNetworkExempt();
-        if (!nodeNetworkExempt) {
+        final boolean nodeNetworkFeeExempt = serviceFeeDefinition != null && serviceFeeDefinition.nodeNetworkFeeExempt();
+        if (!nodeNetworkFeeExempt) {
             // Add node base and extras (bytes and payer signatures)
             result.setNodeBaseFeeTinycents(requireNonNull(feeSchedule.node()).baseFee());
             addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
