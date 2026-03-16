@@ -111,7 +111,7 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.32.2
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -119,8 +119,8 @@ jobs:
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
+          version: v0.29.0
+          kubectl_version: v1.32.2
           verbosity: 3
           wait: 120s
 
