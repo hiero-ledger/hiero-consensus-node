@@ -3,12 +3,10 @@ package org.hiero.sloth.fixtures.container.docker;
 
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
 import org.hiero.sloth.fixtures.container.proto.LogEntry;
 import org.hiero.sloth.fixtures.container.proto.PlatformStatusChange;
-import org.hiero.sloth.fixtures.container.proto.ProtoConsensusRound;
 import org.hiero.sloth.fixtures.internal.ProtobufConverter;
 import org.hiero.sloth.fixtures.logging.StructuredLog;
 
@@ -36,19 +34,6 @@ public final class EventMessageFactory {
         return EventMessage.newBuilder()
                 .setPlatformStatusChange(protoStatusChange)
                 .build();
-    }
-
-    /**
-     * Creates an {@link EventMessage} carrying a consensus round.
-     *
-     * @param round the consensus round
-     * @return the corresponding {@link EventMessage}
-     */
-    @NonNull
-    public static EventMessage fromConsensusRound(@NonNull final ConsensusRound round) {
-        final ProtoConsensusRound protoRound = ProtobufConverter.fromPlatform(round);
-
-        return EventMessage.newBuilder().setConsensusRound(protoRound).build();
     }
 
     /**

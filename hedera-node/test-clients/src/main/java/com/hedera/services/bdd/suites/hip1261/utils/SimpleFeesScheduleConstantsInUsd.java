@@ -112,7 +112,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
     public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_UPDATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_UPDATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
     public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
 
@@ -177,6 +177,9 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_REJECT_FEE_USD = 0.0009;
     public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_AIRDROP_BASE_FEE_USD = 0;
+    public static final long TOKEN_AIRDROPS_INCLUDED_COUNT = 0L;
 
     /* ---------- Schedule service ---------- */
 
