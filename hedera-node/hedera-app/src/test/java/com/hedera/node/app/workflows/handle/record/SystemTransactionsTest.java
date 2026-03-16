@@ -711,7 +711,7 @@ class SystemTransactionsTest {
                 "Archived jumpstart file should not exist yet");
         // Block info values match migration, so no update should have been made
         verify(blockInfoSingleton, never()).put(any());
-        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -770,7 +770,7 @@ class SystemTransactionsTest {
 
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
-        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -845,7 +845,7 @@ class SystemTransactionsTest {
         // they are applied only when voting finalizes.
         verify(blockInfoSingleton, never()).put(any());
         verify(blockInfoSingleton, never()).commit();
-        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -871,9 +871,11 @@ class SystemTransactionsTest {
                 .willReturn(votes);
         given(votes.get(new NodeId(0L))).willReturn(null);
 
+        given(migrationRootHashSubmissions.submitStartupVoteIfActive(any())).willReturn(true);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
         subject.maybeSubmitStartupMigrationRootHashVote(state);
 
-        verify(migrationRootHashSubmissions).submitStartupVote(any());
+        verify(migrationRootHashSubmissions, times(1)).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -903,8 +905,10 @@ class SystemTransactionsTest {
                 .willReturn(MigrationRootHashVoteTransactionBody.newBuilder().build());
 
         subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
 
-        verify(migrationRootHashSubmissions, never()).submitStartupVote(any());
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+        verify(wrappedRecordBlockHashMigration, times(1)).jumpstartFilePath();
         assertFalse(Files.exists(jumpstartFile));
     }
 }

@@ -12,7 +12,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -41,12 +40,12 @@ public class MigrationRootHashSubmissions {
     }
 
     /**
-     * Submits a startup migration root-hash vote.
+     * Attempts to submit a startup migration root-hash vote.
      *
      * @param op the migration root hash vote operation
-     * @return a future that completes when submission finishes
+     * @return {@code true} if gossip was active and a submission was initiated, otherwise {@code false}
      */
-    public CompletableFuture<Void> submitStartupVote(@NonNull final MigrationRootHashVoteTransactionBody op) {
+    public boolean submitStartupVoteIfActive(@NonNull final MigrationRootHashVoteTransactionBody op) {
         requireNonNull(op);
         return submitIfActive(
                 b -> b.memo("Migration wrapped record root hash vote").migrationRootHashVote(op),
@@ -54,7 +53,7 @@ public class MigrationRootHashSubmissions {
                 "startup migration root hash vote");
     }
 
-    private CompletableFuture<Void> submitIfActive(
+    private boolean submitIfActive(
             @NonNull final Consumer<TransactionBody.Builder> spec,
             @NonNull final BiConsumer<TransactionBody, String> onFailure,
             @NonNull final String purpose) {
@@ -64,14 +63,14 @@ public class MigrationRootHashSubmissions {
         log.info("Submitting {} via gossip", purpose);
         if (!appContext.gossip().isAvailable()) {
             log.info("Skipping {} submission because gossip is unavailable", purpose);
-            return CompletableFuture.completedFuture(null);
+            return false;
         }
         final var selfId = appContext.selfNodeInfoSupplier().get().accountId();
         final var consensusNow = appContext.instantSource().instant();
         final var config = appContext.configSupplier().get();
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final var hederaConfig = config.getConfigData(HederaConfig.class);
-        return appContext
+        appContext
                 .gossip()
                 .submitFuture(
                         selfId,
@@ -83,5 +82,6 @@ public class MigrationRootHashSubmissions {
                         adminConfig.distinctTxnIdsToTry(),
                         adminConfig.retryDelay(),
                         onFailure);
+        return true;
     }
 }

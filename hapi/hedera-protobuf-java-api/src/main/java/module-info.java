@@ -20,6 +20,8 @@ module com.hedera.protobuf.java.api {
     exports org.hiero.hapi.support.fees.protoc;
     exports com.hedera.hapi.node.state.token.legacy;
 
+    opens com.hedera.hapi.services.auxiliary.blockrecords.legacy;
+
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;

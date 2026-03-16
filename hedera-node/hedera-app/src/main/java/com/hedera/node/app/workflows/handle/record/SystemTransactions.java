@@ -183,6 +183,8 @@ public class SystemTransactions {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private final MigrationRootHashSubmissions migrationRootHashSubmissions;
+    private boolean startupMigrationVoteSubmissionRequested = false;
+    private boolean startupMigrationJumpstartArchiveHandled = false;
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
@@ -520,13 +522,17 @@ public class SystemTransactions {
         // Keep migration result available for asynchronous submission once gossip is active.
         final var migration = wrappedRecordBlockHashMigration.result();
         if (migration != null) {
+            startupMigrationVoteSubmissionRequested = false;
+            startupMigrationJumpstartArchiveHandled = false;
             log.info(
-                    "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}, votingDeadlineBlock={}); will submit when user transaction handling runs",
+                    "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}, votingDeadlineBlock={}); will submit when round handling runs",
                     networkInfo.selfNodeInfo().nodeId(),
                     migration.wrappedIntermediateBlockRootsLeafCount(),
                     migration.wrappedIntermediatePreviousBlockRootHashes().size(),
                     votingCompletionDeadlineBlockNumber);
         } else {
+            startupMigrationVoteSubmissionRequested = true;
+            startupMigrationJumpstartArchiveHandled = true;
             log.info(
                     "No local startup migration root hash result for node{}; awaiting network vote (votingDeadlineBlock={})",
                     networkInfo.selfNodeInfo().nodeId(),
@@ -535,7 +541,7 @@ public class SystemTransactions {
     }
 
     /**
-     * Submits this node's startup migration root-hash vote once user transaction handling is active.
+     * Submits this node's startup migration root-hash vote once round handling is active.
      *
      * <p>If this node's vote is already present in state, this is a no-op and the jumpstart file is archived.
      * If no local migration result is available, this is also a no-op.
@@ -566,24 +572,36 @@ public class SystemTransactions {
             archiveJumpstartFileIfPresent();
             return;
         }
+        if (startupMigrationVoteSubmissionRequested) {
+            return;
+        }
 
         final var voteBody = MigrationRootHashVoteTransactionBody.newBuilder()
                 .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
                 .wrappedIntermediatePreviousBlockRootHashes(migration.wrappedIntermediatePreviousBlockRootHashes())
                 .wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount())
                 .build();
-        log.info("Submitting startup migration root hash vote for node{} during user transaction handling", selfNodeId);
-        migrationRootHashSubmissions.submitStartupVote(voteBody);
+        log.info("Submitting startup migration root hash vote for node{} during round handling", selfNodeId);
+        startupMigrationVoteSubmissionRequested = migrationRootHashSubmissions.submitStartupVoteIfActive(voteBody);
     }
 
     private void archiveJumpstartFileIfPresent() {
+        if (startupMigrationJumpstartArchiveHandled) {
+            return;
+        }
         final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
         if (jumpstartFilePath == null) {
+            startupMigrationJumpstartArchiveHandled = true;
+            return;
+        }
+        if (!Files.exists(jumpstartFilePath)) {
+            startupMigrationJumpstartArchiveHandled = true;
             return;
         }
         try {
             final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
             Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
+            startupMigrationJumpstartArchiveHandled = true;
             log.info("Archived jumpstart file to {}", archivedPath);
         } catch (final IOException e) {
             log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);

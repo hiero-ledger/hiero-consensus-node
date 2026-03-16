@@ -122,8 +122,16 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             hasher.addNodeByHash(blockRootHash.toByteArray());
             previousWrappedRecordBlockRootHash = blockRootHash;
         }
+        final var finalizedIntermediateState = hasher.intermediateHashingState();
+        final var finalizedLeafCount = hasher.leafCount();
         store.applyFinalizedValuesAndMarkComplete(
-                previousWrappedRecordBlockRootHash, hasher.intermediateHashingState(), hasher.leafCount());
+                previousWrappedRecordBlockRootHash, finalizedIntermediateState, finalizedLeafCount);
+        log.info(
+                "Finalized migration root hash vote values: previousWrappedRecordBlockRootHash={},"
+                        + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
+                previousWrappedRecordBlockRootHash.toHex(),
+                finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
+                finalizedLeafCount);
         log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
     }
 }

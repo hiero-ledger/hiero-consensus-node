@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyLiveWrappedHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
@@ -50,6 +51,8 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
+        final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
+        final AtomicReference<String> liveBlockNum = new AtomicReference<>();
 
         return hapiTest(
                 overriding("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
@@ -107,6 +110,25 @@ class JumpstartFileSuite implements LifecycleTest {
                         jumpstartFileContents.get(),
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
-                        freezeBlockNum.get())));
+                        freezeBlockNum.get())),
+                // Phase 5: Second burst with live wrapped record hashes enabled
+                logIt("Phase 5: Second burst with live wrapped record hashes"),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                // Phase 6: Second freeze to persist live hash state, then verify from node0 record files
+                logIt("Phase 6: Second freeze and live hash verification"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(
+                        Map.of(
+                                "hedera.recordStream.computeHashesFromWrappedRecordBlocks", "false",
+                                "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true"),
+                        assertHgcaaLogContainsPattern(
+                                        NodeSelector.byNodeId(0),
+                                        "Persisted live wrapped record block root hash \\(as of block (\\d+)\\): (\\S+)",
+                                        Duration.ofSeconds(1))
+                                .exposingMatchGroupTo(1, liveBlockNum)
+                                .exposingMatchGroupTo(2, liveWrappedHash)),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                // verifyLiveWrappedHash replays node0's .rcd files by design.
+                sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())));
     }
 }

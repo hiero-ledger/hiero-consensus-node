@@ -101,6 +101,7 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.node.state.hooks.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
+    opens com.hedera.hapi.services.auxiliary.blockrecords.legacy;
     opens com.hedera.node.internal.network.legacy;
     opens com.hedera.hapi.node.state.token.legacy;
     opens com.hedera.hapi.node.tss.legacy;
