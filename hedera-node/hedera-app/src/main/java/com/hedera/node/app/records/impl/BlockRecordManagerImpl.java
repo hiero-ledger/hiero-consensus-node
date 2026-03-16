@@ -304,7 +304,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         if (!writeWrappedRecordFileBlockHashesToDisk() && !liveWritePrevWrappedRecordHashes()) {
             return;
         }
-        refreshWrappedHashStateFromBlockInfoIfVotingComplete(state);
 
         try {
             // Treat the current in-progress block as "just finished", writing its data to state or disk as appropriate
