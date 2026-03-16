@@ -460,6 +460,7 @@ public class TipsetEventCreator implements EventCreator {
         final double weightRatio = advancementWeight.advancementWeight()
                 / (double) tipsetWeightCalculator.getMaximumPossibleAdvancementWeight();
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
+        tipsetMetrics.getMopMetric().update(otherParents.length);
 
         childlessOtherEventTracker.registerSelfEventParents(otherParentDescriptors);
 
