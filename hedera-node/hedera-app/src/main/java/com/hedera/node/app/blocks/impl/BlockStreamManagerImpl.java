@@ -408,8 +408,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
-                final var pendingWriter = writerSupplier.get();
-                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
                 return;
             }
 
@@ -417,10 +415,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
-                    if (i == 0) { // jump to the first pending block
-                        pendingWriter.jumpToBlockAfterFreeze(
-                                onDiskPendingBlocks.getFirst().number());
-                    }
 
                     pendingWriter.openBlock(block.number());
                     block.items()

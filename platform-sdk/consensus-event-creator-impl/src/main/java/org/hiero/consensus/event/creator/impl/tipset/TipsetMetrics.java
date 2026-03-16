@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.metrics.api.Metrics;
@@ -9,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -32,10 +35,7 @@ public class TipsetMetrics {
     private final Map<NodeId, SpeedometerMetric> tipsetParentMetrics = new HashMap<>();
     private final Map<NodeId, SpeedometerMetric> pityParentMetrics = new HashMap<>();
 
-    private static final RunningAverageMetric.Config MOP_CONFIG = new RunningAverageMetric.Config(
-                    "platform", "createdEventParents")
-            .withDescription("Amount of parents newly created events have");
-    private final RunningAverageMetric mopMetric;
+    private final AverageStat mopMetric;
 
     /**
      * Create metrics for the tipset event creator.
@@ -47,7 +47,13 @@ public class TipsetMetrics {
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
-        mopMetric = metrics.getOrCreate(MOP_CONFIG);
+        mopMetric = new AverageStat(
+                metrics,
+                "platform",
+                "createdEventParents",
+                "Amount of parents newly created events have",
+                FORMAT_4_2,
+                AverageStat.WEIGHT_VOLATILE);
 
         for (final RosterEntry address : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(address.nodeId());
@@ -119,7 +125,7 @@ public class TipsetMetrics {
      * @return Multiple other parents metric
      */
     @NonNull
-    public RunningAverageMetric getMopMetric() {
+    public AverageStat getMopMetric() {
         return mopMetric;
     }
 }
