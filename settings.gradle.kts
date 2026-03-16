@@ -60,3 +60,11 @@ javaModules {
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
+
+dependencyResolutionManagement {
+    repositories {
+        maven("https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/") {
+            content { includeGroupByRegex("org\\.hyperledger\\..*") }
+        }
+    }
+}
