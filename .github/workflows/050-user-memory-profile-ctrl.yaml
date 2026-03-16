@@ -48,7 +48,7 @@ on:
         description: 'Transactions Per Second'
       version:
         required: true
-        default: "CN_VERSION=v0.72.0-rc.3\nMN_VERSION=v0.150.0-rc3\nBN_VERSION=v0.29.0-rc3\nRELAY_VERSION=latest\nTSS_ENABLED=true\nSOLO_VERSION=latest\nTCK_VERSION=latest"
+        default: "CN_VERSION=v0.72.0-rc.3\\nMN_VERSION=v0.150.0-rc3\\nBN_VERSION=v0.29.0-rc3\\nRELAY_VERSION=latest\\nTSS_ENABLED=true\\nSOLO_VERSION=latest\\nTCK_VERSION=latest"
         type: string
         description: 'Versions of containers'
 defaults:
