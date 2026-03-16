@@ -293,8 +293,9 @@ jobs:
 
       - name: Show running pods and services
         run: |
-          kubectl --context "${CONTEXT}" get pods -n ${NAMESPACE}
-          kubectl --context "${CONTEXT}" get svc -n ${NAMESPACE}
+          kubectl --context kind-${{ env.SOLO_CLUSTER_NAME }} get pods -n ${NAMESPACE}
+          kubectl --context kind-${{ env.SOLO_CLUSTER_NAME }} get svc -n ${NAMESPACE}
+        continue-on-error: true
 
       # port forwards
       - name: Solo Port forwards
