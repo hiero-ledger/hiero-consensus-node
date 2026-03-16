@@ -61,7 +61,7 @@ public class CombinedOptimizationsExperiment {
                 network.nodes().forEach(node -> {
                     try {
                         node.keysAndCerts(KeysAndCertsGenerator.generate(
-                                node.selfId(), SigningSchema.RSA, secureRandom, secureRandom));
+                                node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
                     } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
                         throw new RuntimeException(e);
                     }
