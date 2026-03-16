@@ -3,11 +3,10 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
@@ -32,11 +31,10 @@ public class NodeMetrics {
     /**
      * Registers the metrics for the active round % for each node in the given roster.
      *
-     * @param rosterEntries the list of roster entries
+     * @param nodeIds the list of node ids
      */
-    public void registerNodeMetrics(@NonNull List<RosterEntry> rosterEntries) {
-        for (final var entry : rosterEntries) {
-            final var nodeId = entry.nodeId();
+    public void registerNodeMetrics(@NonNull Collection<Long> nodeIds) {
+        for (final var nodeId : nodeIds) {
             final String name = "nodeActivePercent_node" + nodeId;
             final String snapshotName = "nodeActivePercentSnapshot_node" + nodeId;
 

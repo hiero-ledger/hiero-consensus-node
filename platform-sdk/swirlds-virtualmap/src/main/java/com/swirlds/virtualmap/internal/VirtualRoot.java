@@ -83,16 +83,6 @@ public interface VirtualRoot extends FastCopyable, Hashable, Reservable, Seriali
     void computeHash();
 
     /**
-     * Prepares this copy so that it may be used even when removed from the pipeline. A detached copy is still part
-     * of the pipeline until it is fully handled (merged or flushed). The pipeline will make sure any flushing
-     * copy completes before calling this method, and will make sure no copy is being merged or flushed while
-     * this method executes.
-     *
-     * @return a reference to the detached state
-     */
-    RecordAccessor detach();
-
-    /**
      * Check if this virtual root is registered to a given pipeline. Used for sanity checks.
      *
      * @param pipeline

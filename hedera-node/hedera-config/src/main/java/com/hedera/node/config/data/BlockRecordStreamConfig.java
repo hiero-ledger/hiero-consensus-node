@@ -25,6 +25,7 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param computeHashesFromWrappedRecordBlocks whether to enable computing block hashes from wrapped record blocks
  * @param jumpstartFile path to the jumpstart binary file containing block number, previous block root hash,
  *     and streaming hasher state
+ * @param liveWritePrevWrappedRecordHashes whether to enable live block wrapping of record file items
  */
 @ConfigData("hedera.recordStream")
 public record BlockRecordStreamConfig(
@@ -65,4 +66,7 @@ public record BlockRecordStreamConfig(
         boolean computeHashesFromWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "data/cutover/jumpstart.bin") @NetworkProperty
-        String jumpstartFile) {}
+        String jumpstartFile,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean liveWritePrevWrappedRecordHashes) {}
