@@ -302,7 +302,7 @@ public class HandleWorkflow {
         try {
             systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
         } catch (Exception e) {
-            logger.error("{} Failed to submit startup migration root-hash vote", ALERT_MESSAGE, e);
+            logger.error("Failed to submit startup migration root-hash vote", e);
         }
         final boolean isGenesis =
                 switch (streamMode) {
