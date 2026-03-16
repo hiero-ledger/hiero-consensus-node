@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -14,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -24,6 +26,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -121,6 +124,41 @@ public class ScheduleServiceSimpleFeesTest {
                 getAccountBalance(PAYING_SENDER).exposingBalanceTo(afterBalance::set),
                 withOpContext((spec, log) -> {
                     assertEquals(initialBalance.get(), afterBalance.get());
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("Scheduled ContractCall full lifecycle - create, sign, execute fees")
+    final Stream<DynamicTest> scheduledContractCallFullLifecycleFees() {
+        final var schedulePayer = "contractSchedulePayer";
+        return hapiTest(
+                uploadInitCode(SIMPLE_UPDATE),
+                cryptoCreate(schedulePayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER_PAYER).balance(ONE_HUNDRED_HBARS),
+                contractCreate(SIMPLE_UPDATE).gas(300_000L),
+                scheduleCreate(
+                                "contractCallSchedule",
+                                contractCall(SIMPLE_UPDATE, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
+                                        .gas(100_000)
+                                        .fee(ONE_HBAR))
+                        .designatingPayer(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER)
+                        .via("createTxn")
+                        .fee(ONE_HBAR),
+                scheduleSign("contractCallSchedule")
+                        .alsoSigningWith(schedulePayer)
+                        .payingWith(OTHER_PAYER)
+                        .signedBy(OTHER_PAYER, schedulePayer)
+                        .via("signTxn")
+                        .fee(ONE_HBAR),
+                validateChargedUsd("signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER, 1.0),
+                withOpContext((spec, _) -> {
+                    var triggeredTx = getTxnRecord("createTxn").scheduled();
+                    allRunFor(spec, triggeredTx);
+                    assertEquals(
+                            SUCCESS,
+                            triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
 }

@@ -862,7 +862,7 @@ public class BaseTranslator {
     public static void mapTracesToVerboseLogs(
             @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable List<TraceData> traces) {
         if (traces == null || traces.stream().noneMatch(BaseTranslator::impliesLogs)) {
-            resultBuilder.logInfo(List.of());
+            resultBuilder.logInfo(List.of()).bloom(bloomForAll(List.of()));
         } else {
             final List<Log> besuLogs = new ArrayList<>();
             final List<ContractLoginfo> verboseLogs = new ArrayList<>();
