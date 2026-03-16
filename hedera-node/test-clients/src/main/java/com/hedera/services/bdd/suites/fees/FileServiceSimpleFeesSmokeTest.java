@@ -45,14 +45,14 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
-public class FileServiceSimpleFeesTest {
+public class FileServiceSimpleFeesSmokeTest {
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
     private static final double SINGLE_KEY_FEE = 0.01;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
     private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
-    private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 5;
-    private static final double QUERY_ALLOWED_PERCENT_DIFF = 2;
+    private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 0.1;
+    private static final double QUERY_ALLOWED_PERCENT_DIFF = 0.1;
     private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
 
     @HapiTest
@@ -71,7 +71,10 @@ public class FileServiceSimpleFeesTest {
                         .fee(ONE_HUNDRED_HBARS)
                         .signedBy(CIVILIAN)
                         .via("fileCreateBasic"),
-                validateChargedUsd("fileCreateBasic", FILE_CREATE_BASE_FEE, TRANSACTION_ALLOWED_PERCENT_DIFF));
+                withOpContext((spec, opLog) -> validateChargedUsd(
+                        "fileCreateBasic",
+                        FILE_CREATE_BASE_FEE + expectedFeeFromBytesFor(spec, opLog, "fileCreateBasic"),
+                        TRANSACTION_ALLOWED_PERCENT_DIFF)));
     }
 
     @HapiTest
@@ -100,7 +103,8 @@ public class FileServiceSimpleFeesTest {
                         "fileCreateExtraNodeBytes",
                         FILE_CREATE_BASE_FEE
                                 + serviceFeeFromBytes
-                                + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraNodeBytes"))));
+                                + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraNodeBytes"),
+                        TRANSACTION_ALLOWED_PERCENT_DIFF)));
     }
 
     @HapiTest
@@ -168,7 +172,7 @@ public class FileServiceSimpleFeesTest {
                         .payingWith(CIVILIAN)
                         .signedBy(CIVILIAN)
                         .via("fileDeleteBasic"),
-                validateChargedUsd("fileDeleteBasic", FILE_DELETE_BASE_FEE));
+                validateChargedUsd("fileDeleteBasic", FILE_DELETE_BASE_FEE, TRANSACTION_ALLOWED_PERCENT_DIFF));
     }
 
     @HapiTest
@@ -221,7 +225,7 @@ public class FileServiceSimpleFeesTest {
                         "getFileContentsBasic",
                         BASE_FEE_FILE_GET_CONTENT
                                 + (1500 - FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES) * PROCESSING_BYTES_FEE_USD,
-                        1),
+                        QUERY_ALLOWED_PERCENT_DIFF),
                 validateNonZeroNodePaymentForQuery("getFileContentsBasic"));
     }
 
