@@ -192,6 +192,12 @@ jobs:
                 - address: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                   port: 40840
                   priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
           EOF
 
       - name: Print BN1 Override Values
@@ -214,6 +220,12 @@ jobs:
                 - address: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                   port: 40840
                   priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
           EOF
 
       - name: Print BN2 Override Values
@@ -236,6 +248,12 @@ jobs:
                 - address: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                   port: 40840
                   priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
           EOF
 
       - name: Print BN3 Override Values
@@ -266,17 +284,19 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      # node deployment
+      # node deployment - BN first, MN second, then CNs
       - name: Solo Nodes deployment (BN/CN/MN)
         run: |
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node1=1,node2=2,node3=3 -f bn1-values.yaml
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node2=1,node3=2,node1=3 -f bn2-values.yaml
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node3=1,node1=2,node2=3 -f bn3-values.yaml
+          sleep 30
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
+          sleep 30
           solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
           solo consensus network deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
           solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
           
           # Add to step summary - comprehensive version summary
           {
@@ -293,8 +313,8 @@ jobs:
 
       - name: Show running pods and services
         run: |
-          kubectl get pods -n "${NAMESPACE}"
-          kubectl get svc -n "${NAMESPACE}"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
         continue-on-error: true
 
       # port forwards
@@ -316,7 +336,6 @@ jobs:
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-
       - name: Run NLG Crypto-Transfer
         run: |
           # Run the NLG crypto-transfer rapid-fire command
@@ -330,10 +349,19 @@ jobs:
       - name: Scale 2 BNs down to simulate failure
         run: |
           sleep 30
+          echo "Cluster before BN scaling"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=0
           sleep 30
+          echo "Cluster after BN-1 scale down"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=0
           sleep 600
+          echo "Cluster after BN-2 scale down"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
         continue-on-error: true
 
       - name: Scale 2 BNs back up to simulate restoration
@@ -341,19 +369,24 @@ jobs:
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
           sleep 30
+          echo "Cluster after BN-1's & BN-2's scale up"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
         continue-on-error: true
 
 
       # ---- BN verification with grpcurl ----
 
       # produce protobuf source artifact
-      - name: Produce Protobuf proto artifact
-        working-directory: block-node
-        run: ${GRADLE_EXEC} :block-node-protobuf-sources:generateBlockNodeProtoArtifact
+      - name: Download Protobuf proto artifact
+        working-directory: block-node-protobuf
+        run: |
+          BN_VERSION=echo "${{ env.BLOCK_NODE_TAG }}" | 's/^v//'
+          curl -L https://github.com/hiero-ledger/hiero-block-node/releases/download/${{ env.BLOCK_NODE_TAG }}/block-node-protobuf-${{ BN_VERSION }}.tgz
 
       # untar protobuf sources
       - name: Untar Protobuf Sources
-        working-directory: block-node/protobuf-sources
+        working-directory: block-node-protobuf
         run: |
           mkdir -p proto
           # Use the generated protobuf artifact (matches local project version)
