@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.platform.event.legacy.EventConsensusData;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.util.List;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
@@ -444,58 +443,6 @@ public class ProtobufConverter {
         return com.hedera.hapi.platform.state.legacy.JudgeId.newBuilder()
                 .setCreatorId(sourceJudgeId.creatorId())
                 .setJudgeHash(fromPbj(sourceJudgeId.judgeHash()))
-                .build();
-    }
-
-    /**
-     * Converts a ProtoConsensusRound to ConsensusRound.
-     *
-     * @param sourceRound the ProtoConsensusRound to convert
-     * @return the converted ConsensusRound
-     */
-    @NonNull
-    public static org.hiero.consensus.model.hashgraph.ConsensusRound toPlatform(
-            @NonNull final org.hiero.sloth.fixtures.container.proto.ProtoConsensusRound sourceRound) {
-        final com.hedera.hapi.node.state.roster.Roster consensusRoster = toPbj(sourceRound.getConsensusRoster());
-        final List<org.hiero.consensus.model.event.PlatformEvent> consensusEvents =
-                sourceRound.getConsensusEventsList().stream()
-                        .map(ProtobufConverter::toPlatform)
-                        .toList();
-        final org.hiero.consensus.model.hashgraph.EventWindow eventWindow = toPlatform(sourceRound.getEventWindow());
-        final com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = toPbj(sourceRound.getSnapshot());
-        final Instant reachedConsTimestamp = Instant.ofEpochSecond(sourceRound.getReachedConsTimestamp());
-
-        return new org.hiero.consensus.model.hashgraph.ConsensusRound(
-                consensusRoster,
-                consensusEvents,
-                eventWindow,
-                snapshot,
-                sourceRound.getPcesRound(),
-                reachedConsTimestamp);
-    }
-
-    /**
-     * Converts a ConsensusRound to a ProtoConsensusRound.
-     *
-     * @param sourceRound the ConsensusRound to convert
-     * @return the converted ProtoConsensusRound
-     */
-    @NonNull
-    public static org.hiero.sloth.fixtures.container.proto.ProtoConsensusRound fromPlatform(
-            @NonNull final org.hiero.consensus.model.hashgraph.ConsensusRound sourceRound) {
-        final List<org.hiero.sloth.fixtures.container.proto.ProtoPlatformEvent> events =
-                sourceRound.getConsensusEvents().stream()
-                        .map(ProtobufConverter::fromPlatform)
-                        .toList();
-
-        return org.hiero.sloth.fixtures.container.proto.ProtoConsensusRound.newBuilder()
-                .addAllConsensusEvents(events)
-                .setEventWindow(fromPlatform(sourceRound.getEventWindow()))
-                .setNumAppTransactions(sourceRound.getNumAppTransactions())
-                .setSnapshot(fromPbj(sourceRound.getSnapshot()))
-                .setConsensusRoster(fromPbj(sourceRound.getConsensusRoster()))
-                .setPcesRound(sourceRound.isPcesRound())
-                .setReachedConsTimestamp(sourceRound.getReachedConsTimestamp().getEpochSecond())
                 .build();
     }
 
