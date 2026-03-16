@@ -72,19 +72,32 @@ jobs:
           echo "Latest stable tag: ${LATEST_STABLE}"
           echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
 
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # assumes BN release has single asset
       - name: Retrieve Latest BN Tag
         run: |
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
           LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+          LATEST_BN_PROTO_URL=$(echo "curl_response" | jq -r '.assets[0].browser_download_url=')
 
           if [[ -z "${LATEST_BN_TAG}" ]]; then
-            echo "ERROR: Could not parse LATEST_BN_TAG from response"
+            echo "ERROR: Could not parse BN tag_name from response"
+            return 1
+          fi
+          
+          if [[ -z "${LATEST_BN_PROTO_URL}" ]]; then
+            echo "ERROR: Could not parse BN proto url from response"
             return 1
           fi
 
-          echo "Latest Block Node tag: ${LATEST_BN_TAG}"
+          echo "Latest Block Node tag: ${LATEST_BN_TAG} w proto_url:${LATEST_BN_PROTO_URL}"
           echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
+          echo "BLOCK_NODE_PROTO_URL=${LATEST_BN_PROTO_URL}" >> "$GITHUB_ENV"
 
       - name: Retrieve Latest MN Tag
         run: |
@@ -377,18 +390,11 @@ jobs:
 
       # ---- BN verification with grpcurl ----
 
-      # produce protobuf source artifact
-      - name: Download Protobuf proto artifact
-        working-directory: block-node-protobuf
-        run: |
-          BN_VERSION=$(echo "${{ env.BLOCK_NODE_TAG }}" | sed 's/^v//')
-          curl -L https://github.com/hiero-ledger/hiero-block-node/releases/download/${{ env.BLOCK_NODE_TAG }}/block-node-protobuf-${{ BN_VERSION }}.tgz
-
       # untar protobuf sources
-      - name: Untar Protobuf Sources
+      - name: Download & Untar Protobuf Sources
         working-directory: block-node-protobuf
         run: |
-          mkdir -p proto
+          curl -L ${{ env.BLOCK_NODE_PROTO_URL }}
           # Use the generated protobuf artifact (matches local project version)
           PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
           if [[ -z "$PROTO_FILE" ]]; then
@@ -405,11 +411,6 @@ jobs:
           curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
           rm grpcurl.tar.gz
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
 
         # Verify the BN1 is getting blocks
       - name: Get ServerStatus from Block Node 1
