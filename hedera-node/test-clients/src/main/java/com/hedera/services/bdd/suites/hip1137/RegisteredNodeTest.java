@@ -30,6 +30,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_REGISTERED
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -535,6 +536,50 @@ public class RegisteredNodeTest {
             allRunFor(spec, create);
         }));
         return hapiTest(ops.toArray(com.hedera.services.bdd.spec.SpecOperation[]::new));
+    }
+
+    @LeakyHapiTest
+    @DisplayName("consensus node then registered node allocate sequential IDs from shared space")
+    final Stream<DynamicTest> consensusThenRegisteredNodeSharesIdSpace() throws CertificateEncodingException {
+        final var consensusNodeId = new AtomicLong();
+        final var registeredNodeId = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(NODE_ACCOUNT),
+                nodeCreate(TEST_NODE, NODE_ACCOUNT)
+                        .adminKey(ADMIN_KEY)
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .exposingCreatedIdTo(consensusNodeId::set),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(registeredNodeId::set),
+                withOpContext((spec, opLog) -> assertEquals(
+                        consensusNodeId.get() + 1,
+                        registeredNodeId.get(),
+                        "Registered node ID should be consensus node ID + 1")));
+    }
+
+    @LeakyHapiTest
+    @DisplayName("registered node then consensus node allocate sequential IDs from shared space")
+    final Stream<DynamicTest> registeredThenConsensusNodeSharesIdSpace() throws CertificateEncodingException {
+        final var registeredNodeId = new AtomicLong();
+        final var consensusNodeId = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(NODE_ACCOUNT),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .exposingCreatedIdTo(registeredNodeId::set),
+                nodeCreate(TEST_NODE, NODE_ACCOUNT)
+                        .adminKey(ADMIN_KEY)
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .exposingCreatedIdTo(consensusNodeId::set),
+                withOpContext((spec, opLog) -> assertEquals(
+                        registeredNodeId.get() + 1,
+                        consensusNodeId.get(),
+                        "Consensus node ID should be registered node ID + 1")));
     }
 
     // ─── AtomicBatch ───────────────────────────────────────────────
