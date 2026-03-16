@@ -242,7 +242,7 @@ class BlockNodeConfigurationTest {
                         .build())
                 .build();
 
-        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, (36L * 1024 * 1024) + 1024);
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
         assertThat(config.address()).isEqualTo("localhost");
         assertThat(config.streamingPort()).isEqualTo(8080);
         assertThat(config.servicePort()).isEqualTo(8081);

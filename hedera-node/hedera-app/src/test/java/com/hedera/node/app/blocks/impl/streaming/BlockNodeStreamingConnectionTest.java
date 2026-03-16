@@ -1485,7 +1485,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_749_760L); // hard limit = 36 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
         final BlockState block = new BlockState(10);
         final BlockItem item1 = newBlockHeaderItem(10);
@@ -1496,7 +1496,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem item6 = newBlockTxItem(1_950_000);
         final BlockItem item7 = newBlockTxItem(1_750_000);
         final BlockItem item8 = newBlockTxItem(25);
-        final BlockItem item9 = newBlockTxItem(37_749_755);
+        final BlockItem item9 = newBlockTxItem(37_748_731);
 
         block.addItem(item1);
         block.addItem(item2);
