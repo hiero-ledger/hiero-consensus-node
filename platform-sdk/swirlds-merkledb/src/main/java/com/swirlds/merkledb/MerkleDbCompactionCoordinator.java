@@ -378,7 +378,6 @@ class MerkleDbCompactionCoordinator {
                     // Nothing to compact at this level — thresholds not exceeded
                     return false;
                 }
-
                 // Create a compactor and register it for pause/resume/interrupt
                 final DataFileCompactor compactor = compactorFactory.get();
                 synchronized (MerkleDbCompactionCoordinator.this) {
@@ -388,8 +387,18 @@ class MerkleDbCompactionCoordinator {
                     compactorsByName.put(taskKey, compactor);
                 }
 
+                // Filter out files that were already compacted and deleted
+                final Set<DataFileReader> currentFiles =
+                        new HashSet<>(compactor.getDataFileCollection().getAllCompletedFiles());
+                final List<DataFileReader> validFiles = filesToCompact.stream()
+                        .filter(currentFiles::contains)
+                        .toList();
+                if (validFiles.isEmpty()) {
+                    return false;
+                }
+
                 final int targetLevel = Math.min(sourceLevel + 1, config.maxCompactionLevel());
-                return compactor.compactSingleLevel(filesToCompact, targetLevel);
+                return compactor.compactSingleLevel(validFiles, targetLevel);
 
             } catch (final InterruptedException | ClosedByInterruptException e) {
                 logger.info(MERKLE_DB.getMarker(), "Interrupted while compacting [{}], this is allowed", taskKey);

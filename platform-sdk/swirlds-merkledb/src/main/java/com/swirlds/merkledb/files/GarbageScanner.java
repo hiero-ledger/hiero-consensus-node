@@ -76,8 +76,9 @@ public class GarbageScanner {
                     (key, dataLocation) -> {
                         final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
                         final GarbageFileStats fileStats = statsByFileIndex.get(fileIndex);
-                        assert fileStats != null;
-                        fileStats.incrementAliveItems();
+                        if (fileStats != null) {
+                            fileStats.incrementAliveItems();
+                        }
                     },
                     null);
         } catch (final InterruptedException e) {
