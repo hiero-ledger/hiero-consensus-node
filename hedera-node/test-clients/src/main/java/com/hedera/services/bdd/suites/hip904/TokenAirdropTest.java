@@ -2280,7 +2280,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("to non-fungible token pending airdrop")
         final Stream<DynamicTest> canNotDeleteAccountRelatedToNFTAirdrop() {
             return hapiTest(
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 10L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 18L)
                                     .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER),
                     cryptoDelete(OWNER).hasKnownStatus(ACCOUNT_HAS_PENDING_AIRDROPS));

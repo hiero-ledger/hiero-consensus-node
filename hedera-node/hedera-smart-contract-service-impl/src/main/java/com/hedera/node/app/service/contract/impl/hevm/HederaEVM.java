@@ -5,6 +5,8 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -49,14 +51,12 @@ import org.hyperledger.besu.evm.operation.SwapOperation;
 import org.hyperledger.besu.evm.operation.VirtualOperation;
 import org.hyperledger.besu.evm.operation.XorOperation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Adds support for calculating an alternate ops gas schedule tracking.
  */
 public class HederaEVM extends EVM {
-    private static final Logger LOG = LoggerFactory.getLogger(HederaEVM.class);
+    private static final Logger LOG = LogManager.getLogger(HederaEVM.class);
 
     private final OperationRegistry operations;
     private final GasCalculator gasCalculator;

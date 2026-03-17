@@ -291,9 +291,14 @@ public class BlockNodeConnectionManager {
             return nodes;
         }
 
+        final long defaultHardLimit = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .defaultMessageHardLimitBytes();
+
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
-                final BlockNodeConfiguration cfg = BlockNodeConfiguration.from(nodeConfig);
+                final BlockNodeConfiguration cfg = BlockNodeConfiguration.from(nodeConfig, defaultHardLimit);
                 nodes.add(cfg);
             } catch (final RuntimeException e) {
                 logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
