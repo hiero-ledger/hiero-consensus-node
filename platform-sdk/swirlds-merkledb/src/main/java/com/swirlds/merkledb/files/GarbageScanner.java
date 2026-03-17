@@ -139,8 +139,7 @@ public class GarbageScanner {
      * @return estimated alive data size in bytes
      */
     static long estimateAliveSize(
-            final List<DataFileReader> candidates,
-            final Map<Integer, GarbageFileStats> statsByFileIndex) {
+            final List<DataFileReader> candidates, final Map<Integer, GarbageFileStats> statsByFileIndex) {
         long estimatedAliveSizeBytes = 0;
         for (final DataFileReader reader : candidates) {
             final GarbageFileStats stats = statsByFileIndex.get(reader.getIndex());
@@ -177,8 +176,14 @@ public class GarbageScanner {
 
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f".
-                            formatted(storeName, level, levelFilesCount, levelTotalItems, levelAliveItems, levelGarbageRatio));
+                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f"
+                            .formatted(
+                                    storeName,
+                                    level,
+                                    levelFilesCount,
+                                    levelTotalItems,
+                                    levelAliveItems,
+                                    levelGarbageRatio));
         });
     }
 

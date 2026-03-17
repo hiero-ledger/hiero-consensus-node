@@ -41,10 +41,37 @@ import org.junit.jupiter.api.Test;
 class MerkleDbCompactionCoordinatorTest {
 
     private MerkleDbCompactionCoordinator coordinator;
+    private MerkleDbConfig config;
 
     @BeforeEach
     void setUp() {
-        coordinator = new MerkleDbCompactionCoordinator("test", CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        final MerkleDbConfig defaultConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        config = new MerkleDbConfig(
+                defaultConfig.initialCapacity(),
+                defaultConfig.maxNumOfKeys(),
+                defaultConfig.hashesRamToDiskThreshold(),
+                defaultConfig.hashStoreRamBufferSize(),
+                defaultConfig.hashChunkCacheThreshold(),
+                defaultConfig.hashStoreRamOffHeapBuffers(),
+                defaultConfig.longListChunkSize(),
+                defaultConfig.longListReservedBufferSize(),
+                defaultConfig.compactionThreads(),
+                defaultConfig.garbageThreshold(),
+                defaultConfig.maxCompactionDataPerLevelInKB(),
+                defaultConfig.maxCompactionLevel(),
+                defaultConfig.iteratorInputBufferBytes(),
+                defaultConfig.reconnectKeyLeakMitigationEnabled(),
+                defaultConfig.indexRebuildingEnforced(),
+                defaultConfig.goodAverageBucketEntryCount(),
+                defaultConfig.tablesToRepairHdhm(),
+                defaultConfig.percentHalfDiskHashMapFlushThreads(),
+                defaultConfig.numHalfDiskHashMapFlushThreads(),
+                defaultConfig.leafRecordCacheSize(),
+                defaultConfig.maxFileChannelsPerFileReader(),
+                defaultConfig.maxThreadsPerFileChannel(),
+                defaultConfig.useDiskIndices(),
+                0);
+        coordinator = new MerkleDbCompactionCoordinator("test", config);
         coordinator.enableBackgroundCompaction();
     }
 
@@ -105,7 +132,7 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // No scan results have been published — tasks will be submitted but will no-op
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
         // Wait for submitted task to complete
         coordinator.awaitForCurrentCompactionsToComplete(2000);
@@ -141,6 +168,7 @@ class MerkleDbCompactionCoordinatorTest {
             compactionsDone.countDown();
             return true;
         });
+        when(taskCompactor1.getDataFileCollection()).thenReturn(fileCollection);
         final DataFileCompactor taskCompactor2 = mock(DataFileCompactor.class);
         when(taskCompactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
             synchronized (compactedTargetLevels) {
@@ -149,6 +177,7 @@ class MerkleDbCompactionCoordinatorTest {
             compactionsDone.countDown();
             return true;
         });
+        when(taskCompactor2.getDataFileCollection()).thenReturn(fileCollection);
 
         final AtomicInteger factoryCalls = new AtomicInteger();
         final Supplier<DataFileCompactor> factory = () -> {
@@ -156,7 +185,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
         assertTrue(compactionsDone.await(2, TimeUnit.SECONDS), "Compaction tasks were not submitted");
         synchronized (compactedTargetLevels) {
@@ -178,11 +207,12 @@ class MerkleDbCompactionCoordinatorTest {
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
         final DataFileCompactor taskCompactor = mock(DataFileCompactor.class);
-        when(taskCompactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+        when(taskCompactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             taskStarted.countDown();
             releaseTask.await(5, TimeUnit.SECONDS);
             return true;
         });
+        when(taskCompactor.getDataFileCollection()).thenReturn(fileCollection);
 
         final AtomicInteger factoryCalls = new AtomicInteger();
         final Supplier<DataFileCompactor> factory = () -> {
@@ -191,11 +221,11 @@ class MerkleDbCompactionCoordinatorTest {
         };
 
         // First call: submits a task for level 0
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction task wasn't started");
 
         // Second call: level 0 is already submitted, should not submit another
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
         // Only one compactSingleLevel call should have been made (one task)
         verify(taskCompactor, times(1)).compactSingleLevel(anyList(), anyInt());
@@ -215,7 +245,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         final Supplier<DataFileCompactor> factory = () -> compactor;
 
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
         coordinator.awaitForCurrentCompactionsToComplete(2000);
 
@@ -242,17 +272,19 @@ class MerkleDbCompactionCoordinatorTest {
         final CountDownLatch tasksStarted = new CountDownLatch(2);
         final CountDownLatch releaseTasks = new CountDownLatch(1);
         final DataFileCompactor taskCompactor1 = mock(DataFileCompactor.class);
-        when(taskCompactor1.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+        when(taskCompactor1.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             tasksStarted.countDown();
             releaseTasks.await(5, TimeUnit.SECONDS);
             return true;
         });
+        when(taskCompactor1.getDataFileCollection()).thenReturn(fileCollection);
         final DataFileCompactor taskCompactor2 = mock(DataFileCompactor.class);
-        when(taskCompactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+        when(taskCompactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             tasksStarted.countDown();
             releaseTasks.await(5, TimeUnit.SECONDS);
             return true;
         });
+        when(taskCompactor2.getDataFileCollection()).thenReturn(fileCollection);
 
         final AtomicInteger factoryCalls = new AtomicInteger();
         final Supplier<DataFileCompactor> factory = () -> {
@@ -260,7 +292,7 @@ class MerkleDbCompactionCoordinatorTest {
             return (call == 0) ? taskCompactor1 : taskCompactor2;
         };
 
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
         assertTrue(tasksStarted.await(1, TimeUnit.SECONDS), "Compaction tasks didn't start");
 
         coordinator.pauseCompactionAndRun(() -> {});
@@ -274,7 +306,7 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     @Test
-    void testStopAndDisablePreventsNewTasks() throws InterruptedException {
+    void testStopAndDisablePreventsNewTasks() {
         coordinator.stopAndDisableBackgroundCompaction();
         assertFalse(coordinator.isCompactionEnabled());
 
@@ -288,7 +320,7 @@ class MerkleDbCompactionCoordinatorTest {
             return mock(DataFileCompactor.class);
         };
 
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
         // Nothing should have been submitted
         assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK));

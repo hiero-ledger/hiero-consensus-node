@@ -390,9 +390,8 @@ class MerkleDbCompactionCoordinator {
                 // Filter out files that were already compacted and deleted
                 final Set<DataFileReader> currentFiles =
                         new HashSet<>(compactor.getDataFileCollection().getAllCompletedFiles());
-                final List<DataFileReader> validFiles = filesToCompact.stream()
-                        .filter(currentFiles::contains)
-                        .toList();
+                final List<DataFileReader> validFiles =
+                        filesToCompact.stream().filter(currentFiles::contains).toList();
                 if (validFiles.isEmpty()) {
                     return false;
                 }
