@@ -7,7 +7,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
@@ -341,14 +340,6 @@ class DummyVirtualRoot extends AbstractVirtualRoot {
         }
         hashed = true;
         statistics.recordHash(copyIndex + 1); // Use copyIndex+1 as hash duration
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RecordAccessor detach() {
-        return null;
     }
 
     /**

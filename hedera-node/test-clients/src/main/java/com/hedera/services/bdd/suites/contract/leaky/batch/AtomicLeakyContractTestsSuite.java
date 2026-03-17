@@ -100,6 +100,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
@@ -313,6 +314,8 @@ public class AtomicLeakyContractTestsSuite {
                         .payingWith(GENESIS),
                 sleepFor(1_000),
                 getReceipt(uncheckedCC)
+                        .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
+                        .setRetryLimit(300) // 3s
                         // Mod-service and mono-service use these mostly interchangeably
                         .hasPriorityStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
                         .logged());

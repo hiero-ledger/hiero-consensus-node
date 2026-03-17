@@ -91,7 +91,8 @@ public class AutoAccountCreator {
                 handleContext
                         .dispatchMetadata()
                         .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
-                        .orElse(null)));
+                        .orElse(null),
+                HandleContext.ConsensusThrottling.ON));
         // If the child transaction failed, we should fail the parent transaction as well and propagate the failure.
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
 

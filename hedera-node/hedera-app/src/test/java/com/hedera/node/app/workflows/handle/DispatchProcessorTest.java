@@ -27,8 +27,10 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -67,12 +69,15 @@ import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions.Details;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -166,6 +171,9 @@ class DispatchProcessorTest {
 
     @Mock
     private SolvencyPreCheck solvencyPreCheck;
+
+    @Mock
+    private Details hollowAccountCompletionsDetails;
 
     private DispatchProcessor subject;
 
@@ -424,6 +432,40 @@ class DispatchProcessorTest {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
+    }
+
+    @Test
+    void replaysHollowFinalizationsAfterHandleExceptionReplay() {
+        final List<String> replayOrder = new ArrayList<>();
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        doThrow(new HandleException(
+                        TOKEN_NOT_ASSOCIATED_TO_ACCOUNT, (ctx, childDispatch) -> replayOrder.add("exception-replay")))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        doAnswer(invocation -> {
+                    replayOrder.add("hollow-replay");
+                    return null;
+                })
+                .when(hollowAccountCompletionsDetails)
+                .replay(any());
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch, hollowAccountCompletionsDetails);
+
+        verify(hollowAccountCompletionsDetails).replay(any());
+        verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        assertEquals(List.of("exception-replay", "hollow-replay"), replayOrder);
     }
 
     @Test

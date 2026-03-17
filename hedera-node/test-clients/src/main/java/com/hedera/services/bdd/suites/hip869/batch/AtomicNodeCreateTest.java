@@ -8,9 +8,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_ED
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -482,5 +484,33 @@ class AtomicNodeCreateTest {
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    @DisplayName("atomic batch with node update + node create assigns correct receipt IDs")
+    final Stream<DynamicTest> atomicBatchUpdateAndCreateReceiptIds() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
+        final var newNodeAccount = "newNodeAccount";
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                cryptoCreate(nodeAccount),
+                cryptoCreate(newNodeAccount),
+                // Pre-create a consensus node
+                nodeCreate("existingNode", nodeAccount)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                // Atomic batch: update existing + create new
+                atomicBatch(
+                                nodeUpdate("existingNode")
+                                        .description("updated")
+                                        .signedBy(DEFAULT_PAYER, "adminKey")
+                                        .batchKey(BATCH_OPERATOR),
+                                nodeCreate("newNode", newNodeAccount)
+                                        .adminKey("adminKey")
+                                        .gossipCaCertificate(
+                                                gossipCertificates.getLast().getEncoded())
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(SUCCESS));
     }
 }

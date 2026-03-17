@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.WritableStates;
@@ -38,23 +37,15 @@ public class RosterServiceImpl implements Service {
      * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
     private final BiConsumer<Roster, Roster> onAdopt;
-    /**
-     * Required until the upgrade that adopts the roster lifecycle; at that upgrade boundary,
-     * we must initialize the active roster from the platform state's legacy address books.
-     */
-    @Deprecated
-    private final Supplier<State> stateSupplier;
 
     private final Supplier<StartupNetworks> startupNetworks;
 
     public RosterServiceImpl(
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
-            @NonNull final Supplier<State> stateSupplier,
             @NonNull final Supplier<StartupNetworks> startupNetworks) {
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
-        this.stateSupplier = requireNonNull(stateSupplier);
         this.startupNetworks = requireNonNull(startupNetworks);
     }
 
