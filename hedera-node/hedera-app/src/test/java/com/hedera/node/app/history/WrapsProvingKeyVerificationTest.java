@@ -168,8 +168,7 @@ class WrapsProvingKeyVerificationTest {
         final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
         final var wrongEnvPath = "/completely/different/path";
 
-        assertThrows(
-                IllegalStateException.class, () -> validateArtifactsPathConsistency(provingKeyPath, wrongEnvPath));
+        assertThrows(IllegalStateException.class, () -> validateArtifactsPathConsistency(provingKeyPath, wrongEnvPath));
     }
 
     @Test

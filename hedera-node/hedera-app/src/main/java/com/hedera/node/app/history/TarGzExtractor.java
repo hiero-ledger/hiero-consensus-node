@@ -26,7 +26,7 @@ public final class TarGzExtractor {
     // Security limits
     private static final int MAX_ENTRIES = 10_000;
     private static final long MAX_TOTAL_BYTES = 10L * 1024L * 1024L * 1024L; // 10 GiB
-    private static final long MAX_ENTRY_BYTES = 2L * 1024L * 1024L * 1024L; // 2 GiB
+    private static final long MAX_ENTRY_BYTES = 4L * 1024L * 1024L * 1024L; // 4 GiB
     private static final int MAX_DEPTH = 20;
     private static final int MAX_NAME_LENGTH = 4096;
     private static final int EXTRACT_BUFFER_SIZE = 8192;
