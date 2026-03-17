@@ -49,7 +49,7 @@ on:
           - "330"
       add-app-props:
         required: false
-        default: "hedera.recordStream.computeHashesFromWrappedRecordBlocks = true\\nhedera.recordStream.liveWritePrevWrappedRecordHashes = true\\nblockStream.streamMode = BOTH\\nblockStream.writerMode = FILE_AND_GRPC\\nblockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config\\nblockStream.buffer.isBufferPersistenceEnabled = true\\ntss.hintsEnabled = true\\ntss.historyEnabled = true\\ntss.wrapsEnabled = true"
+        default: "hedera.recordStream.computeHashesFromWrappedRecordBlocks=true\\nhedera.recordStream.liveWritePrevWrappedRecordHashes=true\\nblockStream.streamMode=BOTH\\nblockStream.writerMode=FILE_AND_GRPC\\nblockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config\\nblockStream.buffer.isBufferPersistenceEnabled=true\\ntss.hintsEnabled=true\\ntss.historyEnabled=true\\ntss.wrapsEnabled=true"
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
       add-settings:
@@ -134,7 +134,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref || github.ref }}"
-      solo-version: "v0.62.0"  #"${{ vars.ADHOC_SOLO_VERSION }}"
+      solo-version: "v0.63.0"  #"${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
