@@ -65,7 +65,8 @@ public class BenchmarkService implements SlothService {
     }
 
     @Override
-    public void initialize(@NonNull final InitTrigger trigger,
+    public void initialize(
+            @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
             @NonNull final VirtualMapState state) {
@@ -87,7 +88,7 @@ public class BenchmarkService implements SlothService {
             return;
         }
 
-        if(!event.getCreatorId().equals(selfId)){
+        if (!event.getCreatorId().equals(selfId)) {
             // Only log transactions created by this node because the timestamp was based on the local clock
             return;
         }

@@ -36,12 +36,11 @@ public class SlothTransactionGenerator {
     private final Time time;
 
     /** Single-threaded scheduler driving the periodic generation task. */
-    private final ScheduledExecutorService scheduler =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                final Thread t = new Thread(r, "sloth-tx-generator");
-                t.setDaemon(true);
-                return t;
-            });
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        final Thread t = new Thread(r, "sloth-tx-generator");
+        t.setDaemon(true);
+        return t;
+    });
 
     /** Handle of the currently running generation task, or {@code null} when idle. */
     private volatile ScheduledFuture<?> generationTask;

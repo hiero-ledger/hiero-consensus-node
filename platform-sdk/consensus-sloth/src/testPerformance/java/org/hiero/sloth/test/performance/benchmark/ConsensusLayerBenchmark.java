@@ -54,8 +54,7 @@ public class ConsensusLayerBenchmark {
             @ConfigProperty(defaultValue = "3s") @NonNull Duration stabilizationTime,
             @ConfigProperty(defaultValue = "5s") @NonNull Duration warmupTime,
             @ConfigProperty(defaultValue = "50s") @NonNull Duration benchmarkTime,
-            @ConfigProperty(defaultValue = "10s") @NonNull Duration collectionTime) {
-    }
+            @ConfigProperty(defaultValue = "10s") @NonNull Duration collectionTime) {}
 
     /**
      * Baseline benchmark - default settings (RSA, maxOtherParents=1, antiSelfishnessFactor=10, maxCreationRate=20).
@@ -66,7 +65,7 @@ public class ConsensusLayerBenchmark {
     @Order(1)
     void benchmarkBaseline(@NonNull final TestEnvironment env) {
         log.info("=== BASELINE BENCHMARK (defaults) ===");
-        runBenchmark(env, "benchmarkBaseline", (_,_) -> {
+        runBenchmark(env, "benchmarkBaseline", (_, _) -> {
             // No config changes - use defaults
         });
     }
@@ -132,10 +131,12 @@ public class ConsensusLayerBenchmark {
                 configName,
                 perNodeTps,
                 params.benchmarkTime());
-        nodes.parallelStream().forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
+        nodes.parallelStream()
+                .forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
         timeManager.waitFor(params.benchmarkTime());
-        final long totalGenerated =
-                nodes.parallelStream().mapToLong(Node::stopTransactionGeneration).sum();
+        final long totalGenerated = nodes.parallelStream()
+                .mapToLong(Node::stopTransactionGeneration)
+                .sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
         // Wait for all transactions to reach consensus and be logged.
