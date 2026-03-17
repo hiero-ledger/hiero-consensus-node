@@ -2342,6 +2342,140 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testNotifyConnectionClosed_doesNotRemoveNewerConnection() {
+        final BlockNodeConfiguration cfg = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 4242, 1);
+        final BlockNodeStreamingConnection oldConn = mock(BlockNodeStreamingConnection.class);
+        final BlockNodeStreamingConnection newConn = mock(BlockNodeStreamingConnection.class);
+        when(oldConn.configuration()).thenReturn(cfg);
+
+        // A newer connection was created for the same config and is now in the map
+        connections().put(cfg, newConn);
+
+        // The old connection's close event fires after the new one was inserted
+        connectionManager.notifyConnectionClosed(oldConn);
+
+        // The newer connection entry must NOT have been removed
+        assertThat(connections()).containsEntry(cfg, newConn);
+
+        verifyNoInteractions(scheduledExecutor);
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testForcedSwitch_excludesCurrentEndpoint() throws Exception {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1);
+        availableNodes().clear();
+        availableNodes().addAll(List.of(node1Config, node2Config));
+
+        // Simulate an active connection to node1
+        final BlockNodeStreamingConnection activeConn = mock(BlockNodeStreamingConnection.class);
+        when(activeConn.configuration()).thenReturn(node1Config);
+        activeConnection().set(activeConn);
+        connections().put(node1Config, activeConn);
+
+        final long earliestBlock = 100;
+        final long latestBlock = 250;
+        doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(2, latestBlock)));
+                    }
+                    return futures;
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        // Forced switch should NOT select node1 (the current active endpoint)
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(true)).isTrue();
+
+        final ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduledExecutor).schedule(taskCaptor.capture(), anyLong(), any(TimeUnit.class));
+
+        final BlockNodeStreamingConnection selected =
+                connectionFromTask((BlockNodeConnectionTask) taskCaptor.getValue());
+        assertThat(selected.configuration()).isEqualTo(node2Config);
+    }
+
+    @Test
+    void testForcedSwitch_noAlternative_returnsFalse() throws Exception {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        availableNodes().clear();
+        availableNodes().add(node1Config);
+
+        // Simulate an active connection to the only available node
+        final BlockNodeStreamingConnection activeConn = mock(BlockNodeStreamingConnection.class);
+        when(activeConn.configuration()).thenReturn(node1Config);
+        activeConnection().set(activeConn);
+        connections().put(node1Config, activeConn);
+
+        // Forced switch should return false since there is no alternative endpoint
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(true)).isFalse();
+
+        verifyNoInteractions(scheduledExecutor);
+    }
+
+    @Test
+    void testForcedSwitch_sameAddressDifferentConfig_excluded() throws Exception {
+        // Two configs pointing to the same physical endpoint (same address:port) but different priorities
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        final BlockNodeConfiguration node1Alt = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 2);
+        availableNodes().clear();
+        availableNodes().addAll(List.of(node1Config, node1Alt));
+
+        // Active connection is to node1Config
+        final BlockNodeStreamingConnection activeConn = mock(BlockNodeStreamingConnection.class);
+        when(activeConn.configuration()).thenReturn(node1Config);
+        activeConnection().set(activeConn);
+        connections().put(node1Config, activeConn);
+
+        // Even though node1Alt is a different config identity, it shares the same endpoint
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(true)).isFalse();
+
+        verifyNoInteractions(scheduledExecutor);
+    }
+
+    @Test
+    void testNonForcedSwitch_doesNotExcludeEndpoint() throws Exception {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        availableNodes().clear();
+        availableNodes().add(node1Config);
+
+        // Active connection exists but non-forced selection should NOT exclude by endpoint.
+        // Do NOT put in connections map — simulating that the active connection's map entry
+        // was removed (e.g. by the race condition). Non-forced selection should still find this node.
+
+        final long earliestBlock = 100;
+        final long latestBlock = 250;
+        doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(2, latestBlock)));
+                    }
+                    return futures;
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        // Non-forced: endpoint exclusion is NOT applied
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
+
+        final ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduledExecutor).schedule(taskCaptor.capture(), anyLong(), any(TimeUnit.class));
+
+        final BlockNodeStreamingConnection selected =
+                connectionFromTask((BlockNodeConnectionTask) taskCaptor.getValue());
+        assertThat(selected.configuration()).isEqualTo(node1Config);
+    }
+
+    @Test
     void testSelectNewBlockNodeForStreaming_notEnabled() {
         useStreamingDisabledManager();
 
