@@ -15,6 +15,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.WritableMigrationRootHashStore;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -55,11 +56,14 @@ class MigrationRootHashVoteHandlerTest {
     @Mock
     private NodeInfo nodeInfo;
 
+    @Mock
+    private BlockRecordManager blockRecordManager;
+
     private MigrationRootHashVoteHandler subject;
 
     @BeforeEach
     void setUp() {
-        subject = new MigrationRootHashVoteHandler();
+        subject = new MigrationRootHashVoteHandler(blockRecordManager);
     }
 
     @Test

@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyLiveWrappedHash;
@@ -44,8 +43,14 @@ class JumpstartFileSuite implements LifecycleTest {
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
 
-    @LeakyHapiTest(overrides = {"hedera.recordStream.computeHashesFromWrappedRecordBlocks"})
-    final Stream<DynamicTest> generatesJumpstart() {
+    @SuppressWarnings("DuplicatedCode")
+    @LeakyHapiTest(
+            overrides = {
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes"
+            })
+    final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
@@ -54,16 +59,22 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
 
         return hapiTest(
-                overriding("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
+                // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
-                MixedOperations.burstOfTps(5, Duration.ofSeconds(60)),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart file"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
-                        Map.of("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
+                        Map.of(
+                                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                                "true",
+                                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                                "true",
+                                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                                "true"),
                         buildDynamicJumpstartFile(jumpstartFileContents)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                logIt("Phase 3: Verify node can process transactions after migration"),
+                logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),

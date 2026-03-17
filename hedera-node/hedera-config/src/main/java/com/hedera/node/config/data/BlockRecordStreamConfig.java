@@ -62,11 +62,11 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes") @NodeProperty
         String wrappedRecordHashesDir,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean computeHashesFromWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "data/cutover/jumpstart.bin") @NetworkProperty
         String jumpstartFile,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean liveWritePrevWrappedRecordHashes) {}

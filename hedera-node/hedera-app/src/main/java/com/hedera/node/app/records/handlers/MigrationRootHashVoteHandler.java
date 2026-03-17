@@ -8,6 +8,7 @@ import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.WritableMigrationRootHashStore;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -18,6 +19,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -33,9 +35,11 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 public class MigrationRootHashVoteHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(MigrationRootHashVoteHandler.class);
 
+    private final BlockRecordManager blockRecordManager;
+
     @Inject
-    public MigrationRootHashVoteHandler() {
-        // Dagger2
+    public MigrationRootHashVoteHandler(@Nullable final BlockRecordManager blockRecordManager) {
+        this.blockRecordManager = blockRecordManager;
     }
 
     @Override
@@ -126,6 +130,10 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         final var finalizedLeafCount = hasher.leafCount();
         store.applyFinalizedValuesAndMarkComplete(
                 previousWrappedRecordBlockRootHash, finalizedIntermediateState, finalizedLeafCount);
+        if (blockRecordManager != null) {
+            blockRecordManager.syncFinalizedMigrationHashes(
+                    previousWrappedRecordBlockRootHash, finalizedIntermediateState, finalizedLeafCount);
+        }
         log.info(
                 "Finalized migration root hash vote values: previousWrappedRecordBlockRootHash={},"
                         + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",

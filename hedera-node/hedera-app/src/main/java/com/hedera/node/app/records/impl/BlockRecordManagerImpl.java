@@ -933,6 +933,34 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .computeHashesFromWrappedRecordBlocks();
     }
 
+    @Override
+    public void syncFinalizedMigrationHashes(
+            @NonNull final Bytes prevWrappedRecordBlockRootHash,
+            @NonNull final List<Bytes> intermediateHashes,
+            final long leafCount) {
+        requireNonNull(prevWrappedRecordBlockRootHash);
+        requireNonNull(intermediateHashes);
+        if (!liveWritePrevWrappedRecordHashes()) {
+            return;
+        }
+        this.previousWrappedRecordBlockRootHash = prevWrappedRecordBlockRootHash;
+        this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
+                sha384DigestOrThrow(),
+                intermediateHashes.stream().map(Bytes::toByteArray).toList(),
+                leafCount);
+        this.lastBlockInfo = this.lastBlockInfo
+                .copyBuilder()
+                .previousWrappedRecordBlockRootHash(prevWrappedRecordBlockRootHash)
+                .wrappedIntermediatePreviousBlockRootHashes(intermediateHashes)
+                .wrappedIntermediateBlockRootsLeafCount(leafCount)
+                .build();
+        this.wrappedHashStateSyncedFromFinalizedVote = true;
+        logger.info(
+                "Synced in-memory wrapped hash state from finalized vote: prevHash={}, leafCount={}",
+                prevWrappedRecordBlockRootHash.toHex(),
+                leafCount);
+    }
+
     private void refreshWrappedHashStateFromBlockInfoIfVotingComplete(@NonNull final State state) {
         if (!liveWritePrevWrappedRecordHashes()) {
             return;

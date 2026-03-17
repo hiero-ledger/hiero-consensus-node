@@ -4,9 +4,11 @@ package com.hedera.node.app.records;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -139,6 +141,19 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * Notifies the block record manager that any startup migration records have been streamed.
      */
     void markMigrationRecordsStreamed();
+
+    /**
+     * Directly updates the in-memory wrapped hash state in the block record manager with the finalized
+     * migration root hash values. This must be called after the vote handler finalizes the migration
+     * root hash values so that subsequent {@code updateBlockInfo} calls (which use {@code lastBlockInfo}
+     * as a base via {@code copyBuilder()}) preserve the correct migration field values.
+     *
+     * @param prevWrappedRecordBlockRootHash the finalized previous wrapped record block root hash
+     * @param intermediateHashes the finalized intermediate hashing state
+     * @param leafCount the finalized leaf count
+     */
+    void syncFinalizedMigrationHashes(
+            @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
 
     /**
      * Hook to compute wrapped record-file block data for the current in-progress record block

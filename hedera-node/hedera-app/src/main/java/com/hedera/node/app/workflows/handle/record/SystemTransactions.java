@@ -506,38 +506,50 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Initialize migration voting state for the post-upgrade period, even if this node has no local result.
-        // This ensures nodes with incomplete local wrapped-hash history still wait for network voting.
         final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-        final var blockInfo = requireNonNull(blockRecordStates
-                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
-                .get());
-        final long votingCompletionDeadlineBlockNumber = blockInfo.lastBlockNumber() + 10;
-        blockRecordStates
-                .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
-                .put(MigrationRootHashVotingState.newBuilder()
-                        .votingComplete(false)
-                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                        .build());
-
-        // Keep migration result available for asynchronous submission once gossip is active.
-        final var migration = wrappedRecordBlockHashMigration.result();
-        if (migration != null) {
-            startupMigrationVoteSubmissionRequested = false;
-            startupMigrationJumpstartArchiveHandled = false;
-            log.info(
-                    "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}, votingDeadlineBlock={}); will submit when round handling runs",
-                    networkInfo.selfNodeInfo().nodeId(),
-                    migration.wrappedIntermediateBlockRootsLeafCount(),
-                    migration.wrappedIntermediatePreviousBlockRootHashes().size(),
-                    votingCompletionDeadlineBlockNumber);
-        } else {
+        final var votingStateSingleton = blockRecordStates.<MigrationRootHashVotingState>getSingleton(
+                V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+        final var existingVotingState = votingStateSingleton.get();
+        if (existingVotingState != null && existingVotingState.votingCompletionDeadlineBlockNumber() > 0) {
+            // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
             startupMigrationVoteSubmissionRequested = true;
             startupMigrationJumpstartArchiveHandled = true;
             log.info(
-                    "No local startup migration root hash result for node{}; awaiting network vote (votingDeadlineBlock={})",
+                    "Migration voting state already initialized for node{} (deadlineBlock={}, votingComplete={}); skipping post-upgrade vote setup",
                     networkInfo.selfNodeInfo().nodeId(),
-                    votingCompletionDeadlineBlockNumber);
+                    existingVotingState.votingCompletionDeadlineBlockNumber(),
+                    existingVotingState.votingComplete());
+        } else {
+            // Initialize migration voting state for the post-upgrade period, even if this node has no local result.
+            // This ensures nodes with incomplete local wrapped-hash history still wait for network voting.
+            final var blockInfo = requireNonNull(blockRecordStates
+                    .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                    .get());
+            final long votingCompletionDeadlineBlockNumber = blockInfo.lastBlockNumber() + 10;
+            votingStateSingleton.put(MigrationRootHashVotingState.newBuilder()
+                    .votingComplete(false)
+                    .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                    .build());
+
+            // Keep migration result available for asynchronous submission once gossip is active.
+            final var migration = wrappedRecordBlockHashMigration.result();
+            if (migration != null) {
+                startupMigrationVoteSubmissionRequested = false;
+                startupMigrationJumpstartArchiveHandled = false;
+                log.info(
+                        "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}, votingDeadlineBlock={}); will submit when round handling runs",
+                        networkInfo.selfNodeInfo().nodeId(),
+                        migration.wrappedIntermediateBlockRootsLeafCount(),
+                        migration.wrappedIntermediatePreviousBlockRootHashes().size(),
+                        votingCompletionDeadlineBlockNumber);
+            } else {
+                startupMigrationVoteSubmissionRequested = true;
+                startupMigrationJumpstartArchiveHandled = true;
+                log.info(
+                        "No local startup migration root hash result for node{}; awaiting network vote (votingDeadlineBlock={})",
+                        networkInfo.selfNodeInfo().nodeId(),
+                        votingCompletionDeadlineBlockNumber);
+            }
         }
     }
 
