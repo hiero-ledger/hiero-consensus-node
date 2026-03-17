@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDE
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -59,8 +60,6 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
-    // Wider tolerance to accommodate fee variance between embedded and subprocess test modes
-    private static final double SCHEDULE_FEE_TOLERANCE = 50.0;
     private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
 
     @HapiTest
@@ -117,16 +116,13 @@ public class ScheduleServiceSimpleFeesTest {
                         .payingWith(OTHER_PAYER)
                         .signedBy(OTHER_PAYER)
                         .via("getScheduleInfoBasic"),
-                validateChargedUsd("canonicalCreation", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd("canonicalSigning", BASE_FEE_SCHEDULE_SIGN, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("canonicalCreation", BASE_FEE_SCHEDULE_CREATE),
+                validateChargedUsd("canonicalSigning", BASE_FEE_SCHEDULE_SIGN),
                 // validate the fee when we have single overage signature
-                validateChargedUsd(
-                        "multiScheduleSign",
-                        BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER,
-                        SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
+                validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL),
+                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO),
                 validateNodePaymentAmountForQuery("getScheduleInfoBasic", EXPECTED_NODE_PAYMENT_TINYCENTS));
     }
 
@@ -171,9 +167,8 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("signTxn")
                         .fee(ONE_HBAR),
                 // Verify fees at each stage
-                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd(
-                        "signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE),
+                validateChargedUsd("signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // Verify execution happened — receiver got the HBAR
                 getAccountBalance(RECEIVER).hasTinyBars(1L),
                 // Verify execution fee on inner transaction
@@ -182,9 +177,7 @@ public class ScheduleServiceSimpleFeesTest {
                     allRunFor(spec, triggeredTx);
                     // The inner CryptoTransfer execution should succeed
                     var record = triggeredTx.getResponseRecord();
-                    assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
-                            record.getReceipt().getStatus());
+                    assertEquals(SUCCESS, record.getReceipt().getStatus());
                 }));
     }
 
@@ -213,9 +206,8 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("signTxn")
                         .fee(ONE_HBAR),
                 // Verify schedule create and sign fees
-                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd(
-                        "signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE),
+                validateChargedUsd("signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // Verify auto-created account exists and has the HBAR
                 getAliasedAccountInfo(alias)
                         .has(accountWith().key(alias).alias(alias).maxAutoAssociations(-1)),
@@ -224,7 +216,7 @@ public class ScheduleServiceSimpleFeesTest {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
                     allRunFor(spec, triggeredTx);
                     assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
@@ -261,9 +253,8 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("signTxn")
                         .fee(ONE_HBAR),
                 // Verify schedule ops fees
-                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
-                validateChargedUsd(
-                        "signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE),
+                validateChargedUsd("signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // Verify auto-association happened — receiver has the token
                 getAccountInfo(unassociatedReceiver).hasToken(relationshipWith(token)),
                 getAccountBalance(unassociatedReceiver).hasTokenBalance(token, 10L),
@@ -272,7 +263,7 @@ public class ScheduleServiceSimpleFeesTest {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
                     allRunFor(spec, triggeredTx);
                     assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
@@ -301,9 +292,9 @@ public class ScheduleServiceSimpleFeesTest {
                 scheduleSign("mintSchedule")
                         .alsoSigningWith(supplyKey, schedulePayer, treasury)
                         .via("signTxn")
-                        .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 // Verify fees
-                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE),
                 // Verify mint happened
                 getTokenInfo(token).hasTotalSupply(150L),
                 // Verify execution record
@@ -311,7 +302,7 @@ public class ScheduleServiceSimpleFeesTest {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
                     allRunFor(spec, triggeredTx);
                     assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
@@ -340,9 +331,9 @@ public class ScheduleServiceSimpleFeesTest {
                 scheduleSign("burnSchedule")
                         .alsoSigningWith(supplyKey, schedulePayer, treasury)
                         .via("signTxn")
-                        .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 // Verify fees
-                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("createTxn", BASE_FEE_SCHEDULE_CREATE),
                 // Verify burn happened
                 getTokenInfo(token).hasTotalSupply(70L),
                 // Verify execution record
@@ -350,7 +341,7 @@ public class ScheduleServiceSimpleFeesTest {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
                     allRunFor(spec, triggeredTx);
                     assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
@@ -385,14 +376,13 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("signTxn")
                         .fee(ONE_HBAR),
                 // Verify sign fee (schedule create with contract call charges near-zero — known issue)
-                validateChargedUsd(
-                        "signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER, SCHEDULE_FEE_TOLERANCE),
+                validateChargedUsd("signTxn", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // Verify execution succeeded
                 withOpContext((spec, log) -> {
                     var triggeredTx = getTxnRecord("createTxn").scheduled();
                     allRunFor(spec, triggeredTx);
                     assertEquals(
-                            com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS,
+                            SUCCESS,
                             triggeredTx.getResponseRecord().getReceipt().getStatus());
                 }));
     }
