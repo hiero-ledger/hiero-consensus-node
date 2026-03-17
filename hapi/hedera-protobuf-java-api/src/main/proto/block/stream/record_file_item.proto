@@ -129,14 +129,24 @@ message RecordFileItem {
 
     /**
      * Amendments to the record file data.<br/>
-     * Over the years there were various bugs that caused data to be missed,
-     * incorrect or added erroneously.  Amendments are used to fix those
-     * mistakes with the aim that all data in the block stream is correct and
-     * complete. This field carries the record items that amend the original
-     * record file contents. Each item may contain a Transaction and/or
-     * TransactionRecord that are intended to replace the original data. They
-     * can be matched by the transaction ID. If you want the original raw data
-     * then you can ignore the contents of this field.
+     * Over the years there were various bugs that caused data to be missed or
+     * recorded incorrectly. Amendments are used to fix those mistakes with the
+     * aim that all data in the block stream is correct and complete.<br/>
+     * Each amendment serves one of two purposes:
+     * <ul>
+     *   <li><b>Addition</b> — a `Transaction` + `TransactionRecord` pair that
+     *       was missing from the original record file entirely (errata); the
+     *       pair is inserted into `record_file_contents.record_stream_items`
+     *       at the position implied by its consensus timestamp.</li>
+     *   <li><b>Replacement Record</b> — a corrected `TransactionRecord` for a
+     *       `Transaction` that already exists in the record file; the existing
+     *       entry is replaced with the amended one.</li>
+     * </ul>
+     * In both cases, amendments are merged into
+     * `record_file_contents.record_stream_items` by matching on transaction
+     * ID: insert the item if no matching transaction ID is found, or replace
+     * the existing item if one is found.<br/>
+     * If you want the original raw data, you can ignore this field.
      */
     repeated proto.RecordStreamItem amendments = 4;
 }
