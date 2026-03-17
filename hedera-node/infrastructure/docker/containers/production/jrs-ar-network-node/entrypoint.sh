@@ -37,19 +37,10 @@ if [[ -n "${JAVA_HEAP_MAX}" ]]; then
 fi
 
 # Setup Main Class
-[[ -z "${JAVA_MAIN_CLASS}" ]] && JAVA_MAIN_CLASS="com.swirlds.platform.Browser"
+[[ -z "${JAVA_MAIN_MODULE}" ]] && JAVA_MAIN_MODULE="com.hedera.node.app"
 
-# Setup Classpath
-JCP_OVERRIDDEN="false"
-if [[ -z "${JAVA_CLASS_PATH}" ]]; then
-  JAVA_CLASS_PATH="data/lib/*"
-else
-  JCP_OVERRIDDEN="true"
-fi
-
-if [[ "${JCP_OVERRIDDEN}" != true && "${JAVA_MAIN_CLASS}" != "com.swirlds.platform.Browser" ]]; then
-  JAVA_CLASS_PATH="${JAVA_CLASS_PATH}:data/apps/*"
-fi
+# Setup Module Path
+[[ -z "${JAVA_MODULE_PATH}" ]] && JAVA_MODULE_PATH="data/lib:data/apps"
 
 # Setup Consensus Node Arguments
 CONSENSUS_NODE_ARGS=""
@@ -66,9 +57,9 @@ echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END USER IDENT   <<<<<<<<<<<<<<<
 echo
 
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN JAVA COMMAND >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-echo "/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp \"${JAVA_CLASS_PATH}\" \"${JAVA_MAIN_CLASS}\" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)"
+echo "/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path \"${JAVA_MODULE_PATH}\" --module \"${JAVA_MAIN_MODULE}\" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END JAVA COMMAND   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo
 
-/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)
+/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)
 printf "java exit code %s" "${?}\n" >>"logs/stdout.log"
