@@ -5,8 +5,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -75,9 +73,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Param({"0.15"})
     public double delayNetworkFuzzRangePercent;
 
+    private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
     private VirtualMap teacherMapCopy;
 
+    private static final String LEARNER_MAP_NAME = "learner";
     private VirtualMap learnerMap;
 
     private VirtualMap reconnectedMap;
@@ -136,28 +136,26 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMap = flushMap(teacherMap);
         learnerMap = flushMap(learnerMap);
 
-        final List<VirtualMap> maps = new ArrayList<>();
-        maps.add(teacherMap);
-        maps.add(learnerMap);
-        final List<VirtualMap> mapCopies = saveMaps(maps);
-        mapCopies.forEach(this::releaseAndCloseMap);
+        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
+        learnerMap = saveMap(learnerMap, LEARNER_MAP_NAME);
+
+        releaseAndCloseMap(teacherMap);
+        releaseAndCloseMap(learnerMap);
     }
 
     /** Restore the saved state from disk as a new test on-disk copy for each iteration. */
     @Setup(Level.Invocation)
     public void setupInvocation() {
-        teacherMap = restoreMap();
+        teacherMap = restoreMap(TEACHER_MAP_NAME);
         if (teacherMap == null) {
             throw new RuntimeException("Failed to restore the 'teacher' map");
         }
-        teacherMap = flushMap(teacherMap);
         BenchmarkMetrics.register(teacherMap::registerMetrics);
 
-        learnerMap = restoreMap();
+        learnerMap = restoreMap(LEARNER_MAP_NAME);
         if (learnerMap == null) {
             throw new RuntimeException("Failed to restore the 'learner' map");
         }
-        learnerMap = flushMap(learnerMap);
         BenchmarkMetrics.register(learnerMap::registerMetrics);
 
         teacherMapCopy = teacherMap.copy();
