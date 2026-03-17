@@ -234,8 +234,7 @@ public class NodeRewardManager {
             updateNodeMetrics(nodeActivities);
             // Exclude declining nodes and partition the remainder into active/inactive groups for reward dispatch
             final var nodeGroups = NodeRewardGroups.from(excludeNodesDecliningRewards(nodeActivities));
-            log.info("Inactive nodes: {}", nodeGroups.inactiveNodeIds());
-            log.info("Active nodes: {}", nodeGroups.activeNodeIds());
+            log.info("Inactive nodes: {}\nActive Nodes: {}", nodeGroups.inactiveNodeIds(), nodeGroups.activeNodeIds());
 
             // And pay whatever rewards the network can afford
             final var budget = new RewardBudget(
