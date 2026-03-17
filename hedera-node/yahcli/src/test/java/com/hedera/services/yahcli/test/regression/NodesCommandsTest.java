@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetworkKey;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.loadResourceFile;
@@ -64,7 +64,7 @@ public class NodesCommandsTest {
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
                         // TODO: add state validation
                         // Update the just created node
-                        sourcingContextual(spec1 -> yahcliNodes(
+                        sourcing(() -> yahcliNodes(
                                         "update",
                                         "-n",
                                         Long.toString(newNodeNum.get()),
@@ -75,7 +75,7 @@ public class NodesCommandsTest {
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
                         // Finally delete the just created node
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("node" + newNodeNum.get() + " has been deleted")))))));
     }
@@ -194,7 +194,7 @@ public class NodesCommandsTest {
                                         "-d",
                                         "Block node for association test")
                                 .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
-                        sourcingContextual(spec1 -> yahcliNodes(
+                        sourcing(() -> yahcliNodes(
                                         "create",
                                         "-a",
                                         "23",
@@ -213,13 +213,12 @@ public class NodesCommandsTest {
                                         "--associatedRegisteredNode",
                                         Long.toString(registeredNodeId.get()))
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set))),
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
-                        sourcingContextual(
-                                spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
-                                        .exposingOutputTo(output -> assertTrue(output.contains(
-                                                "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
+                        sourcing(() -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output -> assertTrue(output.contains(
+                                        "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
     }
 
     @LeakyHapiTest
@@ -264,7 +263,7 @@ public class NodesCommandsTest {
                                         "-s",
                                         "a.b.com:50212")
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
-                        sourcingContextual(spec1 -> yahcliNodes(
+                        sourcing(() -> yahcliNodes(
                                         "update",
                                         "-n",
                                         Long.toString(newNodeNum.get()),
@@ -274,13 +273,12 @@ public class NodesCommandsTest {
                                         Long.toString(registeredNodeId.get()))
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
-                        sourcingContextual(
-                                spec3 -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
-                                        .exposingOutputTo(output -> assertTrue(output.contains(
-                                                "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
+                        sourcing(() -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output -> assertTrue(output.contains(
+                                        "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
     }
 
     @LeakyHapiTest
@@ -343,7 +341,7 @@ public class NodesCommandsTest {
                                         "-s",
                                         "a.b.com:50212")
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
-                        sourcingContextual(spec1 -> yahcliNodes(
+                        sourcing(() -> yahcliNodes(
                                         "update",
                                         "-n",
                                         Long.toString(newNodeNum.get()),
@@ -354,7 +352,7 @@ public class NodesCommandsTest {
                                 .expectFail()
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("FAILED to update node" + newNodeNum.get())))),
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("node" + newNodeNum.get() + " has been deleted")))))));
     }

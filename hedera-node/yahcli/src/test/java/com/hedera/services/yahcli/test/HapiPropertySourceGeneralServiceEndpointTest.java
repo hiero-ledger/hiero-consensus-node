@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -61,5 +62,12 @@ class HapiPropertySourceGeneralServiceEndpointTest {
         assertEquals("My service", endpoint.getGeneralService().getDescription());
         assertTrue(endpoint.hasDomainName());
         assertEquals("custom.example.com", endpoint.getDomainName());
+    }
+
+    @Test
+    void throwsOnMissingPort() {
+        final var ex = assertThrows(
+                IllegalArgumentException.class, () -> HapiPropertySource.asGeneralServiceEndpoint("127.0.0.1"));
+        assertTrue(ex.getMessage().contains("too few segments"));
     }
 }
