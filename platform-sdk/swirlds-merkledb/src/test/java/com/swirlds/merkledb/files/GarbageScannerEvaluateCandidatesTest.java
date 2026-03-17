@@ -204,7 +204,8 @@ class GarbageScannerEvaluateCandidatesTest {
                 DEFAULT_CONFIG.leafRecordCacheSize(),
                 DEFAULT_CONFIG.maxFileChannelsPerFileReader(),
                 DEFAULT_CONFIG.maxThreadsPerFileChannel(),
-                DEFAULT_CONFIG.useDiskIndices());
+                DEFAULT_CONFIG.useDiskIndices(),
+                DEFAULT_CONFIG.minCompactionSizeKb());
     }
 
     private static DataFileReader mockFileReader(
