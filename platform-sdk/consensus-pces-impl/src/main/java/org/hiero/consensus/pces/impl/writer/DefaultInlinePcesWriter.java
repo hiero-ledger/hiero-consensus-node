@@ -57,6 +57,9 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     @NonNull
     @Override
     public PlatformEvent writeEvent(@NonNull final PlatformEvent event) {
+        if ( true ) {
+            return event;
+        }
         pcesWriterPerEventMetrics.startWriteEvent();
 
         // if we aren't streaming new events yet, assume that the given event is already durable
