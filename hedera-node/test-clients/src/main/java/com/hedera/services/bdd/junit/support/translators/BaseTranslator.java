@@ -703,7 +703,22 @@ public class BaseTranslator {
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else {
-                            builder.slot(read.keyOrThrow());
+                            final var key = read.keyOrThrow();
+                            final var slotKey = new SlotKey(contractId, key);
+                            final Bytes writtenValue;
+                            if (executingHookId == null
+                                    || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
+                                writtenValue = writtenSlots.get(slotKey);
+                            } else {
+                                writtenValue = writtenHookSlots.get(
+                                        new EvmHookSlotKey(executingHookId, minimalKey(slotKey.key())));
+                            }
+                            if (writtenValue != null) {
+                                builder.slot(HookUtils.minimalRepresentationOf(key))
+                                        .valueWritten(HookUtils.minimalRepresentationOf(writtenValue));
+                            } else {
+                                builder.slot(key);
+                            }
                         }
                         recoveredChanges.add(builder.build());
                     });
