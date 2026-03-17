@@ -1039,7 +1039,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("Token Claim FT Pending Airdrop that is already Canceled fails on handle")
+            @DisplayName("Token Claim Non-existing FT Pending Airdrop fails on handle")
             final Stream<DynamicTest> tokenClaimNonExistingFTAirdropFailsOnHandle() {
                 return hapiTest(flattened(
                         createAccountsAndKeys(),
@@ -1063,7 +1063,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("Token Cancel FT Pending Airdrop that is already Canceled fails on handle")
+            @DisplayName("Token Cancel Non-existing FT Pending Airdrop fails on handle")
             final Stream<DynamicTest> tokenCancelNonExistingFTAirdropFailsOnHandle() {
                 return hapiTest(flattened(
                         createAccountsAndKeys(),
@@ -1104,12 +1104,12 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                         .pendingAirdrops(includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                                 .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
                         cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST)),
-                        tokenClaimAirdrop(pendingAirdrop(
-                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN))
+                        tokenClaimAirdrop(pendingNFTAirdrop(
+                                        OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
                                 .payingWith(OWNER)
                                 .signedBy(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)
                                 .via("tokenClaimAirdropTxn")
-                                .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
+                                .hasKnownStatus(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenClaimAirdropTxn",
                                 txnSize -> expectedTokenClaimAirdropFullFeeUsd(
@@ -1304,26 +1304,6 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                 .initialSupply(supply)
                 .treasury(treasury)
                 .adminKey(adminKey)
-                .tokenType(FUNGIBLE_COMMON);
-    }
-
-    private HapiTokenCreate createFungibleTokenWithoutCustomFeesWithFreezeKey(
-            String tokenName, long supply, String treasury, String adminKey, String freezeKey) {
-        return tokenCreate(tokenName)
-                .initialSupply(supply)
-                .treasury(treasury)
-                .adminKey(adminKey)
-                .freezeKey(freezeKey)
-                .tokenType(FUNGIBLE_COMMON);
-    }
-
-    private HapiTokenCreate createFungibleTokenWithoutCustomFeesWithPauseKey(
-            String tokenName, long supply, String treasury, String adminKey, String pauseKey) {
-        return tokenCreate(tokenName)
-                .initialSupply(supply)
-                .treasury(treasury)
-                .adminKey(adminKey)
-                .pauseKey(pauseKey)
                 .tokenType(FUNGIBLE_COMMON);
     }
 

@@ -2379,25 +2379,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    private static double expectedTokenClaimAirdropNetworkFeeOnlyUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        return nodeFee * (1 + NETWORK_MULTIPLIER);
-    }
-
-    /**
-     * Overload when extras are provided in a map.
-     */
-    public static double expectedTokenClaimAirdropNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
-        return expectedTokenClaimAirdropNetworkFeeOnlyUsd(
-                extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
     // -------- TokenCancelAirdrop simple fees utils ---------//
     /**
      * SimpleFees formula for TokenCancelAirdrop:
