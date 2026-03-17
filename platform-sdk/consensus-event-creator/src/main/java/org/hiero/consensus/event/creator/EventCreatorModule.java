@@ -161,4 +161,6 @@ public interface EventCreatorModule {
     @InputWireLabel("clear")
     @NonNull
     InputWire<Object> clearCreationMangerInputWire();
+
+    void setEventOutputWire(InputWire<PlatformEvent> platformEventInputWire);
 }

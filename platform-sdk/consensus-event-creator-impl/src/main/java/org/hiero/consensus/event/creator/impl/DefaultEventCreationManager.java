@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -79,6 +80,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * Utility class for computing median lag for sync.
      */
     private final SyncLagCalculator syncLagCalculator;
+    private Consumer<PlatformEvent> createdEventCallback;
 
     /**
      * Constructor of the event creation manager.
@@ -123,6 +125,32 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .build();
 
         syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
+
+
+        final int eventCreationPeriod = (int) config.period().toNanos();
+        new Thread() {
+            @Override
+            public void run() {
+                while ( true ) {
+                    if ( createdEventCallback != null ) {
+                        var event = maybeCreateEvent();
+                        if ( event != null ) {
+                            createdEventCallback.accept(event);
+                        }
+                        try {
+                            Thread.sleep(0,eventCreationPeriod);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }.start();
+    }
+
+
+    public void setCreatedEventCallback(Consumer<PlatformEvent> createdEventCallback) {
+        this.createdEventCallback = createdEventCallback;
     }
 
     /**

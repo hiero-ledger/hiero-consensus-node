@@ -126,10 +126,16 @@ public class PlatformWiring {
                         .statusStateMachineHeartbeatPeriod())
                 .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
 
-        components
+//        components
+//                .eventCreatorModule()
+//                .createdEventOutputWire()
+//                .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
+
+                components
                 .eventCreatorModule()
-                .createdEventOutputWire()
-                .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
+                        .setEventOutputWire(components.eventIntakeModule().nonValidatedEventsInputWire());
+
+
 
         if (callbacks.staleEventConsumer() != null) {
             final OutputWire<PlatformEvent> staleEvent =

@@ -39,6 +39,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
 
     @Nullable
     private ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
+    private DefaultEventCreationManager eventCreationManager;
 
     /**
      * {@inheritDoc}
@@ -69,10 +70,10 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
                 new ComponentWiring<>(model, EventCreationManager.class, wiringConfig.eventCreationManager());
 
         // Set up heartbeat wire
-        model.buildHeartbeatWire(eventCreationConfig.period())
-                .solderTo(
-                        eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
-                        OFFER);
+//        model.buildHeartbeatWire(eventCreationConfig.period())
+//                .solderTo(
+//                        eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
+//                        OFFER);
 
         // Force not soldered wires to be built
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
@@ -82,7 +83,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         final BytesSigner bytesSigner = new PlatformSigner(keysAndCerts);
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, random, bytesSigner, roster, selfId, transactionSupplier);
-        final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
+        this.eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManagerWiring.bind(eventCreationManager);
     }
@@ -199,5 +200,10 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<Object> clearCreationMangerInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized").getInputWire(EventCreationManager::clear);
+    }
+
+    @Override
+    public void setEventOutputWire(final InputWire<PlatformEvent> platformEventInputWire) {
+        eventCreationManager.setCreatedEventCallback(platformEventInputWire::inject);
     }
 }
