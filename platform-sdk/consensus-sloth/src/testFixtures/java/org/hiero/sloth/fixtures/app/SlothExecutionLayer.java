@@ -58,11 +58,11 @@ public class SlothExecutionLayer implements ExecutionLayer {
      * <p>If generation is already running it is stopped and restarted with the new parameters.
      * The generated-count counter is reset to zero on each call.
      *
-     * @param tps  the number of transactions to generate per second
+     * @param tps  the number of transactions to generate per second; may be fractional
      * @param type the type of transaction to generate
      * @throws IllegalArgumentException if {@code tps} is not positive
      */
-    public void startGenerating(final int tps, @NonNull final SlothTransactionType type) {
+    public void startGenerating(final double tps, @NonNull final SlothTransactionType type) {
         transactionGenerator.startGenerating(tps, type);
     }
 

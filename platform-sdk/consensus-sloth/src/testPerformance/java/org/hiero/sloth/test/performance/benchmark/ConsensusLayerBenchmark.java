@@ -123,7 +123,7 @@ public class ConsensusLayerBenchmark {
 
         // Per-node TPS: spread the total network TPS evenly across all nodes.
         final List<Node> nodes = network.nodes();
-        final int perNodeTps = Math.max(1, params.tps() / nodes.size());
+        final double perNodeTps = Math.max(1.0, ((double) params.tps()) / nodes.size());
 
         // Warm-up phase: generate empty transactions on each node for warmupTime seconds.
         log.info(

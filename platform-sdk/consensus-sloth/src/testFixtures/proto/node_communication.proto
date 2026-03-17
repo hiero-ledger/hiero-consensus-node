@@ -189,8 +189,8 @@ enum TransactionType {
 
 // Request to start self-generating transactions within the execution layer.
 message StartTransactionGenerationRequest {
-  // The number of transactions to generate per second on this node.
-  uint32 tps = 1;
+  // The number of transactions to generate per second on this node (may be fractional).
+  double tps = 1;
   // The type of transactions to generate.
   TransactionType type = 2;
 }

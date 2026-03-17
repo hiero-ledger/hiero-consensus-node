@@ -220,10 +220,10 @@ public class ConsensusNodeManager {
     /**
      * Instructs the execution layer to start self-generating transactions.
      *
-     * @param tps  the number of transactions to generate per second
+     * @param tps  the number of transactions to generate per second; may be fractional
      * @param type the type of transaction to generate
      */
-    public void startTransactionGeneration(final int tps, @NonNull final SlothTransactionType type) {
+    public void startTransactionGeneration(final double tps, @NonNull final SlothTransactionType type) {
         executionCallback.startGenerating(tps, type);
     }
 

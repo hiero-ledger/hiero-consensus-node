@@ -322,7 +322,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     @Override
-    public void startTransactionGeneration(final int tps, @NonNull final SlothTransactionType type) {
+    public void startTransactionGeneration(final double tps, @NonNull final SlothTransactionType type) {
         final TransactionType protoType = type == SlothTransactionType.BENCHMARK
                 ? TransactionType.BENCHMARK_TRANSACTION
                 : TransactionType.EMPTY_TRANSACTION;

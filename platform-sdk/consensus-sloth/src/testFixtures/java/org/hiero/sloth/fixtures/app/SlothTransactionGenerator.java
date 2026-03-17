@@ -65,12 +65,12 @@ public class SlothTransactionGenerator {
      * <p>If generation is already running it is stopped and restarted with the new parameters.
      * The generated-count counter is reset to zero on each call.
      *
-     * @param tps  the number of transactions to generate per second; must be positive
+     * @param tps  the number of transactions to generate per second; must be positive; may be fractional
      * @param type the type of transaction to generate
      * @throws IllegalArgumentException if {@code tps} is not positive
      */
-    public void startGenerating(final int tps, @NonNull final SlothTransactionType type) {
-        if (tps <= 0) {
+    public void startGenerating(final double tps, @NonNull final SlothTransactionType type) {
+        if (tps <= 0.0) {
             throw new IllegalArgumentException("tps must be positive, got: " + tps);
         }
         requireNonNull(type);
@@ -82,10 +82,10 @@ public class SlothTransactionGenerator {
         }
         generatedCount.set(0);
 
-        final long intervalMillis = 1000L / tps;
-        log.info("Starting transaction generation: {} TPS, type={}, interval={}ms", tps, type, intervalMillis);
+        final long intervalMicros = (long) (1_000_000.0 / tps);
+        log.info("Starting transaction generation: {} TPS, type={}, interval={}μs", tps, type, intervalMicros);
         generationTask =
-                scheduler.scheduleAtFixedRate(() -> generateAndSubmit(type), 0, intervalMillis, TimeUnit.MILLISECONDS);
+                scheduler.scheduleAtFixedRate(() -> generateAndSubmit(type), 0, intervalMicros, TimeUnit.MICROSECONDS);
     }
 
     /**

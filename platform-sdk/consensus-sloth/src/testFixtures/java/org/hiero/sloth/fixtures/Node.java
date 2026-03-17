@@ -76,11 +76,11 @@ public interface Node {
      *
      * <p>If generation is already running it is stopped and restarted with the new parameters.
      *
-     * @param tps  the number of transactions to generate per second on this node
+     * @param tps  the number of transactions to generate per second on this node; may be fractional
      * @param type the type of transactions to generate
      * @throws UnsupportedOperationException if the environment does not support self-generation
      */
-    default void startTransactionGeneration(final int tps, @NonNull SlothTransactionType type) {
+    default void startTransactionGeneration(final double tps, @NonNull SlothTransactionType type) {
         throw new UnsupportedOperationException("Transaction generation not supported in this environment");
     }
 
