@@ -22,6 +22,8 @@ import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
+import org.hiero.consensus.event.validation.EventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;

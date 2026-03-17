@@ -27,6 +27,7 @@ import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.validation.EventFieldValidator;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
