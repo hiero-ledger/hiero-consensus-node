@@ -94,6 +94,14 @@ message RegisteredServiceEndpoint {
      * Hiero consensus network.
      */
     RpcRelayEndpoint rpc_relay = 7;
+
+    /**
+     * A general service.<br/>
+     * A general service endpoint represents any network accessible service
+     * that is provided by a registered node but that is not a service
+     * currently defined as part of the Hiero Ledger system.
+     */
+    GeneralServiceEndpoint general_service = 8;
   }
 
   /**
@@ -156,5 +164,18 @@ message RegisteredServiceEndpoint {
    * A message indicating this endpoint is a RPC Relay endpoint.
    */
   message RpcRelayEndpoint {
+  }
+
+  /**
+   * A message indicating this endpoint is a General Service endpoint.
+   */
+  message GeneralServiceEndpoint {
+    /**
+     * A short description of the service provided.
+     * <p>
+     * This value, if set, MUST NOT exceed 100 bytes when encoded as UTF-8.<br/>
+     * This field is OPTIONAL.
+     */
+    string description = 1;
   }
 }
