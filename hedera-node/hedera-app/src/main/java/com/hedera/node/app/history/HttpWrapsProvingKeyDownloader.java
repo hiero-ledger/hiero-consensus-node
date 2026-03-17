@@ -18,7 +18,7 @@ public class HttpWrapsProvingKeyDownloader {
 
     public void download(@NonNull final String downloadUrl, @NonNull final Path targetPath) throws IOException {
         try (final var httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
+                .version(HttpClient.Version.HTTP_2)
                 .connectTimeout(Duration.ofSeconds(30))
                 .build()) {
             final var request =
