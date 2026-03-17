@@ -4,7 +4,9 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
@@ -20,6 +22,7 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,9 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -47,11 +47,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
     private static final int COUNT = 20_000;
     private static final int COUNT2 = 30_000;
 
-    @BeforeAll
-    public static void beforeAll() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
-    }
-
     /*
      * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will
      * clean up all thread local caches held.
@@ -59,15 +54,13 @@ class MerkleDbDataSourceSnapshotMergeTest {
     @ParameterizedTest
     @MethodSource("provideParameters")
     @Disabled
-    void createMergeSnapshotReadBack(
-            final TestType testType, final int hashesRamToDiskThreshold, final boolean preferDiskBasedIndexes)
-            throws Exception {
+    void createMergeSnapshotReadBack(final TestType testType, final boolean preferDiskBasedIndexes) throws Exception {
         // Keep track of direct memory used already, so we can check if we leek over and above what we started with
         final long directMemoryUsedAtStart = getDirectMemoryUsedBytes();
         // run test in background thread
         final ExecutorService executorService = Executors.newSingleThreadExecutor();
         final var future = executorService.submit(() -> {
-            createMergeSnapshotReadBackImpl(testType, hashesRamToDiskThreshold, preferDiskBasedIndexes);
+            createMergeSnapshotReadBackImpl(testType, preferDiskBasedIndexes);
             return null;
         });
         future.get(10, TimeUnit.MINUTES);
@@ -83,13 +76,12 @@ class MerkleDbDataSourceSnapshotMergeTest {
         assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
     }
 
-    void createMergeSnapshotReadBackImpl(
-            final TestType testType, final int hashesRamToDiskThreshold, final boolean preferDiskBasedIndexes)
+    void createMergeSnapshotReadBackImpl(final TestType testType, final boolean preferDiskBasedIndexes)
             throws IOException, InterruptedException {
         final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
         final String tableName = "mergeSnapshotReadBack";
         final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(storeDir, tableName, COUNT, hashesRamToDiskThreshold, false, preferDiskBasedIndexes);
+                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches
@@ -133,8 +125,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     dataSource.saveRecords(
                             firstLeafPath,
                             lastLeafPathInclusive,
-                            IntStream.range(0, lastLeafPathInclusive + 1 /* exclusive */)
-                                    .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(lastLeafPathInclusive, dataSource.getHashChunkHeight()),
                             IntStream.range(firstLeafPath, lastLeafPathInclusive + 1 /* exclusive */)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                             Stream.empty(),
@@ -174,11 +165,11 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+                            "idToHashChunk", dataSource.newHashChunkStoreCompactor());
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
                             "objectKeyToPath", dataSource.newKeyToPathCompactor());
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "pathToKeyValue", dataSource.newPathToKeyValueCompactor());
+                            "pathToKeyValue", dataSource.newKeyValueStoreCompactor());
 
                     assertEventuallyTrue(
                             () -> {
@@ -297,7 +288,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
-                    IntStream.range(start, COUNT + end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(start, COUNT + end - 1, t -> t, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
@@ -323,7 +314,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 + ((count * 2) - 1));
         // check all the node hashes
         for (int i = 0; i < count; i++) {
-            final var hash = dataSource.loadHash(i);
+            final var hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
             assertEquals(hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
         }
         // check all the leaf data

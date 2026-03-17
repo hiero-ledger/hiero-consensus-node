@@ -78,7 +78,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
 
         givenTxn();
 
-        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false));
+        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false, false));
         assertThat(listOfOps).hasSize(2);
 
         final var givenOp = listOfOps.get(0);
@@ -284,7 +284,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
 
         givenTxn();
 
-        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false));
+        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false, false));
         assertThat(listOfOps).hasSize(2);
 
         final var givenOp = listOfOps.get(0);

@@ -195,8 +195,8 @@ public class CryptoUpdateSuite {
             reason = NEEDS_STATE_ACCESS,
             overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     final Stream<DynamicTest> usdFeeAsExpectedCryptoUpdate() {
-        double baseFee = 0.000214;
-        double baseFeeWithExpiry = 0.00022;
+        double baseFee = 0.000214952;
+        double baseFeeWithExpiry = 0.000221485;
 
         final var baseTxn = "baseTxn";
         final var plusOneTxn = "plusOneTxn";

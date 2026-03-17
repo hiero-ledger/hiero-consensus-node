@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.log;
-import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -26,19 +24,18 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
@@ -47,14 +44,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -75,7 +74,13 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
+/**
+ * Tests for CryptoCreate simple fees.
+ * Validates that fees are correctly calculated based on:
+ * - Number of signatures (extras beyond included)
+ * - Number of keys (extras beyond included)
+ * - Transaction processing bytes and hook execution inputs
+ */
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoCreateSimpleFeesTest {
@@ -110,7 +115,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1, 0, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -126,7 +136,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -148,7 +163,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -174,7 +194,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(3L, 4L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 4L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -192,7 +217,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -209,7 +239,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 0L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    HOOK_EXECUTION, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -228,7 +263,13 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    HOOK_EXECUTION, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -257,7 +298,13 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    HOOK_EXECUTION, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -305,7 +352,12 @@ public class CryptoCreateSimpleFeesTest {
                         allRunFor(spec, txn);
                     }),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
     }
 
@@ -799,414 +851,15 @@ public class CryptoCreateSimpleFeesTest {
         }
 
         @Nested
-        @DisplayName("CryptoCreate Simple Fees Failures on Pre-Handle")
-        class CryptoCreateSimpleFailuresOnPreHandle {
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with invalid signature fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateWithInvalidSignatureFailsOnPreHandleNetworkFeeChargedOnly() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, invalidSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .setNode(4) // for skipping ingest
-                                .via(INNER_ID)
-                                .hasKnownStatus(INVALID_PAYER_SIGNATURE),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with insufficient txn fee fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateWithInsufficientTxnFeeFailsOnPreHandleNetworkFeeChargedOnly() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR / 100000) // fee is too low
-                                .setNode(4)
-                                .via(INNER_ID)
-                                .hasKnownStatus(INSUFFICIENT_TX_FEE),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with insufficient payer balance fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateWithInsufficientPayerBalanceFailsOnPreHandleNetworkFeeChargedOnly() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HBAR / 100000),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .setNode(4)
-                                .via(INNER_ID)
-                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with too long memo fails on pre-handle and no signatures are charged")
-            Stream<DynamicTest> cryptoCreateWithTooLongMemoFailsOnPreHandleNetworkFeeChargedOnlyNoSignaturesCharged() {
-                final var LONG_MEMO = "x".repeat(1025); // memo exceeds 1024 bytes limit
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Register a TxnId for the inner txn
-                        usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .memo(LONG_MEMO)
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .setNode(4)
-                                .via(INNER_ID)
-                                .hasKnownStatus(MEMO_TOO_LONG),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate expired transaction fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateExpiredTransactionFailsOnPreHandleNetworkFeeChargedOnly() {
-                final var oneHourBefore = -3_600L; // 1 hour before
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Register a TxnId for the inner txn
-                        usableTxnIdNamed(INNER_ID)
-                                .modifyValidStart(oneHourBefore)
-                                .payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .setNode(4)
-                                .txnId(INNER_ID)
-                                .via(INNER_ID)
-                                .hasKnownStatus(TRANSACTION_EXPIRED),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with too far start time fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateWithTooFarStartTimeFailsOnPreHandleNetworkFeeChargedOnly() {
-                final var oneHourPast = 3_600L; // 1 hour later
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Register a TxnId for the inner txn
-                        usableTxnIdNamed(INNER_ID).modifyValidStart(oneHourPast).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .setNode(4)
-                                .txnId(INNER_ID)
-                                .via(INNER_ID)
-                                .hasKnownStatus(INVALID_TRANSACTION_START),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
-                                0.01));
-            }
-
-            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("CryptoCreate with invalid duration time fails on pre-handle")
-            Stream<DynamicTest> cryptoCreateWithInvalidDurationTimeFailsOnPreHandleNetworkFeeChargedOnly() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                final String INNER_ID = "crypto-create-txn-inner-id";
-
-                // Define a threshold submit key that requires two simple keys signatures
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                // Create a valid signature with both simple keys signing
-                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-
-                        // Register a TxnId for the inner txn
-                        usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
-                        cryptoCreate("testAccount")
-                                .key(PAYER_KEY)
-                                .sigControl(forKey(PAYER_KEY, validSig))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .validDurationSecs(0) // invalid duration
-                                .setNode(4)
-                                .txnId(INNER_ID)
-                                .via(INNER_ID)
-                                .hasKnownStatus(INVALID_TRANSACTION_DURATION),
-
-                        // Save balances after and assert payer was not charged
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
-                                0.01));
-            }
-        }
-
-        @Nested
         @Tag(ONLY_SUBPROCESS)
         @DisplayName("CryptoCreate Simple Fees Failures on Handle")
         class CryptoCreateSimpleFeesFailuresOnHandle {
             @LeakyHapiTest
             @DisplayName("CryptoCreate with duplicate transaction fails on handle")
             Stream<DynamicTest> cryptoCreateWithDuplicateTransactionFailsOnHandlePayerChargedFullFee() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
@@ -1230,23 +883,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .setNode(3)
                                 .via("cryptoCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances after and assert node was not charged
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateFullFeeUsd(1, 1));
-                            assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "cryptoCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize),
-                                0.01));
+                        withOpContext((spec, log) -> allRunFor(
+                                spec,
+                                validateChargedUsd(
+                                        "cryptoCreateTxn",
+                                        expectedCryptoCreateFullFeeUsd(
+                                                1L, 0L, signedTxnSizeFor(spec, "cryptoCreateTxn"))))));
             }
         }
 
@@ -1254,9 +896,8 @@ public class CryptoCreateSimpleFeesTest {
         @DisplayName("Corner Cases for CryptoCreate Simple Fees")
         class CornerCasesForCryptoCreateSimpleFees {
             @HapiTest
-            @DisplayName(
-                    "CryptoCreate - additional not required signature is not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateOneAdditionalSigIsNotCharged() {
+            @DisplayName("CryptoCreate - additional not required signature is charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateOneAdditionalSigIsCharged() {
                 return hapiTest(
                         newKeyNamed(ADMIN_KEY),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -1267,13 +908,18 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
 
             @HapiTest
             @DisplayName(
-                    "CryptoCreate - multiple additional not required signatures are not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateMultipleAdditionalSigIsNotCharged() {
+                    "CryptoCreate - multiple additional not required signatures are charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateMultipleAdditionalSigIsCharged() {
                 return hapiTest(
                         newKeyNamed(ADMIN_KEY),
                         newKeyNamed("extraKey1"),
@@ -1286,13 +932,18 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 4L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
 
             @HapiTest
             @DisplayName(
-                    "CryptoCreate - threshold payer key with multiple additional not required signatures are not charged - full charging without extras")
-            Stream<DynamicTest> cryptoCreateWithThresholdKeyAndMultipleAdditionalSigIsNotCharged() {
+                    "CryptoCreate - threshold payer key with multiple additional not required signatures are charged - all verified sigs count")
+            Stream<DynamicTest> cryptoCreateWithThresholdKeyAndMultipleAdditionalSigIsCharged() {
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
 
@@ -1314,7 +965,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 4L,
+                                        KEYS, 2L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
         }
     }

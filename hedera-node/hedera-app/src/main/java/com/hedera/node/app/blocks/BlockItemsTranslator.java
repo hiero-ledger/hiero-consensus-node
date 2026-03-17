@@ -79,6 +79,7 @@ public class BlockItemsTranslator {
             case CRYPTO_CREATE, CRYPTO_UPDATE -> receiptBuilder.accountID(((CryptoOpContext) context).accountId());
             case FILE_CREATE -> receiptBuilder.fileID(((FileOpContext) context).fileId());
             case NODE_CREATE -> receiptBuilder.nodeId(((NodeOpContext) context).nodeId());
+            case REGISTERED_NODE_CREATE -> receiptBuilder.registeredNodeId(((NodeOpContext) context).nodeId());
             case SCHEDULE_CREATE -> {
                 final var scheduleOutput = outputValueIfPresent(
                         TransactionOutput::hasCreateSchedule, TransactionOutput::createScheduleOrThrow, outputs);
@@ -144,6 +145,9 @@ public class BlockItemsTranslator {
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
             case HOOK_DISPATCH,
@@ -270,7 +274,7 @@ public class BlockItemsTranslator {
         }
     }
 
-    private static <T> @Nullable T outputValueIfPresent(
+    private static <T> T outputValueIfPresent(
             @NonNull final Predicate<TransactionOutput> filter,
             @NonNull final Function<TransactionOutput, T> extractor,
             @NonNull final TransactionOutput... outputs) {

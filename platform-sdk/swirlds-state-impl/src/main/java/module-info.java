@@ -14,7 +14,6 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.base.utility;
     requires com.swirlds.common;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;

@@ -23,4 +23,5 @@ jmhModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
+    requires("org.hiero.consensus.roster.test.fixtures")
 }

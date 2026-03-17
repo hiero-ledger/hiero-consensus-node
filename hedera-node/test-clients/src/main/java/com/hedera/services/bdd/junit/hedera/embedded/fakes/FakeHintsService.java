@@ -38,11 +38,6 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        delegate.initCurrentRoster(roster);
-    }
-
-    @Override
     public @NonNull Bytes activeVerificationKeyOrThrow() {
         return delegate.activeVerificationKeyOrThrow();
     }
@@ -94,8 +89,11 @@ public class FakeHintsService implements HintsService {
 
     @Override
     public void executeCrsWork(
-            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
-        delegate.executeCrsWork(hintsStore, now, isActive);
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            final boolean isActive,
+            @NonNull final TssConfig tssConfig) {
+        delegate.executeCrsWork(hintsStore, now, isActive, tssConfig);
     }
 
     @Override

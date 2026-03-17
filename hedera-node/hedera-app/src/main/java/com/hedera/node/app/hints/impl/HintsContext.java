@@ -43,10 +43,13 @@ public class HintsContext {
     // For a quiesced network, a hinTS signature could in principle take an entire day to aggregate
     private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofDays(1);
 
+    public static final String INVALID_AGGREGATE_SIGNATURE_MESSAGE = "Aggregate hinTS signature was invalid";
+
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
     private final Supplier<Configuration> configProvider;
+    private final HintsSigningMetrics signingMetrics;
 
     @Nullable
     private HintsConstruction construction;
@@ -54,12 +57,14 @@ public class HintsContext {
     @Nullable
     private Map<Long, Integer> nodePartyIds;
 
-    private long schemeId;
-
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library, @NonNull final Supplier<Configuration> configProvider) {
+    public HintsContext(
+            @NonNull final HintsLibrary library,
+            @NonNull final Supplier<Configuration> configProvider,
+            @NonNull final HintsSigningMetrics signingMetrics) {
         this.library = requireNonNull(library);
         this.configProvider = requireNonNull(configProvider);
+        this.signingMetrics = requireNonNull(signingMetrics);
     }
 
     /**
@@ -85,7 +90,6 @@ public class HintsContext {
         }
         this.construction = requireNonNull(construction);
         nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
-        schemeId = this.construction.constructionId();
     }
 
     /**
@@ -94,18 +98,6 @@ public class HintsContext {
      */
     public boolean isReady() {
         return construction != null && construction.hasHintsScheme();
-    }
-
-    /**
-     * Returns the current scheme ids, or throws if they are unset.
-     * @return the active scheme id
-     * @throws IllegalStateException if the scheme id is unset
-     */
-    public long activeSchemeIdOrThrow() {
-        if (schemeId == 0) {
-            throw new IllegalStateException("No scheme id set");
-        }
-        return schemeId;
     }
 
     /**
@@ -146,7 +138,8 @@ public class HintsContext {
      */
     public boolean validate(
             final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
-        if (crs == null || construction == null || nodePartyIds == null) {
+        requireNonNull(crs);
+        if (construction == null || nodePartyIds == null) {
             return false;
         }
         if (construction.constructionId() == body.constructionId() && nodePartyIds.containsKey(nodeId)) {
@@ -178,19 +171,18 @@ public class HintsContext {
             nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
         }
         final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
-        final int divisor = tssConfig.signingThresholdDivisor();
-        if (divisor <= 0) {
-            throw new IllegalArgumentException("signingThresholdDivisor must be > 0");
-        }
+        final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = totalWeight / divisor;
         return new Signing(
                 blockHash,
                 threshold,
+                divisor,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 nodeWeights,
                 verificationKey,
-                onCompletion);
+                onCompletion,
+                tssConfig.validateBlockSignatures());
     }
 
     /**
@@ -215,9 +207,13 @@ public class HintsContext {
      * A signing process spawned from this context.
      */
     public class Signing {
+        private final long startNanos;
         private final long thresholdWeight;
+        private final long thresholdDenominator;
+        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+        private final boolean validateSignature;
         private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
@@ -228,13 +224,19 @@ public class HintsContext {
         public Signing(
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
+                final long thresholdDenominator,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
-                @NonNull final Runnable onCompletion) {
+                @NonNull final Runnable onCompletion,
+                final boolean validateSignature) {
+            this.startNanos = System.nanoTime();
             this.thresholdWeight = thresholdWeight;
+            this.validateSignature = validateSignature;
+            this.thresholdDenominator = thresholdDenominator;
             requireNonNull(onCompletion);
+            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
@@ -249,6 +251,7 @@ public class HintsContext {
                                     signatures.keySet(),
                                     weightOfSignatures.get(),
                                     thresholdWeight);
+                            signingMetrics.recordAttemptCompletedWithoutSignature();
                         }
                         onCompletion.run();
                     },
@@ -287,7 +290,10 @@ public class HintsContext {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
-            signatures.put(partyId, signature);
+            if (signatures.put(partyId, signature) != null) {
+                // Each valid signature should only accumulate weight once, so abort on duplicates
+                return;
+            }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
             // For block hash signing, always require strictly greater than threshold
@@ -295,7 +301,16 @@ public class HintsContext {
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
-                future.complete(aggregatedSignature);
+                final boolean valid = !validateSignature
+                        || library.verifyAggregate(
+                                aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
+                if (valid) {
+                    future.complete(aggregatedSignature);
+                    final long elapsedNanos = System.nanoTime() - startNanos;
+                    signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
+                } else {
+                    future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
+                }
             }
         }
     }

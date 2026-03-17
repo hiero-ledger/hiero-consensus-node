@@ -29,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
@@ -79,7 +80,7 @@ public class TlsFactory implements SocketFactory {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalArgumentException("crypto.keystorePassword must not be null or blank");
         }
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "crypto.keystorePassword", passphrase);
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, passphrase);
         final char[] password = passphrase.toCharArray();
 
         /* nondeterministic CSPRNG */

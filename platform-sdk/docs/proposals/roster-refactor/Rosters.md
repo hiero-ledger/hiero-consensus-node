@@ -170,7 +170,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `org.hiero.consensus.exceptions.ThrowableUtilities`
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
-  * `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
+  * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
   * `com.swirlds.platform.state.signed.SignedStateValidator`
   * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
@@ -204,7 +204,7 @@ After this task, the old RosterHistory object will be deleted.
 * `com.swirlds.platform.state.iss.DefaultIssDetector`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
 * `com.swirlds.platform.gossip.SyncGossipModular`
-* `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
+* `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
 
 ##### Removing from scope:
 

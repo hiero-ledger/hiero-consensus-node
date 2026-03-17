@@ -262,6 +262,9 @@ public class HapiUtils {
             case HISTORY_PROOF_VOTE -> HederaFunctionality.HISTORY_PROOF_VOTE;
             case CRS_PUBLICATION -> HederaFunctionality.CRS_PUBLICATION;
             case LEDGER_ID_PUBLICATION -> HederaFunctionality.LEDGER_ID_PUBLICATION;
+            case REGISTERED_NODE_CREATE -> HederaFunctionality.REGISTERED_NODE_CREATE;
+            case REGISTERED_NODE_UPDATE -> HederaFunctionality.REGISTERED_NODE_UPDATE;
+            case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }

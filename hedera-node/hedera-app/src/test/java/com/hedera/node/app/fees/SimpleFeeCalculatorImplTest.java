@@ -8,6 +8,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -25,6 +26,9 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -60,12 +64,27 @@ class SimpleFeeCalculatorImplTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private FeesConfig feesConfig;
+
+    @Mock
+    private NetworkAdminConfig networkAdminConfig;
+
     private FeeSchedule testSchedule;
     private Set<ServiceFeeCalculator> serviceFeeCalculators;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
+        lenient().when(feeContext.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+        lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
+        lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+
         // Create a mock service fee calculator for FILE_CREATE
         ServiceFeeCalculator mockFileCreateCalculator = new ServiceFeeCalculator() {
             @Override
@@ -159,6 +178,7 @@ class SimpleFeeCalculatorImplTest {
 
         // The total fee should be 7x the base fee
         assertThat(result.totalTinycents()).isEqualTo(baseFee * 7);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(DEFAULT_HIGH_VOLUME_MULTIPLIER);
     }
 
     @Test
@@ -280,11 +300,13 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
     }
 
     @Test
@@ -340,11 +362,13 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
     }
 
     private SimpleFeeContext createMockSimpleFeeContext(final HederaFunctionality function) {
@@ -360,6 +384,7 @@ class SimpleFeeCalculatorImplTest {
         lenient().when(simpleFeeContext.functionality()).thenReturn(function);
         lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
         lenient().when(simpleFeeContext.feeContext()).thenReturn(feeContext);
+        lenient().when(feeContext.functionality()).thenReturn(function);
         lenient().when(feeContext.readableStoreFactory()).thenReturn(storeFactory);
         lenient()
                 .when(simpleFeeContext.getHighVolumeThrottleUtilization(function))

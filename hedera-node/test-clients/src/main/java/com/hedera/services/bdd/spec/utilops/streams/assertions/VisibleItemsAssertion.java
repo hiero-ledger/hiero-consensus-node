@@ -27,6 +27,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private static final Logger log = LogManager.getLogger(VisibleItemsAssertion.class);
 
     private final HapiSpec spec;
+    private final Set<String> allIds;
     private final Set<String> unseenIds;
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
@@ -56,6 +57,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                 addAll(List.of(specTxnIds));
             }
         };
+        allIds = Set.copyOf(unseenIds);
         viewAll = unseenIds.contains(ALL_TX_IDS);
     }
 
@@ -75,7 +77,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                         .add(entry);
             }
         } else {
-            new ArrayList<>(unseenIds)
+            new ArrayList<>(allIds)
                     .stream()
                             .filter(id -> spec.registry()
                                     .getMaybeTxnId(id)

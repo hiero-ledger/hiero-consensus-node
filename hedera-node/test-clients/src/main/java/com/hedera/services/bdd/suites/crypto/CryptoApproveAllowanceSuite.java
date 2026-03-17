@@ -34,6 +34,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance.MISSING_OWNER;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.allowanceTinyBarsFromTo;
@@ -1229,7 +1230,7 @@ public class CryptoApproveAllowanceSuite {
                         .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
-                validateFees(BASE_APPROVE_TXN, 0.0505, 2 * CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees(BASE_APPROVE_TXN, 0.050455, 2 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
@@ -1237,7 +1238,7 @@ public class CryptoApproveAllowanceSuite {
                         .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
-                validateFees(BASE_APPROVE_TXN, 0.0509, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
+                validateFees(BASE_APPROVE_TXN, 0.0509105, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @HapiTest
@@ -1279,7 +1280,7 @@ public class CryptoApproveAllowanceSuite {
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
                 validateFees(BASE_APPROVE_TXN, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.050392, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)
@@ -1727,5 +1728,80 @@ public class CryptoApproveAllowanceSuite {
                                 OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, SPENDER, false, List.of(1L))
                         .signedByPayerAnd(SPENDER)
                         .hasKnownStatus(INVALID_DELEGATING_SPENDER));
+    }
+
+    /**
+     * Characterizing test for the following business case on Allowances and Treasury changes for NFTs:
+     * If you approve a spender for a treasury-owned NFT, this approval exists **independent of the exact treasury account**.
+     * That is, if Alice has approval to spend a treasury-owned serial #123 of non-fungible token type 0.0.N, she does not lose that approval just because the 0.0.N admin updates the token treasury.
+     * The approval lasts until it is explicitly removed using the active treasury key.
+     */
+    @HapiTest
+    final Stream<DynamicTest> previousNftAllowancesStillValidOnTreasuryChange() {
+        final String SUPPLY_KEY = "supplyKey";
+        final String ADMIN_KEY = "adminKey";
+        final String NFT_TOKEN = "nftToken";
+        final String OLD_TREASURY = "oldTreasury";
+        final String NEW_TREASURY = "newTreasury";
+        final String SPENDER = "staleSpender";
+        final String RECEIVER = "receiver";
+
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(10L)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenAssociate(NEW_TREASURY, NFT_TOKEN),
+
+                // Mint Serials #1 & #2
+                mintToken(
+                        NFT_TOKEN,
+                        List.of(
+                                ByteString.copyFromUtf8("serial-1-metadata"),
+                                ByteString.copyFromUtf8("serial-2-metadata"))),
+
+                // Old treasury approves spender for serial #1 & #2
+                cryptoApproveAllowance()
+                        .addNftAllowance(OLD_TREASURY, NFT_TOKEN, SPENDER, false, List.of(1L, 2L))
+                        .payingWith(OLD_TREASURY)
+                        .signedBy(OLD_TREASURY),
+
+                // Change treasury to newTreasury
+                // changeOwnerToNewTreasury() updates counters but
+                // leaves previous allowances intact on the Nft record for serial #1
+                tokenUpdate(NFT_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
+
+                // Previous allowance spender transfers NFT #1 successfully
+                cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 1L).between(NEW_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SUCCESS),
+
+                // Delete inherited allowance w/ new treasury key
+                cryptoDeleteAllowance()
+                        .addNftDeleteAllowance(NEW_TREASURY, NFT_TOKEN, List.of(2L))
+                        .payingWith(NEW_TREASURY)
+                        .signedBy(NEW_TREASURY)
+                        .hasKnownStatus(SUCCESS),
+
+                // Previous allowance spender deleted for NFT #2
+                cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 2L).between(NEW_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+
+                // Confirm NFT #1 physically moved
+                getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 1),
+                getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1));
     }
 }
