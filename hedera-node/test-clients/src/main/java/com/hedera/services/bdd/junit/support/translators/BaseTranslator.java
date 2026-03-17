@@ -706,8 +706,7 @@ public class BaseTranslator {
                             final var key = read.keyOrThrow();
                             final var slotKey = new SlotKey(contractId, key);
                             final Bytes writtenValue;
-                            if (executingHookId == null
-                                    || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
+                            if (executingHookId == null || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
                                 writtenValue = writtenSlots.get(slotKey);
                             } else {
                                 writtenValue = writtenHookSlots.get(
