@@ -234,17 +234,18 @@ message BlockItem {
          * REQUIRED for this block.
          * <ul>
          *   <li>The block SHALL have a `BlockHeader`.</li>
+         *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
+         *   <li>The block MAY contain one or more StateChanges items.</li>
          *   <li>The block SHALL have a `BlockFooter`.</li>
          *   <li>The block SHALL have a `SignedRecordFileProof` type
          *       `BlockProof`.</li>
-         *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
          *   <li>The block SHALL NOT contain any content item other than a
-         *       block header, single `RecordFileItem`, block footer, and one
-         *       or more block proofs.</li>
+         *       block header, single `RecordFileItem`, optional StateChanges,
+         *       block footer, and one or more block proofs.</li>
          *   <li>The content of the `RecordFileItem` can be validated using
          *       the `SignedRecordFileProof` according to
          *       the process used for Record Files prior to the creation
-         *       of Block Stream.</li>
+         *       of Block Stream. Also with additional proofs if available.</li>
          * </ul>
          */
         RecordFileItem record_file = 10;
