@@ -2,9 +2,11 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
@@ -16,7 +18,11 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -31,10 +37,13 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAird
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingNFTAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenClaimAirdropFullFeeUsd;
@@ -52,6 +61,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -87,17 +97,19 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
             "receiverWithoutFreeAutoAssociationsFourth";
     private static final String OWNER = "owner";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
+    private static final String FUNGIBLE_TOKEN_SECOND = "fungibleTokenSecond";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String adminKey = "adminKey";
     private static final String supplyKey = "supplyKey";
     private static final String PAYER_KEY = "payerKey";
+    private static final String VALID_ALIAS_ECDSA = "validAliasECDSA";
     private static final String HOOK_CONTRACT = "TruePreHook";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true"));
+                "entities.unlimitedAutoAssociationsEnabled", "true"));
     }
 
     @Nested
@@ -521,7 +533,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenCancelAirdropTxn",
                                 txnSize -> expectedTokenCancelAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1)));
             }
 
@@ -587,7 +599,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenCancelAirdropTxn",
                                 txnSize -> expectedTokenCancelAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1)));
             }
 
@@ -622,6 +634,220 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                 txnSize -> expectedTokenCancelAirdropFullFeeUsd(
                                         Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1)));
+            }
+
+            @LeakyEmbeddedHapiTest(
+                    reason = NEEDS_STATE_ACCESS,
+                    overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+            @DisplayName(
+                    "Token Airdrop - Claim Pending Airdrop to Hollow Account without auto-associations with FT moving to non-existing evm alias - full fees charging")
+            final Stream<DynamicTest> tokenAirdropClaimPendingAirdropToHollowAccountWithFTMovingFullFeesCharging() {
+
+                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+                final String HOLLOW_RECEIVER = "hollowReceiver";
+
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_SECOND, 100L, OWNER, adminKey),
+                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+                        withOpContext((spec, log) -> {
+                            final var alias = evmAlias.get();
+
+                            // Disable unlimited auto-associations so the FT airdrop creates a pending airdrop to a
+                            // hollow account
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "false"));
+
+                            final var firstTokenAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenAirdropTxn");
+
+                            allRunFor(spec, firstTokenAirdropOp);
+
+                            // Save the actual hollow account id in the registry
+                            allRunFor(
+                                    spec,
+                                    getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                            .savingSnapshot(HOLLOW_RECEIVER)
+                                            .isHollow()
+                                            .has(accountWith()
+                                                    .hasEmptyKey()
+                                                    .noAlias()
+                                                    .balance(0L)
+                                                    .maxAutoAssociations(1))
+                                            .exposingIdTo(id -> spec.registry().saveAccountId(HOLLOW_RECEIVER, id)));
+
+                            // Confirm the first FT already associated successfully
+                            allRunFor(
+                                    spec,
+                                    getAccountInfo(HOLLOW_RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
+                                    getAccountBalance(HOLLOW_RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10L));
+
+                            // Second FT airdrop should become pending, because the only slot is already consumed
+                            final var secondAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN_SECOND).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("secondAirdropTxn");
+
+                            allRunFor(spec, secondAirdropOp);
+
+                            // Verify the second FT is pending, not directly associated
+                            allRunFor(
+                                    spec,
+                                    getTxnRecord("secondAirdropTxn")
+                                            .hasPriority(recordWith()
+                                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                                            moving(10, FUNGIBLE_TOKEN_SECOND)
+                                                                    .between(OWNER, HOLLOW_RECEIVER)))),
+                                    getAccountInfo(HOLLOW_RECEIVER).hasNoTokenRelationship(FUNGIBLE_TOKEN_SECOND));
+
+                            // Re-enable unlimited auto-associations
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "true"));
+
+                            final var tokenClaimAirdropOp = tokenClaimAirdrop(
+                                            pendingAirdrop(OWNER, HOLLOW_RECEIVER, FUNGIBLE_TOKEN_SECOND))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER, VALID_ALIAS_ECDSA)
+                                    .via("tokenClaimAirdropTxn");
+
+                            allRunFor(spec, tokenClaimAirdropOp);
+
+                            final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
+                                    "tokenClaimAirdropTxn",
+                                    txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                            Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                    0.1);
+
+                            final var checkReceiverInfo = getAccountInfo(HOLLOW_RECEIVER)
+                                    .isNotHollow()
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN_SECOND))
+                                    .has(accountWith()
+                                            .hasNonEmptyKey()
+                                            .noAlias()
+                                            .balance(0L));
+
+                            final var checkOwnerBalanceFirstFT =
+                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
+                            final var checkOwnerBalanceSecondFT =
+                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN_SECOND, 90L);
+                            final var checkReceiverBalance = getAccountBalance(HOLLOW_RECEIVER)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_SECOND, 10L);
+
+                            allRunFor(
+                                    spec,
+                                    checkOpChargedUsd,
+                                    checkReceiverInfo,
+                                    checkOwnerBalanceFirstFT,
+                                    checkOwnerBalanceSecondFT,
+                                    checkReceiverBalance);
+                        })));
+            }
+
+            @LeakyEmbeddedHapiTest(
+                    reason = NEEDS_STATE_ACCESS,
+                    overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+            @DisplayName(
+                    "Token Airdrop - Cancel Pending Airdrop to Hollow Account without auto-associations with FT moving to non-existing evm alias - full fees charging")
+            final Stream<DynamicTest> tokenAirdropCancelPendingAirdropToHollowAccountWithFTMovingFullFeesCharging() {
+
+                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+                final String HOLLOW_RECEIVER = "hollowReceiver";
+
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_SECOND, 100L, OWNER, adminKey),
+                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+                        withOpContext((spec, log) -> {
+                            final var alias = evmAlias.get();
+
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "false"));
+
+                            final var firstTokenAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenAirdropTxn");
+
+                            allRunFor(spec, firstTokenAirdropOp);
+
+                            allRunFor(
+                                    spec,
+                                    getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                            .savingSnapshot(HOLLOW_RECEIVER)
+                                            .isHollow()
+                                            .has(accountWith()
+                                                    .hasEmptyKey()
+                                                    .noAlias()
+                                                    .balance(0L)
+                                                    .maxAutoAssociations(1))
+                                            .exposingIdTo(id -> spec.registry().saveAccountId(HOLLOW_RECEIVER, id)));
+
+                            allRunFor(
+                                    spec,
+                                    getAccountInfo(HOLLOW_RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
+                                    getAccountBalance(HOLLOW_RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10L));
+
+                            final var secondAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN_SECOND).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("secondAirdropTxn");
+
+                            allRunFor(spec, secondAirdropOp);
+
+                            allRunFor(
+                                    spec,
+                                    getTxnRecord("secondAirdropTxn")
+                                            .hasPriority(recordWith()
+                                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                                            moving(10, FUNGIBLE_TOKEN_SECOND)
+                                                                    .between(OWNER, HOLLOW_RECEIVER)))),
+                                    getAccountInfo(HOLLOW_RECEIVER).hasNoTokenRelationship(FUNGIBLE_TOKEN_SECOND));
+
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "true"));
+
+                            // Owner cancels — only owner signature required, hollow account stays hollow
+                            final var tokenCancelAirdropOp = tokenCancelAirdrop(
+                                            pendingAirdrop(OWNER, HOLLOW_RECEIVER, FUNGIBLE_TOKEN_SECOND))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenCancelAirdropTxn");
+
+                            allRunFor(spec, tokenCancelAirdropOp);
+
+                            final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
+                                    "tokenCancelAirdropTxn",
+                                    txnSize -> expectedTokenCancelAirdropFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                    0.1);
+
+                            // Hollow account stays hollow, no FUNGIBLE_TOKEN_SECOND received
+                            final var checkReceiverInfo = getAccountInfo(HOLLOW_RECEIVER)
+                                    .isHollow()
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .hasNoTokenRelationship(FUNGIBLE_TOKEN_SECOND)
+                                    .has(accountWith().hasEmptyKey().noAlias().balance(0L));
+
+                            // 10 of FUNGIBLE_TOKEN auto-transferred, all 100 of FUNGIBLE_TOKEN_SECOND returned after
+                            // cancel
+                            final var checkOwnerBalanceFirstFT =
+                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
+                            final var checkOwnerBalanceSecondFT =
+                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN_SECOND, 100L);
+
+                            allRunFor(
+                                    spec,
+                                    checkOpChargedUsd,
+                                    checkReceiverInfo,
+                                    checkOwnerBalanceFirstFT,
+                                    checkOwnerBalanceSecondFT);
+                        })));
             }
         }
 
@@ -978,6 +1204,97 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1)));
             }
+
+            @LeakyEmbeddedHapiTest(
+                    reason = NEEDS_STATE_ACCESS,
+                    overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+            @DisplayName(
+                    "Token Claim FT Pending Airdrop for hollow account without hollow account signature - fails on handle")
+            final Stream<DynamicTest> tokenClaimPendingAirdropForHollowAccountWithoutSignatureFailsOnHandle() {
+
+                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+                final String HOLLOW_RECEIVER = "hollowReceiver";
+
+                return hapiTest(flattened(
+                        createAccountsAndKeys(),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_SECOND, 100L, OWNER, adminKey),
+                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+                        withOpContext((spec, log) -> {
+                            final var alias = evmAlias.get();
+
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "false"));
+
+                            final var firstTokenAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenAirdropTxn");
+
+                            allRunFor(spec, firstTokenAirdropOp);
+
+                            allRunFor(
+                                    spec,
+                                    getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                            .savingSnapshot(HOLLOW_RECEIVER)
+                                            .isHollow()
+                                            .has(accountWith()
+                                                    .hasEmptyKey()
+                                                    .noAlias()
+                                                    .balance(0L)
+                                                    .maxAutoAssociations(1))
+                                            .exposingIdTo(id -> spec.registry().saveAccountId(HOLLOW_RECEIVER, id)));
+
+                            allRunFor(
+                                    spec,
+                                    getAccountInfo(HOLLOW_RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
+                                    getAccountBalance(HOLLOW_RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10L));
+
+                            final var secondAirdropOp = tokenAirdrop(
+                                            moving(10, FUNGIBLE_TOKEN_SECOND).between(OWNER, alias))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("secondAirdropTxn");
+
+                            allRunFor(spec, secondAirdropOp);
+
+                            allRunFor(
+                                    spec,
+                                    getTxnRecord("secondAirdropTxn")
+                                            .hasPriority(recordWith()
+                                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                                            moving(10, FUNGIBLE_TOKEN_SECOND)
+                                                                    .between(OWNER, HOLLOW_RECEIVER)))),
+                                    getAccountInfo(HOLLOW_RECEIVER).hasNoTokenRelationship(FUNGIBLE_TOKEN_SECOND));
+
+                            allRunFor(spec, overriding("entities.unlimitedAutoAssociationsEnabled", "true"));
+
+                            // Attempt to claim without hollow account's SECP256K1 signature → INVALID_SIGNATURE
+                            final var tokenClaimAirdropOp = tokenClaimAirdrop(
+                                            pendingAirdrop(OWNER, HOLLOW_RECEIVER, FUNGIBLE_TOKEN_SECOND))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenClaimAirdropTxn")
+                                    .hasKnownStatus(INVALID_SIGNATURE);
+
+                            allRunFor(spec, tokenClaimAirdropOp);
+
+                            final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
+                                    "tokenClaimAirdropTxn",
+                                    txnSize -> expectedTokenClaimAirdropFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                    0.1);
+
+                            // Hollow account stays hollow, pending airdrop unchanged
+                            final var checkReceiverInfo = getAccountInfo(HOLLOW_RECEIVER)
+                                    .isHollow()
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .hasNoTokenRelationship(FUNGIBLE_TOKEN_SECOND)
+                                    .has(accountWith().hasEmptyKey().noAlias().balance(0L));
+
+                            allRunFor(spec, checkOpChargedUsd, checkReceiverInfo);
+                        })));
+            }
         }
     }
 
@@ -1058,6 +1375,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                         .maxAutomaticTokenAssociations(0)
                         .balance(ONE_HBAR),
                 newKeyNamed(adminKey),
-                newKeyNamed(supplyKey));
+                newKeyNamed(supplyKey),
+                newKeyNamed(VALID_ALIAS_ECDSA).shape(SECP_256K1_SHAPE));
     }
 }
