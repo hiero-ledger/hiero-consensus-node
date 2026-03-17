@@ -1087,3 +1087,6 @@ hedera-state-validator/state-analysis.log
 snyk-code.html
 snyk-code.json
 snyk/
+
+### Claude Code
+.claude/
