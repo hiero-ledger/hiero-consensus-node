@@ -58,10 +58,10 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
         lastLeafRank = Path.getRank(lastLeafPath);
         chunkLastRank = firstLeafRank;
 
-        if (firstLeafRank < 21) {
+        if (firstLeafRank < 22) {
             simpleMode = true;
         } else {
-            chunkRootRank = firstLeafRank - 20;
+            chunkRootRank = firstLeafRank - 21;
             chunkRootPath = Path.getGrandParentPath(firstLeafPath, firstLeafRank - chunkRootRank);
             addInitialChunkInternals(chunkRootPath);
             chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, firstLeafRank - chunkRootRank);
@@ -85,20 +85,20 @@ public class ParallelTopToBottomTraversalOrder implements NodeTraversalOrder {
             return;
         }
         internalsInFlight.decrementAndGet();
+        final int rank = Path.getRank(path);
         if (isClean) {
-            assert !cleanPaths.contains(Path.getParentPath(path));
             cleanPaths.add(path);
+        } else if (rank == chunkLastRank - 1) {
+            someDirtyPaths.add(path);
         } else {
             final long lastChunkInternal = Math.min(firstLeafPath - 1, Path.getParentPath(chunkLastLeafPath));
-            final long left = Path.getLeftChildPath(path);
-            if (left <= lastChunkInternal) {
-                internals.add(left);
-            }
-            final long right = Path.getRightChildPath(path);
-            if (right <= lastChunkInternal) {
-                internals.add(right);
-            } else {
-                someDirtyPaths.add(path);
+            final int nextRank = Math.min(rank + 3, chunkLastRank - 1);
+            final long left = Path.getLeftGrandChildPath(path, nextRank - rank);
+            final long right = Path.getRightGrandChildPath(path, nextRank - rank);
+            for (long p = left; p <= right; p++) {
+                if (p <= lastChunkInternal) {
+                    internals.add(p);
+                }
             }
         }
     }
