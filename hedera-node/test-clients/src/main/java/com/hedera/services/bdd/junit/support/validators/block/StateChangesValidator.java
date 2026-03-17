@@ -351,9 +351,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .orElseThrow();
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = i == 0
+            var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
                     || indirectProofSeq != null
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
@@ -456,10 +457,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final var lastBlockItem = block.items().getLast();
                 assertTrue(lastBlockItem.hasBlockProof());
                 final var blockProof = lastBlockItem.blockProofOrThrow();
-                assertEquals(
-                        previousBlockHash,
-                        footer.blockFooterOrThrow().previousBlockRootHash(),
-                        "Previous block hash mismatch for block " + blockProof.block());
+
+                if (hashChainBroken) {
+                    // An incomplete block broke the hash chain; we cannot verify
+                    // previousBlockHash or do full proof verification for this block.
+                    // Force shouldVerifyProof off so we resume the chain from the
+                    // next block's footer instead.
+                    shouldVerifyProof = false;
+                    hashChainBroken = false;
+                } else {
+                    assertEquals(
+                            previousBlockHash,
+                            footer.blockFooterOrThrow().previousBlockRootHash(),
+                            "Previous block hash mismatch for block " + blockProof.block());
+                }
 
                 if (shouldVerifyProof) {
                     final var lastStateChange = lastStateChanges.stateChanges().getLast();
@@ -515,6 +526,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
             } else if (i <= lastVerifiableIndex) {
                 logger.warn("Skipping proof verification for incomplete block #{} at index {}", blockNumber, i);
+                hashChainBroken = true;
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
