@@ -27,7 +27,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -75,9 +75,8 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
         // here just to calculate fees based on a single instance of that effort...
         final Schedule found = findSchedule(context);
         if (found != null) {
-            final LedgerConfig ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
             final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
-            buildFromSchedule(builder, found, ledgerConfig);
+            buildFromSchedule(builder, found, context.ledgerId());
             return context.feeCalculator()
                     .legacyCalculate(sigValueObj -> usageGiven(fromPbj(context.query()), fromPbj(builder.build())));
         } else {
@@ -102,14 +101,13 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
     public Response findResponse(@NonNull final QueryContext context, @NonNull final ResponseHeader header) {
         Objects.requireNonNull(context);
         Objects.requireNonNull(header);
-        final LedgerConfig ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final Builder infoBuilder = ScheduleGetInfoResponse.newBuilder();
         infoBuilder.header(header);
         if (shouldHandle(context, header)) {
             final Schedule scheduleFound = findSchedule(context);
             if (scheduleFound != null) {
                 final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
-                buildFromSchedule(builder, scheduleFound, ledgerConfig);
+                buildFromSchedule(builder, scheduleFound, context.ledgerId());
                 infoBuilder.scheduleInfo(builder);
             } else {
                 infoBuilder.header(
@@ -129,14 +127,14 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
     }
 
     private void buildFromSchedule(
-            final ScheduleInfo.Builder builder, final Schedule scheduleFound, final LedgerConfig config) {
+            final ScheduleInfo.Builder builder, final Schedule scheduleFound, final Bytes ledgerId) {
         builder.adminKey(scheduleFound.adminKey());
         builder.creatorAccountID(scheduleFound.schedulerAccountId());
         builder.waitForExpiry(scheduleFound.waitForExpiry());
         builder.scheduleID(scheduleFound.scheduleId());
         builder.memo(scheduleFound.memo());
         builder.payerAccountID(scheduleFound.payerAccountId());
-        builder.ledgerId(config.id());
+        builder.ledgerId(ledgerId);
         if (scheduleFound.executed()) {
             builder.executionTime(scheduleFound.resolutionTime());
         }

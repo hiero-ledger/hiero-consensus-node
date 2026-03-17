@@ -241,7 +241,7 @@ class DiskStartupNetworksTest {
         Set.of(
                         new PlatformStateService(),
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

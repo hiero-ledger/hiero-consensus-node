@@ -75,7 +75,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
@@ -117,7 +117,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Created {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
@@ -186,7 +186,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
@@ -217,7 +217,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
 
-        virtualMapP = flushMap(virtualMapP);
+        virtualMapP = flushAndOptionallySaveMap(virtualMapP);
     }
 
     /**
