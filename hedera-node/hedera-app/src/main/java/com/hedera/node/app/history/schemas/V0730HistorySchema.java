@@ -42,7 +42,7 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
     }
 
     @Override
-    public void restart(@NonNull final MigrationContext ctx) {
+    public void migrate(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis()) {
             final var hashState = ctx.newStates().<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
             final var currentProtoBytes = hashState.get();

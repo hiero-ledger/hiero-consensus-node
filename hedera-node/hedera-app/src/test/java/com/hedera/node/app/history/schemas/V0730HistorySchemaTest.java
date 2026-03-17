@@ -56,10 +56,10 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void restartInitializesDefaultAndPersistsConfiguredHash() {
-        givenNonGenesisRestart(null, HASH_HEX);
+    void migrateInitializesDefaultAndPersistsConfiguredHash() {
+        givenNonGenesisMigrate(null, HASH_HEX);
 
-        subject.restart(ctx);
+        subject.migrate(ctx);
 
         verify(singletonState).put(ProtoBytes.DEFAULT);
         verify(singletonState)
@@ -67,10 +67,10 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void restartSkipsWriteWhenConfiguredHashIsBlank() {
-        givenNonGenesisRestart(null, "");
+    void migrateSkipsWriteWhenConfiguredHashIsBlank() {
+        givenNonGenesisMigrate(null, "");
 
-        subject.restart(ctx);
+        subject.migrate(ctx);
 
         verify(singletonState).put(ProtoBytes.DEFAULT);
         verify(singletonState, never())
@@ -78,11 +78,11 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void restartOverwritesWhenHashDiffers() {
+    void migrateOverwritesWhenHashDiffers() {
         final var existingHash = "bb".repeat(48);
-        givenNonGenesisRestart(new ProtoBytes(Bytes.fromHex(existingHash)), HASH_HEX);
+        givenNonGenesisMigrate(new ProtoBytes(Bytes.fromHex(existingHash)), HASH_HEX);
 
-        subject.restart(ctx);
+        subject.migrate(ctx);
 
         verify(singletonState, never()).put(ProtoBytes.DEFAULT);
         verify(singletonState)
@@ -90,15 +90,15 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void restartDoesNothingOnGenesis() {
+    void migrateDoesNothingOnGenesis() {
         given(ctx.isGenesis()).willReturn(true);
 
-        subject.restart(ctx);
+        subject.migrate(ctx);
 
         verifyNoInteractions(writableStates, singletonState);
     }
 
-    private void givenNonGenesisRestart(final ProtoBytes existingValue, final String configuredHash) {
+    private void givenNonGenesisMigrate(final ProtoBytes existingValue, final String configuredHash) {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
