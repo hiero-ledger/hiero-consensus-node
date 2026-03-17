@@ -245,7 +245,8 @@ message BlockItem {
          *   <li>The content of the `RecordFileItem` can be validated using
          *       the `SignedRecordFileProof` according to
          *       the process used for Record Files prior to the creation
-         *       of Block Stream. Also with additional proofs if available.</li>
+         *       of Block Stream.<br/>
+         *       Additional Block Proof types may be available as well.</li>
          * </ul>
          */
         RecordFileItem record_file = 10;
