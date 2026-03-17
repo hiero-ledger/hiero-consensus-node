@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileInputStream;
@@ -76,15 +75,11 @@ public class WrapsProvingKeyVerification {
      * verifies the on-disk file, and kicks off a download if the file is
      * missing or corrupt.
      *
-     * @param state the current state
      * @param config the configuration
      * @param downloader the downloader to invoke if the file is missing or corrupt
      */
     public void ensureProvingKey(
-            @NonNull final State state,
-            @NonNull final Configuration config,
-            @NonNull final HttpWrapsProvingKeyDownloader downloader) {
-        requireNonNull(state);
+            @NonNull final Configuration config, @NonNull final HttpWrapsProvingKeyDownloader downloader) {
         requireNonNull(config);
         requireNonNull(downloader);
         final var tssConfig = config.getConfigData(TssConfig.class);

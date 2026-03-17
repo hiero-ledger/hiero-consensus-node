@@ -770,7 +770,7 @@ public final class Hedera
 
         // Verify the WRAPS proving key hash (if configured)
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
-            ensureWrapsProvingKey(state);
+            ensureWrapsProvingKey();
         }
 
         // Perform any service initialization that has to be postponed until Dagger is available
@@ -806,9 +806,9 @@ public final class Hedera
      * Ensures the WRAPS proving key is set up — persists the hash to state,
      * verifies the on-disk file, and downloads if needed.
      */
-    private void ensureWrapsProvingKey(@NonNull final State state) {
+    private void ensureWrapsProvingKey() {
         wrapsProvingKeyVerification.ensureProvingKey(
-                state, configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
+                configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
     }
 
     /**

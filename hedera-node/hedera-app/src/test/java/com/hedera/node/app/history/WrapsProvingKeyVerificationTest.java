@@ -17,7 +17,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.State;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -39,9 +38,6 @@ class WrapsProvingKeyVerificationTest {
     private static final byte[] CONTENT_B = "test-content-b-different-key!!".getBytes();
     private static final Bytes HASH_A = noThrowSha384HashOf(Bytes.wrap(CONTENT_A));
     private static final String DOWNLOAD_URL = "https://s3.example.com/bucket/proving-key.tar.gz";
-
-    @Mock
-    private State state;
 
     @Mock
     private Configuration configuration;
@@ -72,14 +68,14 @@ class WrapsProvingKeyVerificationTest {
         given(tssConfig.wrapsEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn("");
 
-        assertThrows(IllegalArgumentException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
+        assertThrows(IllegalArgumentException.class, () -> subject.ensureProvingKey(configuration, downloader));
     }
 
     @Test
     void skipsVerificationWhenWrapsNotEnabled() {
         given(tssConfig.wrapsEnabled()).willReturn(false);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
 
         verifyNoInteractions(downloader);
     }
@@ -90,7 +86,7 @@ class WrapsProvingKeyVerificationTest {
         Files.write(path, CONTENT_A);
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
 
         verifyNoInteractions(downloader);
     }
@@ -102,7 +98,7 @@ class WrapsProvingKeyVerificationTest {
         final var hash = "aa".repeat(48);
         givenConfigWithHashAndPath(hash, path);
 
-        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(state, configuration, downloader));
+        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
     }
 
     // ===== async download tests =====
@@ -113,7 +109,7 @@ class WrapsProvingKeyVerificationTest {
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
 
         verify(downloader).download(DOWNLOAD_URL, path);
     }
@@ -125,7 +121,7 @@ class WrapsProvingKeyVerificationTest {
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
 
         verify(downloader).download(DOWNLOAD_URL, path);
     }
@@ -137,7 +133,7 @@ class WrapsProvingKeyVerificationTest {
         givenConfigWithHashAndPath(configHash, path);
         givenDownloaderWritesContent(path, CONTENT_B);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
     }
 
     @Test
@@ -147,7 +143,7 @@ class WrapsProvingKeyVerificationTest {
         givenConfigWithHashAndPath(configHash, path);
         doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
     }
 
     @Test
@@ -156,7 +152,7 @@ class WrapsProvingKeyVerificationTest {
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
 
-        subject.ensureProvingKey(state, configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
 
         verify(downloader).download(eq(DOWNLOAD_URL), eq(path));
     }
