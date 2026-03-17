@@ -248,9 +248,18 @@ public class WrapsProvingKeyVerification {
     // --- Tar.gz extraction ---
 
     private static void tryExtractTarGz(@NonNull final Path tarGzPath) {
+        final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
+        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+            log.warn(
+                    "Cannot extract WRAPS proving key archive; {} environment variable is not set",
+                    WRAPS_ARTIFACTS_ENV_VAR);
+            return;
+        }
+        final var extractionDir = Paths.get(envArtifactsPath);
         try {
-            TarGzExtractor.extract(tarGzPath, tarGzPath.getParent());
-            log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, tarGzPath.getParent());
+            Files.createDirectories(extractionDir);
+            TarGzExtractor.extract(tarGzPath, extractionDir);
+            log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, extractionDir);
             verifyArtifactsDirectoryExists();
         } catch (final IOException e) {
             log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
