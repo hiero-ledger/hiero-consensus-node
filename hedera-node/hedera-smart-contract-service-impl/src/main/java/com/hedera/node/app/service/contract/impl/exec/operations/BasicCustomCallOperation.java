@@ -59,7 +59,7 @@ public interface BasicCustomCallOperation {
      * @param frame the frame in which the call is being made
      * @return the gas cost of the call
      */
-    long cost(@NonNull MessageFrame frame);
+    long cost(@NonNull MessageFrame frame, boolean isAccountWarm);
 
     /**
      * Executes the {@link org.hyperledger.besu.evm.operation.AbstractCallOperation} being customized.
@@ -83,7 +83,7 @@ public interface BasicCustomCallOperation {
         requireNonNull(evm);
         requireNonNull(frame);
         try {
-            final long cost = cost(frame);
+            final long cost = cost(frame, false);
             if (isDeficientGas(frame, cost)) {
                 return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
             }
@@ -93,7 +93,7 @@ public interface BasicCustomCallOperation {
                     && addressChecks().isNeitherSystemNorPresent(address, frame)) {
                 FrameUtils.invalidAddressContext(frame)
                         .set(address, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
-                return new Operation.OperationResult(cost(frame), INVALID_SOLIDITY_ADDRESS);
+                return new Operation.OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return executeUnchecked(frame, evm);
         } catch (UnderflowException ignore) {
