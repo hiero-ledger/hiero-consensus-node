@@ -254,6 +254,7 @@ public class BlockNodeSuite {
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
+                            "blockNode.streamResetPeriodJitter", "0s",
                         })
             })
     @Order(4)
