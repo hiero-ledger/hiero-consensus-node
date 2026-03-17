@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -63,7 +64,7 @@ public class MiscellaneousFeesSuite {
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo().signedBy(BOB).payingWith(BOB).via("versionInfo"),
                 handleAnyRepeatableQueryPayment(),
-                validateChargedUsd("versionInfo", BASE_FEE_MISC_GET_VERSION));
+                safeValidateChargedUsdWithin("versionInfo", BASE_FEE_MISC_GET_VERSION, 1.0, QUERY_BASE_FEE, 0.1));
     }
 
     @HapiTest
@@ -88,8 +89,7 @@ public class MiscellaneousFeesSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .signedBy(ALICE)
                         .payingWith(ALICE)
-                        .via(createTxn)
-                        .logged(),
+                        .via(createTxn),
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(baseTransactionGetRecord),
                 sleepFor(1000),
                 validateFees(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD, QUERY_BASE_FEE));
