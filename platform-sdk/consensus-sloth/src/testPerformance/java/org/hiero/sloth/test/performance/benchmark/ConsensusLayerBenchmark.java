@@ -147,15 +147,16 @@ public class ConsensusLayerBenchmark {
         final MeasurementsCollector collector = new MeasurementsCollector();
         parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
 
+        final String report = collector.generateReport();
+        log.info("[{}] Benchmark complete. Results:\n {}", configName, report);
+        System.out.println("\n=== " + configName + " RESULTS ===");
+        System.out.println(report);
+
         // Every generated transaction is handled by only by the node that generated it
         assertEquals(
                 totalGenerated,
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions generated were not measured");
-        final String report = collector.generateReport();
-        log.info("[{}] Benchmark complete. Results:\n {}", configName, report);
-        System.out.println("\n=== " + configName + " RESULTS ===");
-        System.out.println(report);
     }
 
     /**
