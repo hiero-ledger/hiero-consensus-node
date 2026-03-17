@@ -59,9 +59,7 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
-import org.hiero.base.crypto.KeystorePasswordPolicy;
-import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.base.crypto.config.CryptoConfig_;
+import org.hiero.base.crypto.KeystoreUtils;
 import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.crypto.KeyCertPurpose;
@@ -228,19 +226,11 @@ public class EnhancedKeyStoreLoader {
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes,
             @NonNull final List<RosterEntry> rosterEntries) {
-        Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL);
 
-        final String keyStorePassphrase =
-                configuration.getConfigData(CryptoConfig.class).keystorePassword();
+        final String keyStorePassphrase = KeystoreUtils.getConfiguredPassword(configuration);
         final Path keyStoreDirectory =
                 configuration.getConfigData(PathsConfig.class).getKeysDirPath();
-
-        if (keyStorePassphrase == null || keyStorePassphrase.isBlank()) {
-            throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
-        }
-
-        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
 
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);

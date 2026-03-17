@@ -2,6 +2,7 @@
 package org.hiero.base.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.swirlds.common.test.fixtures.logging.MockAppender;
 import java.util.List;
@@ -12,15 +13,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class KeystorePasswordPolicyTest {
+class KeystoreUtilsTest {
 
     private MockAppender appender;
     private Logger logger;
 
     @BeforeEach
     void setUp() {
-        appender = new MockAppender("KeystorePasswordPolicyTest");
-        logger = (Logger) LogManager.getLogger(KeystorePasswordPolicy.class);
+        appender = new MockAppender("KeystoreUtilsTest");
+        logger = (Logger) LogManager.getLogger(KeystoreUtils.class);
         appender.start();
         logger.addAppender(appender);
         logger.setLevel(Level.WARN);
@@ -34,27 +35,26 @@ class KeystorePasswordPolicyTest {
 
     @Test
     void doesNothingWhenPasswordIsCompliant() {
-        KeystorePasswordPolicy.warnIfNonCompliant("some.key", "Abcdefghijk1!");
+        KeystoreUtils.warnIfNonCompliant("Abcdefghijk1!");
         assertThat(appender.size()).isZero();
     }
 
     @Test
     void warnsWhenPasswordIsNonCompliantAndNeverLogsPasswordValue() {
         final var password = "short";
-        KeystorePasswordPolicy.warnIfNonCompliant("security.keystore.password", password);
+        KeystoreUtils.warnIfNonCompliant(password);
 
         assertThat(appender.size()).isEqualTo(1);
         final var renderedMessage = appender.get(0);
         assertThat(renderedMessage)
                 .contains("does not meet recommended password policy")
-                .contains("security.keystore.password")
                 .contains("minLength>=12", "uppercase", "digit", "special")
                 .doesNotContain(password);
     }
 
     @Test
     void reportsOnlyMissingCharacterClassesWhenLengthIsSufficient() {
-        KeystorePasswordPolicy.warnIfNonCompliant("k", "abcdefghijk1");
+        KeystoreUtils.warnIfNonCompliant("abcdefghijk1");
 
         assertThat(appender.size()).isEqualTo(1);
         final var renderedMessage = appender.get(0);
@@ -67,24 +67,19 @@ class KeystorePasswordPolicyTest {
 
     @Test
     void treatsNonLetterNonDigitCharactersAsSpecial() {
-        KeystorePasswordPolicy.warnIfNonCompliant("k", "Abcdefghijk1 ");
+        KeystoreUtils.warnIfNonCompliant("Abcdefghijk1 ");
         assertThat(appender.size()).isZero();
     }
 
     @Test
-    void nullArgumentsThrowWithHelpfulMessages() {
-        final var ex1 = org.junit.jupiter.api.Assertions.assertThrows(
-                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant(null, "p"));
-        assertThat(ex1.getMessage()).isEqualTo("configKey must not be null");
-
-        final var ex2 = org.junit.jupiter.api.Assertions.assertThrows(
-                NullPointerException.class, () -> KeystorePasswordPolicy.warnIfNonCompliant("k", null));
-        assertThat(ex2.getMessage()).isEqualTo("password must not be null");
+    @SuppressWarnings("DataFlowIssue")
+    void nullArgumentsThrow() {
+        assertThatThrownBy(() -> KeystoreUtils.getConfiguredPassword(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void issuesOrderIsStableAndMatchesExpected() {
-        KeystorePasswordPolicy.warnIfNonCompliant("k", "ABCDEFGHIJ");
+        KeystoreUtils.warnIfNonCompliant("ABCDEFGHIJ");
 
         assertThat(appender.size()).isEqualTo(1);
         final var renderedMessage = appender.get(0);
@@ -95,7 +90,7 @@ class KeystorePasswordPolicyTest {
     @Test
     void canBeCalledRepeatedlyWithoutSideEffects() {
         for (int i = 0; i < 3; i++) {
-            KeystorePasswordPolicy.warnIfNonCompliant("k", "short");
+            KeystoreUtils.warnIfNonCompliant("short");
         }
 
         assertThat(appender.size()).isEqualTo(3);

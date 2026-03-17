@@ -14,11 +14,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.PrivateKey;
-import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
@@ -159,7 +159,11 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> new TlsFactory(
-                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+                        NodeId.of(0),
+                        List.of(),
+                        configuration,
+                        mock(KeyManagerFactory.class),
+                        mock(TrustManagerFactory.class)));
 
         final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
         final String assertionMessage =
@@ -176,7 +180,11 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> new TlsFactory(
-                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+                        NodeId.of(0),
+                        List.of(),
+                        configuration,
+                        mock(KeyManagerFactory.class),
+                        mock(TrustManagerFactory.class)));
 
         final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
         final String assertionMessage =
