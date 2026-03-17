@@ -55,16 +55,6 @@ public class ConsensusLayerBenchmark {
             @ConfigProperty(defaultValue = "5s") @NonNull Duration warmupTime,
             @ConfigProperty(defaultValue = "50s") @NonNull Duration benchmarkTime,
             @ConfigProperty(defaultValue = "10s") @NonNull Duration collectionTime) {
-
-        /**
-         * Creates default benchmark parameters.
-         */
-        public static BenchmarkParameters defaults() {
-            return ConfigurationBuilder.create()
-                    .withConfigDataType(BenchmarkParameters.class)
-                    .build()
-                    .getConfigData(BenchmarkParameters.class);
-        }
     }
 
     /**
@@ -76,7 +66,7 @@ public class ConsensusLayerBenchmark {
     @Order(1)
     void benchmarkBaseline(@NonNull final TestEnvironment env) {
         log.info("=== BASELINE BENCHMARK (defaults) ===");
-        runBenchmark(env, "benchmarkBaseline", _ -> {
+        runBenchmark(env, "benchmarkBaseline", (_,_) -> {
             // No config changes - use defaults
         });
     }
@@ -112,7 +102,7 @@ public class ConsensusLayerBenchmark {
         network.addNodes(params.numberOfNodes());
 
         // Apply test-specific configuration
-        networkConfigurator.configure(network);
+        networkConfigurator.configure(network, params);
 
         log.info("[{}] Starting network with {} nodes...", configName, params.numberOfNodes());
         network.start();
@@ -172,6 +162,6 @@ public class ConsensusLayerBenchmark {
      */
     @FunctionalInterface
     public interface NetworkConfigurator {
-        void configure(@NonNull Network network);
+        void configure(@NonNull Network network, @NonNull final BenchmarkParameters params);
     }
 }

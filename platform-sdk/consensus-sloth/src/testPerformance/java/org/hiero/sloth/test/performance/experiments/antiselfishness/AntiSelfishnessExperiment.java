@@ -32,7 +32,7 @@ public class AntiSelfishnessExperiment {
     @Order(1)
     void antiSelfishnessFactor8(@NonNull final TestEnvironment env) {
         log.info("=== AntiSelfishness Experiment: antiSelfishnessFactor=8 ===");
-        runBenchmark(env, "antiSelfishnessFactor8", network -> {
+        runBenchmark(env, "antiSelfishnessFactor8", (network, _) -> {
             network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
         });
     }
@@ -44,7 +44,7 @@ public class AntiSelfishnessExperiment {
     @Order(2)
     void antiSelfishnessFactor5(@NonNull final TestEnvironment env) {
         log.info("=== AntiSelfishness Experiment: antiSelfishnessFactor=5 ===");
-        runBenchmark(env, "antiSelfishnessFactor5", network -> {
+        runBenchmark(env, "antiSelfishnessFactor5", (network, _) -> {
             network.withConfigValue("event.creation.antiSelfishnessFactor", 5);
         });
     }

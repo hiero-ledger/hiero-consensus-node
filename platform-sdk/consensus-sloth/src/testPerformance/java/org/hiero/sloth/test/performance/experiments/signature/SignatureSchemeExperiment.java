@@ -33,7 +33,7 @@ public class SignatureSchemeExperiment {
     @Benchmark
     void signatureSchemeED25519(@NonNull final TestEnvironment env) {
         log.info("=== SignatureScheme Experiment: ED25519 ===");
-        runBenchmark(env, "signatureSchemeED25519", network -> {
+        runBenchmark(env, "signatureSchemeED25519", (network, _) -> {
             final SecureRandom secureRandom;
             try {
                 secureRandom = SecureRandom.getInstanceStrong();

@@ -32,7 +32,7 @@ public class MaxCreationRateExperiment {
     @Order(1)
     void maxCreationRate50(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=50 ===");
-        runBenchmark(env, "maxCreationRate50", network -> {
+        runBenchmark(env, "maxCreationRate50", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 50);
         });
     }
@@ -44,7 +44,7 @@ public class MaxCreationRateExperiment {
     @Order(2)
     void maxCreationRate100(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=100 ===");
-        runBenchmark(env, "maxCreationRate100", network -> {
+        runBenchmark(env, "maxCreationRate100", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 100);
         });
     }
@@ -56,7 +56,7 @@ public class MaxCreationRateExperiment {
     @Order(2)
     void maxCreationRateUnbounded(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=Unbounded ===");
-        runBenchmark(env, "maxCreationRateUnbounded", network -> {
+        runBenchmark(env, "maxCreationRateUnbounded", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 0);
         });
     }
