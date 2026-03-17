@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
@@ -55,6 +56,7 @@ public class CodeDelegationAtomicBatchTest {
     private static final String CONTRACT = "CreateTrivial";
     private static final String DELEGATION_SET = "DelegationSet";
     private static final String CRYPTO_CREATE_DELEGATING_ACCOUNT = "CryptoCreateDelegatingAccount";
+    private static final String INSUFFICIENT_BALANCE_ACCOUNT = "InsufficientBalanceAccount";
 
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
@@ -75,6 +77,7 @@ public class CodeDelegationAtomicBatchTest {
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, DELEGATING_ACCOUNT)),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT).key(RELAYER).balance(0L),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -90,8 +93,8 @@ public class CodeDelegationAtomicBatchTest {
                                         .gasLimit(2_000_000L)
                                         .via(DELEGATION_SET)
                                         .batchKey(RELAYER),
-                                cryptoTransfer(TokenMovement.movingHbar(2 * ONE_MILLION_HBARS)
-                                        .between(RELAYER, GENESIS))
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
                                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)
@@ -157,6 +160,7 @@ public class CodeDelegationAtomicBatchTest {
                         .distributing(GENESIS, DELEGATING_ACCOUNT, delegatingAccount1)),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
                         .distributing(GENESIS, delegatingAccount2, delegatingAccount3)),
+                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT).key(RELAYER).balance(0L),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -177,8 +181,8 @@ public class CodeDelegationAtomicBatchTest {
                                         .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
                                         .via(partialCommitTxn)
                                         .batchKey(RELAYER),
-                                cryptoTransfer(TokenMovement.movingHbar(2 * ONE_MILLION_HBARS)
-                                        .between(RELAYER, GENESIS))
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
                                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)
