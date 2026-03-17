@@ -184,7 +184,7 @@ public class CryptoBench extends VirtualMapBench {
         totalTPS(System.currentTimeMillis() - startTime);
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
@@ -303,7 +303,7 @@ public class CryptoBench extends VirtualMapBench {
         prefetchPool.close();
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
@@ -462,7 +462,7 @@ public class CryptoBench extends VirtualMapBench {
         pool.close();
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
