@@ -8,7 +8,14 @@ plugins {
 
 description = "Base Crypto"
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+// TODO: Temporary solution. Can be removed once
+// https://github.com/hiero-ledger/hiero-gradle-conventions/issues/436 has become available
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    tasks.javadoc {
+        source(tasks.compileJava.flatMap { it.options.generatedSourceOutputDirectory })
+    }
+}
 
 testModuleInfo {
     requires("com.swirlds.common")
