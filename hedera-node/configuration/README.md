@@ -45,9 +45,6 @@ path is given, the file belongs in the top-level directory with the JAR.
 ## upgrade/throttles.json
 * If specified, this file serves as the sole input for the `yahcli sysfiles upload throttles` command post-upgrade, replacing any existing throttles with its contents. In its absence, the default is sourced from `:/hedera-node/hedera-file-service-impl/src/main/resources/genesis/throttles.json`.
 
-## javaOptions
-* Script to start `HGCApp` with all needed options
-
 ## log4j2.xml
 * Services logging configuration
 

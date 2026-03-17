@@ -29,6 +29,3 @@ Terms:
 ## log4j2.xml
 * Settings for all logging output
 * To be deployed in topLevelFolder
-
-## javaOptions
-* Script to start HGCApp with all needed options
