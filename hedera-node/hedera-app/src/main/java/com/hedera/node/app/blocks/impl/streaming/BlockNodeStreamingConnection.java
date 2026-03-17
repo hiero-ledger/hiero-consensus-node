@@ -138,6 +138,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * once it is finished it will close the connection.
      */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
+    /**
+     * Flag to indicate whether a final EndStream(RESET) message should be sent to the block node when this connection
+     * is closed.
+     */
+    private final AtomicBoolean shouldSendEndStreamOnClose = new AtomicBoolean(true);
 
     /**
      * Construct a new BlockNodeConnection.
@@ -462,6 +467,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         logger.info("{} Received EndOfStream response (block={}, responseCode={}).", this, blockNumber, responseCode);
 
+        shouldSendEndStreamOnClose.set(false);
+
         // Update the latest acknowledged block number
         acknowledgeBlocks(blockNumber, false);
 
@@ -648,10 +655,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param code the code on why stream was ended
      */
     public void endTheStreamWith(final PublishStreamRequest.EndStream.Code code) {
-        final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
-        final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+        sendEndStream(code);
+        close(true);
+    }
 
-        // Indicate that the block node should recover and catch up from another trustworthy block node
+    /**
+     * Sends a EndStream message to the block node with the specified code. If the send fails for any reason, any
+     * exception is suppressed and not propagated.
+     *
+     * @param code the EndStream code to include in the EndStream message
+     */
+    private void sendEndStream(final PublishStreamRequest.EndStream.Code code) {
+        final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+        final long highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+
         final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
                 .endStream(PublishStreamRequest.EndStream.newBuilder()
                         .endCode(code)
@@ -660,17 +677,25 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 .build();
 
         logger.info(
-                "{} Sending EndStream (code={}, earliestBlock={}, latestAcked={}).",
+                "{} Attempting to send EndStream (code={}, earliestBlock={}, latestAcked={}).",
                 this,
                 code,
                 earliestBlockNumber,
                 highestAckedBlockNumber);
+
+        /*
+         * Mark the flag indicating that we should send the final EndStream(RESET) message as false to ensure we don't
+         * send multiple EndStream messages. Technically, this method will be invoked by the close method which will
+         * cause the final EndStream(RESET) to be sent and so updating this flag is a little odd, but since the
+         * connection is being closed, it doesn't matter in the end.
+         */
+        shouldSendEndStreamOnClose.set(false);
+
         try {
             sendRequest(new EndStreamRequest(endStream));
         } catch (final RuntimeException e) {
             logger.warn("{} Error sending EndStream request", this, e);
         }
-        close(true);
     }
 
     /**
@@ -815,6 +840,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
 
         logger.info("{} Closing connection.", this);
+
+        if (shouldSendEndStreamOnClose.get()) {
+            // before closing the connection, attempt to send a final EndStream message
+            sendEndStream(EndStream.Code.RESET);
+        }
 
         try {
             closePipeline(callOnComplete);
