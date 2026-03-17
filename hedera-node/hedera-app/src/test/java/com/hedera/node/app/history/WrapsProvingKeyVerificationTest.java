@@ -65,7 +65,7 @@ class WrapsProvingKeyVerificationTest {
 
     @Test
     void throwsWhenWrapsEnabledAndBootstrapHashIsBlank() {
-        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn("");
 
         assertThrows(IllegalArgumentException.class, () -> subject.ensureProvingKey(configuration, downloader));
@@ -73,7 +73,7 @@ class WrapsProvingKeyVerificationTest {
 
     @Test
     void skipsVerificationWhenWrapsNotEnabled() {
-        given(tssConfig.wrapsEnabled()).willReturn(false);
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(false);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -192,7 +192,7 @@ class WrapsProvingKeyVerificationTest {
     // ===== helpers =====
 
     private void givenConfigWithHashAndPath(final String bootstrapHash, final Path provingKeyPath) {
-        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn(bootstrapHash);
         given(tssConfig.wrapsProvingKeyPath()).willReturn(provingKeyPath.toString());
         given(tssConfig.wrapsProvingKeyDownloadUrl()).willReturn(DOWNLOAD_URL);

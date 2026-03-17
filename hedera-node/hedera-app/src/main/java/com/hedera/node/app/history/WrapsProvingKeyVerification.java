@@ -83,8 +83,8 @@ public class WrapsProvingKeyVerification {
         requireNonNull(config);
         requireNonNull(downloader);
         final var tssConfig = config.getConfigData(TssConfig.class);
-        if (!tssConfig.wrapsEnabled()) {
-            log.info("WRAPS not enabled, skipping proving key hash verification");
+        if (!tssConfig.wrapsProvingKeyDownloadEnabled()) {
+            log.info("WRAPS proving key download not enabled, skipping proving key hash verification");
             return;
         }
 
@@ -140,22 +140,24 @@ public class WrapsProvingKeyVerification {
                 () -> {
                     try {
                         downloader.download(downloadUrl, provingKeyPath);
-                    } catch (final IOException e) {
-                        log.error("Failed to download WRAPS proving key from {}", downloadUrl, e);
-                        scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
-                        return;
-                    }
-                    final Bytes downloadedHash = hashFile(provingKeyPath);
-                    if (!downloadedHash.equals(expectedHash)) {
+                        final Bytes downloadedHash = hashFile(provingKeyPath);
+                        if (!downloadedHash.equals(expectedHash)) {
+                            log.error(
+                                    "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
+                                    expectedHash,
+                                    downloadedHash);
+                            scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                            return;
+                        }
+                        tryExtractTarGz(provingKeyPath);
+                        log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
+                    } catch (final Throwable t) {
                         log.error(
-                                "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
-                                expectedHash,
-                                downloadedHash);
+                                "Failed to initiate async download of WRAPS proving key (from URL {}):",
+                                downloadUrl,
+                                t);
                         scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
-                        return;
                     }
-                    tryExtractTarGz(provingKeyPath);
-                    log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
                 },
                 downloadExecutor);
     }
@@ -190,7 +192,7 @@ public class WrapsProvingKeyVerification {
                                     expectedHash,
                                     downloadedHash);
                         }
-                    } catch (final Exception e) {
+                    } catch (final Throwable e) {
                         log.error("Failed to download WRAPS proving key on retry", e);
                     }
                 },
@@ -228,6 +230,10 @@ public class WrapsProvingKeyVerification {
         }
         final var extractionTarget = provingKeyPath.getParent();
         if (extractionTarget == null) {
+            log.warn(
+                    "Proving key path {} has no parent directory; cannot validate {} environment variable consistency",
+                    provingKeyPath,
+                    WRAPS_ARTIFACTS_ENV_VAR);
             return;
         }
         final var envPath = Paths.get(envArtifactsPath).normalize();

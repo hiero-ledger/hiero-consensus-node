@@ -68,7 +68,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean validateBlockSignatures,
 
-        @ConfigProperty(defaultValue = "/opt/hgcapp/wraps-v0.2.0") @NodeProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsProvingKeyDownloadEnabled,
+
+        @ConfigProperty(defaultValue = "data/keys") @NodeProperty
         String wrapsProvingKeyPath,
 
         @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
