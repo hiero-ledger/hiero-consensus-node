@@ -240,8 +240,7 @@ public class WrapsProvingKeyVerification {
         if (!envPath.startsWith(normalizedTarget)) {
             throw new IllegalStateException(WRAPS_ARTIFACTS_ENV_VAR + " (" + envArtifactsPath
                     + ") is not under the extraction directory (" + normalizedTarget
-                    + ") derived from tss.wrapsProvingKeyPath (" + provingKeyPath
-                    + "). The native WRAPS library requires these to be consistent.");
+                    + ") derived from tss.wrapsProvingKeyPath (" + provingKeyPath + ")");
         }
     }
 
