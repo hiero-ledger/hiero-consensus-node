@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -55,6 +57,9 @@ class BlockOpeningTest {
 
     @Mock
     private ReadableSingletonState<RunningHashes> runningHashesState;
+
+    @Mock
+    private ReadableSingletonState<MigrationRootHashVotingState> migrationRootHashVotingState;
 
     @Mock
     private ReadableStates readableStates;
@@ -144,6 +149,12 @@ class BlockOpeningTest {
         given(readableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID))
                 .willReturn(runningHashesState);
         given(runningHashesState.get()).willReturn(RunningHashes.DEFAULT);
+        given(readableStates.<MigrationRootHashVotingState>getSingleton(MIGRATION_ROOT_HASH_VOTING_STATE_ID))
+                .willReturn(migrationRootHashVotingState);
+        given(migrationRootHashVotingState.get())
+                .willReturn(MigrationRootHashVotingState.newBuilder()
+                        .votingComplete(true)
+                        .build());
 
         subject = new BlockRecordManagerImpl(
                 configProvider,
