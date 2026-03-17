@@ -37,6 +37,9 @@ import "services/transaction_contents.proto";
  * historical and current data; eliminating the need to search two sources for
  * block and block chain data.<br/>
  *
+ * RecordFileItem is hashed as part of the output items tree and its contents
+ * can be independently validated with the `SignedRecordFileProof` block proof.
+ *
  * There are 3 versions of the binary file format that record files were
  * produced in: v2, v5 and v6. Version 6 was protobuf already in the format of
  * `proto.RecordStreamFile`. Version 5 was almost identical in content but a
