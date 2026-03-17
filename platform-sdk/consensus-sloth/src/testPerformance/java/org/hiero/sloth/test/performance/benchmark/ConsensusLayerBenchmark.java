@@ -131,9 +131,9 @@ public class ConsensusLayerBenchmark {
                 configName,
                 perNodeTps,
                 params.warmupTime());
-        nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.EMPTY));
+        nodes.parallelStream().forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.EMPTY));
         timeManager.waitFor(params.warmupTime());
-        nodes.forEach(Node::stopTransactionGeneration);
+        nodes.parallelStream().forEach(Node::stopTransactionGeneration);
         log.info("[{}] Warm-up phase complete", configName);
 
         // Benchmark phase: generate benchmark transactions on each node.
@@ -142,10 +142,10 @@ public class ConsensusLayerBenchmark {
                 configName,
                 perNodeTps,
                 params.benchmarkTime());
-        nodes.forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
+        nodes.parallelStream().forEach(node -> node.startTransactionGeneration(perNodeTps, SlothTransactionType.BENCHMARK));
         timeManager.waitFor(params.benchmarkTime());
         final long totalGenerated =
-                nodes.stream().mapToLong(Node::stopTransactionGeneration).sum();
+                nodes.parallelStream().mapToLong(Node::stopTransactionGeneration).sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
 
         // Wait for all transactions to reach consensus and be logged.
@@ -156,10 +156,9 @@ public class ConsensusLayerBenchmark {
         final MeasurementsCollector collector = new MeasurementsCollector();
         parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
 
-        // Every generated transaction is handled by every node, so the total measurement count
-        // must equal totalGenerated * numberOfNodes.
+        // Every generated transaction is handled by only by the node that generated it
         assertEquals(
-                totalGenerated * params.numberOfNodes(),
+                totalGenerated,
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions generated were not measured");
         final String report = collector.generateReport();
