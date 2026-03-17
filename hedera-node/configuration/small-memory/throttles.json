@@ -2,7 +2,7 @@
   "buckets": [
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "ThroughputLimits",
       "throttleGroups": [
         {
@@ -50,16 +50,6 @@
           "opsPerSec": 0,
           "milliOpsPerSec": 1000,
           "operations": [
-            "FileCreate",
-            "FileUpdate",
-            "FileAppend",
-            "FileDelete"
-          ]
-        },
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 1000,
-          "operations": [
             "ScheduleSign"
           ]
         },
@@ -83,12 +73,10 @@
           "opsPerSec": 0,
           "milliOpsPerSec": 5000,
           "operations": [
-            "TokenCreate",
             "TokenDelete",
             "TokenBurn",
             "TokenUpdate",
             "TokenFeeScheduleUpdate",
-            "TokenAssociateToAccount",
             "TokenAccountWipe",
             "TokenDissociateFromAccount",
             "TokenFreezeAccount",
@@ -115,7 +103,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "OffHeapQueryLimits",
       "throttleGroups": [
         {
@@ -133,7 +121,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "PriorityReservations",
       "throttleGroups": [
         {
@@ -150,7 +138,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "CreationLimits",
       "throttleGroups": [
         {
@@ -182,7 +170,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "FreeQueryLimits",
       "throttleGroups": [
         {
@@ -196,7 +184,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 1000,
+      "burstPeriodMs": 5000,
       "name": "BalanceQueryLimits",
       "throttleGroups": [
         {
