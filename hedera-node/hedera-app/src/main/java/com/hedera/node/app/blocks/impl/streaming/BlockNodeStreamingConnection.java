@@ -28,6 +28,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,6 +88,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * The reset period for the stream. This is used to periodically reset the stream to ensure increased stability and reliability.
      */
     private final Duration streamResetPeriod;
+    /**
+     * The maximum jitter applied to the stream reset period scheduling to avoid thundering herd.
+     */
+    private final Duration streamResetPeriodJitter;
     /**
      * Timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes.
      */
@@ -166,6 +171,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+        this.streamResetPeriodJitter = blockNodeConnectionConfig.streamResetPeriodJitter();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
 
@@ -248,13 +254,29 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             streamResetTask.cancel(false);
         }
 
-        streamResetTask = executorService.scheduleAtFixedRate(
-                this::performStreamReset,
-                streamResetPeriod.toMillis(),
-                streamResetPeriod.toMillis(),
-                TimeUnit.MILLISECONDS);
+        long delayMs = streamResetPeriod.toMillis();
+        final long jitterMs = streamResetPeriodJitter.toMillis();
+        if (jitterMs > 0) {
+            if (jitterMs >= delayMs) {
+                logger.warn(
+                        "{} streamResetPeriodJitter ({}) must be less than streamResetPeriod ({})."
+                                + " Using reset period without jitter.",
+                        this,
+                        streamResetPeriodJitter,
+                        streamResetPeriod);
+            } else {
+                delayMs -= ThreadLocalRandom.current().nextLong(jitterMs);
+            }
+        }
 
-        logger.debug("{} Scheduled periodic stream reset every {}.", this, streamResetPeriod);
+        streamResetTask = executorService.schedule(this::performStreamReset, delayMs, TimeUnit.MILLISECONDS);
+
+        logger.debug(
+                "{} Scheduled stream reset in {} ms (period={}, jitter={}).",
+                this,
+                delayMs,
+                streamResetPeriod,
+                streamResetPeriodJitter);
     }
 
     private void performStreamReset() {

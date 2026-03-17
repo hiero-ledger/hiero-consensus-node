@@ -1118,6 +1118,7 @@ public class HandleWorkflow {
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
             final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
             final var activeRosters = ActiveRosters.from(
                     rosterStore,
                     tssConfig.historyEnabled(),
@@ -1127,8 +1128,7 @@ public class HandleWorkflow {
                     !tssConfig.historyEnabled()
                             ? null
                             : () -> {
-                                final var activeConstruction =
-                                        new ReadableHistoryStoreImpl(historyWritableStates).getActiveConstruction();
+                                final var activeConstruction = readableHistoryStore.getActiveConstruction();
                                 return !activeConstruction.hasTargetProof()
                                         || (tssConfig.wrapsEnabled()
                                                 != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
@@ -1142,7 +1142,10 @@ public class HandleWorkflow {
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                workTime,
+                                isActive,
+                                tssConfig));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
