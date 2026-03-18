@@ -460,6 +460,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // previousBlockHash or do full proof verification for this block.
                     // Force shouldVerifyProof off so we resume the chain from the
                     // next block's footer instead.
+                    // But we must still add the skipped block's hash to the incremental
+                    // hasher so the chain stays in sync for future proof verifications.
+                    final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
                     shouldVerifyProof = false;
                     hashChainBroken = false;
                 } else {
