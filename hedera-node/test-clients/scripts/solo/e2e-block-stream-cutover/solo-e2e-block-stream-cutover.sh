@@ -1,5 +1,46 @@
 #!/usr/bin/env bash
 
+#- [ ] v0.71.2 (Records and Blocks) Genesis, No Block Nodes
+#- [ ] Upgrade to v0.72.0-rc.2
+#    - [ ] Wrapped record file hashes written to disk
+#    - [ ] No block nodes
+#    - [ ] Run the block node offline wrapping tool against the record files in the S3 bucket
+#        - [ ] Produces jumpstart.bin file for the CN’s
+#        - [ ] Issue a File 121 update with the jumpstart information
+#           - blockStream.jumpstart.blockNum
+             #blockStream.jumpstart.previousWrappedRecordBlockHash
+             #blockStream.jumpstart.streamingHasherLeafCount
+             #blockStream.jumpstart.streamingHasherHashCount
+             #blockStream.jumpstart.streamingHasherSubtreeHashes
+#    - [ ] https://github.com/hiero-ledger/hiero-block-node/blob/main/tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ToWrappedBlocksCommand.java
+#        - We will run the offline tool up a certain block number N which would be equivalent in production to running the tool up to 10 days prior to the upgrade
+#           to release/0.73
+#    - [ ] Run the TSS Ceremony? To produce the WRAPS proving key + verification key *need to figure out how to do this
+#- [ ] Upgrade to v0.73.0 -> local build with appropriate application.properties overrides (no block nodes)
+#    - [ ] *** Use WRAPS proving key, verification produced by ceremony
+#    - [ ] Enabling Feature flags
+  #    - [ ] tss.hintsEnabled = true
+             #tss.historyEnabled = true
+             #tss.wrapsEnabled = true
+             #hedera.recordSream.computeHashesFromWrappedRecordBlocks = true
+             #hedera.recordStream.liveWritePrevWrappedRecordHashes = true
+             #blockStream.cutoverEnabled = false (*only used for when we cutover to BLOCKS only)
+             #blockStream.enableStateProofs = true
+             #tss.forceMockSignatures = true
+#    - [ ] Use jumpstart info + 0.72’s wrapped record hashes to get the wrapped record block root hash of the freeze block
+#       - [ ] Voting process occurs in which each CN votes on the above wrapped record block root hash
+#    - [ ] CN’s start live wrapping of record files produced and put wrapped record block root hashes into state (BlockInfo singleton)
+#    - [ ] Before the upgrade to v0.74.0 Deploy 2 block nodes
+#- [ ] Upgrade to v0.74.0 -> local build with appropriate application.properties overrides
+#    - [ ] Solo should add block-nodes.json to each CN in the deployment
+#    - [ ] CN cutover related work to populate BlockStreamInfo singleton state
+#    - [ ] Record Stream ends
+#    - [ ] BLOCKS only, Backpressure is on.
+#    - [ ] writerMode = GRPC only
+#    - [ ] Upgrade the mirror-node to force block node integration (—force)
+#- [ ] Perform more software upgrades of CN to simulate v0.75.0, v0.76.0, etc. and ensure blocks keep flowing e2e
+#- [ ] Perform rolling upgrades of block nodes and ensure block keep flowing e2e
+
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
