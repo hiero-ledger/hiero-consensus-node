@@ -85,11 +85,8 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-<<<<<<< HEAD
-  NLG_VERSION: 0.13.0
-=======
   NLG_VERSION: 0.13.1
->>>>>>> 20202-to-support-prev-CNs
+
 
   #Thresholds for performance
   #benchmarks
@@ -98,11 +95,7 @@ env:
   #-15%
   #         17338 19867         10266          5950     1008               42336
   MinNFTscore: 10266
-<<<<<<< HEAD
   MinMerkleDBscore: 0
-=======
-  MinMerkleDBscore: 51147
->>>>>>> 20202-to-support-prev-CNs
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
