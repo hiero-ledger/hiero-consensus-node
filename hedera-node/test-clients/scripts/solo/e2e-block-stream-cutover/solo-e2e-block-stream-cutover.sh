@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-
+# Block Stream Cutover
+#- [ ] v0.70.1
 #- [ ] v0.71.2 (Records and Blocks) Genesis, No Block Nodes
-#- [ ] Upgrade to v0.72.0-rc.2
+#- [ ] Upgrade to v0.72.0-rc.4
 #    - [ ] Wrapped record file hashes written to disk
 #    - [ ] No block nodes
-#    - [ ] Run the block node offline wrapping tool against the record files in the S3 bucket
+#    - [ ] We can use dummy jumpstart data until we implement running the block node offline wrapping tool against the record files in the cloud bucket
 #        - [ ] Produces jumpstart.bin file for the CN’s
 #        - [ ] Issue a File 121 update with the jumpstart information
 #           - blockStream.jumpstart.blockNum
@@ -12,14 +13,18 @@
              #blockStream.jumpstart.streamingHasherLeafCount
              #blockStream.jumpstart.streamingHasherHashCount
              #blockStream.jumpstart.streamingHasherSubtreeHashes
-#    - [ ] https://github.com/hiero-ledger/hiero-block-node/blob/main/tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ToWrappedBlocksCommand.java
+#    - [ ] Optional - https://github.com/hiero-ledger/hiero-block-node/blob/main/tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ToWrappedBlocksCommand.java
 #        - We will run the offline tool up a certain block number N which would be equivalent in production to running the tool up to 10 days prior to the upgrade
 #           to release/0.73
-#    - [ ] Run the TSS Ceremony? To produce the WRAPS proving key + verification key *need to figure out how to do this
 #- [ ] Upgrade to v0.73.0 -> local build with appropriate application.properties overrides (no block nodes)
 #    - [ ] *** Use WRAPS proving key, verification produced by ceremony
+#         - TSS Library Requires env var to be set
+#             environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", ""));
 #    - [ ] Enabling Feature flags
-  #    - [ ] tss.hintsEnabled = true
+             #tss.wrapsProvingKeyPath=
+             #tss.wrapsProvingKeyHash=
+             #tss.wrapsProvingKeyDownloadUrl=?
+             #tss.hintsEnabled = true
              #tss.historyEnabled = true
              #tss.wrapsEnabled = true
              #hedera.recordSream.computeHashesFromWrappedRecordBlocks = true
@@ -30,14 +35,24 @@
 #    - [ ] Use jumpstart info + 0.72’s wrapped record hashes to get the wrapped record block root hash of the freeze block
 #       - [ ] Voting process occurs in which each CN votes on the above wrapped record block root hash
 #    - [ ] CN’s start live wrapping of record files produced and put wrapped record block root hashes into state (BlockInfo singleton)
+#       - We can verify this either through state changes or hgcaa log
+#       - Optional - We should also confirm via running the block node offline tool up to the freeze block that we put together the hashes in the same way (same freeze block root hash)
 #    - [ ] Before the upgrade to v0.74.0 Deploy 2 block nodes
 #- [ ] Upgrade to v0.74.0 -> local build with appropriate application.properties overrides
+#    - [ ] Enabling Feature flags
+#       - blockStream.streamMode=BLOCKS
+#       - blockStream.writerMode=GRPC
+#       - blockStream.buffer.isBufferPersistenceEnabled=true
+#       - tss.forceMockSignatures = false
+#       - blockStream.cutoverEnabled = true
+#       - tss.validateBlockSignatures=true ****? When do we set this
+#       - Remove from code - hedera.recordStream.computeHashesFromWrappedRecordBlocks
+#       - Remove from code - hedera.recordStream.liveWritePrevWrappedRecordHashes
+#       - Remove from code - hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk
 #    - [ ] Solo should add block-nodes.json to each CN in the deployment
-#    - [ ] CN cutover related work to populate BlockStreamInfo singleton state
-#    - [ ] Record Stream ends
-#    - [ ] BLOCKS only, Backpressure is on.
-#    - [ ] writerMode = GRPC only
-#    - [ ] Upgrade the mirror-node to force block node integration (—force)
+#    - [ ] Solo Upgrade the mirror-node to force block node integration (—force)
+#    - [ ] The Block Node validates TSS signatures on blocks
+#    - [ ] Run State validator or StateChangesValidator as verifications
 #- [ ] Perform more software upgrades of CN to simulate v0.75.0, v0.76.0, etc. and ensure blocks keep flowing e2e
 #- [ ] Perform rolling upgrades of block nodes and ensure block keep flowing e2e
 
