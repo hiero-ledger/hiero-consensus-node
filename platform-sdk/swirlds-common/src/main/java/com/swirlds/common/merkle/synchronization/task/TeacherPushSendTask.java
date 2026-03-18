@@ -172,6 +172,8 @@ public class TeacherPushSendTask {
         } catch (final Exception ex) {
             workGroup.handleError(ex);
         } finally {
+            // Teacher is done sending data to learner. Mark the async output stream as done
+            out.done();
             senderIsFinished.set(true);
         }
 

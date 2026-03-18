@@ -56,6 +56,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_INCLUDED_BYTES;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_EXECUTION_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
@@ -1762,6 +1765,28 @@ public class FeesChargingUtils {
         return nodeFee * NETWORK_MULTIPLIER;
     }
 
+    /**
+     * Network-only fee for TokenGrantKyc failures in pre-handle.
+     */
+    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenGrantKycNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     // -------- TokenRevokeKyc simple fees utils ---------//
 
     /**
@@ -2187,6 +2212,46 @@ public class FeesChargingUtils {
      */
     public static double expectedFileCreateFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedFileCreateFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                extras.getOrDefault(Extra.STATE_BYTES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- FileUpdate simple fees utils ---------//
+    /**
+     * SimpleFees formula for FileUpdate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode + nodeFeeFromBytesUsd(txnSize))
+     * network = node * NETWORK_MULTIPLIER
+     * service = FILE_UPDATE_BASE + STATE_BYTES_FEE * max(0, messageBytes - includedBytesFileUpdate) + KEYS_FEE * max(0, keys - includedKeysFileUpdate)
+     * total   = node + network + service
+     */
+    public static double expectedFileUpdateFullFeeUsd(long sigs, long keys, long messageBytes, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final long byteExtrasService = Math.max(0L, messageBytes - FILE_UPDATE_INCLUDED_BYTES);
+        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
+
+        final long keysExtrasService = Math.max(0L, keys - FILE_UPDATE_INCLUDED_KEYS);
+        final double serviceKeysExtrasFee = keysExtrasService * KEYS_FEE_USD;
+
+        final double serviceFee = FILE_UPDATE_BASE_FEE + serviceBytesExtrasFee + serviceKeysExtrasFee;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedFileUpdateFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedFileUpdateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
                 extras.getOrDefault(Extra.STATE_BYTES, 0L),

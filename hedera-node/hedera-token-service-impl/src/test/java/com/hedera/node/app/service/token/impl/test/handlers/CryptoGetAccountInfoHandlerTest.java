@@ -110,6 +110,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
         super.setUp();
         cryptoOpsUsage = new CryptoOpsUsage();
         subject = new CryptoGetAccountInfoHandler(cryptoOpsUsage, instantSource);
+        lenient().when(context.ledgerId()).thenReturn(new BytesConverter().convert("0x03"));
     }
 
     @Test
