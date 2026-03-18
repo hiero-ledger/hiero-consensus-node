@@ -55,12 +55,12 @@ SLOTH_JVM_PROPS=""
 POSITIONAL=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.tps=$2";                   shift 2 ;;
-        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.numberOfNodes=$2";          shift 2 ;;
-        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.stabilizationTime=$2";     shift 2 ;;
-        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.warmupTime=$2";             shift 2 ;;
-        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.benchmarkTime=$2";         shift 2 ;;
-        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.collectionTime=$2";        shift 2 ;;
+        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.tps=$2";                   shift 2 ;;
+        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.numberOfNodes=$2";          shift 2 ;;
+        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.stabilizationTime=$2";     shift 2 ;;
+        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.warmupTime=$2";             shift 2 ;;
+        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.benchmarkTime=$2";         shift 2 ;;
+        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.collectionTime=$2";        shift 2 ;;
         --*)                  echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
         *)
             POSITIONAL=$((POSITIONAL + 1))
