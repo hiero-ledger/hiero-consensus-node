@@ -318,7 +318,7 @@ public class ServicesMain {
                         appContext,
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
-                (appContext, _) -> new HistoryServiceImpl(
+                (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
