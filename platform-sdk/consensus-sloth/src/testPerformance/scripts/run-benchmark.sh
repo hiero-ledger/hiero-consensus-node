@@ -80,6 +80,9 @@ echo "Experiment(s): ${EXPERIMENTS_TO_RUN[*]}"
 echo "Number of runs per experiment: $NUM_RUNS"
 echo "Results directory: $RESULTS_BASE_DIR"
 echo "Clean between runs: $CLEAN_BETWEEN_RUNS"
+if [[ -n "${SLOTH_JVM_PROPS:-}" ]]; then
+    echo "Benchmark params: ${SLOTH_JVM_PROPS}"
+fi
 echo ""
 
 echo -e "${BLUE}=== Assembling project (one-time) ===${NC}"
@@ -129,22 +132,30 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         echo "=== Running ALL test methods for ${EXPERIMENT_CLASS} ==="
         echo "Log file: $LOG_FILE"
 
-        # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date")
-        if ! ./gradlew :consensus-sloth:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks 2>&1 | tee "$LOG_FILE"; then
-            echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS}${NC}"
-            echo "Check log file: $LOG_FILE"
-            continue
+        # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date").
+        # SLOTH_JVM_PROPS (e.g. "-Dsloth.tps=100 -Dsloth.benchmarkTime=60s") is forwarded to
+        # the Gradle JVM, which in turn passes matching sloth.* properties to the test JVM
+        # (see the testPerformance task configuration in build.gradle.kts).
+        # Capture the Gradle exit code without aborting the script — we still want to collect
+        # whatever artifacts the containers produced even when the test itself fails (e.g. a
+        # failed assertion).  The log is always written by tee regardless of the exit code.
+        # shellcheck disable=SC2086
+        GRADLE_EXIT=0
+        ./gradlew :consensus-sloth:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks ${SLOTH_JVM_PROPS:-} 2>&1 | tee "$LOG_FILE" || GRADLE_EXIT=$?
+        if [[ "$GRADLE_EXIT" -ne 0 ]]; then
+            echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS} (exit ${GRADLE_EXIT}) — collecting partial results${NC}"
         fi
 
         echo ""
-        echo "=== Processing results IMMEDIATELY (before any cleanup) ==="
+        echo "=== Processing results (before any cleanup) ==="
 
         # Use the exact container directory for this class
         CONTAINER_DIR_FULL="${PROJECT_DIR}/platform-sdk/consensus-sloth/build/container/${EXPERIMENT_CLASS}"
 
         if [[ ! -d "$CONTAINER_DIR_FULL" ]]; then
-            echo -e "${RED}ERROR: Container directory not found: $CONTAINER_DIR_FULL${NC}"
-            echo "Test may have failed - check log: $LOG_FILE"
+            # The test process never started (e.g. compile/assemble failed) — nothing to collect.
+            echo -e "${YELLOW}WARNING: No container directory at $CONTAINER_DIR_FULL — no node artifacts to collect.${NC}"
+            echo "Check log file: $LOG_FILE"
             continue
         fi
 
