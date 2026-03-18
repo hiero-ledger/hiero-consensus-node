@@ -22,7 +22,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
+import org.hiero.consensus.event.intake.utils.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
