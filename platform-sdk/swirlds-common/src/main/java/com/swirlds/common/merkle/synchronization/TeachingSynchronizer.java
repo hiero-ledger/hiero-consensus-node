@@ -14,7 +14,6 @@ import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -107,7 +106,7 @@ public class TeachingSynchronizer {
     public void synchronize() throws InterruptedException {
         final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
         in.start();
-        final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, in::isAlive, reconnectConfig);
+        final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
 
         InterruptedException interruptException = null;
@@ -147,8 +146,7 @@ public class TeachingSynchronizer {
     protected AsyncOutputStream buildOutputStream(
             @NonNull final StandardWorkGroup workGroup,
             @NonNull final SerializableDataOutputStream out,
-            @NonNull final Supplier<Boolean> alive,
             @NonNull final ReconnectConfig reconnectConfig) {
-        return new AsyncOutputStream(out, workGroup, alive, reconnectConfig);
+        return new AsyncOutputStream(out, workGroup, reconnectConfig);
     }
 }

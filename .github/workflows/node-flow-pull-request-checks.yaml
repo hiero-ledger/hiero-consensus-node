@@ -29,18 +29,22 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-dependency-check: "true"
       enable-spotless-check: "true"
-      enable-snyk-scan: "true"
+      enable-dependency-check: "true"
       enable-unit-tests: "true"
       enable-integration-tests: "true"
+      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
       enable-hapi-tests: "true"
       enable-hapi-tests-crypto: "true"
       enable-hapi-tests-token: "true"
+      enable-hapi-tests-time-consuming: "true"
+      enable-hapi-tests-state-throttling: "true"
+      enable-hapi-tests-simplefees: "true"
       enable-otter-tests: "true"
+      enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "21.0.6"
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:

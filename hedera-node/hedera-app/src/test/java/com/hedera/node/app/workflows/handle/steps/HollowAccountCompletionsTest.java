@@ -2,11 +2,19 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -32,6 +40,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
@@ -42,6 +51,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -112,16 +122,18 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
         when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
-        when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
+        lenient().when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
         when(handleContext.dispatch(any())).thenReturn(recordBuilder);
+        lenient().when(recordBuilder.status()).thenReturn(SUCCESS);
     }
 
     @Test
     void completeHollowAccountsNoHollowAccounts() {
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.emptySet());
 
-        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+        final var finalizations = hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
+        assertNull(finalizations);
         verifyNoInteractions(keyVerifier);
         verifyNoInteractions(handleContext);
     }
@@ -139,7 +151,7 @@ public class HollowAccountCompletionsTest {
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
@@ -160,13 +172,81 @@ public class HollowAccountCompletionsTest {
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
-        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+        final var finalizations = hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
+        assertNotNull(finalizations);
         verify(keyVerifier).verificationFor(Bytes.wrap(new byte[] {1, 2, 3}));
         verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(AccountID.newBuilder().accountNum(1).build());
+
+        finalizations.replay(handleContext::dispatch);
+
+        verify(handleContext, times(2)).dispatch(any());
+        verify(recordBuilder, times(2))
+                .accountID(AccountID.newBuilder().accountNum(1).build());
+    }
+
+    @Test
+    void completeHollowAccountsIgnoresFailedCompletionDispatch() {
+        final var hollowAccount = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1).build())
+                .key(IMMUTABILITY_SENTINEL_KEY)
+                .alias(Bytes.wrap(new byte[] {1, 2, 3}))
+                .build();
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
+        SignatureVerification verification =
+                new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
+        when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
+        when(recordBuilder.status()).thenReturn(INVALID_ACCOUNT_AMOUNTS);
+
+        final var finalizations = hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+
+        assertNull(finalizations);
+        verify(handleContext).dispatch(any());
+        verify(recordBuilder).accountID(AccountID.newBuilder().accountNum(1).build());
+        verify(recordBuilder, times(2)).status();
+    }
+
+    @Test
+    void replayIgnoresFailedCompletionDispatch() {
+        final var accountId = AccountID.newBuilder().accountNum(1).build();
+        final var details = new HollowAccountCompletions.Details(
+                payerId, List.of(new HollowAccountCompletions.Detail(accountId, txBody)));
+        when(recordBuilder.status()).thenReturn(INVALID_ACCOUNT_AMOUNTS);
+
+        details.replay(handleContext::dispatch);
+
+        verify(handleContext).dispatch(any());
+        verify(recordBuilder).accountID(accountId);
+        verify(recordBuilder, times(2)).status();
+    }
+
+    @Test
+    void completeHollowAccountsUsesSetupDispatchWithNoopFeeCharging() {
+        final var hollowAccount = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1).build())
+                .key(IMMUTABILITY_SENTINEL_KEY)
+                .alias(Bytes.wrap(new byte[] {1, 2, 3}))
+                .build();
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
+        SignatureVerification verification =
+                new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
+        when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
+
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+
+        final var captor = org.mockito.ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext).dispatch(captor.capture());
+        final DispatchOptions<?> options = captor.getValue();
+        assertEquals(DispatchOptions.Commit.WITH_PARENT, options.commit());
+        assertEquals(UNIVERSAL_NOOP_FEE_CHARGING, options.customFeeCharging());
     }
 
     @Test
@@ -179,7 +259,7 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
         when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
@@ -224,7 +304,7 @@ public class HollowAccountCompletionsTest {
         when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
         when(parentTxn.txnInfo()).thenReturn(txnInfo);
         when(parentTxn.stack()).thenReturn(stack);
-        when(stack.hasMoreSystemRecords()).thenReturn(true);
+        when(stack.rootHasPrecedingCapacity()).thenReturn(true);
 
         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 

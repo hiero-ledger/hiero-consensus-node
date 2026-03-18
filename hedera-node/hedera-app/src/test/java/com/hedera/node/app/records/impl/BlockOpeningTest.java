@@ -153,6 +153,7 @@ class BlockOpeningTest {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
     }
 }

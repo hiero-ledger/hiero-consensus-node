@@ -28,6 +28,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,6 +89,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private final Duration streamResetPeriod;
     /**
+     * The maximum jitter applied to the stream reset period scheduling to avoid thundering herd.
+     */
+    private final Duration streamResetPeriodJitter;
+    /**
      * Timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes.
      */
     private final Duration pipelineOperationTimeout;
@@ -133,6 +138,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * once it is finished it will close the connection.
      */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
+    /**
+     * Flag to indicate whether a final EndStream(RESET) message should be sent to the block node when this connection
+     * is closed.
+     */
+    private final AtomicBoolean shouldSendEndStreamOnClose = new AtomicBoolean(true);
 
     /**
      * Construct a new BlockNodeConnection.
@@ -166,6 +176,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+        this.streamResetPeriodJitter = blockNodeConnectionConfig.streamResetPeriodJitter();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
 
@@ -248,13 +259,29 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             streamResetTask.cancel(false);
         }
 
-        streamResetTask = executorService.scheduleAtFixedRate(
-                this::performStreamReset,
-                streamResetPeriod.toMillis(),
-                streamResetPeriod.toMillis(),
-                TimeUnit.MILLISECONDS);
+        long delayMs = streamResetPeriod.toMillis();
+        final long jitterMs = streamResetPeriodJitter.toMillis();
+        if (jitterMs > 0) {
+            if (jitterMs >= delayMs) {
+                logger.warn(
+                        "{} streamResetPeriodJitter ({}) must be less than streamResetPeriod ({})."
+                                + " Using reset period without jitter.",
+                        this,
+                        streamResetPeriodJitter,
+                        streamResetPeriod);
+            } else {
+                delayMs -= ThreadLocalRandom.current().nextLong(jitterMs);
+            }
+        }
 
-        logger.debug("{} Scheduled periodic stream reset every {}.", this, streamResetPeriod);
+        streamResetTask = executorService.schedule(this::performStreamReset, delayMs, TimeUnit.MILLISECONDS);
+
+        logger.debug(
+                "{} Scheduled stream reset in {} ms (period={}, jitter={}).",
+                this,
+                delayMs,
+                streamResetPeriod,
+                streamResetPeriodJitter);
     }
 
     private void performStreamReset() {
@@ -440,6 +467,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         logger.info("{} Received EndOfStream response (block={}, responseCode={}).", this, blockNumber, responseCode);
 
+        shouldSendEndStreamOnClose.set(false);
+
         // Update the latest acknowledged block number
         acknowledgeBlocks(blockNumber, false);
 
@@ -571,10 +600,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     private void handleBlockNodeBehind(@NonNull final BehindPublisher nodeBehind) {
         requireNonNull(nodeBehind, "nodeBehind must not be null");
         final long blockNumber = nodeBehind.blockNumber();
+        final Instant now = Instant.now();
+
+        // Check if we're within the ignore period (resets in new time window)
+        if (connectionManager.shouldIgnoreBehindPublisher(configuration(), now)) {
+            logger.info("{} Ignoring BehindPublisher response for block {} - within ignore period.", this, blockNumber);
+            return;
+        }
+
         logger.info("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
         // Record the BehindPublisher event and check if the limit has been exceeded.
-        if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), Instant.now())) {
+        if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), now)) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of BehindPublisher responses "
@@ -618,10 +655,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param code the code on why stream was ended
      */
     public void endTheStreamWith(final PublishStreamRequest.EndStream.Code code) {
-        final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
-        final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+        sendEndStream(code);
+        close(true);
+    }
 
-        // Indicate that the block node should recover and catch up from another trustworthy block node
+    /**
+     * Sends a EndStream message to the block node with the specified code. If the send fails for any reason, any
+     * exception is suppressed and not propagated.
+     *
+     * @param code the EndStream code to include in the EndStream message
+     */
+    private void sendEndStream(final PublishStreamRequest.EndStream.Code code) {
+        final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+        final long highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+
         final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
                 .endStream(PublishStreamRequest.EndStream.newBuilder()
                         .endCode(code)
@@ -630,17 +677,25 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 .build();
 
         logger.info(
-                "{} Sending EndStream (code={}, earliestBlock={}, latestAcked={}).",
+                "{} Attempting to send EndStream (code={}, earliestBlock={}, latestAcked={}).",
                 this,
                 code,
                 earliestBlockNumber,
                 highestAckedBlockNumber);
+
+        /*
+         * Mark the flag indicating that we should send the final EndStream(RESET) message as false to ensure we don't
+         * send multiple EndStream messages. Technically, this method will be invoked by the close method which will
+         * cause the final EndStream(RESET) to be sent and so updating this flag is a little odd, but since the
+         * connection is being closed, it doesn't matter in the end.
+         */
+        shouldSendEndStreamOnClose.set(false);
+
         try {
             sendRequest(new EndStreamRequest(endStream));
         } catch (final RuntimeException e) {
             logger.warn("{} Error sending EndStream request", this, e);
         }
-        close(true);
     }
 
     /**
@@ -785,6 +840,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
 
         logger.info("{} Closing connection.", this);
+
+        if (shouldSendEndStreamOnClose.get()) {
+            // before closing the connection, attempt to send a final EndStream message
+            sendEndStream(EndStream.Code.RESET);
+        }
 
         try {
             closePipeline(callOnComplete);
