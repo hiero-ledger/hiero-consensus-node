@@ -318,6 +318,28 @@ class FileServiceFeeCalculatorsTest {
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(2347L);
     }
 
+    @Test
+    void testGetContentQueryCalculatorWithNonExistentFile() {
+        final var mockQueryContext = mock(QueryContext.class);
+        final var mockFileStore = mock(ReadableFileStoreImpl.class);
+        when(mockFileStore.getFileLeaf(FileID.DEFAULT)).thenReturn(null);
+        when(mockQueryContext.createStore(ReadableFileStore.class)).thenReturn(mockFileStore);
+
+        final var query = Query.newBuilder()
+                .fileGetContents(
+                        FileGetContentsQuery.newBuilder().fileID(FileID.DEFAULT).build())
+                .build();
+        final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
+        final var feeResult = new FeeResult();
+
+        fileGetContentsFeeCalculator.accumulateNodePayment(
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(7L);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()

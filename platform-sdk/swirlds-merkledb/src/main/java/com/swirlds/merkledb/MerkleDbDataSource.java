@@ -889,9 +889,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId), hashChunkHeight);
         assert chunk != null;
         if (chunkId < hashChunkCacheThreshold) {
-            assert hashChunkCache.get(chunkId) == null;
             hashChunkCache.put(chunkId, chunk.copy());
         }
+
         statisticsUpdater.countHashReads();
 
         return chunk;

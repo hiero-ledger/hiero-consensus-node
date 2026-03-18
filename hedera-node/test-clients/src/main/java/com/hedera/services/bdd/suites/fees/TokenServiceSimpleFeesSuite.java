@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.fees;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -36,7 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNonZeroNodePaymentForQuery;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -53,10 +54,13 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -66,6 +70,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -794,7 +799,7 @@ public class TokenServiceSimpleFeesSuite {
                         .via("get-token-info-query")
                         .payingWith(PAYER),
                 validateChargedSimpleFees("Simple Fees", "get-token-info-query", 0.0001, 1),
-                validateNonZeroNodePaymentForQuery("get-token-info-query"));
+                validateNodePaymentAmountForQuery("get-token-info-query", 84L));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -822,7 +827,41 @@ public class TokenServiceSimpleFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .via("get-token-nft-info-query"),
                 validateChargedSimpleFees("Simple Fees", "get-token-nft-info-query", 0.0001, 1),
-                validateNonZeroNodePaymentForQuery("get-token-nft-info-query"));
+                validateNodePaymentAmountForQuery("get-token-nft-info-query", 84L));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("token get info - invalid token fails - no fee charged")
+    final Stream<DynamicTest> tokenGetInfoInvalidTokenFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                getTokenInfo("0.0.99999999").payingWith(PAYER).hasCostAnswerPrecheck(INVALID_TOKEN_ID),
+                getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("token get nft info - invalid token fails - no fee charged")
+    final Stream<DynamicTest> tokenGetNftInfoInvalidTokenFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                getTokenNftInfo("0.0.99999999", 1L).payingWith(PAYER).hasCostAnswerPrecheck(INVALID_NFT_ID),
+                getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
     }
 
     @HapiTest
