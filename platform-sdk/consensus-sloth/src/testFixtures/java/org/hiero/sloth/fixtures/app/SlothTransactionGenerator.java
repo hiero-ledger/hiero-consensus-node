@@ -105,6 +105,18 @@ public class SlothTransactionGenerator {
             task.cancel(false);
             generationTask = null;
         }
+        // cancel(false) does not interrupt a currently running generateAndSubmit().
+        // Submit a fence task to the single-threaded scheduler and wait for it to
+        // complete — this guarantees any in-flight execution has finished and
+        // generatedCount is up to date before we read it.
+        try {
+            scheduler.submit(() -> {}).get();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for in-flight generation to complete", e);
+        } catch (final Exception e) {
+            log.warn("Error waiting for in-flight generation to complete", e);
+        }
         final long count = generatedCount.get();
         log.info("Stopped transaction generation. Total generated: {}", count);
         return count;

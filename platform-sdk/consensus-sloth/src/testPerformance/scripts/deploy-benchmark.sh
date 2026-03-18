@@ -210,6 +210,12 @@ for f in "/etc/profile" "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc
     [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
 done
 
+# SDKMAN init is guarded by a non-interactive check in .bashrc, so source it directly
+if [[ -s "\$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="\$HOME/.sdkman"
+    source "\$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
+
 # Verify Java is available
 if [[ -z "\$JAVA_HOME" ]] && ! command -v java &>/dev/null; then
     echo "ERROR: JAVA_HOME is not set and 'java' is not in PATH on the remote server."
@@ -282,6 +288,10 @@ ssh -o BatchMode=yes "$SSH_DEST" bash <<'STOP_EOF'
 for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
     [[ -f "$f" ]] && source "$f" 2>/dev/null || true
 done
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="$HOME/.sdkman"
+    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
 cd hedera-services && ./gradlew --stop 2>/dev/null || true
 STOP_EOF
 
