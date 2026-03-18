@@ -59,7 +59,7 @@ class V0730HistorySchemaTest {
     void migrateInitializesDefaultAndPersistsConfiguredHash() {
         givenNonGenesisMigrate(null, HASH_HEX);
 
-        subject.migrate(ctx);
+        subject.restart(ctx);
 
         verify(singletonState).put(ProtoBytes.DEFAULT);
         verify(singletonState)
@@ -70,7 +70,7 @@ class V0730HistorySchemaTest {
     void migrateSkipsWriteWhenConfiguredHashIsBlank() {
         givenNonGenesisMigrate(null, "");
 
-        subject.migrate(ctx);
+        subject.restart(ctx);
 
         verify(singletonState).put(ProtoBytes.DEFAULT);
         verify(singletonState, never())
@@ -82,7 +82,7 @@ class V0730HistorySchemaTest {
         final var existingHash = "bb".repeat(48);
         givenNonGenesisMigrate(new ProtoBytes(Bytes.fromHex(existingHash)), HASH_HEX);
 
-        subject.migrate(ctx);
+        subject.restart(ctx);
 
         verify(singletonState, never()).put(ProtoBytes.DEFAULT);
         verify(singletonState)
@@ -93,7 +93,7 @@ class V0730HistorySchemaTest {
     void migrateDoesNothingOnGenesis() {
         given(ctx.isGenesis()).willReturn(true);
 
-        subject.migrate(ctx);
+        subject.restart(ctx);
 
         verifyNoInteractions(writableStates, singletonState);
     }
