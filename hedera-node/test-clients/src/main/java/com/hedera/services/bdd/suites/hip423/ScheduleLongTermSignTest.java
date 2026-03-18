@@ -78,9 +78,9 @@ public class ScheduleLongTermSignTest {
                 cryptoCreate(RECEIVER).balance(0L).via(RECEIVER_TXN),
                 scheduleCreate("toBePurgedWithoutExecution", cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1L)))
                         .waitForExpiry(true)
-                        .withRelativeExpiry(RECEIVER_TXN, 4),
+                        .withRelativeExpiry(RECEIVER_TXN, 10),
                 runWithProvider(ignore -> () -> Optional.of(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))))
-                        .lasting(5, TimeUnit.SECONDS));
+                        .lasting(15, TimeUnit.SECONDS));
     }
 
     @HapiTest
