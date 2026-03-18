@@ -14,7 +14,6 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
-import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +25,8 @@ import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -55,10 +55,10 @@ class EventIntakeProcessorTests {
     private IntakeEventCounter intakeEventCounter;
     private RosterHistory rosterHistory;
 
-    private final Function<PublicKey, BytesSignatureVerifier> trueVerifierFactory =
+    private final Function<Bytes, BytesSignatureVerifier> trueVerifierFactory =
             publicKey -> (data, signature) -> true;
 
-    private final Function<PublicKey, BytesSignatureVerifier> falseVerifierFactory =
+    private final Function<Bytes, BytesSignatureVerifier> falseVerifierFactory =
             publicKey -> (data, signature) -> false;
 
     /** A field validator that always passes. */
@@ -107,8 +107,7 @@ class EventIntakeProcessorTests {
                 time,
                 eventHasher,
                 passingValidator,
-                trueVerifierFactory,
-                rosterHistory,
+                new EventSignatureChecker(time, trueVerifierFactory, rosterHistory),
                 intakeEventCounter,
                 null);
 
@@ -117,8 +116,7 @@ class EventIntakeProcessorTests {
                 time,
                 eventHasher,
                 passingValidator,
-                falseVerifierFactory,
-                rosterHistory,
+                new EventSignatureChecker(time, falseVerifierFactory, rosterHistory),
                 intakeEventCounter,
                 null);
     }
@@ -180,8 +178,7 @@ class EventIntakeProcessorTests {
                 time,
                 eventHasher,
                 failingValidator,
-                trueVerifierFactory,
-                rosterHistory,
+                new EventSignatureChecker(time, trueVerifierFactory, rosterHistory),
                 intakeEventCounter,
                 null);
 

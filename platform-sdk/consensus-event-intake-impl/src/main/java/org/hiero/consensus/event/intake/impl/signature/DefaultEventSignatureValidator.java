@@ -4,65 +4,36 @@ package org.hiero.consensus.event.intake.impl.signature;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.PublicKey;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
-import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * Default implementation for verifying event signatures
+ * Default implementation for verifying event signatures. Delegates the actual signature
+ * verification to an {@link EventSignatureChecker} and handles pipeline-level concerns
+ * (ancient checks, self-event bypass, intake counter, metrics).
  */
 public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private static final Logger logger = LogManager.getLogger(DefaultEventSignatureValidator.class);
-
-    /**
-     * The minimum period between log messages reporting a specific type of validation failure
-     */
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
-    /**
-     * A verifier for checking event signatures.
-     */
-    private final SignatureVerifier signatureVerifier;
-
-    /**
-     * The complete roster history, i.e. all rosters for non-ancient rounds.
-     */
-    private RosterHistory rosterHistory;
-
-    /**
-     * The current event window.
-     */
-    private EventWindow eventWindow;
-
-    /**
-     * Keeps track of the number of events in the intake pipeline from each peer
-     */
+    private final EventSignatureChecker signatureChecker;
     private final IntakeEventCounter intakeEventCounter;
-
-    /**
-     * A logger for validation errors
-     */
     private final RateLimitedLogger rateLimitedLogger;
+    private volatile EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
@@ -71,82 +42,23 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final LongAccumulator validationFailedAccumulator;
 
     /**
-     * Constructor
+     * Constructor.
      *
-     * @param metrics                the metrics system
-     * @param time                   the time source
-     * @param signatureVerifier      a verifier for checking event signatures
-     * @param rosterHistory          the complete roster history
-     * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
+     * @param metrics            the metrics system
+     * @param time               the time source
+     * @param signatureChecker   shared signature verification logic
+     * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final SignatureVerifier signatureVerifier,
-            @Nullable final RosterHistory rosterHistory,
+            @NonNull final EventSignatureChecker signatureChecker,
             @NonNull final IntakeEventCounter intakeEventCounter) {
 
-        this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+        this.signatureChecker = Objects.requireNonNull(signatureChecker);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
-
         this.rateLimitedLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
-
         this.validationFailedAccumulator = metrics.getOrCreate(VALIDATION_FAILED_CONFIG);
-
-        eventWindow = EventWindow.getGenesisEventWindow();
-    }
-
-    /**
-     * Determine whether a given event has a valid signature.
-     *
-     * @param event the event to be validated
-     * @return true if the event has a valid signature, otherwise false
-     */
-    private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final Roster applicableRoster = rosterHistory.getRosterForRound(event.getBirthRound());
-        if (applicableRoster == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for birth round {} without a roster",
-                    event.getBirthRound());
-            return false;
-        }
-        final NodeId eventCreatorId = event.getCreatorId();
-        final RosterEntry rosterEntry;
-        try {
-            rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
-        } catch (RosterEntryNotFoundException e) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Node {} doesn't exist in applicable roster. Event: {}",
-                    eventCreatorId,
-                    event);
-            return false;
-        }
-
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
-
-        final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
-        if (publicKey == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", eventCreatorId);
-            return false;
-        }
-
-        final boolean isSignatureValid =
-                signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
-
-        if (!isSignatureValid) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event failed signature check. Event: {}, Signature: {}, Hash: {}",
-                    event,
-                    event.getSignature().toHex(),
-                    event.getHash());
-        }
-
-        return isSignatureValid;
     }
 
     /**
@@ -156,22 +68,25 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     @Nullable
     public PlatformEvent validateSignature(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
-            // ancient events can be safely ignored
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             return null;
         }
 
         if (event.getOrigin() == EventOrigin.RUNTIME) {
-            // This is an event we just created and signed, there is no need to validate the signature
             return event;
         }
 
-        if (isSignatureValid(event)) {
+        if (signatureChecker.isSignatureValid(event)) {
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             validationFailedAccumulator.update(1);
-
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Event failed signature check. Event: {}, Signature: {}, Hash: {}",
+                    event,
+                    event.getSignature().toHex(),
+                    event.getHash());
             return null;
         }
     }
@@ -182,6 +97,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
+        signatureChecker.evictAncient(eventWindow.ancientThreshold());
     }
 
     /**
@@ -189,6 +105,6 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      */
     @Override
     public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+        signatureChecker.setRosterHistory(rosterHistory);
     }
 }

@@ -23,8 +23,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -51,17 +52,19 @@ class EventSignatureValidatorTests {
     private IntakeEventCounter intakeEventCounter;
 
     /**
-     * A verifier that always returns true.
+     * A verifier factory that always returns a verifier that succeeds.
      */
-    private final SignatureVerifier trueVerifier = (data, signature, publicKey) -> true;
+    private final Function<Bytes, BytesSignatureVerifier> trueVerifierFactory =
+            certBytes -> (data, signature) -> true;
 
     /**
-     * A verifier that always returns false.
+     * A verifier factory that always returns a verifier that fails.
      */
-    private final SignatureVerifier falseVerifier = (data, signature, publicKey) -> false;
+    private final Function<Bytes, BytesSignatureVerifier> falseVerifierFactory =
+            certBytes -> (data, signature) -> false;
 
-    private EventSignatureValidator validatorWithTrueVerifier;
-    private EventSignatureValidator validatorWithFalseVerifier;
+    private EventSignatureValidator validatorWithTrueFactory;
+    private EventSignatureValidator validatorWithFalseFactory;
 
     private RosterHistory rosterHistory;
 
@@ -102,11 +105,14 @@ class EventSignatureValidatorTests {
         rosterHistory = buildRosterHistory(
                 PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
-        validatorWithTrueVerifier =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        validatorWithTrueFactory = createValidator(trueVerifierFactory, rosterHistory);
+        validatorWithFalseFactory = createValidator(falseVerifierFactory, rosterHistory);
+    }
 
-        validatorWithFalseVerifier =
-                new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
+    private EventSignatureValidator createValidator(
+            final Function<Bytes, BytesSignatureVerifier> factory, final RosterHistory rh) {
+        final EventSignatureChecker checker = new EventSignatureChecker(time, factory, rh);
+        return new DefaultEventSignatureValidator(metrics, time, checker, intakeEventCounter);
     }
 
     public RosterHistory buildRosterHistory(
@@ -135,7 +141,7 @@ class EventSignatureValidatorTests {
     @DisplayName("An event with a lower round than the available in roster history should not validate")
     void rosterNotFoundForRound() {
         final EventSignatureValidator signatureValidator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+                createValidator(trueVerifierFactory, rosterHistory);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
@@ -155,7 +161,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
-        assertNull(validatorWithTrueVerifier.validateSignature(event));
+        assertNull(validatorWithTrueFactory.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
@@ -168,7 +174,7 @@ class EventSignatureValidatorTests {
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+                createValidator(trueVerifierFactory, rh);
 
         final NodeId nodeId = NodeId.of(88);
 
@@ -188,7 +194,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
-        assertNotNull(validatorWithTrueVerifier.validateSignature(event1Valid));
+        assertNotNull(validatorWithTrueFactory.validateSignature(event1Valid));
         assertEquals(0, exitedIntakePipelineCount.get());
 
         // event2 is from a previous version, so the previous roster will be selected
@@ -197,7 +203,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
-        assertNotNull(validatorWithTrueVerifier.validateSignature(event2));
+        assertNotNull(validatorWithTrueFactory.validateSignature(event2));
         assertEquals(0, exitedIntakePipelineCount.get());
 
         // similarly we test invalid events for each of the rosters and make sure they exited the pipeline
@@ -210,8 +216,8 @@ class EventSignatureValidatorTests {
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
-        assertNull(validatorWithTrueVerifier.validateSignature(event1Invalid));
-        assertNull(validatorWithTrueVerifier.validateSignature(event2Invalid));
+        assertNull(validatorWithTrueFactory.validateSignature(event1Invalid));
+        assertNull(validatorWithTrueFactory.validateSignature(event2Invalid));
         assertEquals(2, exitedIntakePipelineCount.get());
 
         // make sure that events from any round number higher than CURRENT_ROSTER_ROUND get validated by the
@@ -224,7 +230,7 @@ class EventSignatureValidatorTests {
                         .setCreatorId(CURRENT_ROSTER_NODE_ID)
                         .setBirthRound(r)
                         .build())
-                .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
+                .forEach(e -> assertNotNull(validatorWithTrueFactory.validateSignature(e)));
 
         // make sure that events from any round number higher than PREVIOUS_ROSTER_ROUND and lower than
         // CURRENT_ROSTER_ROUND
@@ -236,7 +242,7 @@ class EventSignatureValidatorTests {
                         .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
                         .setBirthRound(r)
                         .build())
-                .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
+                .forEach(e -> assertNotNull(validatorWithTrueFactory.validateSignature(e)));
     }
 
     @Test
@@ -247,10 +253,10 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
-        assertNotNull(validatorWithTrueVerifier.validateSignature(event));
+        assertNotNull(validatorWithTrueFactory.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        assertNull(validatorWithFalseVerifier.validateSignature(event));
+        assertNull(validatorWithFalseFactory.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
@@ -258,7 +264,7 @@ class EventSignatureValidatorTests {
     @DisplayName("Ancient events are discarded")
     void ancientEvent() {
         final EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+                createValidator(trueVerifierFactory, rosterHistory);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
@@ -268,10 +274,10 @@ class EventSignatureValidatorTests {
         assertNotNull(validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        validatorWithTrueVerifier.setEventWindow(
+        validatorWithTrueFactory.setEventWindow(
                 EventWindowBuilder.builder().setAncientThreshold(100).build());
 
-        assertNull(validatorWithTrueVerifier.validateSignature(event));
+        assertNull(validatorWithTrueFactory.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
@@ -284,7 +290,7 @@ class EventSignatureValidatorTests {
                 .setOrigin(EventOrigin.GOSSIP)
                 .build();
         assertNull(
-                validatorWithFalseVerifier.validateSignature(gossip),
+                validatorWithFalseFactory.validateSignature(gossip),
                 "Gossip events should be validated, and in this case discarded");
         assertEquals(1, exitedIntakePipelineCount.get());
 
@@ -293,7 +299,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .setOrigin(EventOrigin.RUNTIME)
                 .build();
-        assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");
+        assertNotNull(validatorWithFalseFactory.validateSignature(runtime), "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 }
