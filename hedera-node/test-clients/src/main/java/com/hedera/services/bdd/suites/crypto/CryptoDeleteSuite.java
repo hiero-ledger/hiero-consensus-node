@@ -28,12 +28,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
@@ -76,16 +78,21 @@ public class CryptoDeleteSuite {
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
     final Stream<DynamicTest> deletedAccountCannotBePayer() {
         final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
+        final var dueDiligenceTxn = "dueDiligenceTxn";
         return hapiTest(
                 cryptoCreate(ACCOUNT_TO_BE_DELETED),
                 cryptoCreate(beneficiaryAccount).balance(0L),
+                // Fund node 4 so due diligence can be collected
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)),
                 cryptoDelete(ACCOUNT_TO_BE_DELETED).transfer(beneficiaryAccount),
                 // Send to non-default node to skip ingest, which would reject the
                 // transaction before consensus since the payer is already deleted
                 cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
                         .payingWith(ACCOUNT_TO_BE_DELETED)
+                        .via(dueDiligenceTxn)
                         .setNode("4")
-                        .hasKnownStatus(PAYER_ACCOUNT_DELETED));
+                        .hasKnownStatus(PAYER_ACCOUNT_DELETED),
+                validateChargedAccount(dueDiligenceTxn, "4"));
     }
 
     @HapiTest
