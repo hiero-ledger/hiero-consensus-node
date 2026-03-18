@@ -81,6 +81,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 "tss.hintsEnabled", "true",
                 "tss.historyEnabled", "true",
                 "tss.wrapsEnabled", "true",
+                "tss.wrapsProvingKeyDownloadEnabled", "true",
                 "tss.wrapsProvingKeyDownloadUrl", downloadUrl));
     }
 
@@ -98,7 +99,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
         final AtomicReference<String> persistedHash = new AtomicReference<>();
 
         return hapiTest(
-                doingContextual(spec -> {
+                doingContextual(ignored -> {
                     final var validBytes = readClasspathResource(VALID_WRAPS_PROVING_KEY);
                     validProvingKeyHash = Bytes.wrap(sha384DigestOrThrow().digest(validBytes));
                     log.info("Valid proving key hash: {}", validProvingKeyHash);

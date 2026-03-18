@@ -55,8 +55,11 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of(
+                "tss.hintsEnabled", "true",
+                "tss.historyEnabled", "true",
+                "tss.wrapsEnabled", "true",
+                "tss.wrapsProvingKeyDownloadEnabled", "true"));
 
         // Assign hashes and assert preconditions
         final var validBytes = readClasspathResource(VALID_WRAPS_PROVING_KEY);
