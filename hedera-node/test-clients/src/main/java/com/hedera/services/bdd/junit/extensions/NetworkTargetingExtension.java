@@ -31,6 +31,7 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -200,10 +201,13 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     System.err.println("Error during post-test log and stream validation: " + e.getMessage());
                 } finally {
                     // Ensure network termination even if validation fails
-                    SHARED_NETWORK.get().terminate();
-                    final boolean failed =
-                            extensionContext.getExecutionException().isPresent();
-                    SHARED_BLOCK_NODE_NETWORK.get().terminate(failed);
+                    final var network = SHARED_NETWORK.get();
+                    final var scopeRoot = network.nodes()
+                            .getFirst()
+                            .getExternalPath(ExternalPath.WORKING_DIR)
+                            .getParent();
+                    network.terminate();
+                    SHARED_BLOCK_NODE_NETWORK.get().terminate(scopeRoot);
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
                     SHARED_BLOCK_NODE_NETWORK.set(null);
