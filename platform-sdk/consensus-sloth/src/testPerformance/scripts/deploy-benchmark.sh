@@ -184,7 +184,7 @@ fi
 
 echo "Checking out branch: $BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
-git pull --ff-only origin "$BRANCH" || true
+git reset --hard "origin/$BRANCH"
 
 echo "Branch is at: \$(git log --oneline -1)"
 REMOTE_EOF
