@@ -72,6 +72,32 @@ public interface Node {
     void submitTransactions(@NonNull List<SlothTransaction> transactions);
 
     /**
+     * Instructs the node's execution layer to start self-generating transactions at the given rate.
+     *
+     * <p>If generation is already running it is stopped and restarted with the new parameters.
+     *
+     * @param tps  the number of transactions to generate per second on this node; may be fractional
+     * @param type the type of transactions to generate
+     * @throws UnsupportedOperationException if the environment does not support self-generation
+     */
+    default void startTransactionGeneration(final double tps, @NonNull SlothTransactionType type) {
+        throw new UnsupportedOperationException("Transaction generation not supported in this environment");
+    }
+
+    /**
+     * Instructs the node's execution layer to stop self-generating transactions.
+     *
+     * <p>This method is idempotent.
+     *
+     * @return the total number of transactions successfully submitted to the pool since the last
+     *         call to {@link #startTransactionGeneration}
+     * @throws UnsupportedOperationException if the environment does not support self-generation
+     */
+    default long stopTransactionGeneration() {
+        throw new UnsupportedOperationException("Transaction generation not supported in this environment");
+    }
+
+    /**
      * Overrides the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
