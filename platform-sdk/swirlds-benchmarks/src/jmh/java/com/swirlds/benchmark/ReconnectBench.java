@@ -82,6 +82,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     private VirtualMap reconnectedMap;
 
+    private long[] teacherData;
+
     String benchmarkName() {
         return "ReconnectBench";
     }
@@ -159,6 +161,13 @@ public class ReconnectBench extends VirtualMapBaseBench {
         BenchmarkMetrics.register(learnerMap::registerMetrics);
 
         teacherMapCopy = teacherMap.copy();
+
+        // Build the verification array from the teacher map before the benchmark runs
+        if (verify) {
+            // StateBuilder uses key indices from 1 to (2 * size - 1), where size = numRecords * numFiles.
+            teacherData = new long[numRecords * numFiles * 2];
+            copyMapToArray(teacherMap, teacherData);
+        }
     }
 
     @TearDown(Level.Invocation)
@@ -193,6 +202,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
         teacherMap = null;
         learnerMap = null;
+        teacherData = null;
     }
 
     @Benchmark
@@ -207,6 +217,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 delayNetworkFuzzRangePercent,
                 new NodeId(),
                 configuration);
+
+        verifyMap(teacherData, reconnectedMap);
     }
 
     public static void main(String[] args) throws Exception {
