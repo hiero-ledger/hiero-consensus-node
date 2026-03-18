@@ -662,11 +662,13 @@ public class AtomicBatchTest {
                                     cryptoCreate("foo")
                                             .via("innerTxn1")
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator),
+                                            .payingWith(batchOperator)
+                                            .signedBy(batchOperator),
                                     cryptoCreate("bar")
                                             .via("innerTxn2")
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator))
+                                            .payingWith(batchOperator)
+                                            .signedBy(batchOperator))
                             .payingWith(batchOperator)
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
