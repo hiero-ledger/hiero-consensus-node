@@ -33,6 +33,7 @@ public record HederaEvmTransaction(
         @Nullable ContractCreateTransactionBody hapiCreation,
         @Nullable List<AccessList> accessLists,
         // TODO Glib: why codeDelegations are nullable? should we make extractCodeDelegations return null?
+        // TODO Glib: why it is called codeDelegations but not authorizationList?
         @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
         @Nullable HookDispatchTransactionBody hookDispatch) {

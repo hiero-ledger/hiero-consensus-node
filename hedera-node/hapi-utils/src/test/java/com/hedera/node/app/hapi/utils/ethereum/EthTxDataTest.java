@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.DETERMINISTIC_DEPLOYER_TRANSACTION;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
 import static java.util.Objects.requireNonNull;
@@ -745,11 +744,13 @@ class EthTxDataTest {
                 oneByte,
                 oneByte,
                 oneByte);
-        assertEquals(0, testTransaction
-                .getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
-                .compareTo(BigInteger.valueOf(45)
-                        .multiply(BigInteger.valueOf(DETERMINISTIC_DEPLOYER_GAS_PRICE_MULTIPLIER))
-                        .multiply(WEIBARS_IN_A_TINYBAR)));
+        assertEquals(
+                0,
+                testTransaction
+                        .getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
+                        .compareTo(BigInteger.valueOf(45)
+                                .multiply(BigInteger.valueOf(DETERMINISTIC_DEPLOYER_GAS_PRICE_MULTIPLIER))
+                                .multiply(WEIBARS_IN_A_TINYBAR)));
     }
 
     @ParameterizedTest

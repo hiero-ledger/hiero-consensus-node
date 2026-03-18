@@ -146,35 +146,35 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(20_999L));
     }
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
-        given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
+        given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.EMPTY, false, null, null))
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(22_000L));
         assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(21_999L));
     }
 
     @Test
     void fromHapiCallFailsNegativeValue() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(CONTRACT_NEGATIVE_VALUE, b -> b.gas(30_000L).amount(-1L));
     }
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
     void fromHapiCallUsesEmptyCallDataWhenNotSet() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(
                 b -> b.amount(123L).contractID(CALLED_CONTRACT_ID).gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
@@ -209,7 +209,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallThrowsOnDeletedContractIfFeatureFlagNotEnabled() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         assertCallFailsWith(CONTRACT_DELETED, b -> b.amount(123L)
@@ -220,7 +220,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallIgnoresDeletedContractIfFeatureFlagEnabled() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(
@@ -245,7 +245,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallUsesCallParamsWhenSet() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)

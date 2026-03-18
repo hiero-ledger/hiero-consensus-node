@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import com.esaulpaugh.headlong.rlp.RLPEncoder;
-import com.esaulpaugh.headlong.util.Integers;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
-import org.junit.jupiter.api.Test;
-
-import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.List;
-
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,6 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.Test;
 
 class EthTxDataType4TransactionTest {
 

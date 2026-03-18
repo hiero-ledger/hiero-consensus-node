@@ -72,16 +72,16 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction the transaction
+     * @param transaction  the transaction
      * @param worldUpdater the world updater for the transaction
-     * @param context the Hedera EVM context (gas price, block values, etc.)
-     * @param config the active Hedera configuration
+     * @param context      the Hedera EVM context (gas price, block values, etc.)
+     * @param config       the active Hedera configuration
      * @param featureFlags the feature flag currently used
-     * @param from the sender of the transaction
-     * @param to the recipient of the transaction
-     * @param initialGas the initial gas amount available for execution
-     * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     * *                    from raw bytecode.
+     * @param from         the sender of the transaction
+     * @param to           the recipient of the transaction
+     * @param initialGas   the initial gas amount available for execution
+     * @param codeFactory  the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
+     *                     *                    from raw bytecode.
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -118,6 +118,7 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
+        // TODO Glib: add accessLists and codeDelegations to besu (accessListWarmUpAddresses)
         if (transaction.isCreate()) {
             return finishedAsCreate(to, builder, transaction, codeFactory);
         } else {
@@ -249,6 +250,7 @@ public class FrameBuilder {
             code = CodeV0.EMPTY_CODE;
         }
 
+        // TODO Glib:
         // TODO(AccessLists): Add EIP-7702 addresses to access list (see `accessListWarmUpAddresses` in besu)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)

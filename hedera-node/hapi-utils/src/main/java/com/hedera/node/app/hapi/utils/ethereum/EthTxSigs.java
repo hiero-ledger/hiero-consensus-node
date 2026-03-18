@@ -36,6 +36,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     public static Optional<EthTxSigs> extractAuthoritySignature(CodeDelegation codeDelegation) {
         try {
             final var message = codeDelegation.calculateSignableMessage();
+            // TODO Glib: how is 'extractSig' equal to behavior at https://eips.ethereum.org/EIPS/eip-7702#behavior
             final var pubKey = extractSig(codeDelegation.yParity(), codeDelegation.r(), codeDelegation.s(), message);
             final var address = recoverAddressFromPubKey(pubKey);
             final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);

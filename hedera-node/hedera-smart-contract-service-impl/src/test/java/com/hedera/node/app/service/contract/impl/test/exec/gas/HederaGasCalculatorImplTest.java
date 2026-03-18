@@ -18,14 +18,16 @@ class HederaGasCalculatorImplTest {
         assertEquals(
                 21_000L + // base TX cost
                         32_000L, // contract creation base cost
-                subject.transactionGasRequirements(Bytes.EMPTY, true, 0L).intrinsicGas());
+                subject.transactionGasRequirements(Bytes.EMPTY, true, null, null)
+                        .intrinsicGas());
     }
 
     @Test
     void txnIntrinsicCostNonContractCreate() {
         assertEquals(
                 21_000L, // base TX cost
-                subject.transactionGasRequirements(Bytes.EMPTY, false, 0L).intrinsicGas());
+                subject.transactionGasRequirements(Bytes.EMPTY, false, null, null)
+                        .intrinsicGas());
     }
 
     @Test
@@ -39,7 +41,7 @@ class HederaGasCalculatorImplTest {
                 4 * 2 + // zero byte cost
                         16 * 3 + // non-zero byte cost
                         21_000L, // base TX cost
-                subject.transactionGasRequirements(Bytes.of(0, 1, 2, 3, 0), false, 0L)
+                subject.transactionGasRequirements(Bytes.of(0, 1, 2, 3, 0), false, null, null)
                         .intrinsicGas());
         assertEquals(
                 4 * 3 + // zero byte cost
@@ -47,7 +49,7 @@ class HederaGasCalculatorImplTest {
                         21_000L + // base TX cost
                         32_000L + // contract creation base cost
                         2, // contract creation 1 word cost
-                subject.transactionGasRequirements(Bytes.of(0, 1, 0, 3, 0), true, 0L)
+                subject.transactionGasRequirements(Bytes.of(0, 1, 0, 3, 0), true, null, null)
                         .intrinsicGas());
     }
 
@@ -60,7 +62,7 @@ class HederaGasCalculatorImplTest {
                 .filter(idx -> randomPayload[idx] == 0)
                 .count();
         // regular transaction
-        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), false, 0L);
+        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), false, null, null);
         assertNotEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());
         // gasUsed defined at https://eips.ethereum.org/EIPS/eip-7623
         assertEquals(
@@ -82,7 +84,7 @@ class HederaGasCalculatorImplTest {
                 .filter(idx -> randomPayload[idx] == 0)
                 .count();
         // regular transaction
-        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), true, 0L);
+        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), true, null, null);
         assertNotEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());
         // gasUsed defined at https://eips.ethereum.org/EIPS/eip-7623
         assertEquals(
