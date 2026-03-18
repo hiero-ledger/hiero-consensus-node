@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.GarbageScanner.IndexedGarbageFileStats;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +49,14 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
 
         // garbageThreshold=0.4 (files with 50% garbage pass), minCompactionSizeKb=1
-        final MerkleDbConfig config = config(0.4, 0, 5, 1);
+        final MerkleDbConfig config = config(0.4, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertTrue(result.isEmpty(), "Level should be excluded because alive size (100 bytes) < threshold (1 KB)");
+        assertTrue(
+                filesToCompact.isEmpty(), "Level should be excluded because alive size (100 bytes) < threshold (1 KB)");
     }
 
     @Test
@@ -70,13 +73,15 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
 
-        final MerkleDbConfig config = config(0.4, 0, 5, 1);
+        final MerkleDbConfig config = config(0.4, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size(), "Level should be included because alive size (2 KB) >= threshold (1 KB)");
-        assertEquals(2, result.get(0).size());
+        assertEquals(
+                1, filesToCompact.size(), "Level should be included because alive size (2 KB) >= threshold (1 KB)");
+        assertEquals(2, filesToCompact.get(0).size());
     }
 
     @Test
@@ -96,12 +101,14 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(empty1, empty2, empty3));
 
         // garbageThreshold=0.0 so everything with any garbage is selected (empty files get ratio 1.0)
-        final MerkleDbConfig config = config(0.0, 0, 5, 1);
+        final MerkleDbConfig config = config(0.0, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertTrue(result.isEmpty(), "Empty files should not trigger compaction when min size threshold is set");
+        assertTrue(
+                filesToCompact.isEmpty(), "Empty files should not trigger compaction when min size threshold is set");
     }
 
     @Test
@@ -115,12 +122,13 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1));
 
         // minCompactionSizeKb=0 disables the threshold
-        final MerkleDbConfig config = config(0.5, 0, 5, 0);
+        final MerkleDbConfig config = config(0.5, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size(), "With threshold disabled, file with 70% garbage should be selected");
+        assertEquals(1, filesToCompact.size(), "With threshold disabled, file with 70% garbage should be selected");
     }
 
     @Test
@@ -140,13 +148,14 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
 
         // garbageThreshold=0.4, minCompactionSizeKb=1
-        final MerkleDbConfig config = config(0.4, 0, 5, 1);
+        final MerkleDbConfig config = config(0.4, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size(), "Only level 0 should pass; level 2 threshold is 4x higher");
-        assertTrue(result.containsKey(0), "Level 0 should be in results");
+        assertEquals(1, filesToCompact.size(), "Only level 0 should pass; level 2 threshold is 4x higher");
+        assertTrue(filesToCompact.containsKey(0), "Level 0 should be in results");
     }
 
     @Test
@@ -173,13 +182,14 @@ class GarbageScannerMinCompactionSizeTest {
         // Level 0 alive estimate: 10240*0.4 + 10240*0.3 = 7168 bytes = 7 KB > 5 KB => included
         // Threshold at level 2: 5 KB * 2^2 = 20 KB
         // Level 2 alive estimate: 50*0.4 + 50*0.3 = 35 bytes < 20 KB => excluded
-        final MerkleDbConfig config = config(0.5, 0, 5, 5);
+        final MerkleDbConfig config = config(0.5, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final GarbageScanner.ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size(), "Only level 0 should pass the alive size threshold");
-        assertTrue(result.containsKey(0), "Level 0 should be in results");
+        assertEquals(1, filesToCompact.size(), "Only level 0 should pass the alive size threshold");
+        assertTrue(filesToCompact.containsKey(0), "Level 0 should be in results");
     }
 
     // ========================================================================
@@ -200,14 +210,15 @@ class GarbageScannerMinCompactionSizeTest {
                 locationsForFile(1, 5), locationsForFile(99, 3)); // file 99 doesn't exist in collection
 
         // Should not throw — null fileStats are skipped
-        final MerkleDbConfig config = config(0.4, 0, 5, 0);
+        final MerkleDbConfig config = config(0.4, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = assertDoesNotThrow(scanner::scan);
+        final GarbageScanner.ScanResult result = assertDoesNotThrow(scanner::scan);
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
         // File 1 has 5/10 alive = 50% garbage, which exceeds 0.4 threshold
-        assertEquals(1, result.size());
-        assertEquals(List.of(file1), result.get(0));
+        assertEquals(1, filesToCompact.size());
+        assertEquals(List.of(file1), filesToCompact.get(0));
     }
 
     @Test
@@ -222,14 +233,15 @@ class GarbageScannerMinCompactionSizeTest {
         // All index entries point to deleted file 99
         final CASableLongIndex index = mockIndexWithEntries(locationsForFile(99, 10));
 
-        final MerkleDbConfig config = config(0.5, 0, 5, 0);
+        final MerkleDbConfig config = config(0.5, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
-        final Map<Integer, List<DataFileReader>> result = assertDoesNotThrow(scanner::scan);
+        final GarbageScanner.ScanResult result = assertDoesNotThrow(scanner::scan);
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
         // File 1 has 0 alive items out of 10 total = 100% garbage => selected
-        assertEquals(1, result.size());
-        assertEquals(List.of(file1), result.get(0));
+        assertEquals(1, filesToCompact.size());
+        assertEquals(List.of(file1), filesToCompact.get(0));
     }
 
     // ========================================================================
@@ -243,13 +255,13 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader reader2 = mockFileReader(2, 0, 50, 500);
         final DataFileReader emptyReader = mockFileReader(3, 0, 0, 27);
 
-        final Map<Integer, GarbageScanner.GarbageFileStats> statsMap = Map.of(
-                1, new GarbageScanner.GarbageFileStats(reader1, 75), // 75% alive => 750 bytes
-                2, new GarbageScanner.GarbageFileStats(reader2, 25), // 50% alive => 250 bytes
-                3, new GarbageScanner.GarbageFileStats(emptyReader, 0) // empty => 0 bytes
-                );
+        final IndexedGarbageFileStats stats = new IndexedGarbageFileStats(1, new GarbageScanner.GarbageFileStats[] {
+            new GarbageScanner.GarbageFileStats(reader1, 75), // 75% alive => 750 bytes
+            new GarbageScanner.GarbageFileStats(reader2, 25), // 50% alive => 250 bytes
+            new GarbageScanner.GarbageFileStats(emptyReader, 0) // empty => 0 bytes
+        });
 
-        final long result = GarbageScanner.estimateAliveSize(List.of(reader1, reader2, emptyReader), statsMap);
+        final long result = GarbageScanner.estimateAliveSize(List.of(reader1, reader2, emptyReader), stats);
 
         // reader1: 1000 * (75/100) = 750
         // reader2: 500 * (25/50) = 250
@@ -263,11 +275,11 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader empty1 = mockFileReader(1, 0, 0, 27);
         final DataFileReader empty2 = mockFileReader(2, 0, 0, 27);
 
-        final Map<Integer, GarbageScanner.GarbageFileStats> statsMap = Map.of(
-                1, new GarbageScanner.GarbageFileStats(empty1, 0),
-                2, new GarbageScanner.GarbageFileStats(empty2, 0));
+        final IndexedGarbageFileStats stats = new IndexedGarbageFileStats(1, new GarbageScanner.GarbageFileStats[] {
+            new GarbageScanner.GarbageFileStats(empty1, 0), new GarbageScanner.GarbageFileStats(empty2, 0)
+        });
 
-        final long result = GarbageScanner.estimateAliveSize(List.of(empty1, empty2), statsMap);
+        final long result = GarbageScanner.estimateAliveSize(List.of(empty1, empty2), stats);
 
         assertEquals(0, result, "All-empty candidates should produce zero alive size");
     }
@@ -278,11 +290,10 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader reader1 = mockFileReader(1, 0, 100, 1000);
         final DataFileReader deletedReader = mockFileReader(99, 0, 50, 500);
 
-        // Only reader1 has stats; deletedReader was removed during scan
-        final Map<Integer, GarbageScanner.GarbageFileStats> statsMap =
-                Map.of(1, new GarbageScanner.GarbageFileStats(reader1, 75));
+        final IndexedGarbageFileStats stats = new IndexedGarbageFileStats(
+                1, new GarbageScanner.GarbageFileStats[] {new GarbageScanner.GarbageFileStats(reader1, 75)});
 
-        final long result = GarbageScanner.estimateAliveSize(List.of(reader1, deletedReader), statsMap);
+        final long result = GarbageScanner.estimateAliveSize(List.of(reader1, deletedReader), stats);
 
         // reader1: 1000 * (75/100) = 750
         // deletedReader: no stats => 0
@@ -294,10 +305,7 @@ class GarbageScannerMinCompactionSizeTest {
     // ========================================================================
 
     private static MerkleDbConfig config(
-            final double garbageThreshold,
-            final long maxCompactionDataPerLevelInKB,
-            final int maxCompactionLevel,
-            final long minCompactionSizeKb) {
+            final double garbageThreshold, final long maxCompactionDataPerLevelInKB, final int maxCompactionLevel) {
         return new MerkleDbConfig(
                 DEFAULT_CONFIG.initialCapacity(),
                 DEFAULT_CONFIG.maxNumOfKeys(),
@@ -321,8 +329,7 @@ class GarbageScannerMinCompactionSizeTest {
                 DEFAULT_CONFIG.leafRecordCacheSize(),
                 DEFAULT_CONFIG.maxFileChannelsPerFileReader(),
                 DEFAULT_CONFIG.maxThreadsPerFileChannel(),
-                DEFAULT_CONFIG.useDiskIndices(),
-                minCompactionSizeKb);
+                DEFAULT_CONFIG.useDiskIndices());
     }
 
     private static CASableLongIndex mockIndexWithEntries(final long[]... blocks) {

@@ -22,6 +22,7 @@ import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.GarbageScanner;
+import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,8 +70,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.leafRecordCacheSize(),
                 defaultConfig.maxFileChannelsPerFileReader(),
                 defaultConfig.maxThreadsPerFileChannel(),
-                defaultConfig.useDiskIndices(),
-                0);
+                defaultConfig.useDiskIndices());
         coordinator = new MerkleDbCompactionCoordinator("test", config);
         coordinator.enableBackgroundCompaction();
     }
@@ -155,7 +155,9 @@ class MerkleDbCompactionCoordinatorTest {
 
         // Publish scan results: both levels have high garbage
         publishScanResult(
-                ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File1, level0File2), 2, List.of(level2File1, level2File2)));
+                ID_TO_HASH_CHUNK,
+                new ScanResult(
+                        Map.of(0, List.of(level0File1, level0File2), 2, List.of(level2File1, level2File2)), Map.of()));
 
         final CountDownLatch compactionsDone = new CountDownLatch(2);
         final List<Integer> compactedTargetLevels = new ArrayList<>();
@@ -202,7 +204,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File1, level0File2));
 
-        publishScanResult(ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File1, level0File2)));
+        publishScanResult(ID_TO_HASH_CHUNK, new ScanResult(Map.of(0, List.of(level0File1, level0File2)), Map.of()));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
@@ -240,7 +242,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
-        publishScanResult(ID_TO_HASH_CHUNK, Map.of());
+        publishScanResult(ID_TO_HASH_CHUNK, new ScanResult(Map.of(), Map.of()));
 
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         final Supplier<DataFileCompactor> factory = () -> compactor;
@@ -267,7 +269,8 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
 
-        publishScanResult(ID_TO_HASH_CHUNK, Map.of(0, List.of(level0File), 2, List.of(level2File)));
+        publishScanResult(
+                ID_TO_HASH_CHUNK, new ScanResult(Map.of(0, List.of(level0File), 2, List.of(level2File)), Map.of()));
 
         final CountDownLatch tasksStarted = new CountDownLatch(2);
         final CountDownLatch releaseTasks = new CountDownLatch(1);
@@ -330,7 +333,7 @@ class MerkleDbCompactionCoordinatorTest {
     // Helper methods
     // ========================================================================
 
-    private void publishScanResult(final String storeName, final Map<Integer, List<DataFileReader>> result) {
+    private void publishScanResult(final String storeName, final ScanResult result) {
         final GarbageScanner scanner = mock(GarbageScanner.class);
         when(scanner.scan()).thenReturn(result);
         coordinator.submitScanIfNotRunning(storeName, scanner);

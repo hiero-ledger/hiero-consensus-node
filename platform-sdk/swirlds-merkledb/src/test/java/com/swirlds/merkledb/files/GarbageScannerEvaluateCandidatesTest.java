@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
@@ -38,10 +39,10 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.4, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "HashStoreDisk", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
 
-        assertEquals(1, result.size());
-        assertEquals(List.of(file1), result.get(0));
+        assertEquals(1, result.filesToCompact().size());
+        assertEquals(List.of(file1), result.filesToCompact().get(0));
     }
 
     @Test
@@ -57,9 +58,9 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.31, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "PathToKeyValue", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
 
-        assertTrue(result.isEmpty());
+        assertTrue(result.filesToCompact().isEmpty());
     }
 
     @Test
@@ -79,11 +80,12 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.5, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "HashStoreDisk", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(2, result.size());
-        assertEquals(List.of(level0File2), result.get(0));
-        assertEquals(List.of(level2File2), result.get(2));
+        assertEquals(2, filesToCompact.size());
+        assertEquals(List.of(level0File2), filesToCompact.get(0));
+        assertEquals(List.of(level2File2), filesToCompact.get(2));
     }
 
     @Test
@@ -99,10 +101,11 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.25, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "PathToKeyValue", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size());
-        assertEquals(List.of(zeroTotal), result.get(1));
+        assertEquals(1, filesToCompact.size());
+        assertEquals(List.of(zeroTotal), filesToCompact.get(1));
     }
 
     @Test
@@ -120,9 +123,10 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.6, 1024, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "ObjectKeyToPath", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertTrue(result.isEmpty());
+        assertTrue(filesToCompact.isEmpty());
     }
 
     @Test
@@ -138,12 +142,15 @@ class GarbageScannerEvaluateCandidatesTest {
         final MerkleDbConfig config = config(0.4, 1024, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "HashStoreDisk", config);
 
-        final Map<Integer, List<DataFileReader>> result = scanner.scan();
+        final ScanResult result = scanner.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size());
-        assertEquals(1, result.get(0).size());
-        assertTrue(result.get(0).contains(oversizedEligible) || result.get(0).contains(secondEligible));
-        assertFalse(result.get(0).contains(oversizedEligible) && result.get(0).contains(secondEligible));
+        assertEquals(1, filesToCompact.size());
+        assertEquals(1, filesToCompact.get(0).size());
+        assertTrue(filesToCompact.get(0).contains(oversizedEligible)
+                || filesToCompact.get(0).contains(secondEligible));
+        assertFalse(filesToCompact.get(0).contains(oversizedEligible)
+                && filesToCompact.get(0).contains(secondEligible));
     }
 
     private static CASableLongIndex mockIndexWithEntries(final long[]... blocks) {
@@ -204,8 +211,7 @@ class GarbageScannerEvaluateCandidatesTest {
                 DEFAULT_CONFIG.leafRecordCacheSize(),
                 DEFAULT_CONFIG.maxFileChannelsPerFileReader(),
                 DEFAULT_CONFIG.maxThreadsPerFileChannel(),
-                DEFAULT_CONFIG.useDiskIndices(),
-                DEFAULT_CONFIG.minCompactionSizeKb());
+                DEFAULT_CONFIG.useDiskIndices());
     }
 
     private static DataFileReader mockFileReader(

@@ -36,11 +36,12 @@ class GarbageScannerTest {
 
         final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2, file3));
 
-        final Map<Integer, List<DataFileReader>> result = task.scan();
+        final GarbageScanner.ScanResult result = task.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(2, result.size());
-        assertEquals(List.of(file1, file2), result.get(0));
-        assertEquals(List.of(file3), result.get(1));
+        assertEquals(2, filesToCompact.size());
+        assertEquals(List.of(file1, file2), filesToCompact.get(0));
+        assertEquals(List.of(file3), filesToCompact.get(1));
     }
 
     @Test
@@ -50,11 +51,12 @@ class GarbageScannerTest {
 
         final GarbageScanner task = createTask(new TestIndex(new LinkedHashMap<>()), List.of(file1, file2));
 
-        final Map<Integer, List<DataFileReader>> result = task.scan();
+        final GarbageScanner.ScanResult result = task.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(2, result.size());
-        assertEquals(List.of(file1), result.get(0));
-        assertEquals(List.of(file2), result.get(1));
+        assertEquals(2, filesToCompact.size());
+        assertEquals(List.of(file1), filesToCompact.get(0));
+        assertEquals(List.of(file2), filesToCompact.get(1));
     }
 
     @Test
@@ -70,10 +72,11 @@ class GarbageScannerTest {
 
         final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2, file3));
 
-        final Map<Integer, List<DataFileReader>> result = task.scan();
+        final GarbageScanner.ScanResult result = task.scan();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
 
-        assertEquals(1, result.size());
-        assertEquals(List.of(file1, file3), result.get(0));
+        assertEquals(1, filesToCompact.size());
+        assertEquals(List.of(file1, file3), filesToCompact.get(0));
     }
 
     @Test
@@ -123,8 +126,7 @@ class GarbageScannerTest {
                 DEFAULT_CONFIG.leafRecordCacheSize(),
                 DEFAULT_CONFIG.maxFileChannelsPerFileReader(),
                 DEFAULT_CONFIG.maxThreadsPerFileChannel(),
-                DEFAULT_CONFIG.useDiskIndices(),
-                DEFAULT_CONFIG.minCompactionSizeKb());
+                DEFAULT_CONFIG.useDiskIndices());
     }
 
     private static DataFileReader mockFileReader(final int fileIndex, final int level, final long totalItems) {
