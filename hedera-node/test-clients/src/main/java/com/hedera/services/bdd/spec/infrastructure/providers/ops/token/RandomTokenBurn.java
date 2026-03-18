@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.infrastructure.providers.ops.token;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.token.RandomToken.DEFAULT_MAX_SUPPLY;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.token.RandomTokenDissociation.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
@@ -18,8 +19,8 @@ import java.util.Optional;
 public class RandomTokenBurn implements OpProvider {
     private final RegistrySourcedNameProvider<TokenAccountRegistryRel> tokenRels;
 
-    private final ResponseCodeEnum[] permissibleOutcomes =
-            standardOutcomesAnd(TOKEN_WAS_DELETED, TOKEN_HAS_NO_SUPPLY_KEY, INVALID_TOKEN_BURN_AMOUNT);
+    private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(
+            TOKEN_WAS_DELETED, TOKEN_HAS_NO_SUPPLY_KEY, INVALID_TOKEN_BURN_AMOUNT, INSUFFICIENT_TOKEN_BALANCE);
     private final ResponseCodeEnum[] customOutcomes;
 
     public RandomTokenBurn(
