@@ -336,7 +336,7 @@ public final class DataFileCommon {
                                 effectively read at {} effectively written at {},
                                 compactedFiles[{}] = {},
                                 filesToMerge[{}] = {}
-                                allFilesAfter[{}] = {}""",
+                                allFilesAfter[{}]""",
                 storeName,
                 filesToMerge.size(),
                 formatSizeBytes(filesToMergeSize),
@@ -351,8 +351,7 @@ public final class DataFileCommon {
                 Arrays.toString(mergedFiles.stream().map(Path::getFileName).toArray()),
                 fileToMergeIndexes.length,
                 Arrays.toString(fileToMergeIndexes),
-                allFileIndexes.length,
-                Arrays.toString(allFileIndexes));
+                allFileIndexes.length);
     }
 
     /**

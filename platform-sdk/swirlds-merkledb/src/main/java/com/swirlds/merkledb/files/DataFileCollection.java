@@ -598,6 +598,19 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         void newIndexEntry(long dataLocation, @NonNull BufferedData dataValue);
     }
 
+    /**
+     * Promotes the given files to a new compaction level. This is an in-memory-only
+     * operation — file headers on disk are not modified. On restart, files revert to
+     * their on-disk level and may be re-promoted by the next scan cycle.
+     * @param files files to promote
+     * @param newLevel new compaction level to promote to
+     */
+    public void promoteFiles(final List<DataFileReader> files, final int newLevel) {
+        for (final DataFileReader reader : files) {
+            reader.setCompactionLevel(newLevel);
+        }
+    }
+
     // =================================================================================================================
     // Private API
 

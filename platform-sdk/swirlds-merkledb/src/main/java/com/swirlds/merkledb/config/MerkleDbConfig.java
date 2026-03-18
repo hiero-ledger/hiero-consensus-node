@@ -70,11 +70,6 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param maxThreadsPerFileChannel
  *    Maximum number of threads per file channel.
  * @param useDiskIndices if true, use disk-based indices to reduce off-heap memory usage
- * @param minCompactionSizeKb
- *      Minimum estimated alive data size, in KB, that must be present at a compaction level before compaction
- *      is triggered. This prevents premature promotion of small amounts of data through levels, which would
- *      otherwise cause tiny or empty files to cascade upward and waste I/O. A non-positive value disables
- *      this threshold. Default is 100 MB (102400 KB).
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -88,9 +83,9 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
-        @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
-        /*Default is 100GB*/
-        @ConfigProperty(defaultValue = "104857600") long maxCompactionDataPerLevelInKB,
+        @ConfigProperty(defaultValue = "0.2") double garbageThreshold,
+        /*Default is 1GB*/
+        @ConfigProperty(defaultValue = "1000000") long maxCompactionDataPerLevelInKB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
@@ -103,9 +98,7 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
-        @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
-        /* Default is 1 MB */
-        @ConfigProperty(defaultValue = "1024") long minCompactionSizeKb){
+        @ConfigProperty(defaultValue = "false") boolean useDiskIndices){
 
     // spotless:on
 

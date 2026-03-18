@@ -12,6 +12,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.GarbageScanner;
+import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -114,7 +115,7 @@ class MerkleDbCompactionCoordinator {
      * Latest scan results per store name. Written by scanner tasks, read by compaction tasks
      * when they evaluate candidates at execution time. Keys are store names (e.g. "HashStoreDisk").
      */
-    private final Map<String, Map<Integer, List<DataFileReader>>> scanResultsByStore = new ConcurrentHashMap<>(4);
+    private final Map<String, ScanResult> scanResultsByStore = new ConcurrentHashMap<>(4);
 
     @NonNull
     private final MerkleDbConfig merkleDbConfig;
@@ -247,10 +248,13 @@ class MerkleDbCompactionCoordinator {
             return;
         }
 
-        final Map<Integer, List<DataFileReader>> readersByLevel = scanResultsByStore.get(storeName);
-        if (readersByLevel == null || readersByLevel.isEmpty()) {
+        final ScanResult scanResult = scanResultsByStore.get(storeName);
+        if (scanResult == null) {
             return;
         }
+
+        final Map<Integer, List<DataFileReader>> readersByLevel = scanResult.filesToCompact();
+
         final Set<Integer> levels = readersByLevel.keySet();
 
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
@@ -314,8 +318,7 @@ class MerkleDbCompactionCoordinator {
 
         public void run() {
             try {
-                final Map<Integer, List<DataFileReader>> result = scanner.scan();
-                scanResultsByStore.put(storeName, result);
+                scanResultsByStore.put(storeName, scanner.scan());
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Garbage scan failed", taskKey, e);
             } finally {
@@ -366,14 +369,15 @@ class MerkleDbCompactionCoordinator {
                 }
 
                 // Read cached scan results
-                final Map<Integer, List<DataFileReader>> readersByLevel = scanResultsByStore.get(storeName);
-                if (readersByLevel == null) {
+                final ScanResult scanResult = scanResultsByStore.get(storeName);
+                if (scanResult == null) {
                     // No scan results available yet — scanner hasn't completed. This is
                     // normal during early startup. The next flush will submit a new task.
                     return false;
                 }
 
-                final List<DataFileReader> filesToCompact = readersByLevel.get(sourceLevel);
+                final List<DataFileReader> filesToCompact =
+                        scanResult.filesToCompact().get(sourceLevel);
                 if (filesToCompact == null || filesToCompact.isEmpty()) {
                     // Nothing to compact at this level — thresholds not exceeded
                     return false;
@@ -397,6 +401,25 @@ class MerkleDbCompactionCoordinator {
                 }
 
                 final int targetLevel = Math.min(sourceLevel + 1, config.maxCompactionLevel());
+
+                // Promote files that didn't make the cut to the next level.
+                // This distributes work across levels so that parallel level
+                // compaction can absorb the excess.
+                if (sourceLevel < config.maxCompactionLevel()) {
+                    final List<DataFileReader> filesToPromote =
+                            scanResult.filesToPromote().get(sourceLevel);
+                    if (filesToPromote != null && !filesToPromote.isEmpty()) {
+                        compactor.getDataFileCollection().promoteFiles(filesToPromote, targetLevel);
+                        logger.info(
+                                MERKLE_DB.getMarker(),
+                                "[{}] Promoted {} excess level-{} files to level {}",
+                                taskKey,
+                                filesToPromote.size(),
+                                sourceLevel,
+                                targetLevel);
+                    }
+                }
+
                 return compactor.compactSingleLevel(validFiles, targetLevel);
 
             } catch (final InterruptedException | ClosedByInterruptException e) {

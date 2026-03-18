@@ -197,17 +197,17 @@ public class DataFileCompactor {
         final int filesCount = filesToCompact.size();
         logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting compaction of {} files to level {}",
+                "[{}] Starting compaction to level {} of {} files ",
                 storeName,
-                filesCount,
-                targetLevel);
+                targetLevel,
+                filesCount);
 
         final long start = System.currentTimeMillis();
 
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
         logger.debug(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting merging {} files / {}",
+                "[{}] Starting compacting {} files / {}",
                 storeName,
                 filesCount,
                 formatSizeBytes(filesToCompactSize));
