@@ -348,9 +348,7 @@ public class ScheduleServiceSimpleFeesTest {
     }
 
     @HapiTest
-    @Tag(SERIAL)
     @DisplayName("Scheduled ContractCall full lifecycle - create, sign, execute fees")
-    @Disabled("Waiting on BaseTranslator sidecar fix to merge to main")
     final Stream<DynamicTest> scheduledContractCallFullLifecycleFees() {
         final var schedulePayer = "contractSchedulePayer";
         return hapiTest(
