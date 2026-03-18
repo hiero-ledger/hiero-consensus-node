@@ -27,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -68,7 +69,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.node.app.service.token.NodeRewardGroups;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -612,71 +613,27 @@ public class SystemTransactions {
     }
 
     /**
-     * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
-     * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
-     * reward.
+     * Dispatches node rewards using pre-calculated reward amounts.
      *
-     * @param state The state.
-     * @param now The current time.
-     * @param nodeGroups The node groups.
-     * @param perNodeReward The per node reward.
-     * @param nodeRewardsAccountId The node rewards account id.
-     * @param rewardAccountBalance The reward account balance.
-     * @param minNodeReward The minimum node reward.
+     * @param state the current state
+     * @param now the current time
+     * @param rewardAmounts the pre-calculated reward amounts to dispatch
      */
     public void dispatchNodeRewards(
-            @NonNull final State state,
-            @NonNull final Instant now,
-            @NonNull final NodeRewardGroups nodeGroups,
-            final long perNodeReward,
-            @NonNull final AccountID nodeRewardsAccountId,
-            final long rewardAccountBalance,
-            final long minNodeReward) {
+            @NonNull final State state, @NonNull final Instant now, @NonNull final NodeRewardAmounts rewardAmounts) {
         requireNonNull(state);
         requireNonNull(now);
-        requireNonNull(nodeGroups);
-        requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        final List<AccountID> activeNodeAccountIds = nodeGroups.activeNodeAccountIds();
-        final List<AccountID> inactiveNodeAccountIds = nodeGroups.inactiveNodeAccountIds();
-        if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
-            // No eligible rewards to distribute
+        requireNonNull(rewardAmounts);
+
+        if (rewardAmounts.isEmpty()) {
+            log.info("No node rewards to distribute for nodes");
             return;
         }
-        log.info("Found active node accounts {}", activeNodeAccountIds);
-        if (minNodeReward > 0 && !inactiveNodeAccountIds.isEmpty()) {
-            log.info(
-                    "Found inactive node accounts {} that will receive minimum node reward {}",
-                    inactiveNodeAccountIds,
-                    minNodeReward);
-        }
-        // Check if rewardAccountBalance is enough to distribute rewards. If the balance is not enough, distribute
-        // rewards to active nodes only. If the balance is enough, distribute rewards to both active and inactive nodes.
-        final long activeTotal = activeNodeAccountIds.size() * perNodeReward;
-        final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
-        if (rewardAccountBalance <= activeTotal) {
-            final long activeNodeReward =
-                    activeNodeAccountIds.isEmpty() ? 0 : rewardAccountBalance / activeNodeAccountIds.size();
-            log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
-            if (activeNodeReward > 0) {
-                dispatchSynthNodeRewards(systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward);
-            }
-        } else {
-            final long activeNodeReward =
-                    activeNodeAccountIds.isEmpty() ? 0 : activeTotal / activeNodeAccountIds.size();
-            final long totalInactiveNodesReward =
-                    Math.min(Math.max(0, rewardAccountBalance - activeTotal), inactiveTotal);
-            final long inactiveNodeReward =
-                    inactiveNodeAccountIds.isEmpty() ? 0 : totalInactiveNodesReward / inactiveNodeAccountIds.size();
-            log.info(
-                    "Paying active nodes {} tinybars each, inactive nodes {} tinybars each",
-                    activeNodeReward,
-                    inactiveNodeReward);
-            dispatchSynthNodeRewards(
-                    systemContext, nodeGroups, nodeRewardsAccountId, activeNodeReward, inactiveNodeReward);
-        }
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+
+        dispatchSynthNodeRewards(systemContext, rewardAmounts);
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
@@ -834,7 +791,8 @@ public class SystemTransactions {
      * Whether a context for system transactions should use reserved prior consensus times, or pick up from
      * the time given to the transaction context factory.
      */
-    private enum UseReservedConsensusTimes {
+    @VisibleForTesting
+    enum UseReservedConsensusTimes {
         YES,
         NO
     }
@@ -843,12 +801,14 @@ public class SystemTransactions {
      * Whether the dispatches in a context for system transactions should trigger stake period boundary
      * side effects.
      */
-    private enum TriggerStakePeriodSideEffects {
+    @VisibleForTesting
+    enum TriggerStakePeriodSideEffects {
         YES,
         NO
     }
 
-    private SystemContext newSystemContext(
+    @VisibleForTesting
+    SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,

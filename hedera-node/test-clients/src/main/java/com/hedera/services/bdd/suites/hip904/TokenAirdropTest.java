@@ -973,7 +973,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(
                             movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)),
                     tokenAirdrop(movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(OWNER, HTS_COLLECTOR))
-                            .signedByPayerAnd(HTS_COLLECTOR, OWNER)
+                            .signedBy(HTS_COLLECTOR, OWNER)
                             .payingWith(OWNER)
                             .via("NFT with royalty fee airdrop to collector"),
                     // assert owner balance
@@ -1054,7 +1054,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(
                             movingUnique(NFT_WITH_ROYALTY_FEE, 3L).between(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)),
                     tokenAirdrop(movingUnique(NFT_WITH_ROYALTY_FEE, 3L).between(OWNER, TREASURY_FOR_CUSTOM_FEE_TOKENS))
-                            .signedByPayerAnd(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)
+                            .signedBy(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)
                             .payingWith(OWNER)
                             .via("NFT with royalty fee airdrop to treasury"),
                     // set new treasury balance variable
@@ -1075,7 +1075,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
                     validateFees(
-                            "NFT with royalty fee airdrop to treasury", 0.0008029, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
+                            "NFT with royalty fee airdrop to treasury",
+                            0.0008029,
+                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -2280,7 +2282,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("to non-fungible token pending airdrop")
         final Stream<DynamicTest> canNotDeleteAccountRelatedToNFTAirdrop() {
             return hapiTest(
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 10L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 18L)
                                     .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER),
                     cryptoDelete(OWNER).hasKnownStatus(ACCOUNT_HAS_PENDING_AIRDROPS));

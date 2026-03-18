@@ -1210,23 +1210,20 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         statistics.recordHash(end - start);
     }
 
-    /*
-     * Detach implementation
-     **/
-
     /**
-     * {@inheritDoc}
+     * Prepares a read-only copy so that it may be used even when removed from the pipeline.
+     * Can be called only on immutable hashed copy.
      *
-     * <p>This method must be called when the lifecycle thread for this virtual map is paused,
-     * or data source flushes are disabled some other way.
+     * @return a reference to the detached state of virtual map at some moment
      */
-    @Override
     public RecordAccessor detach() {
-        final Path snapshotPath = dataSourceSnapshot();
-        final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-        final VirtualNodeCache cacheSnapshot = cache.snapshot();
-        final int hashChunkHeight = dataSource.getHashChunkHeight();
-        return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+        return pipeline.pausePipelineAndRun("detach", () -> {
+            final Path snapshotPath = dataSourceSnapshot();
+            final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
+            final VirtualNodeCache cacheSnapshot = cache.snapshot();
+            final int hashChunkHeight = dataSource.getHashChunkHeight();
+            return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+        });
     }
 
     /**
@@ -1262,14 +1259,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH ->
-                new TeacherPushVirtualTreeView(reconnectConfig, this, metadata, pipeline);
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
-            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
-                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
+            case VirtualMapReconnectMode.PUSH -> new TeacherPushVirtualTreeView(reconnectConfig, this);
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM,
+                    VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC,
+                    VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new TeacherPullVirtualTreeView(reconnectConfig, this);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };

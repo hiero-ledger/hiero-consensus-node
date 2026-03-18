@@ -12,9 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -34,6 +36,7 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
@@ -41,6 +44,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -75,6 +79,8 @@ class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
     private static final AccountID NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3L).build();
+    private static final AccountID PAYER_ID =
+            AccountID.newBuilder().accountNum(800L).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -279,85 +285,48 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void testDispatchNodeRewardsWithEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+    void testDispatchNodeRewardsWithEmptyAmounts() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        // All nodes are inactive (not in activeNodeIds)
-        // And minNodeReward is 0, so no rewards should be dispatched
-        final var nodeGroups = nodeRewardGroups(
-                List.of(),
-                List.of(
-                        AccountID.newBuilder().accountNum(0L).build(),
-                        AccountID.newBuilder().accountNum(1L).build()));
+        subject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
-        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
-
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
+        // Should not dispatch anything when rewardAmounts is empty
         verifyNoInteractions(parentTxnFactory);
         verifyNoInteractions(dispatchProcessor);
     }
 
     @Test
     void testDispatchNodeRewardsWithNullState() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(null, NOW, emptyNodeGroups(), 100L, nodeRewardsAccountId, 1000L, 0L));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(null, NOW, rewardAmounts));
     }
 
     @Test
     void testDispatchNodeRewardsWithNullNow() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, null, emptyNodeGroups(), 100L, nodeRewardsAccountId, 1000L, 0L));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, null, rewardAmounts));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullNodeGroups() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, null, 100L, nodeRewardsAccountId, 1000L, 0L));
+    void testDispatchNodeRewardsWithNullRewardAmounts() {
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, NOW, null));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullNodeRewardsAccountId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, emptyNodeGroups(), 100L, null, 1000L, 0L));
-    }
+    void testDispatchNodeRewardsSuccess() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
+        rewardAmounts.addConsensusNodeReward(
+                3L, AccountID.newBuilder().accountNum(3L).build(), 100L);
 
-    @Test
-    void testDispatchNodeRewardsWithActiveNodesButAllDeclineReward() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var mockSystemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(mockSystemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
 
-        final var nodeGroups = emptyNodeGroups();
+        spySubject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
-        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
-
-        // Should not dispatch anything when all active nodes decline reward (meaning eligible sets are empty)
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithInactiveNodesAndMinRewardZero() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        final var nodeGroups = nodeRewardGroups(
-                List.of(), List.of(AccountID.newBuilder().accountNum(4L).build()));
-
-        // minNodeReward is 0, so inactive nodes should not receive rewards
-        subject.dispatchNodeRewards(state, NOW, nodeGroups, 100L, nodeRewardsAccountId, 1000L, 0L);
-
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        verify(mockSystemContext).dispatchAdmin(any());
     }
 
     @Test

@@ -10,13 +10,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,21 +80,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         VirtualMap virtualMap = restoreMap();
         if (virtualMap != null) {
             if (verify && map != null) {
-                final int parallelism = ForkJoinPool.getCommonPoolParallelism();
-                final AtomicLong numKeys = new AtomicLong();
-                final VirtualMap srcMap = virtualMap;
-                IntStream.range(0, parallelism).parallel().forEach(idx -> {
-                    long count = 0L;
-                    for (int i = idx; i < map.length; i += parallelism) {
-                        final BenchmarkValue value = srcMap.get(longToKey(i), BenchmarkValueCodec.INSTANCE);
-                        if (value != null) {
-                            map[i] = value.toLong();
-                            ++count;
-                        }
-                    }
-                    numKeys.addAndGet(count);
-                });
-                logger.info("Loaded {} keys in {} ms", numKeys, System.currentTimeMillis() - start);
+                copyMapToArray(virtualMap, map);
+                logger.info("Loaded {} keys in {} ms", map.length, System.currentTimeMillis() - start);
             } else {
                 logger.info("Loaded map in {} ms", System.currentTimeMillis() - start);
             }
@@ -105,6 +90,31 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
         BenchmarkMetrics.register(virtualMap::registerMetrics);
         return virtualMap;
+    }
+
+    /**
+     * Copies values from the given {@link VirtualMap} into a {@code long[]} array,
+     * where each index {@code i} maps to the key {@code longToKey(i)}.
+     * This is used to build a verification reference for later comparison with {@link #verifyMap(long[], VirtualMap)}.
+     *
+     * @param srcMap the source virtual map to read from
+     * @param map    the destination array; must be pre-allocated to the desired key range size
+     */
+    protected void copyMapToArray(final VirtualMap srcMap, final long[] map) {
+        final int parallelism = ForkJoinPool.getCommonPoolParallelism();
+        final AtomicLong numKeys = new AtomicLong();
+        IntStream.range(0, parallelism).parallel().forEach(idx -> {
+            long count = 0L;
+            for (int i = idx; i < map.length; i += parallelism) {
+                final BenchmarkValue value = srcMap.get(longToKey(i), BenchmarkValueCodec.INSTANCE);
+                if (value != null) {
+                    map[i] = value.toLong();
+                    ++count;
+                }
+            }
+            numKeys.addAndGet(count);
+        });
+        logger.info("Copied {} keys to verification array", numKeys.get());
     }
 
     private int snapshotIndex = 0;
@@ -147,7 +157,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     }
 
     /*
-     * Ensure map is fully flushed to disk. Save map to disk if saving data is specified.
+     * Ensure map is fully flushed to disk.
      */
     protected VirtualMap flushMap(final VirtualMap virtualMap) {
         logger.info("Flushing map {}...", virtualMap.getLabel());
@@ -165,11 +175,18 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
         logger.info("Flushed map in {} ms", System.currentTimeMillis() - start);
 
-        if (getBenchmarkConfig().saveDataDirectory()) {
-            curMap = saveMap(curMap);
-        }
-
         return curMap;
+    }
+
+    /**
+     * Flushes the map to disk, and optionally saves a snapshot if configured.
+     */
+    protected VirtualMap flushAndOptionallySaveMap(final VirtualMap virtualMap) {
+        VirtualMap flushed = flushMap(virtualMap);
+        if (getBenchmarkConfig().saveDataDirectory()) {
+            flushed = saveMap(flushed);
+        }
+        return flushed;
     }
 
     protected void verifyMap(long[] map, VirtualMap virtualMap) {
@@ -210,49 +227,28 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
     }
 
-    protected List<VirtualMap> saveMaps(final List<VirtualMap> virtualMaps) {
-        try {
-            Path savedDir;
-            for (int i = 0; ; i++) {
-                savedDir = getBenchDir().resolve(SAVED + i);
-                if (!Files.exists(savedDir)) {
-                    break;
-                }
-            }
-            Files.createDirectories(savedDir);
-
-            final Path finalSavedDir = savedDir;
-
-            return virtualMaps.stream()
-                    .map(virtualMap -> {
-                        final long start = System.currentTimeMillis();
-                        final VirtualMap curMap = virtualMap.copy();
-
-                        virtualMap.getHash();
-                        try {
-                            virtualMap.createSnapshot(finalSavedDir);
-                        } catch (IOException ex) {
-                            logger.error("Error saving VirtualMap", ex);
-                        }
-                        logger.info("Saved map to {} in {} ms", finalSavedDir, System.currentTimeMillis() - start);
-                        return curMap;
-                    })
-                    .collect(Collectors.toList());
-        } catch (IOException ex) {
-            logger.error("Error saving VirtualMap", ex);
-            throw new UncheckedIOException(ex);
-        } finally {
-            virtualMaps.forEach(VirtualMap::release);
-        }
+    protected VirtualMap saveMap(final VirtualMap virtualMap) {
+        return saveMap(virtualMap, null);
     }
 
-    protected VirtualMap saveMap(final VirtualMap virtualMap) {
+    /**
+     * Saves a snapshot of the virtual map to disk using an auto-incremented directory scheme.
+     *
+     * @param virtualMap the map to save — will be released by this method
+     * @param prefix     optional subdirectory prefix (e.g. "teacher"), or {@code null} for no prefix
+     * @return a mutable copy of the original map
+     */
+    protected VirtualMap saveMap(final VirtualMap virtualMap, final String prefix) {
         final VirtualMap curMap = virtualMap.copy();
         try {
             final long start = System.currentTimeMillis();
             Path savedDir;
             for (int i = 0; ; i++) {
-                savedDir = getBenchDir().resolve(SAVED + i);
+                savedDir = getBenchDir();
+                if (prefix != null) {
+                    savedDir = savedDir.resolve(prefix);
+                }
+                savedDir = savedDir.resolve(SAVED + i);
                 if (!Files.exists(savedDir)) {
                     break;
                 }
@@ -270,9 +266,23 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     }
 
     protected VirtualMap restoreMap() {
+        return restoreMap(null);
+    }
+
+    /**
+     * Restores the most recent snapshot of a virtual map from disk.
+     *
+     * @param prefix optional subdirectory prefix (e.g. "teacher"), or {@code null} for no prefix
+     * @return the restored map, or {@code null} if no saved snapshot was found
+     */
+    protected VirtualMap restoreMap(final String prefix) {
         Path savedDir = null;
         for (int i = 0; ; i++) {
-            final Path nextSavedDir = getBenchDir().resolve(SAVED + i);
+            Path nextSavedDir = getBenchDir();
+            if (prefix != null) {
+                nextSavedDir = nextSavedDir.resolve(prefix);
+            }
+            nextSavedDir = nextSavedDir.resolve(SAVED + i);
             if (!Files.isDirectory(nextSavedDir)) {
                 break;
             }

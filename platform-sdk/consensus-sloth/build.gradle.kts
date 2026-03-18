@@ -99,4 +99,12 @@ tasks.named<Test>("testPerformance") {
     providers.gradleProperty("testFilter").orNull?.let { filter ->
         this.filter.includeTestsMatching(filter)
     }
+
+    // Forward sloth.* system properties from the Gradle JVM to the test JVM.
+    // Allows overriding BenchmarkParameters from the command line, e.g.:
+    //   ./gradlew :consensus-sloth:testPerformance -Dsloth.tps=100 -Dsloth.benchmarkTime=60s
+    // sloth.env is excluded here as it is already set by the test suite configuration above.
+    System.getProperties()
+        .filterKeys { it.toString().startsWith("sloth.") && it.toString() != "sloth.env" }
+        .forEach { (key, value) -> systemProperty(key.toString(), value.toString()) }
 }
