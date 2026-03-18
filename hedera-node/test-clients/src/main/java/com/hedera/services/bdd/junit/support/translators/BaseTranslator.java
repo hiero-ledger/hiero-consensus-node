@@ -703,31 +703,7 @@ public class BaseTranslator {
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else {
-                            final var key = read.keyOrThrow();
-                            // Only check for written values in scheduled transactions,
-                            // where key-type reads can legitimately have writes (the
-                            // BlockStreamBuilder's key-to-index conversion doesn't work
-                            // for the scheduled execution path). In non-scheduled
-                            // transactions, key-type reads are always pure reads.
-                            if (parts.transactionIdOrThrow().scheduled()) {
-                                final var slotKey = new SlotKey(contractId, key);
-                                final Bytes writtenValue;
-                                if (executingHookId == null
-                                        || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
-                                    writtenValue = writtenSlots.get(slotKey);
-                                } else {
-                                    writtenValue = writtenHookSlots.get(
-                                            new EvmHookSlotKey(executingHookId, minimalKey(slotKey.key())));
-                                }
-                                if (writtenValue != null) {
-                                    builder.slot(HookUtils.minimalRepresentationOf(key))
-                                            .valueWritten(HookUtils.minimalRepresentationOf(writtenValue));
-                                } else {
-                                    builder.slot(key);
-                                }
-                            } else {
-                                builder.slot(key);
-                            }
+                            builder.slot(read.keyOrThrow());
                         }
                         recoveredChanges.add(builder.build());
                     });
