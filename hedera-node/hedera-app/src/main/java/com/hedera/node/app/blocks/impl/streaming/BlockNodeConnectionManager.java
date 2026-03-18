@@ -1054,7 +1054,7 @@ public class BlockNodeConnectionManager {
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
                     // we were able to elevate this connection to the new active one
                     connection.updateConnectionState(ConnectionState.ACTIVE);
-                    recordActiveConnectionIp(connection.configuration());
+                    recordActiveConnectionIp(connection);
                 } else {
                     // Another connection task has preempted this task, reschedule and try again
                     logger.info("{} Current connection task was preempted, rescheduling.", connection);
@@ -1373,7 +1373,8 @@ public class BlockNodeConnectionManager {
         return octet1 + octet2 + octet3 + octet4;
     }
 
-    private void recordActiveConnectionIp(final BlockNodeConfiguration nodeConfig) {
+    private void recordActiveConnectionIp(final BlockNodeStreamingConnection connection) {
+        final BlockNodeConfiguration nodeConfig = connection.configuration();
         long ipAsInteger;
 
         // Attempt to resolve the address of the block node
@@ -1389,8 +1390,6 @@ public class BlockNodeConnectionManager {
             // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use
             // the
             // label value and show which block node the consensus node is connected to at any given time.
-            // It may also be better to have a background task that runs every second or something that
-            // continuously emits the metric instead of just when a connection is promoted to active.
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
             if (logger.isInfoEnabled()) {
@@ -1407,6 +1406,7 @@ public class BlockNodeConnectionManager {
             ipAsInteger = -1L;
         }
 
+        connection.setCachedIpAsInteger(ipAsInteger);
         blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
     }
 
