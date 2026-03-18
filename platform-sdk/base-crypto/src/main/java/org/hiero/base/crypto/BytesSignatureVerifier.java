@@ -16,4 +16,15 @@ public interface BytesSignatureVerifier {
      * @return true if the signature is valid for the data, false otherwise
      */
     boolean verify(@NonNull Bytes data, @NonNull Bytes signature);
+
+    /**
+     * Whether this verifier instance is safe for concurrent use by multiple threads.
+     * Implementations that hold mutable state (e.g. {@link java.security.Signature}) should
+     * return {@code false}. Stateless or immutable implementations should return {@code true}.
+     *
+     * @return {@code true} if this verifier can be shared across threads, {@code false} otherwise
+     */
+    default boolean isThreadSafe() {
+        return false;
+    }
 }
