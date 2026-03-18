@@ -191,29 +191,32 @@ public class AbstractNodeConfigurationTest {
     private static Stream<Arguments> taskSchedulerConfigurationProvider() {
         return Stream.of(
                 // SEQUENTIAL with minimal configuration
-                Arguments.of(
-                        new TaskSchedulerConfiguration(TaskSchedulerType.SEQUENTIAL, null, null, null, null, null)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.SEQUENTIAL, null, null, null, null, null, null)),
                 // SEQUENTIAL with all features enabled
-                Arguments.of(
-                        new TaskSchedulerConfiguration(TaskSchedulerType.SEQUENTIAL, 1000L, true, true, true, true)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.SEQUENTIAL, 1000L, true, null, true, true, true)),
                 // DIRECT with no capacity limit
-                Arguments.of(new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT, 0L, false, false, false, false)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.DIRECT, 0L, false, false, false, false, false)),
                 // DIRECT with capacity and metrics
-                Arguments.of(new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT, 500L, true, true, false, false)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.DIRECT, 500L, true, false, true, false, false)),
                 // CONCURRENT with mixed features
-                Arguments.of(
-                        new TaskSchedulerConfiguration(TaskSchedulerType.CONCURRENT, 2000L, false, true, true, false)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.CONCURRENT, 2000L, false, true, true, true, false)),
                 // CONCURRENT with all features disabled
-                Arguments.of(
-                        new TaskSchedulerConfiguration(TaskSchedulerType.CONCURRENT, 100L, false, false, false, false)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.CONCURRENT, 100L, false, false, false, false, false)),
                 // NO_OP scheduler
-                Arguments.of(new TaskSchedulerConfiguration(TaskSchedulerType.NO_OP, null, null, null, null, null)),
+                Arguments.of(new TaskSchedulerConfiguration(
+                        TaskSchedulerType.NO_OP, null, null, null, null, null, null)),
                 // DIRECT_THREADSAFE with various settings
                 Arguments.of(new TaskSchedulerConfiguration(
-                        TaskSchedulerType.DIRECT_THREADSAFE, 750L, true, false, false, true)),
+                        TaskSchedulerType.DIRECT_THREADSAFE, 750L, true, false, false, false, true)),
                 // Test with Long.MAX_VALUE capacity
                 Arguments.of(new TaskSchedulerConfiguration(
-                        TaskSchedulerType.SEQUENTIAL, Long.MAX_VALUE, true, true, true, true)));
+                        TaskSchedulerType.SEQUENTIAL, Long.MAX_VALUE, true, null, true, true, true)));
     }
 
     private static class TestNodeConfiguration extends AbstractNodeConfiguration {

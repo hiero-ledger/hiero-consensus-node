@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.hiero.base.concurrent.AbstractTask;
 
@@ -18,6 +19,8 @@ class ConcurrentTask extends AbstractTask {
     private final Object data;
     private final ObjectCounter offRamp;
     private final UncaughtExceptionHandler uncaughtExceptionHandler;
+    @Nullable
+    private final AtomicLong inflightCount;
 
     /**
      * Constructor. The task is created with zero dependencies, but not started automatically. It's
@@ -28,18 +31,21 @@ class ConcurrentTask extends AbstractTask {
      * @param uncaughtExceptionHandler the handler for uncaught exceptions
      * @param handler                  the method that will be called when this task is executed
      * @param data                     the data to be passed to the consumer for this task
+     * @param inflightCount            if non-null, tracks the number of tasks currently being executed
      */
     ConcurrentTask(
             @NonNull final ForkJoinPool pool,
             @NonNull final ObjectCounter offRamp,
             @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler,
             @NonNull final Consumer<Object> handler,
-            @Nullable final Object data) {
+            @Nullable final Object data,
+            @Nullable final AtomicLong inflightCount) {
         super(pool, 0);
         this.handler = handler;
         this.data = data;
         this.offRamp = offRamp;
         this.uncaughtExceptionHandler = uncaughtExceptionHandler;
+        this.inflightCount = inflightCount;
     }
 
     /**
@@ -47,10 +53,16 @@ class ConcurrentTask extends AbstractTask {
      */
     @Override
     protected boolean onExecute() {
+        if (inflightCount != null) {
+            inflightCount.incrementAndGet();
+        }
         try {
             handler.accept(data);
             return true;
         } finally {
+            if (inflightCount != null) {
+                inflightCount.decrementAndGet();
+            }
             offRamp.offRamp();
         }
     }
