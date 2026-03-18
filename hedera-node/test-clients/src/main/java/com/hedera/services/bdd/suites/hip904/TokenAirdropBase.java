@@ -48,7 +48,7 @@ public class TokenAirdropBase {
      * {@link #nextNftSerial()} instead of hardcoding a value, to avoid collisions when
      * tests run in parallel on a shared embedded network.
      */
-    protected static final AtomicLong nextNftSerialNo = new AtomicLong(1);
+    private static final AtomicLong nextNftSerialNo = new AtomicLong(1);
 
     protected static long nextNftSerial() {
         return nextNftSerialNo.getAndIncrement();
