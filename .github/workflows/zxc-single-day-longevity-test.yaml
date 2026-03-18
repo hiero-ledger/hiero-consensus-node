@@ -26,7 +26,7 @@ on:
         type: string
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "960"
+        default: "840"
         description: "Test execution time, mins (3, 9, 21, 180, 330)"
         type: string
       add-app-props:
@@ -731,11 +731,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
 
-      - name: Delete namespace
-        if: ${{ inputs.delete-namespace == true }}
-        run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
-
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
@@ -796,13 +791,100 @@ jobs:
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
 
+
+  # Send this output back to the caller workflow
+  single-day-longevity-test-reconnect:
+    name: Reconnect test
+    runs-on: hl-cn-sdlt-lin-lg
+    if: ${{ !cancelled() }}
+    needs:
+      - longevity-tests-finish
+    outputs:
+      ReconnectStatus: ${{ steps.reconnect-status.outputs.value }}
+    steps:
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.33.0
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
+          certificate-ttl: 24h
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Create report dir
+        shell: bash
+        run: |
+          mkdir "${{ github.workspace }}"/report
+
+      - name: Start Reconnect
+        id: reconnect-status
+        run: |
+          set +x
+          set +e
+
+          downtime=1 #1800
+          warmtime=1 #600
+          NofLoops=2
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+          bash "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ steps.set-namespace.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops} 2>&1 | tee "${{ github.workspace }}"/report/reconnect.log
+          grep -E "Reconnect N=${NofLoops} done" "${{ github.workspace }}"/report/reconnect.log
+          echo "value=$?" >> "${GITHUB_OUTPUT}"
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
+
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
-      - longevity-tests-finish
+      - longevity-tests-reconnect
     outputs:
       result: ${{ steps.sdlt-status.outputs.result }}
     steps:
@@ -821,9 +903,10 @@ jobs:
           HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
           SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
           VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
+          RECONNECT="${{ needs.longevity-tests-reconnect.outputs.ReconnectStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
-          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" ]]; then
+          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" || [[ "${RECONNECT}" != "0" ]]; then
             RESULT="failure"
           else
             RESULT="success"
@@ -840,6 +923,7 @@ jobs:
           echo "- HCSLoadTest TPS: ${HCS}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- SmartContractLoadTest TPS: ${SMART}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- Validator: ${VALIDATOR}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- Reconnect: ${RECONNECT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-failures:
     name: Report Failures
@@ -848,9 +932,11 @@ jobs:
       - longevity-tests-start
       - longevity-tests-wait
       - longevity-tests-finish
+      - longevity-tests-reconnect
       - single-day-longevity-test-result
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
-      needs.single-day-longevity-test-result.result != 'success') &&
+      needs.single-day-longevity-test-result.result != 'success' ||
+      needs.longevity-tests-reconnect.result != 'success') &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -889,6 +975,7 @@ jobs:
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result
+      - single-day-longevity-test-reconnect
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -932,10 +1019,18 @@ jobs:
             Validator="FAILED"
           fi
 
+          if [[ "${{ needs.longevity-tests-reconnect.outputs.ReconnectStatus }}" == "0" ]]
+          then
+            Reconnect="PASSED"
+          else
+            Reconnect="FAILED"
+          fi
+
           #last line is 5, it does not need comma block separator
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},${freport},\
-           {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
+           {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"},
+           {\"type\": \"text\",\"text\": \"ReconnectTest ${Reconnect}\"}"
 
           cat <<EOF > slack_payload.json
           {
