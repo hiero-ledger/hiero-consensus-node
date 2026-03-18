@@ -12,7 +12,10 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.SecureRandom;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.List;
 import javax.net.ssl.KeyManagerFactory;
@@ -48,28 +51,24 @@ public class TlsFactory implements SocketFactory {
 
     /**
      * Construct this object to create and receive TLS connections.
-     * @param selfId the id of this node
+     * @param agrCert the TLS certificate to use
+     * @param agrKey the private key corresponding to the public key in the certificate
      * @param peers the list of peers to allow connections with
+     * @param selfId the id of this node
      * @param configuration configuration for the platform
-     * @param keyManagerFactory the KeyManagerFactory to use for TLS connections
-     * @param trustManagerFactory the TrustManagerFactory to use for TLS connections
-     * @throws NoSuchAlgorithmException if the required SSL algorithm is not available
      */
     public TlsFactory(
-            @NonNull final NodeId selfId,
+            @NonNull final Certificate agrCert,
+            @NonNull final PrivateKey agrKey,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final Configuration configuration,
-            @NonNull final KeyManagerFactory keyManagerFactory,
-            @NonNull final TrustManagerFactory trustManagerFactory)
-            throws NoSuchAlgorithmException {
-        requireNonNull(peers);
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
         this.selfId = requireNonNull(selfId);
         this.configuration = requireNonNull(configuration);
-        this.keyManagerFactory = requireNonNull(keyManagerFactory);
-        this.trustManagerFactory = requireNonNull(trustManagerFactory);
+        this.keyManagerFactory = ConsensusCryptoUtils.createKeyManagerFactory(agrCert, agrKey, configuration);
+        this.trustManagerFactory = TrustManagerFactory.getInstance(CryptoConstants.TRUST_MANAGER_FACTORY_TYPE);
         this.sslContext = SSLContext.getInstance(CryptoConstants.SSL_VERSION);
-
-        /* nondeterministic CSPRNG */
         this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
 
         reload(peers);

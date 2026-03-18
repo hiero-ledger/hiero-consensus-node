@@ -1,52 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
-import static java.util.Objects.requireNonNull;
-
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.base.crypto.config.CryptoConfig_;
 
 /**
  * Warning-only password policy checks for keystore passphrases.
  *
+ * <p>This class intentionally does not enforce or reject weak passwords. It only logs warnings to help operators
+ * detect insecure configuration.
  */
-public final class KeystoreUtils {
+public final class KeystorePasswordPolicy {
+    private static final Logger logger = LogManager.getLogger(KeystorePasswordPolicy.class);
 
-    private static final Logger logger = LogManager.getLogger(KeystoreUtils.class);
-
-    private KeystoreUtils() {}
+    private KeystorePasswordPolicy() {}
 
     /** Recommended minimum passphrase length for keystore passwords. */
     private static final int MIN_LENGTH = 12;
 
     /**
-     * Retrieves the keystore password from the configuration and logs a warning if it does not meet the recommended
-     * password policy to help operators detect insecure configuration.
+     * Logs a warning if the provided keystore password does not meet the recommended policy.
      *
-     * @param configuration the configuration to retrieve the keystore password from
-     * @return the keystore password from the configuration
-     * @throws IllegalStateException if the keystore password is {@code null} or blank
+     * <p>This check is advisory only and does not reject non-compliant passwords.
+     *
+     * @param configKey the configuration key associated with the password value
+     * @param password the password to evaluate
      */
-    @NonNull
-    public static String getConfiguredPassword(@NonNull final Configuration configuration) {
-        final CryptoConfig configData = configuration.getConfigData(CryptoConfig.class);
-        final String passphrase = configData.keystorePassword();
-        if (passphrase == null || passphrase.isBlank()) {
-            throw new IllegalStateException(CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank");
-        }
-        warnIfNonCompliant(passphrase);
-
-        return passphrase;
-    }
-
-    static void warnIfNonCompliant(@NonNull final String password) {
-        requireNonNull(password, "password must not be null");
+    public static void warnIfNonCompliant(@NonNull final String configKey, @NonNull final String password) {
+        Objects.requireNonNull(configKey, "configKey must not be null");
+        Objects.requireNonNull(password, "password must not be null");
 
         final List<String> issues = issues(password);
         if (issues.isEmpty()) {
@@ -56,7 +42,7 @@ public final class KeystoreUtils {
         logger.warn(
                 "Configured {} does not meet recommended password policy ({}). This is not enforced, but weak "
                         + "keystore passwords increase risk of offline brute-force attacks.",
-                CryptoConfig_.KEYSTORE_PASSWORD,
+                configKey,
                 String.join(", ", issues));
     }
 
