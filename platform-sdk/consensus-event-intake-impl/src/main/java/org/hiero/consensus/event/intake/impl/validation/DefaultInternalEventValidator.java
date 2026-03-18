@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventFieldValidator;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
