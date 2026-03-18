@@ -77,25 +77,14 @@
     </RollingFile>
 
     <RollingFile name="BlockNodeCommsFile" fileName="output/block-node-comms.log"
-               filePattern="output/block-node-comms-%i.log">
+                 filePattern="output/block-node-comms-%i.log">
       <PatternLayout>
-          <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - [%t] %m{nolookups}%n</pattern>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - [%t] %m{nolookups}%n</pattern>
       </PatternLayout>
       <Policies>
-          <SizeBasedTriggeringPolicy size="100 MB"/>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
       </Policies>
       <DefaultRolloverStrategy max="10"/>
-    </RollingFile>
-
-    <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
-                   filePattern="output/blocknode-comms-%i.log">
-          <PatternLayout>
-              <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
-          </PatternLayout>
-          <Policies>
-              <SizeBasedTriggeringPolicy size="500 MB"/>
-          </Policies>
-          <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
   </Appenders>
@@ -329,7 +318,6 @@
       </Filters>
     </Logger>
 
-
     <!-- Send transaction state logs to their own appender   -->
     <Logger name="com.hedera.node.app.state.logging.TransactionStateLogger" level="info" additivity="false">
       <AppenderRef ref="TransactionStateLogs"/>
@@ -339,12 +327,12 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="DEBUG" additivity="false">
-      <AppenderRef ref="BlockNodeCommsFile"/>
-    </Logger>
     <Logger name="com.hedera.services.sigs" level="error" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
+      <AppenderRef ref="BlockNodeCommsFile"/>
     </Logger>
     <Logger name="com.hedera.services.queries.answering" level="warn" additivity="false">
       <AppenderRef ref="QueriesRollingFile"/>
@@ -490,4 +478,3 @@
     </Logger>
   </Loggers>
 </Configuration>
-
