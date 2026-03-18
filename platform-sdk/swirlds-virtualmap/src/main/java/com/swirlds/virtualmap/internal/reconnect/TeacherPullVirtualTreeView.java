@@ -12,6 +12,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -62,9 +63,11 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final AsyncInputStream in,
             final AsyncOutputStream out) {
         // FUTURE work: pool size config
-        for (int i = 0; i < 16; i++) {
+        final int teacherTasks = 16;
+        final AtomicInteger tasksDone = new AtomicInteger(teacherTasks);
+        for (int i = 0; i < teacherTasks; i++) {
             final TeacherPullVirtualTreeReceiveTask teacherReceiveTask =
-                    new TeacherPullVirtualTreeReceiveTask(time, reconnectConfig, workGroup, in, out, this);
+                    new TeacherPullVirtualTreeReceiveTask(time, reconnectConfig, workGroup, in, out, this, tasksDone);
             teacherReceiveTask.exec();
         }
     }
@@ -82,7 +85,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * @return the node hash
      */
     public Hash loadHash(final long path) {
-        return records.findHash(path);
+        return path == 0 ? records.rootHash() : records.findHash(path);
     }
 
     /**

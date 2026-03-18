@@ -80,21 +80,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         VirtualMap virtualMap = restoreMap();
         if (virtualMap != null) {
             if (verify && map != null) {
-                final int parallelism = ForkJoinPool.getCommonPoolParallelism();
-                final AtomicLong numKeys = new AtomicLong();
-                final VirtualMap srcMap = virtualMap;
-                IntStream.range(0, parallelism).parallel().forEach(idx -> {
-                    long count = 0L;
-                    for (int i = idx; i < map.length; i += parallelism) {
-                        final BenchmarkValue value = srcMap.get(longToKey(i), BenchmarkValueCodec.INSTANCE);
-                        if (value != null) {
-                            map[i] = value.toLong();
-                            ++count;
-                        }
-                    }
-                    numKeys.addAndGet(count);
-                });
-                logger.info("Loaded {} keys in {} ms", numKeys, System.currentTimeMillis() - start);
+                copyMapToArray(virtualMap, map);
+                logger.info("Loaded {} keys in {} ms", map.length, System.currentTimeMillis() - start);
             } else {
                 logger.info("Loaded map in {} ms", System.currentTimeMillis() - start);
             }
@@ -103,6 +90,31 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
         BenchmarkMetrics.register(virtualMap::registerMetrics);
         return virtualMap;
+    }
+
+    /**
+     * Copies values from the given {@link VirtualMap} into a {@code long[]} array,
+     * where each index {@code i} maps to the key {@code longToKey(i)}.
+     * This is used to build a verification reference for later comparison with {@link #verifyMap(long[], VirtualMap)}.
+     *
+     * @param srcMap the source virtual map to read from
+     * @param map    the destination array; must be pre-allocated to the desired key range size
+     */
+    protected void copyMapToArray(final VirtualMap srcMap, final long[] map) {
+        final int parallelism = ForkJoinPool.getCommonPoolParallelism();
+        final AtomicLong numKeys = new AtomicLong();
+        IntStream.range(0, parallelism).parallel().forEach(idx -> {
+            long count = 0L;
+            for (int i = idx; i < map.length; i += parallelism) {
+                final BenchmarkValue value = srcMap.get(longToKey(i), BenchmarkValueCodec.INSTANCE);
+                if (value != null) {
+                    map[i] = value.toLong();
+                    ++count;
+                }
+            }
+            numKeys.addAndGet(count);
+        });
+        logger.info("Copied {} keys to verification array", numKeys.get());
     }
 
     private int snapshotIndex = 0;
