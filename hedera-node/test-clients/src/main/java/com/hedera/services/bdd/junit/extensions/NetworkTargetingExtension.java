@@ -201,7 +201,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 } finally {
                     // Ensure network termination even if validation fails
                     SHARED_NETWORK.get().terminate();
-                    SHARED_BLOCK_NODE_NETWORK.get().terminate();
+                    final boolean failed =
+                            extensionContext.getExecutionException().isPresent();
+                    SHARED_BLOCK_NODE_NETWORK.get().terminate(failed);
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
                     SHARED_BLOCK_NODE_NETWORK.set(null);

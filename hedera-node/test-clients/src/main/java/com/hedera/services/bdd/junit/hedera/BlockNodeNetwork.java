@@ -9,6 +9,7 @@ import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,7 +76,11 @@ public class BlockNodeNetwork {
         startBlockNodesAsApplicable();
     }
 
-    public void terminate() {
+    public void terminate(final boolean dumpLogs) {
+        if (dumpLogs) {
+            dumpContainerLogs();
+        }
+
         final List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         // Stop block node containers
         for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
@@ -118,6 +123,31 @@ public class BlockNodeNetwork {
 
         blockNodeContainerById.clear();
         simulatedBlockNodeById.clear();
+    }
+
+    private void dumpContainerLogs() {
+        if (blockNodeContainerById.isEmpty()) {
+            return;
+        }
+        try {
+            final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
+            final Path outputDir = scopeRoot.resolve("block-node-containers").resolve("output");
+            Files.createDirectories(outputDir);
+            for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
+                final long id = entry.getKey();
+                final BlockNodeContainer container = entry.getValue();
+                try {
+                    final String logs = container.getLogs();
+                    final Path logFile = outputDir.resolve("block-node-" + id + ".log");
+                    Files.writeString(logFile, logs);
+                    logger.info("Wrote block node container {} logs to {}", id, logFile);
+                } catch (final Exception e) {
+                    logger.error("Failed to capture logs for block node container {}", id, e);
+                }
+            }
+        } catch (final Exception e) {
+            logger.error("Failed to create block node container logs directory", e);
+        }
     }
 
     private void startBlockNodesAsApplicable() {
