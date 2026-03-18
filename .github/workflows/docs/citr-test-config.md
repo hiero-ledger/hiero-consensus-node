@@ -13,8 +13,8 @@ test suites include:
 | MATS        | Minimal Acceptable Test Suite | Basic functional checks against main branch when changes are made                                   | X         |
 | XTS         | Extended Test Suite           | Longer runner functional tests run on a scheduled basis                                             | X         |
 | SDCT        | Single Day Canonical Tests    | Long established transaction loads by transaction types to measure E2E latency                      | X         |
-| SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
 | SDPT        | Single Day Performance Tests  | Unthrottled high TPS tests with large states to evaluate throughput capability                      | X         |
+| SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
 | MDLT        | Multi Day Longevity Tests     | Production throttled mixed TPS load over many days to test long term network stability              | X         |
 | Shortgevity | Short Longevity Tests         | Production throttled mixed TPS load with reconnects on a mainnet-like environment over several days |           |
 | MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
@@ -137,6 +137,55 @@ These tests run sequentially with a Mirror node setup to measure E2E latency per
 | Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
 | Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
 
+## SDPT
+
+### Purpose
+
+SDPT (Single Day Performance Test) is designed to run unthrottled high TPS tests with large states to evaluate the
+throughput capability of the network at scale. It runs on a small, heterogeneous network environment to quickly identify
+potential performance regressions.
+
+### Environment
+
+- SDPT runs inside self-hosted github runners every 24 hours on the **default branch** (`main`).
+- SDPT is expected to complete within 20 hours of the test suite starting.
+- SDPT has a dry-run equivalent that can be run against any PR, tag, or branch.
+
+### Workflows
+
+- SDPT is triggered by
+  the [ZXF: [CITR] Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller.yaml)
+  workflow.
+- SDPT Dry Run is triggered manually via
+  the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml)
+  workflow.
+
+### Hardware
+
+Latitude kubernetes cluster
+
+- 7 nodes for Consensus Nodes
+- 1 node for CryptoBench
+- 1 node for aux services and NLG client
+
+### Included Tests
+
+|       Test Name        |                                              Workflow                                              |                Required Parameters                | Run time  |                  Precursor Steps                   |
+|------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
+| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| CryptoBench            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | NftTransferLoadTest                                |
+| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
+| HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
+| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
+| State Validator        | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
+
+### Runtime durations, practical settings
+
+- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000, files=60
+- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000, files=600
+- 20 hours: nlg-time=330, nlg-accounts=100000000, files=6000
+
 ## SDLT
 
 ### Purpose
@@ -187,55 +236,6 @@ Latitude kubernetes cluster
 - 1 hour : nlg-time=21 (mins), nlg-accounts=20000000
 - 3 hour: nlg-time=180, nlg-accounts=20000000
 - 16 hours: nlg-time=960, nlg-accounts=100000000
-
-## SDPT
-
-### Purpose
-
-SDPT (Single Day Performance Test) is designed to run unthrottled high TPS tests with large states to evaluate the
-throughput capability of the network at scale. It runs on a small, heterogeneous network environment to quickly identify
-potential performance regressions.
-
-### Environment
-
-- SDPT runs inside self-hosted github runners every 24 hours on the **default branch** (`main`).
-- SDPT is expected to complete within 20 hours of the test suite starting.
-- SDPT has a dry-run equivalent that can be run against any PR, tag, or branch.
-
-### Workflows
-
-- SDPT is triggered by
-  the [ZXF: [CITR] Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller.yaml)
-  workflow.
-- SDPT Dry Run is triggered manually via
-  the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml)
-  workflow.
-
-### Hardware
-
-Latitude kubernetes cluster
-
-- 7 nodes for Consensus Nodes
-- 1 node for CryptoBench
-- 1 node for aux services and NLG client
-
-### Included Tests
-
-|       Test Name        |                                              Workflow                                              |                Required Parameters                | Run time  |                  Precursor Steps                   |
-|------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
-| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| CryptoBench            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | NftTransferLoadTest                                |
-| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
-| HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
-| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
-| State Validator        | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
-
-### Runtime durations, practical settings
-
-- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000, files=60
-- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000, files=600
-- 20 hours: nlg-time=330, nlg-accounts=100000000, files=6000
 
 ## MDLT
 
