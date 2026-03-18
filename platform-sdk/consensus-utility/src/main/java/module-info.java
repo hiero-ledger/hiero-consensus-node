@@ -9,12 +9,11 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.event;
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.io;
-    exports org.hiero.consensus.io.extendable;
-    exports org.hiero.consensus.io.extendable.extensions;
     exports org.hiero.consensus.node;
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
+    exports org.hiero.consensus.io.counting;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.ByteCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -219,10 +219,8 @@ class SocketConnectionTests {
     @ParameterizedTest
     @MethodSource("booleans")
     void testInitForSync(final boolean outbound) throws SocketException {
-        CountingStreamExtension disCounter = mock(CountingStreamExtension.class);
-        CountingStreamExtension dosCounter = mock(CountingStreamExtension.class);
-        when(dis.getSyncByteCounter()).thenReturn(disCounter);
-        when(dos.getSyncByteCounter()).thenReturn(dosCounter);
+        ByteCounter disCounter = mock(ByteCounter.class);
+        when(dis.byteCounter()).thenReturn(disCounter);
 
         // mock Connection.connected() = true
         when(socket.isClosed()).thenReturn(false);
@@ -232,10 +230,8 @@ class SocketConnectionTests {
         initConnection(outbound);
         assertDoesNotThrow(() -> conn.initForSync(), "An exception should not be thrown when the connection is valid.");
 
-        verify(dis).getSyncByteCounter();
-        verify(dos).getSyncByteCounter();
-        verify(disCounter).resetCount();
-        verify(dosCounter).resetCount();
+        verify(dis).byteCounter();
+        verify(disCounter).getAndReset();
         verify(socket).setSoTimeout(anyInt());
     }
 
