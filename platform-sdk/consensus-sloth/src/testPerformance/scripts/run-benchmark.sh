@@ -141,7 +141,8 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         # failed assertion).  The log is always written by tee regardless of the exit code.
         # shellcheck disable=SC2086
         GRADLE_EXIT=0
-        ./gradlew :consensus-sloth:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks ${SLOTH_JVM_PROPS:-} 2>&1 | tee "$LOG_FILE" || GRADLE_EXIT=$?
+        echo ./gradlew :consensus-sloth:testPerformance ${SLOTH_JVM_PROPS:-} --tests "*${EXPERIMENT_CLASS}" --rerun-tasks
+        ./gradlew :consensus-sloth:testPerformance ${SLOTH_JVM_PROPS:-} --tests "*${EXPERIMENT_CLASS}" --rerun-tasks  2>&1 | tee "$LOG_FILE" || GRADLE_EXIT=$?
         if [[ "$GRADLE_EXIT" -ne 0 ]]; then
             echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS} (exit ${GRADLE_EXIT}) — collecting partial results${NC}"
         fi
