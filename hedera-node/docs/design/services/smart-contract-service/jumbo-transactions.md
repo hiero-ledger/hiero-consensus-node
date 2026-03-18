@@ -37,68 +37,31 @@ Note: Setting size limits on the `ethereumCall` endpoint does not mean only ethe
 - Modify `GrpcServiceBuilder.java`, `MethodBase.java`, and `DataBufferMarshaller.java` so the request buffer size can be read from the configuration.\
 In `GrpcServiceBuilder`, when building service definition, add a condition, based on the feature flag and service/method names.
 
-```java
-// check if method should be a jumbo transaction
-if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
-    // add jumbo transaction methods
-    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, jumboTxnMaxSize);
-    addMethod(builder, serviceName, methodName, method, jumboMarshaller);
-} else {
-    // add regular transaction methods
-    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
-    addMethod(builder, serviceName, methodName, method, marshaller);
-}
-```
-
 ### Ingest workflow validations
 
 - In `IngestChecker.runAllChecks` use the size limit from the configuration and pass it to `TransactionChecker.parseAndCheck` to validate the transaction size.
+- Fail fast if there are too many transaction bytes
 
 ```java
-private static int maxIngestParseSize(Configuration configuration) {
-    final var jumboTxnEnabled =
-            configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-    final var jumboMaxTxnSize =
-            configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-    final var transactionMaxBytes =
-            configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-    return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-}
-```
-
-```java
-// Fail fast if there are too many transaction bytes
 if (buffer.length() > maxSize) {
     throw new PreCheckException(TRANSACTION_OVERSIZE);
 }
 ```
 
 - Inside the `TransactionChecker.checkParsed` method, validate the size limit and the functionality of the transaction.
+- The performed validations are based on\
+  two feature flags: `jumboTransactions` and `governanceTransactions`
+- For more context on how governance transactions work, refer to: [Governance Transactions](../../../governance-transactions.md)
+- Check the transaction size during preliminary checks (before payer is known).
 
 ```java
-void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
-    final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-    final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
-
-    if (jumboTxnEnabled
-            && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
-            && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
-        throw new PreCheckException(TRANSACTION_OVERSIZE);
-    }
-}
+void checkTransactionSize(TransactionInfo txInfo);
 ```
 
 - Additionally, check after Ethereum hydrate is done if the `ethereumCallData` field is up to 128KB
 
 ```java
-private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
-    final var maxJumboEthereumCallDataSize =
-            configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
-
-    if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
-        throw new HandleException(TRANSACTION_OVERSIZE);
-    }
-}
+void validateHevmTransaction(HederaEvmTransaction hevmTransaction);
 ```
 
 ### Throttles
@@ -199,5 +162,9 @@ public long transactionIntrinsicGasCost(final Bytes payload, final boolean isCon
 
 #### Negative Tests
 
-- validate that non-jumbo transaction bigger than 6kb should fail
+- validate that non-jumbo transaction bigger than 6kb should fail, if governance transactions are disabled
 - validate that jumbo transaction gets bytes throttled at ingest
+
+#### Important notes
+
+Any configurations updated during runtime of the consensus node and used in the grpc layer of the system **will not** be reflected and applied to the grpc layer until the node is restarted.

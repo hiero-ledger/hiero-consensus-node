@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures.info;
 
-import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;

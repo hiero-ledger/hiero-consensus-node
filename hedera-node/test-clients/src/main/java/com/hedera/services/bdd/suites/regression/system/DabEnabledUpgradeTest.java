@@ -6,17 +6,19 @@ import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -25,10 +27,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
@@ -60,15 +65,19 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
+import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -186,7 +195,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .build())),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
                     final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
                             .filter(entry -> entry.getNodeId() == 0L)
@@ -333,6 +342,104 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         }
     }
 
+    @Nested
+    @Order(7)
+    @DisplayName("account id update affects records output dir on prepare upgrade")
+    @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+    class RecordsOutputPath {
+        @HapiTest
+        @Order(0)
+        final Stream<DynamicTest> newNodeUpdate() {
+            final AtomicReference<AccountID> initialNodeAccount = new AtomicReference<>();
+            final AtomicReference<AccountID> newNodeAccount = new AtomicReference<>();
+            final AtomicLong nodeId = new AtomicLong();
+            final AtomicReference<SemanticVersion> currentVersion = new AtomicReference<>();
+
+            return hapiTest(
+                    cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
+                    cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
+                    // create node txn
+                    sourcing(
+                            () -> nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
+                                    .adminKey(DEFAULT_PAYER)
+                                    .description(CLASSIC_NODE_NAMES[4])
+                                    .withAvailableSubProcessPorts()
+                                    .gossipCaCertificate(VALID_CERT)
+                                    .exposingCreatedIdTo(nodeId::set)),
+                    doingContextual(spec -> {
+                        allRunFor(
+                                spec,
+                                // Add the new node to the network
+                                prepareFakeUpgrade(),
+                                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(nodeId.get())),
+                                // update the node account id
+                                nodeUpdate("newNode")
+                                        .accountId("newNodeAccountId")
+                                        .signedByPayerAnd("newNodeAccountId"),
+
+                                // try death restart of the node
+                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
+                                logIt("Node is supposedly down"),
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
+
+                                // reconnect the node
+                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+                                sourcing(() ->
+                                        reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+
+                                // validate the node is using the initial node account for the records and blocks paths
+                                validatePathsDoesntExist(String.valueOf(nodeId.get()), newNodeAccount));
+                    }));
+        }
+
+        @HapiTest
+        @Order(1)
+        final Stream<DynamicTest> update() {
+            final AtomicReference<AccountID> accountId = new AtomicReference<>();
+            final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+            final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+            final String nodeToUpdate = "2";
+
+            return hapiTest(
+                    cryptoCreate("account").exposingCreatedIdTo(accountId::set),
+                    cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
+
+                    // 1. update existing node account id
+                    nodeUpdate(nodeToUpdate).accountId("account").signedByPayerAnd("account"),
+                    // 2. validate the new record path is empty after update.
+                    validatePathsDoesntExist(nodeToUpdate, accountId),
+
+                    // 3. The output paths should update on startup after the upgrade
+                    prepareFakeUpgrade(),
+                    upgradeToNextConfigVersion(),
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
+
+                    // after the upgrade the node should start using the new paths
+                    validatePathsExist(nodeToUpdate, accountId),
+
+                    // 4. update again
+                    nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
+                    // 5. reconnect
+                    getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                    sourcing(() ->
+                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
+                    // 6. validate the new record paths are empty even after reconnect
+                    validatePathsDoesntExist(nodeToUpdate, newAccountId),
+
+                    // 7. upgrade and validate the new records and blocks paths exist
+                    prepareFakeUpgrade(),
+                    upgradeToNextConfigVersion(),
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
+                    validatePathsExist(nodeToUpdate, newAccountId));
+        }
+    }
+
     private static void verifyAddressInfo(final AddressBookPojo addressBook, HapiSpec spec) {
         final var entries = addressBook.getEntries().stream()
                 .map(BookEntryPojo::getNodeAccount)
@@ -364,5 +471,32 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var classicIds =
                 LongStream.range(0, CLASSIC_HAPI_TEST_NETWORK_SIZE).boxed().collect(toSet());
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
+    }
+
+    private static String recordsPath(String nodeId) {
+        return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
+    }
+
+    private static String blocksPath(String nodeId) {
+        return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
+    }
+
+    private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
+        return doingContextual((spec) -> {
+            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            assertThat(recordPath.toFile().exists()).isFalse();
+
+            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            assertThat(blockPath.toFile().exists()).isFalse();
+        });
+    }
+
+    private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
+        return doingContextual((spec) -> {
+            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            assertThat(recordPath.toFile().exists()).isTrue();
+            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            assertThat(blockPath.toFile().exists()).isTrue();
+        });
     }
 }

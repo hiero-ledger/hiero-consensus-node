@@ -54,16 +54,15 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     @Override
     public Set<Long> getAll() {
         final var numStakingInfo = entityCounters.getCounterFor(EntityType.STAKING_INFO);
+        final var numNodes = entityCounters.getCounterFor(EntityType.NODE);
         if (numStakingInfo == 0) {
             return Collections.emptySet();
         }
         final var nodeIds = new HashSet<Long>();
-        for (var i = 0; i < numStakingInfo; i++) {
+        for (var i = 0; i < numNodes; i++) {
             final var nodeId = new EntityNumber(i);
             if (stakingInfoState.contains(nodeId)) {
                 nodeIds.add(nodeId.number());
-            } else {
-                log.warn("Staking info for node {} not found in state", nodeId.number());
             }
         }
         return nodeIds;

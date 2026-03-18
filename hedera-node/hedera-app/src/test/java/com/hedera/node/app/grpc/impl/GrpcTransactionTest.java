@@ -143,7 +143,7 @@ class GrpcTransactionTest extends GrpcTestBase {
         setUp(GOOD_INGEST);
 
         // When I call a method on the service and pass too many bytes
-        final var payload = randomString(1024 * 10);
+        final var payload = randomString(1024 * 131);
         final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, METHOD, payload));
 
         // Then the resulting status code is UNKNOWN

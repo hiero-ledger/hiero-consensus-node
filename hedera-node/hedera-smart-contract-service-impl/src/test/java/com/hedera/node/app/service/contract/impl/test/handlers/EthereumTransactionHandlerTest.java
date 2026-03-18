@@ -2,12 +2,12 @@
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
@@ -15,8 +15,7 @@ import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCa
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
@@ -25,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -65,12 +65,12 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -356,7 +356,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
                 .willThrow(new IllegalStateException("Oops"));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
     }
 
     @Test
@@ -369,8 +369,8 @@ class EthereumTransactionHandlerTest {
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
-                .willReturn(HydratedEthTxData.failureFrom(INVALID_ETHEREUM_TRANSACTION));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+                .willReturn(HydratedEthTxData.failureFrom(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION));
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
         verifyNoInteractions(ethereumSignatures);
     }
 
@@ -407,33 +407,94 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void validatePureChecks() {
+    void validatePureChecksHappyPath() {
+        // check bad to evm address
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ONE);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+        }
+    }
+
+    @Test
+    void validatePureChecksCheckBadEthTxnBody() {
         // check bad eth txn body
         final var txn1 = ethTxWithNoTx();
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        PreCheckException exception =
+                assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+    }
 
+    @Test
+    void validatePureChecksHbarsToBurnAddress() {
+        // check bad to evm address
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ONE);
+            given(ethTxDataReturned.to()).willReturn(new byte[20]);
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS, exception.responseCode());
+        }
+    }
+
+    @Test
+    void validatePureChecksBadToEvmAddress() {
         // check bad to evm address
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             final var toAddress = new byte[] {1, 0, 1, 0};
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD + 1);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(ethTxDataReturned.to()).willReturn(toAddress);
-            given(pureChecksContext.body()).willReturn(ethTxWithTx());
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(ResponseCodeEnum.INVALID_CONTRACT_ID, exception.responseCode());
         }
+    }
 
+    @Test
+    void validatePureChecksAtLeastIntrinsicGas() {
         // check at least intrinsic gas
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
             given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
+        }
+    }
+
+    @Test
+    void validatePureChecksAtLeastIntrinsicGasForContractCreate() {
+        // check at least intrinsic gas for contract create (hasToAddress() == false)
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(false);
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
+                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
         }
     }
 

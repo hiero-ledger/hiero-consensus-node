@@ -41,7 +41,8 @@ class CustomGasCalculatorTest {
                 4 * 3 + // zero byte cost
                         16 * 2 + // non-zero byte cost
                         21_000L + // base TX cost
-                        32_000L, // contract creation base cost
+                        32_000L + // contract creation base cost
+                        2, // contract creation 1 word cost
                 subject.transactionIntrinsicGasCost(Bytes.of(0, 1, 0, 3, 0), true, 0L));
     }
 }

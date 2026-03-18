@@ -11,8 +11,9 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.service.token.records.TokenContext;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.swirlds.config.api.Configuration;
@@ -37,7 +38,7 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
         requireNonNull(stack, "stack must not be null");
         this.configuration = requireNonNull(configuration, "configuration must not be null");
 
-        this.readableStoreFactory = new ReadableStoreFactory(stack);
+        this.readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         this.writableStoreFactory = new WritableStoreFactory(stack, TokenService.NAME, entityCounters);
         this.consensusTime = requireNonNull(consensusTime, "consensusTime must not be null");
     }
@@ -58,7 +59,7 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
     @Override
     public <T> T readableStore(@NonNull Class<T> storeInterface) {
         requireNonNull(storeInterface, "storeInterface must not be null");
-        return readableStoreFactory.getStore(storeInterface);
+        return readableStoreFactory.readableStore(storeInterface);
     }
 
     @NonNull
@@ -103,6 +104,8 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
 
     @Override
     public Set<Long> knownNodeIds() {
-        return readableStoreFactory.getStore(ReadableStakingInfoStore.class).getAll();
+        return readableStoreFactory
+                .readableStore(ReadableStakingInfoStore.class)
+                .getAll();
     }
 }

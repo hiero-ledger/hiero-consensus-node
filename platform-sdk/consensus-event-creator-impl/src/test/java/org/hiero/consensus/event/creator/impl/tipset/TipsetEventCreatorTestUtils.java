@@ -15,14 +15,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.NoSuchAlgorithmException;
@@ -38,7 +34,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -48,6 +46,8 @@ import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
 import org.junit.jupiter.api.Assertions;
 
 public class TipsetEventCreatorTestUtils {
@@ -61,10 +61,14 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            final int maxParents) {
 
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
+                .build();
+
         final Metrics metrics = new NoOpMetrics();
 
         final BytesSigner signer = mock(BytesSigner.class);
@@ -102,7 +106,7 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -316,5 +320,10 @@ public class TipsetEventCreatorTestUtils {
     @NonNull
     public static List<Boolean> booleanValues() {
         return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
+    }
+
+    @NonNull
+    public static List<Integer> maxParentSizes() {
+        return Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
     }
 }

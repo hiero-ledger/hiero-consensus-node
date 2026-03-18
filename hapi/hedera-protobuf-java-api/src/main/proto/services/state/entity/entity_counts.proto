@@ -76,7 +76,7 @@ message EntityCounts {
    */
   uint64 num_hooks = 14;
   /**
-   * The number of lambda hook storage slots in the network.
+   * The number of EVM hook storage slots in the network.
    */
-  uint64 num_lambda_storage_slots = 15;
+  uint64 num_evm_hook_storage_slots = 15;
 }

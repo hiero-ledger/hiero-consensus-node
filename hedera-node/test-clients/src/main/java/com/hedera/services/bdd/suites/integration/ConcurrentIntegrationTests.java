@@ -5,12 +5,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -21,11 +23,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateStakingInfos;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
@@ -39,6 +44,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -57,6 +63,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -68,12 +75,17 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -87,11 +99,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -103,13 +114,11 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class ConcurrentIntegrationTests {
-    private static final Logger log = LogManager.getLogger(ConcurrentIntegrationTests.class);
-
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
     static void setupAll() {
-        gossipCertificates = generateX509Certificates(1);
+        gossipCertificates = generateX509Certificates(2);
     }
 
     @HapiTest
@@ -127,6 +136,20 @@ public class ConcurrentIntegrationTests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("hollowAccount"))
                         .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountInfo("hollowAccount").isNotHollow());
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> wipingZeroFromZeroBalanceIsNoopForPositiveCounts(
+            @Account SpecAccount wipeTarget,
+            @FungibleToken SpecFungibleToken miscToken,
+            @FungibleToken(keys = {WIPE_KEY}) SpecFungibleToken wipeableFungibleToken) {
+        return hapiTest(
+                wipeTarget.associateTokens(miscToken, wipeableFungibleToken),
+                cryptoTransfer(TokenMovement.moving(1, miscToken.name())
+                        .between(miscToken.treasury().name(), wipeTarget.name())),
+                viewAccount(wipeTarget.name(), (a) -> assertEquals(1, a.numberPositiveBalances())),
+                wipeTokenAccount(wipeableFungibleToken.name(), wipeTarget.name(), 0),
+                viewAccount(wipeTarget.name(), (a) -> assertEquals(1, a.numberPositiveBalances())));
     }
 
     @HapiTest
@@ -296,6 +319,105 @@ public class ConcurrentIntegrationTests {
                                     CLASSIC_HAPI_TEST_NETWORK_SIZE + 1,
                                     entries.size(),
                                     "Wrong number of entries in candidate roster");
+                        })));
+    }
+
+    @GenesisHapiTest
+    @DisplayName("candidate roster retains metadata when reweighted at stake boundary")
+    final Stream<DynamicTest> candidateRosterRetainsMetadataWhenReweightedAtStakeBoundary()
+            throws CertificateEncodingException {
+        final AtomicReference<ProtoBytes> activeRosterHash = new AtomicReference<>();
+        final AtomicReference<Bytes> oldRosterCert = new AtomicReference<>();
+        final AtomicReference<ProtoBytes> candidateRosterHash = new AtomicReference<>();
+        final AtomicLong candidateWeightBeforeBoundary = new AtomicLong();
+        final byte[] updatedCert = gossipCertificates.get(1).getEncoded();
+
+        return hapiTest(
+                overriding("staking.periodMins", "1"),
+                // Capture the current active roster cert for node0
+                viewSingleton(
+                        RosterService.NAME,
+                        ROSTER_STATE_STATE_ID,
+                        (RosterState rosterState) -> activeRosterHash.set(new ProtoBytes(
+                                rosterState.roundRosterPairs().getFirst().activeRosterHash()))),
+                sourcing(() -> viewMappedValue(
+                        RosterService.NAME, ROSTERS_STATE_ID, activeRosterHash.get(), (Roster roster) -> {
+                            final var node0Entry = roster.rosterEntries().stream()
+                                    .filter(e -> e.nodeId() == 0L)
+                                    .findFirst()
+                                    .orElseThrow();
+                            oldRosterCert.set(node0Entry.gossipCaCertificate());
+                        })),
+                // Update node0's gossip CA certificate via DAB NodeUpdate
+                nodeUpdate("0").gossipCaCertificate(updatedCert),
+                // Run PREPARE_UPGRADE (will snapshot candidate roster from node state)
+                buildUpgradeZipFrom(FAKE_ASSETS_LOC),
+                sourcing(() -> updateSpecialFile(
+                        GENESIS,
+                        DEFAULT_UPGRADE_FILE_ID,
+                        FAKE_UPGRADE_ZIP_LOC,
+                        TxnUtils.BYTES_4K,
+                        upgradeFileAppendsPerBurst())),
+                sourcing(() -> prepareUpgrade()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                // Read candidate roster from state and ensure it includes the updated cert
+                viewSingleton(
+                        RosterService.NAME,
+                        ROSTER_STATE_STATE_ID,
+                        (RosterState rosterState) ->
+                                candidateRosterHash.set(new ProtoBytes(rosterState.candidateRosterHash()))),
+                sourcing(() -> viewMappedValue(
+                        RosterService.NAME, ROSTERS_STATE_ID, candidateRosterHash.get(), (Roster roster) -> {
+                            final var node0Entry = roster.rosterEntries().stream()
+                                    .filter(e -> e.nodeId() == 0L)
+                                    .findFirst()
+                                    .orElseThrow();
+                            candidateWeightBeforeBoundary.set(node0Entry.weight());
+                            assertEquals(
+                                    Bytes.wrap(updatedCert),
+                                    node0Entry.gossipCaCertificate(),
+                                    "Candidate roster did not reflect updated cert");
+                        })),
+                // Seed stakeToReward so EndOfStakingPeriodUpdater computes non-zero stakes/weights at the boundary
+                // Note: ReadableStakingInfoStore.weightFunction() uses nodeInfo.stake(), but EndOfStakingPeriodUpdater
+                // recomputes stake from stakeToReward + stakeToNotReward at the boundary (so we set stakeToReward
+                // here).
+                mutateStakingInfos("0", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("1", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("2", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("3", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                // Cross a staking period boundary and submit a txn to trigger stake period side effects
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                // Re-read candidate roster and ensure the updated cert was not lost during reweighting
+                viewSingleton(
+                        RosterService.NAME,
+                        ROSTER_STATE_STATE_ID,
+                        (RosterState rosterState) ->
+                                candidateRosterHash.set(new ProtoBytes(rosterState.candidateRosterHash()))),
+                sourcing(() -> viewMappedValue(
+                        RosterService.NAME, ROSTERS_STATE_ID, candidateRosterHash.get(), (Roster roster) -> {
+                            final var node0Entry = roster.rosterEntries().stream()
+                                    .filter(e -> e.nodeId() == 0L)
+                                    .findFirst()
+                                    .orElseThrow();
+                            assertEquals(
+                                    Bytes.wrap(updatedCert),
+                                    node0Entry.gossipCaCertificate(),
+                                    "Stake-boundary reweighting overwrote candidate roster metadata");
+                            assertNotEquals(
+                                    oldRosterCert.get(),
+                                    node0Entry.gossipCaCertificate(),
+                                    "Reweighted candidate roster unexpectedly matches old active roster cert");
+                            assertEquals(
+                                    ONE_HUNDRED_HBARS,
+                                    node0Entry.weight(),
+                                    "Candidate roster did not reflect recalculated (non-zero) staking weight");
+                            assertNotEquals(
+                                    candidateWeightBeforeBoundary.get(),
+                                    node0Entry.weight(),
+                                    "Candidate roster weight did not change at stake boundary");
                         })));
     }
 

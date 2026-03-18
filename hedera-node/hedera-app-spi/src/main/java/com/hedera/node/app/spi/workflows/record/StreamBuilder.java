@@ -228,6 +228,13 @@ public interface StreamBuilder {
     StreamBuilder congestionMultiplier(long congestionMultiplier);
 
     /**
+     * Sets the high-volume pricing multiplier used for charging the fees for this transaction.This is scaled by 1000.
+     * @param highVolumePricingMultiplier the high-volume pricing multiplier
+     * @return this builder
+     */
+    StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier);
+
+    /**
      * Returns true if this builder's transaction originated from inside another handler or workflow; and not
      * a user transaction (or scheduled user transaction).
      * @return true if this transaction is internal

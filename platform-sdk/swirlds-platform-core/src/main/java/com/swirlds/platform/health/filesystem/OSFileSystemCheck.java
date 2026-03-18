@@ -3,8 +3,6 @@ package com.swirlds.platform.health.filesystem;
 
 import static com.swirlds.platform.health.OSHealthCheckUtils.timeSupplier;
 
-import com.swirlds.common.io.extendable.ExtendableInputStream;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.platform.health.OSHealthCheckUtils;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.consensus.io.extendable.ExtendableInputStream;
+import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 
 /**
  * Checks that the operating system is able to open a file and read a byte from it without throwing an exception or

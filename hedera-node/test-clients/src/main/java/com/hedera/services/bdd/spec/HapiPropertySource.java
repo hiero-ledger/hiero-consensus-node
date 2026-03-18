@@ -47,11 +47,17 @@ public interface HapiPropertySource {
 
     static byte[] explicitBytesOf(@NonNull final Address address) {
         var asBytes = address.value().toByteArray();
-        // Might have a leading zero byte to make it positive
-        if (asBytes.length == 21) {
-            asBytes = Arrays.copyOfRange(asBytes, 1, 21);
+        final byte[] result = new byte[20];
+
+        if (asBytes.length >= 20) {
+            // Take rightmost 20 bytes (handles 21-byte case with leading zero)
+            System.arraycopy(asBytes, asBytes.length - 20, result, 0, 20);
+        } else {
+            // Left-pad with zeros (handles 19-byte or smaller case)
+            System.arraycopy(asBytes, 0, result, 20 - asBytes.length, asBytes.length);
         }
-        return asBytes;
+
+        return result;
     }
 
     String get(String property);

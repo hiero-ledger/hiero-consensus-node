@@ -11,6 +11,10 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.utils.TestCaseLoggerExtension;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -26,14 +30,17 @@ import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Base class for tests that involve block node communication.
  */
+@ExtendWith(TestCaseLoggerExtension.class)
 public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
@@ -58,6 +65,15 @@ public abstract class BlockNodeCommunicationTestBase {
                 .status(responseCode)
                 .build();
         return PublishStreamResponse.newBuilder().endStream(eos).build();
+    }
+
+    @NonNull
+    protected static PublishStreamResponse createBlockNodeBehindResponse(final long lastVerifiedBlock) {
+        final BehindPublisher nodeBehind =
+                BehindPublisher.newBuilder().blockNumber(lastVerifiedBlock).build();
+        return PublishStreamResponse.newBuilder()
+                .nodeBehindPublisher(nodeBehind)
+                .build();
     }
 
     @NonNull
@@ -177,8 +193,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 address,
                 port,
                 priority,
-                BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
-                BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+                BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
+                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(
@@ -187,12 +203,33 @@ public abstract class BlockNodeCommunicationTestBase {
             final int priority,
             final long messageSoftLimitBytes,
             final long messageHardLimitBytes) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                messageSoftLimitBytes,
+                messageHardLimitBytes,
+                BlockNodeHelidonHttpConfiguration.DEFAULT,
+                BlockNodeHelidonGrpcConfiguration.DEFAULT);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes,
+            final BlockNodeHelidonHttpConfiguration clientHttpConfig,
+            final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
         return BlockNodeConfiguration.newBuilder()
                 .address(address)
-                .port(port)
+                .streamingPort(port)
+                .servicePort(port)
                 .priority(priority)
                 .messageSizeSoftLimitBytes(messageSoftLimitBytes)
                 .messageSizeHardLimitBytes(messageHardLimitBytes)
+                .clientHttpConfig(clientHttpConfig)
+                .clientGrpcConfig(clientGrpcConfig)
                 .build();
     }
 }

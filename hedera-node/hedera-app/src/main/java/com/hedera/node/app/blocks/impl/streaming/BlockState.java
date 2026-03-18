@@ -35,6 +35,22 @@ public class BlockState {
      * The timestamp associated with when this block was closed.
      */
     private volatile Instant closedTimestamp;
+    /**
+     * The timestamp associated with when this block was opened.
+     */
+    private volatile Instant openedTimestamp;
+    /**
+     * The size of the block in bytes.
+     */
+    private long sizeBytes;
+    /**
+     * The milliseconds from epoch when the block header was sent.
+     */
+    private Long headerSentMs;
+    /**
+     * The milliseconds from epoch when the block end was sent.
+     */
+    private Long blockEndSentMs;
 
     /**
      * Create a new block state object.
@@ -62,6 +78,10 @@ public class BlockState {
 
         final int index = itemIndex.incrementAndGet();
         blockItems.put(index, item);
+        if (item.hasBlockHeader()) {
+            openedTimestamp = Instant.now();
+        }
+        sizeBytes += item.protobufSize();
     }
 
     /**
@@ -76,6 +96,13 @@ public class BlockState {
      */
     public boolean isClosed() {
         return closedTimestamp != null;
+    }
+
+    /**
+     * @return the size of the block in bytes
+     */
+    public long sizeBytes() {
+        return sizeBytes;
     }
 
     /**
@@ -100,6 +127,13 @@ public class BlockState {
      */
     public @Nullable Instant closedTimestamp() {
         return closedTimestamp;
+    }
+
+    /**
+     * @return the timestamp of when block was opened, else null if the block has not been opened
+     */
+    public @Nullable Instant openedTimestamp() {
+        return openedTimestamp;
     }
 
     /**
@@ -141,5 +175,45 @@ public class BlockState {
                 + blockNumber + ", closedTimestamp="
                 + closedTimestamp + ", blockItemCount="
                 + blockItems.size() + '}';
+    }
+
+    /**
+     * Sets the opened timestamp for this block.
+     * @param openedInstant the timestamp when the block was opened
+     */
+    public void setOpenedTimestamp(@NonNull final Instant openedInstant) {
+        this.openedTimestamp = openedInstant;
+    }
+
+    /**
+     * Sets the header sent milliseconds for this block.
+     * @param headerSentMs the milliseconds from epoch when the block header was sent
+     */
+    public void setHeaderSentMs(final long headerSentMs) {
+        this.headerSentMs = headerSentMs;
+    }
+
+    /**
+     * Sets the block end sent milliseconds for this block.
+     * @param blockEndSentMs the milliseconds from epoch when the block end was sent
+     */
+    public void setBlockEndSentMs(final long blockEndSentMs) {
+        this.blockEndSentMs = blockEndSentMs;
+    }
+
+    /**
+     * Gets the header sent milliseconds for this block.
+     * @return the milliseconds from epoch when the block header was sent
+     */
+    public @Nullable Long getHeaderSentMs() {
+        return headerSentMs;
+    }
+
+    /**
+     * Gets the block end sent milliseconds for this block.
+     * @return the milliseconds from epoch when the block end was sent
+     */
+    public @Nullable Long getBlockEndSentMs() {
+        return blockEndSentMs;
     }
 }

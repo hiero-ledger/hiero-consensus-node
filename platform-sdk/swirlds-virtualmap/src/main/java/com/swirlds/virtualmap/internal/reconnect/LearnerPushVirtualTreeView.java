@@ -8,21 +8,13 @@ import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
@@ -30,13 +22,12 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
@@ -44,7 +35,7 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
  */
-public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
+public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
@@ -54,10 +45,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * than needed, if it is too small, we put pressure on the GC.
      */
     private static final int EXPECTED_BIT_SET_INITIAL_CAPACITY = 1024 * 1024;
-
-    private final ReconnectConfig reconnectConfig;
-
-    private AsyncInputStream<Lesson<Long>> in;
 
     /**
      * Handles removal of old nodes.
@@ -107,7 +94,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
-            @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final VirtualMap map,
             @NonNull final RecordAccessor originalRecords,
             @NonNull final VirtualMapMetadata originalState,
@@ -115,7 +101,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             @NonNull final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
         super(map, originalState, reconnectState);
-        this.reconnectConfig = requireNonNull(reconnectConfig);
         this.originalRecords = requireNonNull(originalRecords);
         this.nodeRemover = requireNonNull(nodeRemover);
         this.mapStats = requireNonNull(mapStats);
@@ -123,41 +108,12 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
 
     @Override
     public void startLearnerTasks(
-            final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<Long> reconstructedRoot) {
-        in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson<>(this), reconnectConfig);
-        in.start();
-        final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
-        out.start();
-
-        final LearnerPushTask<Long> learnerThread = new LearnerPushTask<>(
-                workGroup, in, out, rootsToReceive, reconstructedRoot, this, learningSynchronizer, mapStats);
+            final AsyncInputStream in,
+            final AsyncOutputStream out,
+            final Runnable completeListener) {
+        final LearnerPushTask learnerThread = new LearnerPushTask(workGroup, in, out, this, mapStats, completeListener);
         learnerThread.start();
-    }
-
-    @Override
-    public void abort() {
-        in.abort();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isRootOfState() {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getOriginalRoot() {
-        return ROOT_PATH;
     }
 
     /**
@@ -192,23 +148,23 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void expectLessonFor(
-            final Long parent, final int childIndex, final Long original, final boolean nodeAlreadyPresent) {
-        expectedChildren.add(parent == null ? 0 : getChildPath(parent, childIndex));
+            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
+        expectedChildren.add(parentPath == null ? 0 : getChildPath(parentPath, childIndex));
         expectedNodeAlreadyPresent.add(nodeAlreadyPresent);
-        expectedOriginalExists.add(original != null);
+        expectedOriginalExists.add(originalPath != null);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public ExpectedLesson<Long> getNextExpectedLesson() {
+    public ExpectedLesson getNextExpectedLesson() {
         final long child = expectedChildren.remove();
         final long parent = getParentPath(child);
         final int index = isLeft(child) ? 0 : 1;
         final Long original = expectedOriginalExists.remove() ? child : null;
         final boolean nodeAlreadyPresent = expectedNodeAlreadyPresent.remove();
-        return new ExpectedLesson<>(parent, index, original, nodeAlreadyPresent);
+        return new ExpectedLesson(parent < 0 ? null : parent, index, original, nodeAlreadyPresent);
     }
 
     /**
@@ -228,7 +184,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+        final VirtualLeafBytes<?> leaf = VirtualReconnectUtils.readLeafRecord(in);
         nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
         map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
         return leaf.path();
@@ -246,7 +202,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
             // the info has already been sent and resides in the ExternalVirtualMapMetadata that is a sibling
-            // of the VirtualRootNode. This doesn't affect correctness or hashing.
+            // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
             reconnectState.setLastLeafPath(lastLeafPath);
@@ -255,14 +211,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }
         return node;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void initialize() {
-        // no-op
     }
 
     /**
@@ -281,32 +229,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void markForInitialization(final Long node) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void releaseNode(final Long node) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void setChild(final Long parent, final int childIndex, final Long child) {
         // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long convertMerkleRootToViewType(final MerkleNode node) {
-        throw new UnsupportedOperationException("Nested virtual maps not supported");
     }
 
     private boolean isLeaf(final long path) {

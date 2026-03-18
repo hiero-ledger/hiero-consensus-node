@@ -1,0 +1,79 @@
+{
+  "buckets": [
+    {
+      "name": "NormalTransfers",
+      "burstPeriod": 2,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoTransfer"
+          ],
+          "opsPerSec": 100
+        }
+      ]
+    },
+    {
+      "name": "HighVolumeTransfers",
+      "burstPeriod": 2,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoTransfer"
+          ],
+          "opsPerSec": 1000
+        }
+      ]
+    },
+    {
+      "name": "NormalCreation",
+      "burstPeriod": 2,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoCreate"
+          ],
+          "opsPerSec": 100
+        },
+        {
+          "operations": [
+            "TokenCreate"
+          ],
+          "opsPerSec": 50
+        }
+      ]
+    },
+    {
+      "name": "HighVolumeCreation",
+      "burstPeriod": 2,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoCreate"
+          ],
+          "opsPerSec": 1000
+        },
+        {
+          "operations": [
+            "TokenCreate"
+          ],
+          "opsPerSec": 500
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "burstPeriod": 2,
+      "throttleGroups": [
+        {
+          "operations": [
+            "CryptoTransfer"
+          ],
+          "opsPerSec": 10000
+        }
+      ]
+    }
+  ]
+}
+

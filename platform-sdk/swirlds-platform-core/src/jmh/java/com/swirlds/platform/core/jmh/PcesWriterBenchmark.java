@@ -2,16 +2,16 @@
 package com.swirlds.platform.core.jmh;
 
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
-import com.swirlds.platform.event.preconsensus.PcesMutableFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.pces.config.PcesFileWriterType;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

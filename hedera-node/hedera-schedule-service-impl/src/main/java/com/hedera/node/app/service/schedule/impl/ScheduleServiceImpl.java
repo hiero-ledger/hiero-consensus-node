@@ -13,6 +13,10 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleCreateFeeCalculator;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleDeleteFeeCalculator;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleGetInfoFeeCalculator;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleSignFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
@@ -20,6 +24,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,6 +33,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
+import java.util.Set;
 
 /**
  * Standard implementation of the {@link ScheduleService} {@link RpcService}.
@@ -280,5 +287,17 @@ public final class ScheduleServiceImpl implements ScheduleService {
                 Instant.ofEpochSecond(schedule.calculatedExpirationSecond()),
                 ScheduleStreamBuilder.class,
                 builder -> builder.scheduleRef(schedule.scheduleIdOrThrow()));
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        // TODO: add ScheduleCreateWithContractCallFeeCalculator
+        return Set.of(
+                new ScheduleCreateFeeCalculator(), new ScheduleSignFeeCalculator(), new ScheduleDeleteFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new ScheduleGetInfoFeeCalculator());
     }
 }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static com.swirlds.base.units.UnitConstants.GIBIBYTES_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static java.util.stream.Collectors.joining;
@@ -77,9 +77,9 @@ public final class DataFileCommon {
     public static final int PAGE_SIZE = 4096;
 
     // Data file protobuf fields
-    static final FieldDefinition FIELD_DATAFILE_METADATA =
+    public static final FieldDefinition FIELD_DATAFILE_METADATA =
             new FieldDefinition("metadata", FieldType.MESSAGE, false, false, false, 1);
-    static final FieldDefinition FIELD_DATAFILE_ITEMS =
+    public static final FieldDefinition FIELD_DATAFILE_ITEMS =
             new FieldDefinition("items", FieldType.MESSAGE, true, true, false, 11);
 
     private DataFileCommon() {

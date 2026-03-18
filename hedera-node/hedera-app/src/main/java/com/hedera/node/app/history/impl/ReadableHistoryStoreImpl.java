@@ -2,19 +2,20 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication.allFromHistory;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -40,8 +41,8 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     private final ReadableSingletonState<HistoryProofConstruction> nextConstruction;
     private final ReadableSingletonState<HistoryProofConstruction> activeConstruction;
     private final ReadableKVState<NodeId, ProofKeySet> proofKeySets;
-    private final ReadableKVState<ConstructionNodeId, RecordedHistorySignature> signatures;
     private final ReadableKVState<ConstructionNodeId, HistoryProofVote> votes;
+    private final ReadableKVState<ConstructionNodeId, WrapsMessageHistory> wrapsMessageHistories;
 
     public ReadableHistoryStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
@@ -49,8 +50,8 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
-        this.signatures = states.get(HISTORY_SIGNATURES_STATE_ID);
         this.votes = states.get(PROOF_VOTES_STATE_ID);
+        this.wrapsMessageHistories = states.get(WRAPS_MESSAGE_HISTORIES_STATE_ID);
     }
 
     @Override
@@ -70,14 +71,25 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     }
 
     @Override
+    public @NonNull HistoryProofConstruction getConstructionOrThrow(final long constructionId) {
+        if (requireNonNull(activeConstruction.get()).constructionId() == constructionId) {
+            return requireNonNull(activeConstruction.get());
+        } else if (requireNonNull(nextConstruction.get()).constructionId() == constructionId) {
+            return requireNonNull(nextConstruction.get());
+        } else {
+            throw new IllegalArgumentException("No construction with id " + constructionId);
+        }
+    }
+
+    @Override
     public @Nullable HistoryProofConstruction getConstructionFor(@NonNull final ActiveRosters activeRosters) {
         requireNonNull(activeRosters);
         return switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 HistoryProofConstruction construction;
-                if (constructionIsFor(construction = requireNonNull(activeConstruction.get()), activeRosters)) {
+                if (constructionIsFor(construction = requireNonNull(nextConstruction.get()), activeRosters)) {
                     yield construction;
-                } else if (constructionIsFor(construction = requireNonNull(nextConstruction.get()), activeRosters)) {
+                } else if (constructionIsFor(construction = requireNonNull(activeConstruction.get()), activeRosters)) {
                     yield construction;
                 }
                 yield null;
@@ -112,16 +124,16 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         return publications;
     }
 
+    @NonNull
     @Override
-    public @NonNull List<HistorySignaturePublication> getSignaturePublications(
+    public List<WrapsMessagePublication> getWrapsMessagePublications(
             final long constructionId, @NonNull final Set<Long> nodeIds) {
         requireNonNull(nodeIds);
-        final List<HistorySignaturePublication> publications = new ArrayList<>();
+        final List<WrapsMessagePublication> publications = new ArrayList<>();
         for (final var nodeId : nodeIds) {
-            final var recorded = signatures.get(new ConstructionNodeId(constructionId, nodeId));
-            if (recorded != null) {
-                publications.add(new HistorySignaturePublication(
-                        nodeId, recorded.historySignatureOrThrow(), asInstant(recorded.signingTimeOrThrow())));
+            final var history = wrapsMessageHistories.get(new ConstructionNodeId(constructionId, nodeId));
+            if (history != null) {
+                publications.addAll(allFromHistory(nodeId, history));
             }
         }
         return publications;

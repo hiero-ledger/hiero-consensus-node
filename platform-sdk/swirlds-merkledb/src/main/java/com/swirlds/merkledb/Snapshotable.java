@@ -21,7 +21,7 @@ public interface Snapshotable {
      *
      * Snapshots are done in the transaction handler thread, so they have to be synchronized with flushes
      * (running in virtual pipeline thread) and compactions (running in dedicated background threads). To sync
-     * up with flushes, this method is run either from VirtualRootNode.detach(), which is called while pipeline
+     * up with flushes, this method is run either from VirtualMap.detach(), which is called while pipeline
      * is paused, or on learner reconnect, while no data is stored to the virtual map. Synchronization with
      * compaction processes is slightly more complicated. Before virtual map snapshot is started, it takes a
      * lock (semaphore), which is monitored by compaction threads. As soon as the semaphore is locked,

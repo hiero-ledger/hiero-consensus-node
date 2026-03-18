@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.streams.ContractAction;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import java.util.List;
@@ -19,7 +20,6 @@ import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class AddOnEvmActionTracerTest {
     private EvmActionTracer evmActionTracer;
 
     @Mock
-    private OperationTracer addOnTracer;
+    private ActionSidecarContentTracer addOnTracer;
 
     @Mock
     private MessageFrame messageFrame;
@@ -58,18 +58,21 @@ class AddOnEvmActionTracerTest {
     void delegatesTraceOriginAction() {
         subject.traceOriginAction(messageFrame);
         verify(evmActionTracer).traceOriginAction(messageFrame);
+        verify(addOnTracer).traceOriginAction(messageFrame);
     }
 
     @Test
     void delegatesSanitizeTracedActions() {
         subject.sanitizeTracedActions(messageFrame);
         verify(evmActionTracer).sanitizeTracedActions(messageFrame);
+        verify(addOnTracer).sanitizeTracedActions(messageFrame);
     }
 
     @Test
     void delegatesTracePrecompileResult() {
         subject.tracePrecompileResult(messageFrame, CALL);
         verify(evmActionTracer).tracePrecompileResult(messageFrame, CALL);
+        verify(addOnTracer).tracePrecompileResult(messageFrame, CALL);
     }
 
     @Test

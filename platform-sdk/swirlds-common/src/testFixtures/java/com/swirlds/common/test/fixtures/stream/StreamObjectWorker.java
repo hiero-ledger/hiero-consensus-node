@@ -2,7 +2,7 @@
 package com.swirlds.common.test.fixtures.stream;
 
 import static com.swirlds.common.test.fixtures.stream.TestStreamType.TEST_STREAM;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.QueueThreadObjectStream;

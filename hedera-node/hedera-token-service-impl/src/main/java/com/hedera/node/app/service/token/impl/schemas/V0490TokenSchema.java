@@ -20,7 +20,6 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.token.TokenService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -82,39 +81,15 @@ public class V0490TokenSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.onDisk(TOKENS_STATE_ID, TOKENS_KEY, TokenID.PROTOBUF, Token.PROTOBUF, MAX_TOKENS),
-                StateDefinition.onDisk(
-                        ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, MAX_ACCOUNTS),
-                StateDefinition.onDisk(
-                        ALIASES_STATE_ID, ALIASES_KEY, ProtoBytes.PROTOBUF, AccountID.PROTOBUF, MAX_ACCOUNTS),
-                StateDefinition.onDisk(NFTS_STATE_ID, NFTS_KEY, NftID.PROTOBUF, Nft.PROTOBUF, MAX_MINTABLE_NFTS),
-                StateDefinition.onDisk(
-                        TOKEN_RELS_STATE_ID,
-                        TOKEN_RELS_KEY,
-                        EntityIDPair.PROTOBUF,
-                        TokenRelation.PROTOBUF,
-                        MAX_TOKEN_RELS),
-                StateDefinition.onDisk(
-                        STAKING_INFOS_STATE_ID,
-                        STAKING_INFOS_KEY,
-                        EntityNumber.PROTOBUF,
-                        StakingNodeInfo.PROTOBUF,
-                        MAX_STAKING_INFOS),
+                StateDefinition.keyValue(TOKENS_STATE_ID, TOKENS_KEY, TokenID.PROTOBUF, Token.PROTOBUF),
+                StateDefinition.keyValue(ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF),
+                StateDefinition.keyValue(ALIASES_STATE_ID, ALIASES_KEY, ProtoBytes.PROTOBUF, AccountID.PROTOBUF),
+                StateDefinition.keyValue(NFTS_STATE_ID, NFTS_KEY, NftID.PROTOBUF, Nft.PROTOBUF),
+                StateDefinition.keyValue(
+                        TOKEN_RELS_STATE_ID, TOKEN_RELS_KEY, EntityIDPair.PROTOBUF, TokenRelation.PROTOBUF),
+                StateDefinition.keyValue(
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_KEY, EntityNumber.PROTOBUF, StakingNodeInfo.PROTOBUF),
                 StateDefinition.singleton(
                         STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_KEY, NetworkStakingRewards.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        if (ctx.isGenesis()) {
-            final var networkRewardsState = ctx.newStates().getSingleton(STAKING_NETWORK_REWARDS_STATE_ID);
-            final var networkRewards = NetworkStakingRewards.newBuilder()
-                    .pendingRewards(0)
-                    .totalStakedRewardStart(0)
-                    .totalStakedStart(0)
-                    .stakingRewardsActivated(true)
-                    .build();
-            networkRewardsState.put(networkRewards);
-        }
     }
 }

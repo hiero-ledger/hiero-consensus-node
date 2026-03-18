@@ -111,33 +111,6 @@ public class SingleNodeReconnectResultContinuousAssert
         });
     }
 
-    /**
-     * Asserts that the node has no reconnects that take longer than the provided time to initialize the tree.
-     *
-     * @param maximumTreeInitializationTime the maximum allowed tree initialization time
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public SingleNodeReconnectResultContinuousAssert hasMaximumTreeInitializationTime(
-            final Duration maximumTreeInitializationTime) {
-        return checkContinuously((notification) -> {
-            switch (notification) {
-                case final SynchronizationCompleteNotification s -> {
-                    final Duration actualTime =
-                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds());
-                    if (actualTime.compareTo(maximumTreeInitializationTime) > 0) {
-                        failWithMessage(
-                                "Expected maximum tree initialization time to be <%s> but it took <%s> to initialize the tree%n%s",
-                                maximumTreeInitializationTime, actualTime, s.payload());
-                    }
-                }
-                default -> {
-                    // Ignore other notifications
-                }
-            }
-        });
-    }
-
     @NonNull
     private SingleNodeReconnectResultContinuousAssert checkContinuously(
             @NonNull final Consumer<ReconnectNotification<?>> check) {

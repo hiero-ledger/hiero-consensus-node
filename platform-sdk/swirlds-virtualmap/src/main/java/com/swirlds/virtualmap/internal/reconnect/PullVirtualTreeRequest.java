@@ -33,7 +33,8 @@ public class PullVirtualTreeRequest implements SelfSerializable {
     private Hash hash;
 
     /**
-     * This constructor is used by the teacher to deserialize the request from the stream.
+     * Required for (de)serialization needs. This constructor is also used by the teacher to
+     * deserialize the request from the stream.
      */
     public PullVirtualTreeRequest() {}
 

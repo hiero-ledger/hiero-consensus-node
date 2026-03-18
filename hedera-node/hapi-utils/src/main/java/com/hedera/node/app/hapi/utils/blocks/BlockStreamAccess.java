@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Comparator.comparing;
 
 import com.hedera.hapi.block.stream.Block;
@@ -45,7 +47,6 @@ public enum BlockStreamAccess {
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
-     *
      * @param path the path to read blocks from
      * @return the stream of blocks
      * @throws UncheckedIOException if an I/O error occurs
@@ -53,6 +54,18 @@ public enum BlockStreamAccess {
     public List<Block> readBlocks(@NonNull final Path path) {
         return readBlocks(path, true).toList();
     }
+
+    /**
+     * Reads all files matching the block file pattern from the given path and returns them in
+     * ascending order of block number.
+     * @param path the path to read blocks from
+     * @return the stream of blocks
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    public List<Block> readBlocksIgnoringMarkers(@NonNull final Path path) {
+        return readBlocks(path, false).toList();
+    }
+
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
@@ -159,10 +172,20 @@ public enum BlockStreamAccess {
         try {
             if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
-                    return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                    return Block.PROTOBUF.parse(
+                            Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
+                            false,
+                            false,
+                            DEFAULT_MAX_DEPTH,
+                            MAX_PBJ_RECORD_SIZE);
                 }
             } else {
-                return Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(path)));
+                return Block.PROTOBUF.parse(
+                        Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
+                        false,
+                        false,
+                        DEFAULT_MAX_DEPTH,
+                        MAX_PBJ_RECORD_SIZE);
             }
         } catch (IOException | ParseException e) {
             throw new RuntimeException("Failed reading block @ " + path, e);

@@ -3,9 +3,6 @@ package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -15,14 +12,20 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.Connection;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -59,6 +62,29 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     Topology topology();
+
+    /**
+     * Configures the network topology with the specified configuration.
+     *
+     * <p>This method must be called before any nodes are added to the network. It configures the topology with the
+     * characteristics defined by the provided configuration object. Supported configurations include:
+     * <ul>
+     *   <li>{@link MeshTopologyConfiguration} - for uniform mesh topology with specified latency, jitter, and
+     *       bandwidth</li>
+     *   <li>{@link GeoMeshTopologyConfiguration} - for realistic geographic latency simulation</li>
+     * </ul>
+     *
+     * <p>If this method is not called, a default geographic mesh topology configuration is used.
+     *
+     * @param configuration the topology configuration to apply (must implement {@link TopologyConfiguration})
+     * @return this {@code Network} instance for method chaining
+     * @throws NullPointerException     if {@code configuration} is {@code null}
+     * @throws IllegalStateException    if any nodes have already been added to the network or if the network is already
+     *                                  running
+     * @throws IllegalArgumentException if the configuration type is not supported
+     */
+    @NonNull
+    Network topology(@NonNull TopologyConfiguration configuration);
 
     /**
      * Adds a single node to the network.
@@ -163,34 +189,34 @@ public interface Network extends Configurable<Network> {
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
-     * Returns a {@link Connection} between two nodes in the network which can be used to modify the
-     * properties of a single connection. All properties and methods of the returned object are
-     * applied in both directions.
+     * Returns a {@link BidirectionalConnection} between two nodes in the network which can be used to modify the
+     * properties of a single connection. All properties and methods of the returned object are applied in both
+     * directions.
      *
      * @param node1 the first node
      * @param node2 the second node
      * @return the bidirectional connection between the two nodes
      */
     @NonNull
-    Connection connection(@NonNull Node node1, @NonNull Node node2);
+    BidirectionalConnection bidirectionalConnection(@NonNull Node node1, @NonNull Node node2);
 
     /**
-     * Returns a {@link DirectionalConnection} from one node to another in the network which can
-     * be used to modify the properties of a single connection. All properties and methods of the
-     * returned object are applied in the specified direction only.
+     * Returns a {@link UnidirectionalConnection} from one node to another in the network which can be used to modify
+     * the properties of a single connection. All properties and methods of the returned object are applied in the
+     * specified direction only.
      *
-     * @param sender the source node
+     * @param sender   the source node
      * @param receiver the destination node
      * @return the unidirectional connection from {@code sender} to {@code receiver}
      */
     @NonNull
-    DirectionalConnection directionalConnection(@NonNull Node sender, @NonNull Node receiver);
+    UnidirectionalConnection unidirectionalConnection(@NonNull Node sender, @NonNull Node receiver);
 
     /**
-     * Returns the current connection state between two nodes in the network after all modifications
-     * (partitions, latencies, bandwidth limits, etc.) have been applied.
+     * Returns the current connection state between two nodes in the network after all modifications (partitions,
+     * latencies, bandwidth limits, etc.) have been applied.
      *
-     * @param sender the source node
+     * @param sender   the source node
      * @param receiver the destination node
      * @return the current {@link ConnectionState}
      */
@@ -226,7 +252,7 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
-        return createNetworkPartition(Utils.collect(node0, nodes));
+        return createNetworkPartition(Utils.toSet(node0, nodes));
     }
 
     /**
@@ -287,7 +313,7 @@ public interface Network extends Configurable<Network> {
      * <p>This method sets the latency for all connections from the specified node to the given latency range. If a
      * connection already has a custom latency set, it will be overridden by this method.
      *
-     * @param node the node for which to set the latency
+     * @param node         the node for which to set the latency
      * @param latencyRange the latency range to apply to all connections
      */
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
@@ -302,13 +328,14 @@ public interface Network extends Configurable<Network> {
     /**
      * Sets the bandwidth limit for all connections from and to this node.
      *
-     * @param node the node for which to set the bandwidth limit
+     * @param node           the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections
      */
     void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
 
     /**
-     * Restores the default bandwidth limit for all connections from this node. The default is determined by the topology.
+     * Restores the default bandwidth limit for all connections from this node. The default is determined by the
+     * topology.
      *
      * @param node the node for which to remove bandwidth limits
      */
@@ -469,7 +496,7 @@ public interface Network extends Configurable<Network> {
      * will return {@code true} if all supplied nodes are behind the specified fraction of peers.
      *
      * @param maybeBehindNode the node to check behind status for
-     * @param otherNodes additional nodes to consider for the behind check (optional)
+     * @param otherNodes      additional nodes to consider for the behind check (optional)
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see FallenBehindStatus
      */
@@ -499,11 +526,10 @@ public interface Network extends Configurable<Network> {
      * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
      *
      * <p>This method sets the directory of all nodes currently added to the network. Please note that the new
-     * directory
-     * will become effective only after a node is (re-)started.
+     * directory will become effective only after a node is (re-)started.
      *
      * @param savedStateDirectory directory name of the state directory relative to the
-     * consensus-otter-tests/saved-states directory
+     *                            consensus-otter-tests/saved-states directory
      */
     void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }

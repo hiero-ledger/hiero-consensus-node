@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.contract;
 
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallFrom;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 
@@ -15,7 +16,7 @@ import java.util.Optional;
 public class RandomCall implements OpProvider {
     private final EntityNameProvider calls;
 
-    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(CONTRACT_DELETED);
+    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(BUSY, CONTRACT_DELETED);
     private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(INVALID_CONTRACT_ID, CONTRACT_DELETED);
     private final ResponseCodeEnum[] customOutcomes;
 

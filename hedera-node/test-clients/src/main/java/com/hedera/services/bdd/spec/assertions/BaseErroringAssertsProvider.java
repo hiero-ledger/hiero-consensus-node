@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 
@@ -33,12 +34,18 @@ public class BaseErroringAssertsProvider<T> implements ErroringAssertsProvider<T
         });
     }
 
+    protected <R> void registerIdLookupAssert(String key, Function<T, R> getActual, Class<R> cls, String err) {
+        registerIdLookupAssert(() -> key, getActual, cls, err);
+    }
+
     /* Helper for asserting something about a ContractID, FileID, AccountID, etc. */
     @SuppressWarnings("unchecked")
-    protected <R> void registerIdLookupAssert(String key, Function<T, R> getActual, Class<R> cls, String err) {
+    protected <R> void registerIdLookupAssert(
+            Supplier<String> key, Function<T, R> getActual, Class<R> cls, String err) {
         registerProvider((spec, o) -> {
-            final var keyToUse =
-                    isNumericLiteral(key) ? asEntityString(spec.shard(), spec.realm(), Long.parseLong(key)) : key;
+            final var keyToUse = isNumericLiteral(key.get())
+                    ? asEntityString(spec.shard(), spec.realm(), Long.parseLong(key.get()))
+                    : key.get();
             R expected = isIdLiteral(keyToUse)
                     ? parseIdByType(keyToUse, cls)
                     : spec.registry().getId(keyToUse, cls);

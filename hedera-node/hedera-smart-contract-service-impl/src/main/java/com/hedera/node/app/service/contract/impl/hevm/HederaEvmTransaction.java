@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -12,7 +13,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 
@@ -56,6 +56,10 @@ public record HederaEvmTransaction(
         return relayerId != null;
     }
 
+    public boolean isHookExecution() {
+        return hookDispatch != null;
+    }
+
     public boolean isContractCall() {
         return !isEthereumTransaction() && !isCreate();
     }
@@ -69,7 +73,7 @@ public record HederaEvmTransaction(
     }
 
     public @NonNull ContractID contractIdOrThrow() {
-        return Objects.requireNonNull(contractId);
+        return requireNonNull(contractId);
     }
 
     public boolean hasValue() {
@@ -152,15 +156,16 @@ public record HederaEvmTransaction(
     /**
      * @return the address of the hook owner, or null if this is not a hook dispatch
      */
-    public Address hookOwnerAddress() {
+    public Address hookOwnerAddress(@NonNull final HederaWorldUpdater worldUpdater) {
+        requireNonNull(worldUpdater);
         if (hookDispatch == null) {
             return null;
         }
-        final var ownerEntity = hookDispatch.executionOrThrow().hookEntityIdOrThrow();
-        return ownerEntity.hasContractId()
-                ? Address.fromHexString(
-                        "0x" + Long.toHexString(ownerEntity.contractIdOrThrow().contractNumOrThrow()))
-                : Address.fromHexString(
-                        "0x" + Long.toHexString(ownerEntity.accountIdOrThrow().accountNumOrThrow()));
+        final var entityId = hookDispatch.executionOrThrow().hookEntityIdOrThrow();
+        return entityId.hasContractId()
+                ? requireNonNull(worldUpdater.getHederaAccount(entityId.contractIdOrThrow()))
+                        .getAddress()
+                : requireNonNull(worldUpdater.getHederaAccount(entityId.accountIdOrThrow()))
+                        .getAddress();
     }
 }

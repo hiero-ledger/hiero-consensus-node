@@ -190,6 +190,36 @@ public class BlockNodeController {
     }
 
     /**
+     * Send a NodeBehindPublisher response immediately to all active streams on all simulated block nodes.
+     * This indicates that the block node is behind the publisher and needs to catch up.
+     *
+     * @param blockNumber the last verified block number
+     */
+    public void sendNodeBehindPublisherImmediately(final long blockNumber) {
+        for (final SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
+            server.sendNodeBehindPublisherImmediately(blockNumber);
+        }
+        log.info("Sent immediate NodeBehindPublisher response for block {} on all simulators", blockNumber);
+    }
+
+    /**
+     * Send a NodeBehindPublisher response immediately to all active streams on a specific simulated block node.
+     * This indicates that the block node is behind the publisher and needs to catch up.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @param blockNumber the last verified block number
+     */
+    public void sendNodeBehindPublisherImmediately(final long index, final long blockNumber) {
+        if (index >= 0 && index < simulatedBlockNodes.size()) {
+            final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+            server.sendNodeBehindPublisherImmediately(blockNumber);
+            log.info("Sent immediate NodeBehindPublisher response for block {} on simulator {}", blockNumber, index);
+        } else {
+            log.error("Invalid simulator index: {}, valid range is 0-{}", index, simulatedBlockNodes.size() - 1);
+        }
+    }
+
+    /**
      * Reset all configured responses on all simulated block nodes to default behavior.
      */
     public void resetAllResponses() {

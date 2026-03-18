@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -17,17 +16,41 @@ import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Test;
 
 /**
  * Integration tests for in-memory log capturing in nodes.
  */
 class InMemoryLogTest {
 
-    @NonNull
-    private static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    /**
+     * Test that log entries are added continuously (Turtle environment).
+     *
+     * <p>This test verifies:
+     * <ul>
+     * <li>Logs are captured immediately as they are generated, not buffered until shutdown</li>
+     * <li>Logs are available right after startup without waiting for node shutdown</li>
+     * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
+     * </ul>
+     */
+    @Test
+    void testLogsAddedContinuouslyTurtle() {
+        testLogsAddedContinuously(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test that log entries are added continuously (Container environment).
+     *
+     * <p>This test verifies:
+     * <ul>
+     * <li>Logs are captured immediately as they are generated, not buffered until shutdown</li>
+     * <li>Logs are available right after startup without waiting for node shutdown</li>
+     * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
+     * </ul>
+     */
+    @Test
+    void testLogsAddedContinuouslyContainer() {
+        testLogsAddedContinuously(new ContainerTestEnvironment());
     }
 
     /**
@@ -41,9 +64,7 @@ class InMemoryLogTest {
      * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
      * </ul>
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testLogsAddedContinuously(@NonNull final TestEnvironment env) {
+    private void testLogsAddedContinuously(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

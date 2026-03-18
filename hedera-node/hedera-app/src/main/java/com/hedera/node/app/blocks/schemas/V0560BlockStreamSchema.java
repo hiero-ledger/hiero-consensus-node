@@ -44,14 +44,6 @@ import java.util.function.Consumer;
  * </ol>
  */
 public class V0560BlockStreamSchema extends Schema<SemanticVersion> {
-
-    /**
-     * The block stream manager increments the previous number when starting a block; so to start
-     * the genesis block number at {@code 0}, we set the "previous" number to {@code -1}.
-     */
-    private static final BlockStreamInfo GENESIS_INFO =
-            BlockStreamInfo.newBuilder().blockNumber(-1).build();
-
     private static final String SHARED_BLOCK_RECORD_INFO = "SHARED_BLOCK_RECORD_INFO";
     private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
 
@@ -86,10 +78,8 @@ public class V0560BlockStreamSchema extends Schema<SemanticVersion> {
     @Override
     public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
-        final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        if (ctx.isGenesis()) {
-            state.put(GENESIS_INFO);
-        } else {
+        if (!ctx.isGenesis()) {
+            final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_STATE_ID);
             final var blockStreamInfo = state.get();
             // This will be null if the previous version is before 0.56.0
             if (blockStreamInfo == null) {

@@ -34,6 +34,7 @@ on:
           - "1000000"
           - "20000000"
           - "100000000"
+          - "200000000"
           - "500000000"
           - "1000000000"
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
@@ -52,6 +53,7 @@ on:
           - "1200"
           - "10080"
           - "20160"
+          - "604800"
       add-app-props:
         required: false
         default: ""
@@ -91,7 +93,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -110,7 +112,7 @@ jobs:
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.ref }}"
+          CHECK_TAG: "${{ inputs.ref || github.ref }}"
         run: |
           exit 0
           # Ensure the tag that we received is a build tag
@@ -120,7 +122,7 @@ jobs:
           if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
 
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
@@ -152,7 +154,7 @@ jobs:
 
   tag-sdlt-result:
     name: Tag SDLT Result
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -169,7 +171,7 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: "0"
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -188,20 +190,20 @@ jobs:
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
           # Skip tagging if no build number is found
-          if [ -z "$BUILD_NUM" ]; then
+          if [[ -z "${BUILD_NUM}" ]]; then
             echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
           # Populate the SDLT tag name and message
-          if [ "$RESULT" == "success" ]; then
+          if [[ "${RESULT}" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "$RESULT" == "failure" ]; then
+          elif [[ "${RESULT}" == "failure" ]]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
             MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
           else
-            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "No tag will be applied. Test result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
@@ -213,7 +215,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -239,7 +241,7 @@ jobs:
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ github.ref }}
+          BUILD_TAG: ${{ inputs.ref || github.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
@@ -264,7 +266,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -297,7 +299,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Single Day Longevity Test (${{ github.ref }}) Passed",
+                        "text": ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -353,7 +355,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -388,7 +390,7 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - run-single-day-longevity-test
@@ -412,7 +414,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -507,7 +509,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ github.ref }}) Failed",
+                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -571,7 +573,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
                       },
                       {
                         "type": "mrkdwn",
@@ -613,18 +615,10 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

@@ -40,4 +40,8 @@ rejected. Additionally, we track metrics for number of calls and calls per secon
 successfully handled. There are two concrete types(`QueryMethod` and `TransactionMethod`) that extend `MethodBase`
 and implement the `handle()` method, which when called will invoke the `QueryWorkflow` or `IngestWorkflow` respectively.
 
+### Important notes
+
+Any configurations updated during runtime of the consensus node and used in the grpc layer of the system **will not** be reflected and applied to the grpc layer until the node is restarted.
+
 **NEXT: [Records](records.md)**

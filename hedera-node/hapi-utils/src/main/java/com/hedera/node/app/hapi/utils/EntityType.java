@@ -19,5 +19,5 @@ public enum EntityType {
     CONTRACT_STORAGE,
     STAKING_INFO,
     HOOK,
-    LAMBDA_STORAGE,
+    EVM_HOOK_STORAGE,
 }

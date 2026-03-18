@@ -82,7 +82,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         app = appBuilder.build();
         config = app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         hapiVersion = app.hapiVersion();
-        writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
+        writer = new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem);
         final var ext = ".rcd.gz";
         final var recordDir =
                 fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
@@ -102,13 +102,13 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @SuppressWarnings("DataFlowIssue")
         void nullArgsToConstructorThrows() {
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(null, selfNodeInfo, signer, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(null, selfNodeInfo.accountId(), signer, fileSystem))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> new BlockRecordWriterV6(config, null, signer, fileSystem))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, null, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), null, fileSystem))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, signer, null))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), signer, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -117,7 +117,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         void recordFileVersionMustBeV6() {
             appBuilder.withConfigValue("hedera.recordStream.recordFileVersion", 5);
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("record file version");
         }
@@ -127,7 +127,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         void signatureFileVersionMustBeV6() {
             appBuilder.withConfigValue("hedera.recordStream.signatureFileVersion", 5);
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("signature file version");
         }
@@ -138,7 +138,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             // A path cannot have the null character in it
             appBuilder.withConfigValue("hedera.recordStream.logDir", "\0IllegalPath/records");
             final var config = buildAndGetConfig();
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(InvalidPathException.class);
         }
 
@@ -155,7 +155,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             // When we attempt to create the writer, then it fails AND logs!
             final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordWriterV6.class));
-            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem))
+            assertThatThrownBy(() -> new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem))
                     .isInstanceOf(UncheckedIOException.class);
             assertThat(logCaptor.fatalLogs()).hasSize(1);
             assertThat(logCaptor.fatalLogs()).allMatch(msg -> msg.contains("Could not create record directory"));
@@ -204,7 +204,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             Files.createDirectories(recordDir);
 
             // When we create a new writer and initialize it
-            writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
+            writer = new BlockRecordWriterV6(config, selfNodeInfo.accountId(), SIGNER, fileSystem);
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
 
             // Then it didn't throw, and the record file exists

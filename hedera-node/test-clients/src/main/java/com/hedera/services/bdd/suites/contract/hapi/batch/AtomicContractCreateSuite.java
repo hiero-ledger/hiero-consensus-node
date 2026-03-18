@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -122,7 +122,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of ContractCreateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 class AtomicContractCreateSuite {
@@ -525,11 +525,13 @@ class AtomicContractCreateSuite {
         final var KEY_LIST = "keyList";
         final var ACCOUNT = "acc";
         return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 newKeyNamed(FILE_KEY),
                 newKeyListNamed(KEY_LIST, List.of(FILE_KEY)),
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS * 10).key(FILE_KEY),
                 fileCreate("bytecode")
                         .path(bytecodePath("CryptoKitties"))
+                        .payingWith(PAYER)
                         .hasPrecheck(TRANSACTION_OVERSIZE)
                         .orUnavailableStatus(),
                 fileCreate("bytecode").contents("").key(KEY_LIST),
@@ -846,7 +848,7 @@ class AtomicContractCreateSuite {
                             .getTransactionRecord(txn)
                             .getContractCreateResult()
                             .getGasUsed();
-                    assertEquals(117661, gasUsed);
+                    assertEquals(117683, gasUsed);
                 }));
     }
 

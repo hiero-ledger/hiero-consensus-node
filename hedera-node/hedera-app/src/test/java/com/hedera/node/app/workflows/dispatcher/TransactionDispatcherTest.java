@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -11,6 +13,8 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
@@ -113,6 +117,37 @@ class TransactionDispatcherTest {
                                                     .accountNum(1002)
                                                     .build())
                                             .build())
+                                    .build()),
+                    Arguments.of(
+                            "CRYPTO_UPDATE_ACCOUNT",
+                            TransactionBody.newBuilder()
+                                    .transactionID(TransactionID.newBuilder()
+                                            .accountID(AccountID.newBuilder()
+                                                    .accountNum(1001)
+                                                    .build())
+                                            .transactionValidStart(Timestamp.newBuilder()
+                                                    .seconds(1234567L)
+                                                    .build())
+                                            .build())
+                                    .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
+                                            .accountIDToUpdate(AccountID.newBuilder()
+                                                    .accountNum(1003)
+                                                    .build())
+                                            .build())
+                                    .build()),
+                    Arguments.of(
+                            "CRYPTO_TRANSFER",
+                            TransactionBody.newBuilder()
+                                    .transactionID(TransactionID.newBuilder()
+                                            .accountID(AccountID.newBuilder()
+                                                    .accountNum(1001)
+                                                    .build())
+                                            .transactionValidStart(Timestamp.newBuilder()
+                                                    .seconds(1234567L)
+                                                    .build())
+                                            .build())
+                                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                                            .build())
                                     .build()));
         }
 
@@ -130,18 +165,15 @@ class TransactionDispatcherTest {
             given(feeContext.activeRate()).willReturn(testExchangeRate);
 
             // And: Simple fee calculator returns a fee result
-            final var feeResult = new FeeResult();
-            feeResult.node = 100000L; // 100K tinycents
-            feeResult.network = 200000L; // 200K tinycents
-            feeResult.service = 498500000L; // 498.5M tinycents
+            final var feeResult = new FeeResult(498500000L, 100000L, 2);
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
+            given(simpleFeeCalculator.calculateTxFee(eq(txBody), any())).willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext);
+            verify(simpleFeeCalculator).calculateTxFee(eq(txBody), any());
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();

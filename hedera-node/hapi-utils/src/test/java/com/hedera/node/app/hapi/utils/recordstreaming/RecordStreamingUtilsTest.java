@@ -28,7 +28,8 @@ class RecordStreamingUtilsTest {
     void parsingV6RecordFilesSucceeds() throws IOException {
         final var recordFilePath = Path.of(PATH_TO_FILES, V6_RECORD_FILE);
 
-        final var recordFilePair = RecordStreamingUtils.readRecordStreamFile(recordFilePath.toString());
+        final var recordFilePair =
+                RecordStreamingUtils.readRecordStreamFile(recordFilePath.getParent(), recordFilePath.toString());
 
         assertEquals(6, recordFilePair.getLeft());
         assertTrue(recordFilePair.getRight().isPresent());
@@ -99,7 +100,8 @@ class RecordStreamingUtilsTest {
     void parsingV6SidecarRecordFilesSucceeds() throws IOException {
         final var sidecarFilePath = Path.of(PATH_TO_FILES, V6_SIDECAR_FILE);
 
-        final var sidecarFile = RecordStreamingUtils.readSidecarFile(sidecarFilePath.toString());
+        final var sidecarFile =
+                RecordStreamingUtils.readSidecarFile(sidecarFilePath.getParent(), sidecarFilePath.toString());
 
         assertNotNull(sidecarFile);
     }
@@ -117,7 +119,9 @@ class RecordStreamingUtilsTest {
     void parsingUnknownRecordFilesReturnsEmptyPair() {
         final var recordFilePath = Path.of(PATH_TO_FILES, V5_RECORD_FILE);
 
-        assertThrows(IOException.class, () -> RecordStreamingUtils.readRecordStreamFile(recordFilePath.toString()));
+        assertThrows(
+                IOException.class,
+                () -> RecordStreamingUtils.readRecordStreamFile(recordFilePath.getParent(), recordFilePath.toString()));
     }
 
     @Test
@@ -140,7 +144,10 @@ class RecordStreamingUtilsTest {
     void parsingUnknownSidecarFileReturnsEmptyOptional() {
         final var notSidecarFilePath = Path.of(PATH_TO_FILES, V5_RECORD_SIGNATURE_FILE);
 
-        assertThrows(IOException.class, () -> RecordStreamingUtils.readSidecarFile(notSidecarFilePath.toString()));
+        assertThrows(
+                IOException.class,
+                () -> RecordStreamingUtils.readSidecarFile(
+                        notSidecarFilePath.getParent(), notSidecarFilePath.toString()));
     }
 
     @Test

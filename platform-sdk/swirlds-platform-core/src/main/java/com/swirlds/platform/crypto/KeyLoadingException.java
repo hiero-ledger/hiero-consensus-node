@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

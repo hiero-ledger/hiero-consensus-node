@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -30,6 +31,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -40,6 +43,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -58,6 +63,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -66,6 +72,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 class AtomicBatchAutoAccountCreationEndToEndTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
@@ -184,7 +191,17 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateChargedUsdWithinWithTxnSize(
+                                        "batchTxn",
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                        0.001);
+                            } else {
+                                return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                            }
+                        });
 
                         // validate the public key accounts creation and transfers
                         final var infoCheckED2559First = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -379,7 +396,17 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateChargedUsdWithinWithTxnSize(
+                                        "batchTxn",
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                        0.001);
+                            } else {
+                                return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                            }
+                        });
 
                         // validate the hollow accounts creation and transfers
                         final var infoCheckEVMFirst = getAliasedAccountInfo(evmAliasFirst.get())
@@ -714,7 +741,6 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch, Finalize it and Token Transfer in Another Atomic Batch")
-        @Tag(MATS)
         Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeAndTokenTransferInAnotherBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

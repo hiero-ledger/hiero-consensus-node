@@ -97,7 +97,8 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
         // reason is present, since that means creation failed before executing the frame's
         // code, and tracePostExecution() will never be called; so this is our only chance
         // to keep the action stack in sync with the message frame stack.
-        if (hasActionSidecarsEnabled(frame) && haltReason.isPresent()) {
+        // We skip finalizing for empty action stack, as those produce warnings.
+        if (hasActionSidecarsEnabled(frame) && haltReason.isPresent() && !actionStack.isEmpty()) {
             actionStack.finalizeLastAction(frame, stackValidationChoice(frame));
         }
     }

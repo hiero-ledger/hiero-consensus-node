@@ -13,7 +13,8 @@ public class HapiThrottleUtils {
                 bucket.getName(),
                 bucket.getThrottleGroupsList().stream()
                         .map(HapiThrottleUtils::hapiGroupFromProto)
-                        .toList());
+                        .toList(),
+                bucket.getHighVolume());
     }
 
     public static com.hederahashgraph.api.proto.java.ThrottleBucket hapiBucketToProto(
@@ -24,6 +25,7 @@ public class HapiThrottleUtils {
                 .addAllThrottleGroups(bucket.getThrottleGroups().stream()
                         .map(HapiThrottleUtils::hapiGroupToProto)
                         .toList())
+                .setHighVolume(bucket.isHighVolume())
                 .build();
     }
 

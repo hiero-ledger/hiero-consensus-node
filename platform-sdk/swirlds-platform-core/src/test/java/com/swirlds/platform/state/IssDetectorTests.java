@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,20 +20,12 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.PlatformTest;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,17 +36,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
-import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
-class IssDetectorTests extends PlatformTest {
+class IssDetectorTests {
     private static final WeightGenerator WEIGHT_GENERATOR = GaussianWeightGenerator.withAverageNodeWeight(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
 
@@ -142,11 +141,6 @@ class IssDetectorTests extends PlatformTest {
                 issDetectorTestHelper.getCatastrophicIssCount(),
                 "there should be no catastrophic ISS notifications");
         assertEquals(0, issDetectorTestHelper.getIssNotificationList().size(), "there should be no ISS notifications");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     /**
@@ -298,10 +292,6 @@ class IssDetectorTests extends PlatformTest {
                                     expectedRoundStatus.get((int) notification.getRound()),
                                     notification.getIssType()));
         });
-        issDetectorTestHelper
-                .getIssNotificationList()
-                .forEach(notification ->
-                        assertMarkerFile(notification.getIssType().toString(), true));
     }
 
     /**
@@ -379,11 +369,6 @@ class IssDetectorTests extends PlatformTest {
 
         assertEquals(
                 1, issDetectorTestHelper.getCatastrophicIssCount(), "the catastrophic round should have caused an ISS");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), true);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     /**
@@ -494,11 +479,6 @@ class IssDetectorTests extends PlatformTest {
         assertEquals(1, issDetectorTestHelper.getIssNotificationList().size(), "shifting should have caused an ISS");
         assertEquals(
                 1, issDetectorTestHelper.getCatastrophicIssCount(), "shifting should have caused a catastrophic ISS");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), true);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     /**
@@ -575,11 +555,6 @@ class IssDetectorTests extends PlatformTest {
         issDetectorTestHelper.overridingState(mockState(roundsNonAncient + 100L, randomHash(random)));
 
         assertTrue(issDetectorTestHelper.getIssNotificationList().isEmpty(), "there should be no ISS notifications");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     /**
@@ -631,11 +606,6 @@ class IssDetectorTests extends PlatformTest {
         }
 
         assertEquals(0, issDetectorTestHelper.getIssNotificationList().size(), "ISS should have been ignored");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     /**
@@ -688,11 +658,6 @@ class IssDetectorTests extends PlatformTest {
         }
 
         assertEquals(0, issDetectorTestHelper.getIssNotificationList().size(), "ISS should have been ignored");
-
-        // verify marker files
-        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
-        assertMarkerFile(IssType.SELF_ISS.toString(), false);
-        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
     @AfterEach
@@ -752,7 +717,7 @@ class IssDetectorTests extends PlatformTest {
     private static ReservedSignedState mockState(final long round, final Hash hash) {
         final ReservedSignedState rs = mock(ReservedSignedState.class);
         final SignedState ss = mock(SignedState.class);
-        final MerkleNodeState s = mock(MerkleNodeState.class);
+        final VirtualMapState s = mock(VirtualMapState.class);
         when(rs.get()).thenReturn(ss);
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);

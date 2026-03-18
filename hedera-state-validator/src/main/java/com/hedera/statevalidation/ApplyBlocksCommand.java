@@ -3,10 +3,10 @@ package com.hedera.statevalidation;
 
 import static com.hedera.statevalidation.blockstream.BlockStreamRecoveryWorkflow.applyBlocks;
 
-import com.swirlds.cli.utility.ParameterizedClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pcli.utility.ParameterizedClass;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;

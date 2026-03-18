@@ -162,7 +162,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @param context the handle context
      * @param op the token claim airdrop transaction body
      * @param accountStore the account store
-     * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
+     * @return a set of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
      * @throws HandleException if the transaction is invalid
      */
     private Set<PendingAirdropId> validateSemantics(
@@ -194,6 +194,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
+    @NonNull
     @Override
     public Fees calculateFees(@NonNull FeeContext feeContext) {
         var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
@@ -274,12 +275,15 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             @NonNull final List<TokenTransferList> transfers,
             @NonNull final HandleContext context,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
+        final var isHighVolume = context.body().highVolume();
         final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(transfers)
                 .build();
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true);
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(isHighVolume)
+                .build();
+        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
     }

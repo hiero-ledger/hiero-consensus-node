@@ -35,13 +35,13 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * This class contains all workflow-related functionality regarding {@link

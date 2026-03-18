@@ -3,8 +3,8 @@ package com.swirlds.platform.wiring;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Manages reservations of a signed state contained in a {@link StateWithHashComplexity} object, when the StateAndRound
@@ -24,8 +24,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param name the name of the reserver
  */
-public record StateWithHashComplexityToStateReserver(@NonNull String name)
-        implements AdvancedTransformation<StateWithHashComplexity, ReservedSignedState> {
+public record StateWithHashComplexityToStateReserver(
+        @NonNull String name) implements AdvancedTransformation<StateWithHashComplexity, ReservedSignedState> {
 
     /**
      * {@inheritDoc}

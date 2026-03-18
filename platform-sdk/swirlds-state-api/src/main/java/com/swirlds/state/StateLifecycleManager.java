@@ -2,7 +2,9 @@
 package com.swirlds.state;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementations of this interface are responsible for managing the state lifecycle:
@@ -12,16 +14,24 @@ import java.nio.file.Path;
  * <li>Loading snapshots of the state.</li>
  * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
  * </ul>
+ * <p>
+ * An implementation creates an initial genesis state eagerly upon construction. This genesis state is
+ * immediately available via {@link #getMutableState()}. If the node is restarting from a saved state,
+ * calling {@link #loadSnapshot(Path)} will replace the genesis state with the loaded state. If the node
+ * is reconnecting, calling {@link #initWithState(Object)} will replace the current state with
+ * the reconnect state.
  *
+ * @param <S> the type of the state
+ * @param <D> the type of the root node of a Merkle tree
  */
-public interface StateLifecycleManager {
+public interface StateLifecycleManager<S, D> {
 
     /**
-     * Set the initial State. This method should only be on a startup or after a reconnect.
-     *
-     * @param state the initial state
+     * Create a state from a root node. This method doesn't update the current mutable or immutable state.
+     * @param rootNode the root node of a Merkle tree to create a state from
+     * @return a state created from the root node
      */
-    void initState(@NonNull final MerkleNodeState state, boolean onStartup);
+    S createStateFrom(@NonNull D rootNode);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
@@ -32,7 +42,7 @@ public interface StateLifecycleManager {
      *
      * @return the mutable state.
      */
-    MerkleNodeState getMutableState();
+    S getMutableState();
 
     /**
      * Get the latest immutable state. Consecutive calls to this method may return different instances
@@ -47,23 +57,35 @@ public interface StateLifecycleManager {
      *
      * @return the latest immutable state.
      */
-    MerkleNodeState getLatestImmutableState();
+    S getLatestImmutableState();
 
     /**
      * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
      *
-     * @param merkleNodeState The state to save.
+     * @param state The state to save.
      * @param targetPath The path to save the snapshot.
      */
-    void createSnapshot(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
+    void createSnapshot(@NonNull S state, @NonNull Path targetPath);
 
     /**
-     * Loads a snapshot of a state.
+     * Loads a snapshot of a state from disk, initializes the manager with the loaded state (replacing the
+     * eagerly-created genesis state), and returns the hash of the original immutable snapshot as it was on disk.
+     * After this call, the loaded state is available via {@link #getMutableState()}.
      *
      * @param targetPath The path to load the snapshot from.
-     * @return mutable copy of the loaded state
+     * @return the hash of the original (pre-copy) immutable state as stored on disk
+     * @throws IOException if the snapshot cannot be read
      */
-    MerkleNodeState loadSnapshot(@NonNull Path targetPath);
+    @NonNull
+    Hash loadSnapshot(@NonNull Path targetPath) throws IOException;
+
+    /**
+     * Initialize the manager with the provided state. This method creates a copy of the provided state and uses the copy
+     * as a mutable state. The passed state becomes the latest immutable state registered in the manager.
+     *
+     * @param state the state to initialize with
+     */
+    void initWithState(@NonNull S state);
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,
@@ -71,5 +93,5 @@ public interface StateLifecycleManager {
      *
      * @return a mutable copy of the previous mutable state
      */
-    MerkleNodeState copyMutableState();
+    S copyMutableState();
 }

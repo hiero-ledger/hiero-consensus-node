@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCloseEnough;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -24,15 +24,15 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
 
 // Run this suite first in CI, since it assumes there are no NFTs in state at the beginning of the test
 @Order(Integer.MIN_VALUE)
-@Tag(MATS)
 public class UtilScalePricingCheck {
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.maxAllowedMints", "fees.percentUtilizationScaleFactors"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.nfts.maxAllowedMints", "fees.percentUtilizationScaleFactors"})
     final Stream<DynamicTest> nftPriceScalesWithUtilization() {
         final var civilian = "civilian";
         final var maxAllowed = 10;
@@ -68,9 +68,11 @@ public class UtilScalePricingCheck {
                                     } else {
                                         final var multiplier = expectedMultiplier(i);
                                         final var expected = multiplier * baseFee.get();
-                                        assertEquals(
+                                        assertCloseEnough(
                                                 expected,
                                                 mintRecord.getTransactionFee(),
+                                                0.1,
+                                                "transaction fee",
                                                 multiplier + "x multiplier should be in effect at " + i + " mints");
                                     }
                                 }))

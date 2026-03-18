@@ -4,10 +4,8 @@ package com.swirlds.common.merkle.synchronization.views;
 /**
  * Describes methods that are used to implement a queue of expected responses for the teacher.
  *
- * @param <T>
- * 		the type of the object used to represent a merkle node in the view
  */
-public interface TeacherResponseQueue<T> {
+public interface TeacherResponseQueue {
 
     /**
      * <p>
@@ -37,20 +35,20 @@ public interface TeacherResponseQueue<T> {
      * 		the index of the child
      * @return the child
      */
-    T getChildAndPrepareForQueryResponse(T parent, int childIndex);
+    Long getChildAndPrepareForQueryResponse(Long parent, int childIndex);
 
     /**
-     * Remove and return an element from the queue built by {@link #getChildAndPrepareForQueryResponse(Object, int)}.
+     * Remove and return an element from the queue built by {@link #getChildAndPrepareForQueryResponse(Long, int)}.
      *
      * @return the node to associate the next response with
      * @throws java.util.NoSuchElementException
      * 		if {@link #isResponseExpected()} currently returns false
      */
-    T getNodeForNextResponse();
+    Long getNodeForNextResponse();
 
     /**
      * Is a response to a query expected? Should return true if the queue implementing
-     * {@link #getChildAndPrepareForQueryResponse(Object, int)} is not empty.
+     * {@link #getChildAndPrepareForQueryResponse(Long, int)} is not empty.
      *
      * @return true if at least one response is still expected
      */

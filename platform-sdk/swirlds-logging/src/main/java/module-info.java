@@ -31,7 +31,6 @@ module com.swirlds.logging {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.datatype.jsr310;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 
     uses LogHandlerFactory;
     uses LogProviderFactory;

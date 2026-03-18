@@ -8,6 +8,7 @@ import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -17,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.network.transactions.HashPartition;
@@ -50,9 +50,11 @@ public class IssService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final OtterAppState state) {
+            @NonNull final VirtualMapState state) {
         this.selfId = selfId;
         this.scratchPad = Scratchpad.create(configuration, selfId, IssServiceScratchpad.class, NAME);
+
+        log.info(STARTUP.getMarker(), "IssService initialized");
     }
 
     /**

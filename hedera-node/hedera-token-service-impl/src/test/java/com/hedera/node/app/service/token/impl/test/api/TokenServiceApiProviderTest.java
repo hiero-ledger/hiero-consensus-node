@@ -15,6 +15,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
@@ -43,14 +44,16 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
                 .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         assertInstanceOf(
                 TokenServiceApiImpl.class,
-                TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters));
+                TOKEN_SERVICE_API_PROVIDER.newInstance(
+                        DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP));
     }
 
     @Test
     void testsCustomFeesByCreatingStep() {
         given(writableStates.get(ACCOUNTS_STATE_ID))
                 .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
-        final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(
+                DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));
     }
 
@@ -60,7 +63,8 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
         given(writableStates.get(ACCOUNTS_STATE_ID))
                 .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         given(writableStates.get(TOKEN_RELS_STATE_ID)).willThrow(IllegalStateException.class);
-        final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(
+                DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));
     }
 }

@@ -6,15 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +16,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Hashing Tests")
 class VirtualMapHashingTest {
@@ -33,7 +26,7 @@ class VirtualMapHashingTest {
     void hashEmptyMap() {
         final VirtualMap map = createMap();
         final VirtualMap copy = map.copy();
-        final Hash hash = TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
+        final Hash hash = map.getHash();
         assertNotNull(hash, "hash should not be null");
 
         map.release();
@@ -48,7 +41,7 @@ class VirtualMapHashingTest {
         map.put(TestKey.charToKey('a'), new TestValue("a"), TestValueCodec.INSTANCE);
         final VirtualMap copy = map.copy();
 
-        final Hash hash = TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
+        final Hash hash = map.getHash();
         assertNotNull(hash, "hash should not be null");
 
         map.release();
@@ -65,7 +58,7 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap map1 = map0.copy();
-        final Hash hash0 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0 = map0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
         for (int i = 100; i < 200; i++) {
@@ -73,10 +66,10 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap map2 = map1.copy();
-        final Hash hash1 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map1);
+        final Hash hash1 = map1.getHash();
         assertNotNull(hash1, "hash should not be null");
 
-        final Hash hash0_2 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0_2 = map0.getHash();
         assertNotEquals(hash0, hash1, "hash should have changed");
         assertEquals(hash0_2, map0.getHash(), "map should still have the same hash");
 
@@ -95,7 +88,7 @@ class VirtualMapHashingTest {
             mapA.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
         final VirtualMap copyA = mapA.copy();
-        final Hash hashA = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapA);
+        final Hash hashA = mapA.getHash();
         assertNotNull(hashA, "hash should not be null");
 
         final VirtualMap mapB = createMap();
@@ -103,7 +96,7 @@ class VirtualMapHashingTest {
             mapB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
         final VirtualMap copyB = mapB.copy();
-        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapB);
+        final Hash hashB = mapB.getHash();
         assertEquals(hashA, hashB, "both trees should derive the same hash");
 
         mapA.release();
@@ -115,14 +108,14 @@ class VirtualMapHashingTest {
     @Test
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Embedded At Root Async")
-    void embeddedAtRootAsync() throws ExecutionException, InterruptedException {
+    void embeddedAtRootAsync() {
 
         final VirtualMap mapA = createMap();
         for (int i = 0; i < 100; i++) {
             mapA.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
         final VirtualMap copyA = mapA.copy();
-        final Hash hashA = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapA);
+        final Hash hashA = mapA.getHash();
         assertNotNull(hashA, "hash should not be null");
 
         final VirtualMap mapB = createMap();
@@ -130,127 +123,13 @@ class VirtualMapHashingTest {
             mapB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
         final VirtualMap copyB = mapB.copy();
-        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapB);
+        final Hash hashB = mapB.getHash();
         assertEquals(hashA, hashB, "both trees should derive the same hash");
 
         mapA.release();
         mapB.release();
         copyA.release();
         copyB.release();
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Embedded In Tree Sync")
-    void embeddedInTreeSync() {
-
-        final VirtualMap map = createMap();
-        for (int i = 0; i < 100; i++) {
-            map.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final MerkleInternal root = MerkleTestUtils.buildLessSimpleTreeExtended();
-
-        // Put the map deep into the tree
-        root.getChild(2)
-                .asInternal()
-                .getChild(1)
-                .asInternal()
-                .getChild(0)
-                .asInternal()
-                .setChild(2, map);
-
-        final VirtualMap copy = map.copy();
-
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
-
-        assertNotNull(map.getHash(), "map should be hashed");
-        assertNotNull(root.getHash(), "tree should be hashed");
-
-        root.release();
-        copy.release();
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Embedded In Tree ASync")
-    void embeddedInTreeAsync() throws ExecutionException, InterruptedException {
-
-        final VirtualMap map = createMap();
-        for (int i = 0; i < 100; i++) {
-            map.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final MerkleInternal root = MerkleTestUtils.buildLessSimpleTreeExtended();
-
-        // Put the map deep into the tree
-        root.getChild(2)
-                .asInternal()
-                .getChild(1)
-                .asInternal()
-                .getChild(0)
-                .asInternal()
-                .setChild(2, map);
-
-        final VirtualMap copy = map.copy();
-
-        TestMerkleCryptoFactory.getInstance().digestTreeAsync(root).get();
-
-        assertNotNull(map.getHash(), "map should be hashed");
-        assertNotNull(root.getHash(), "tree should be hashed");
-
-        root.release();
-        copy.release();
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Multiple Maps Embedded In Tree Sync")
-    void multipleMapsEmbeddedInTreeSync() {
-
-        final VirtualMap map0 = createMap();
-        for (int i = 0; i < 100; i++) {
-            map0.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final VirtualMap map1 = createMap();
-        for (int i = 100; i < 200; i++) {
-            map1.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final VirtualMap map2 = createMap();
-        for (int i = 200; i < 300; i++) {
-            map2.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final MerkleInternal root = MerkleTestUtils.buildLessSimpleTreeExtended();
-
-        // Put the maps into the tree
-        root.setChild(3, map0);
-        root.getChild(2).asInternal().getChild(1).asInternal().setChild(2, map1);
-        root.getChild(2)
-                .asInternal()
-                .getChild(1)
-                .asInternal()
-                .getChild(0)
-                .asInternal()
-                .setChild(2, map2);
-
-        final VirtualMap copy0 = map0.copy();
-        final VirtualMap copy1 = map1.copy();
-        final VirtualMap copy2 = map2.copy();
-
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
-
-        assertNotNull(map0.getHash(), "map should be hashed");
-        assertNotNull(map1.getHash(), "map should be hashed");
-        assertNotNull(map2.getHash(), "map should be hashed");
-        assertNotNull(root.getHash(), "tree should be hashed");
-
-        root.release();
-        copy0.release();
-        copy1.release();
-        copy2.release();
     }
 
     @ParameterizedTest
@@ -269,48 +148,11 @@ class VirtualMapHashingTest {
         map0.remove(TestKey.longToKey(delete2));
 
         final VirtualMap map1 = map0.copy();
-        final Hash hash0 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0 = map0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
         map0.release();
         map1.release();
-    }
-
-    /**
-     * This test failed prior to a race condition that used to exist.
-     */
-    @ParameterizedTest
-    @ValueSource(
-            ints = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 30, 31, 32, 33, 62, 64, 120, 256, 1000, 1022, 1023, 1024
-            })
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Internal node operations are properly synchronized")
-    void internalNodeSynchronization(int nKeys) throws ExecutionException, InterruptedException {
-        VirtualMap current = createMap();
-        for (int i = 0; i < nKeys; ++i) {
-            current.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
-        }
-
-        final VirtualMap prev = current;
-        current = current.copy();
-        Future<Hash> future = TestMerkleCryptoFactory.getInstance().digestTreeAsync(prev);
-
-        for (int i = 0; i < nKeys; ++i) {
-            current.remove(TestKey.longToKey(i));
-        }
-
-        future.get();
-        prev.release();
-
-        final VirtualNodeCache cache = current.getCache();
-        cache.seal();
-        assertEquals(
-                0,
-                cache.dirtyHashesForFlush(current.getMetadata().getLastLeafPath())
-                        .toList()
-                        .size());
-
-        current.release();
     }
 
     @Test

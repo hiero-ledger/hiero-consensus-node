@@ -477,10 +477,6 @@ is used in the platform to read the 2 files and extract configuration properties
 a higher priority than the `settings.txt` file. Based on that the `config.txt` can overwrite properties that are already
 defined in the `settings.txt` file.
 
-Next to this the `config.txt` has some special properties (`app` and `address`) that will not be handled by the config
-API today. For this 2 properties a custom parser exists (see
-`com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader` for more details)
-
 ### Support for aliases
 
 The platform contains the `com.swirlds.common.config.sources.MappedConfigSource` that will help to migrate all the

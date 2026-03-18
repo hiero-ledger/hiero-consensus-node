@@ -2,8 +2,10 @@
 package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
@@ -52,19 +54,23 @@ class HintsContextTest {
     @Mock
     private Configuration configuration;
 
+    @Mock
+    private HintsSigningMetrics signingMetrics;
+
     private HintsContext subject;
 
     @BeforeEach
     void setUp() {
         lenient().when(configProvider.get()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(defaultConfig());
-        subject = new HintsContext(library, configProvider);
+        subject = new HintsContext(library, configProvider, signingMetrics);
     }
 
     private static TssConfig defaultConfig() {
         return new TssConfig(
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
+                Duration.ofSeconds(10),
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
                 Duration.ofSeconds(10),
@@ -75,7 +81,10 @@ class HintsContextTest {
                 false,
                 false,
                 false,
-                2);
+                false,
+                2,
+                10,
+                Duration.ofSeconds(5));
     }
 
     @Test
@@ -110,6 +119,12 @@ class HintsContextTest {
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
+        // Duplicates don't accumulate weight
+        for (int i = 0; i < 10; i++) {
+            signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+            assertFalse(future.isDone());
+        }
+        assertFalse(future.isDone());
         signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
         signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature);
@@ -117,6 +132,7 @@ class HintsContextTest {
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
+        verify(signingMetrics).recordSignatureProduced(longThat(ms -> ms >= 0));
     }
 
     @Test
@@ -146,5 +162,6 @@ class HintsContextTest {
         signing.incorporateValid(CRS, b.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
+        verify(signingMetrics).recordSignatureProduced(longThat(ms -> ms >= 0));
     }
 }

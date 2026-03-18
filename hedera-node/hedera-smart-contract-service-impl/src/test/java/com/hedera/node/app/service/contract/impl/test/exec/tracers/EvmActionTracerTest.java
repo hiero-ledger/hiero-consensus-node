@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -176,6 +177,15 @@ class EvmActionTracerTest {
         subject.traceAccountCreationResult(frame, Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
 
         verify(actionStack).finalizeLastAction(frame, ActionStack.Validation.ON);
+    }
+
+    @Test
+    void contractCreationTraceFinalizesWithSidecarsAndHaltReason() {
+        givenSidecarsOnly();
+        given(actionStack.isEmpty()).willReturn(true);
+        subject.traceAccountCreationResult(frame, Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
+
+        verify(actionStack, never()).finalizeLastAction(frame, ActionStack.Validation.ON);
     }
 
     private void givenNoActionSidecars() {

@@ -23,7 +23,7 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
         implements SpecOperation {
     private static final long DEFAULT_GAS = 100_000;
 
-    private SpecContract target;
+    private final SpecContract target;
     private final String function;
     private final Object[] parameters;
     private long gas = DEFAULT_GAS;

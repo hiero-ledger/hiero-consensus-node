@@ -12,7 +12,8 @@ import java.time.Instant;
 /**
  * Main class responsible for throttling transactions by gasLimit. Keeps track of the instance the
  * last decision was made and calculates the time elapsed since then.
- * Uses a {@link LeakyBucketThrottle} under the hood.
+ * Uses a {@link LeakyBucketThrottle} under the hood. This is similar to {@link DeterministicThrottle},
+ * but for scalar limits like gas/bytes:
  */
 public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;
@@ -40,6 +41,7 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      * throttled.
      */
     public boolean allow(@NonNull final Instant now, final long throttleLimit) {
+        requireNonNull(now);
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
         if (elapsedNanos < 0L) {
             throw new IllegalArgumentException(
@@ -50,6 +52,17 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
         }
         lastDecisionTime = now;
         return delegate.allow(throttleLimit, elapsedNanos);
+    }
+
+    /**
+     * Leaks the capacity from the bucket up to the provided instant.
+     * @param now - the instant up to which the capacity should be leaked.
+     */
+    public void leakUntil(@NonNull final Instant now) {
+        requireNonNull(now);
+        final var elapsedNanos = nanosBetween(lastDecisionTime, now);
+        lastDecisionTime = now;
+        delegate.leakFor(elapsedNanos);
     }
 
     /**

@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +13,7 @@ import io.grpc.stub.ServerCalls;
 import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * An instance of either {@link TransactionMethod} or {@link QueryMethod} is created per transaction

@@ -97,7 +97,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStatus;
@@ -118,6 +117,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.NEW_SENDER_KEY;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.ORIG_FILE;
@@ -1013,7 +1015,7 @@ public class RepeatableHip423Tests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("receiver"))
                         .hasKnownStatusFrom(INVALID_SCHEDULE_ID)
                         .via("signTxn"),
-                validateChargedUsd("signTxn", 0.001));
+                validateFees("signTxn", 0.001, SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -1359,8 +1361,13 @@ public class RepeatableHip423Tests {
                 getTxnRecord("second").exposingTo(record -> secondFee.set(record.getTransactionFee())),
                 getTxnRecord("third").exposingTo(record -> thirdFee.set(record.getTransactionFee())),
                 withOpContext((spec, log) -> {
-                    assertEquals(firstFee.get(), secondFee.get());
-                    assertTrue(secondFee.get() < thirdFee.get());
+                    if (spec.simpleFeesEnabled()) {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertEquals(secondFee.get(), thirdFee.get());
+                    } else {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertTrue(secondFee.get() < thirdFee.get());
+                    }
                 }));
     }
 

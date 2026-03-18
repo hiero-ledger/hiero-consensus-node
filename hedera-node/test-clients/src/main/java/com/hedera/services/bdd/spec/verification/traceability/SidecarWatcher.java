@@ -14,13 +14,15 @@ import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Assertions;
 
@@ -43,9 +45,20 @@ import org.junit.jupiter.api.Assertions;
 // string literals should not be duplicated
 @SuppressWarnings("java:S1192")
 public class SidecarWatcher {
+    /**
+     * The watcher is event-driven (sidecars arrive after a sidecar marker file is noticed).
+     * In CI, marker creation/visibility can lag just enough that immediate unsubscribe can race
+     * and leave expectations "pending" even though the sidecar file exists on disk.
+     */
+    private static final long EXPECTATIONS_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10);
+
+    private static final int FINAL_DRAIN_ATTEMPTS = 3;
+
+    private final Path streamFilesPath;
     private final Runnable unsubscribe;
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
+    private final HashSet<TransactionSidecarRecord> seenActualSidecars = new HashSet<>();
     // LinkedHashMap lets us easily print mismatches _in the order added_. Important if the
     // records get out-of-sync at one particular test, then all the _rest_ of the tests fail
     // too: It's good to know the _first_ test which fails.
@@ -56,10 +69,11 @@ public class SidecarWatcher {
     private record ConstructionDetails(String creatingThread, String stackTrace) {}
 
     public SidecarWatcher(@NonNull final Path path) {
-        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(path), new StreamDataListener() {
+        this.streamFilesPath = guaranteedExtantDir(path);
+        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(streamFilesPath, new StreamDataListener() {
             @Override
             public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
-                actualSidecars.add(sidecar);
+                enqueueActualSidecar(sidecar);
             }
         });
     }
@@ -98,17 +112,50 @@ public class SidecarWatcher {
         // Ensure our listener has more than fair opportunity to observe all expected sidecars
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
-        // Stop listening for any more actual sidecars
-        unsubscribe.run();
+        // Drain sidecars until we either satisfy all expectations, or a bounded timeout elapses.
+        // We also synchronously scan sidecar files from disk to avoid relying only on asynchronous
+        // file monitor callbacks, which can lag under debugger pauses or slow CI.
+        final long deadlineNanos = System.nanoTime() + EXPECTATIONS_TIMEOUT_NANOS;
+        while (!expectedSidecars.isEmpty() && System.nanoTime() < deadlineNanos) {
+            final var drainedAtLeastOne = drainActualSidecars() || drainUnseenSidecarsFromDisk();
+            if (expectedSidecars.isEmpty()) {
+                break;
+            }
+            // If nothing new arrived yet, actively force another record/sidecar file closure cycle.
+            if (!drainedAtLeastOne) {
+                triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
+            }
+        }
 
-        for (final var iter = actualSidecars.iterator(); iter.hasNext(); ) {
-            final var actualSidecar = iter.next();
-            iter.remove();
+        // If still pending, perform a few final forced close+drain attempts before failing.
+        for (int i = 0; i < FINAL_DRAIN_ATTEMPTS && !expectedSidecars.isEmpty(); i++) {
+            triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
+            drainUnseenSidecarsFromDisk();
+            drainActualSidecars();
+        }
+
+        // Stop listening for any more actual sidecars, then drain anything already queued.
+        unsubscribe.run();
+        drainUnseenSidecarsFromDisk();
+        drainActualSidecars();
+
+        assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
+        assertTrue(
+                thereAreNoPendingSidecars(),
+                "There are some sidecars that have not been yet"
+                        + " externalized in the sidecar files after all"
+                        + " specs: " + getPendingErrors());
+    }
+
+    private boolean drainActualSidecars() {
+        boolean drainedAtLeastOne = false;
+        TransactionSidecarRecord actualSidecar;
+        while ((actualSidecar = actualSidecars.poll()) != null) {
+            drainedAtLeastOne = true;
             System.out.println("Observed sidecar: " + actualSidecar);
-            final boolean matchesConsensusTimestamp = Optional.ofNullable(expectedSidecars.peek())
-                    .map(ExpectedSidecar::expectedSidecarRecord)
-                    .map(expected -> expected.matchesConsensusTimestampOf(actualSidecar))
-                    .orElse(false);
+            final var expectedAtHead = expectedSidecars.peek();
+            final boolean matchesConsensusTimestamp = expectedAtHead != null
+                    && expectedAtHead.expectedSidecarRecord().matchesConsensusTimestampOf(actualSidecar);
             if (hasSeenFirstExpectedSidecar && matchesConsensusTimestamp) {
                 assertIncomingSidecar(actualSidecar);
             } else {
@@ -124,13 +171,40 @@ public class SidecarWatcher {
                 }
             }
         }
+        return drainedAtLeastOne;
+    }
 
-        assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
-        assertTrue(
-                thereAreNoPendingSidecars(),
-                "There are some sidecars that have not been yet"
-                        + " externalized in the sidecar files after all"
-                        + " specs: " + getPendingErrors());
+    private void enqueueActualSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+        synchronized (seenActualSidecars) {
+            if (seenActualSidecars.add(sidecar)) {
+                actualSidecars.add(sidecar);
+            }
+        }
+    }
+
+    private boolean drainUnseenSidecarsFromDisk() {
+        try {
+            final var streamData = STREAM_FILE_ACCESS.readStreamDataFrom(streamFilesPath.toString(), "sidecar");
+            int added = 0;
+            for (final var recordWithSidecars : streamData.records()) {
+                for (final var sidecarFile : recordWithSidecars.sidecarFiles()) {
+                    for (final var sidecar : sidecarFile.getSidecarRecordsList()) {
+                        synchronized (seenActualSidecars) {
+                            if (seenActualSidecars.add(sidecar)) {
+                                actualSidecars.add(sidecar);
+                                added++;
+                            }
+                        }
+                    }
+                }
+            }
+            return added > 0;
+        } catch (final UncheckedIOException | IllegalArgumentException e) {
+            // Sidecar files may still be in-flight while this assertion loop is polling.
+            return false;
+        } catch (final Exception e) {
+            return false;
+        }
     }
 
     private void assertIncomingSidecar(final TransactionSidecarRecord actualSidecarRecord) {

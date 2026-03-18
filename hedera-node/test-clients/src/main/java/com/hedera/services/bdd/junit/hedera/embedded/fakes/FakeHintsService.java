@@ -15,7 +15,6 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
@@ -35,11 +35,6 @@ public class FakeHintsService implements HintsService {
                 appContext,
                 new HintsLibraryImpl(),
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
-    }
-
-    @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        delegate.initCurrentRoster(roster);
     }
 
     @Override

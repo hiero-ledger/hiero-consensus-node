@@ -17,6 +17,7 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
@@ -24,7 +25,6 @@ import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.hapi.streams.SidecarMetadata;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
-import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -74,7 +74,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private final Signer signer;
     /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
-    /** Whether to compress the record file and sidecar files. */
     /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
@@ -134,14 +133,14 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
      *
      * @param config The configuration to be used for writing this block. Since this cannot change in the middle of
      *               writing a file, we just need the config, not a config provider.
-     * @param nodeInfo The node info for the node writing this file. This is used to get the node-specific directory
+     * @param nodeAccountId The account ID for the node writing this file. This is used to get the node-specific directory
      *                 where the file will be written.
      * @param signer The signer to use to sign the file bytes to produce the signature file
      * @param fileSystem The file system to use to write the file
      */
     public BlockRecordWriterV6(
             @NonNull final BlockRecordStreamConfig config,
-            @NonNull final NodeInfo nodeInfo,
+            @NonNull final AccountID nodeAccountId,
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem) {
 
@@ -159,13 +158,15 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             throw new IllegalArgumentException("Configuration signature file version is not 6!");
         }
 
+        requireNonNull(nodeAccountId, "Node account id should not be null");
+
         this.state = State.UNINITIALIZED;
         this.signer = requireNonNull(signer);
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;
 
         // Compute directories for record and sidecar files
         final Path recordDir = fileSystem.getPath(config.logDir());
-        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeInfo.accountId()));
+        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeAccountId));
         nodeScopedSidecarDir = nodeScopedRecordDir.resolve(config.sidecarDir());
 
         // Create parent directories if needed for the record file itself

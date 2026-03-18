@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * An assertion that validates a stream item against a predicate, and after finding an expected number of items,
@@ -17,6 +19,7 @@ import java.util.function.BiPredicate;
  */
 public class SelectedItemsAssertion implements RecordStreamAssertion {
     public static final String SELECTED_ITEMS_KEY = "SELECTED_ITEMS";
+    private static final Logger log = LogManager.getLogger(SelectedItemsAssertion.class);
 
     private final int expectedCount;
     private final HapiSpec spec;
@@ -45,9 +48,18 @@ public class SelectedItemsAssertion implements RecordStreamAssertion {
         final var entry = RecordStreamEntry.from(item);
         selectedEntries.add(entry);
         if (selectedEntries.size() == expectedCount) {
-            validator.assertValid(
-                    spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
+            try {
+                validator.assertValid(
+                        spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                }
+                throw new AssertionError("Unhandled exception in validator", t);
+            }
             return true;
+        } else {
+            log.error("Selected {} items, expected {}", selectedEntries.size(), expectedCount);
         }
         return false;
     }

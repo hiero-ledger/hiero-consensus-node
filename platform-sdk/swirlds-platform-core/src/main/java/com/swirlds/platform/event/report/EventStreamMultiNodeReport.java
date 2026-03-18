@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
 
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Instant;

@@ -61,7 +61,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         final var replacedOp = getReplacedOp();
-        adjustHbarChangesStep = new AdjustHbarChangesStep(replacedOp, payerId);
+        adjustHbarChangesStep = new AdjustHbarChangesStep(replacedOp, payerId, idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -93,7 +93,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -151,7 +151,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -180,7 +180,6 @@ class AdjustHbarChangesStepTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWithAllowance(ownerId, -1_0000), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);
@@ -193,7 +192,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);
@@ -212,7 +211,6 @@ class AdjustHbarChangesStepTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWith(ownerId, -1_0001), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);
@@ -225,7 +223,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
-                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow());
+                new AdjustHbarChangesStep(replacedOp, txn.transactionIDOrThrow().accountIDOrThrow(), idFactory);
 
         final var senderAccount = writableAccountStore.getAliasedAccountById(ownerId);
         final var receiverAccount = writableAccountStore.getAliasedAccountById(receiver);

@@ -7,5 +7,3 @@ plugins {
 mainModuleInfo { runtimeOnly("org.junit.jupiter.engine") }
 
 application.mainClass = "com.hedera.statevalidation.StateOperatorCommand"
-
-tasks.shadowJar { isZip64 = true }

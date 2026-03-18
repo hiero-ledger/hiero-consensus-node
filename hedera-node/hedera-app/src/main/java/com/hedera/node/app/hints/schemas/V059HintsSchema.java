@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.hints.HintsService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -77,25 +76,12 @@ public class V059HintsSchema extends Schema<SemanticVersion> {
                         ACTIVE_HINTS_CONSTRUCTION_STATE_ID, ACTIVE_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
                 StateDefinition.singleton(
                         NEXT_HINTS_CONSTRUCTION_STATE_ID, NEXT_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.onDisk(
-                        HINTS_KEY_SETS_STATE_ID,
-                        HINTS_KEY_SETS_KEY,
-                        HintsPartyId.PROTOBUF,
-                        HintsKeySet.PROTOBUF,
-                        MAX_HINTS),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
+                        HINTS_KEY_SETS_STATE_ID, HINTS_KEY_SETS_KEY, HintsPartyId.PROTOBUF, HintsKeySet.PROTOBUF),
+                StateDefinition.keyValue(
                         PREPROCESSING_VOTES_STATE_ID,
                         PREPROCESSING_VOTES_KEY,
                         PreprocessingVoteId.PROTOBUF,
-                        PreprocessingVote.PROTOBUF,
-                        MAX_PREPROCESSING_VOTES));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                .put(HintsConstruction.DEFAULT);
-        states.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID).put(HintsConstruction.DEFAULT);
+                        PreprocessingVote.PROTOBUF));
     }
 }

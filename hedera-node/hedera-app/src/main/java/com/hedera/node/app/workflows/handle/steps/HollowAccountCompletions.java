@@ -82,12 +82,12 @@ public class HollowAccountCompletions {
      */
     @Nullable
     private EthFinalization findEthHollowAccount(@NonNull final ParentTxn parentTxn) {
-        final var fileStore = parentTxn.readableStoreFactory().getStore(ReadableFileStore.class);
+        final var fileStore = parentTxn.readableStoreFactory().readableStore(ReadableFileStore.class);
         final var maybeEthTxSigs = ethereumTransactionHandler.maybeEthTxSigsFor(
                 parentTxn.txnInfo().txBody().ethereumTransactionOrThrow(), fileStore, parentTxn.config());
         if (maybeEthTxSigs != null) {
             final var alias = Bytes.wrap(maybeEthTxSigs.address());
-            final var accountStore = parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class);
+            final var accountStore = parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class);
             final var config = parentTxn.config().getConfigData(HederaConfig.class);
             final var maybeHollowAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             if (maybeHollowAccountId != null) {

@@ -25,7 +25,7 @@ public class SyncLagCalculator {
     /**
      * Total weight of all nodes except for current node
      */
-    private final long totalWeight;
+    private final long otherNodesTotalWeight;
 
     /**
      * Keep track of how much behind or ahead we are compared to peers based on the latestConsensusRound
@@ -45,7 +45,7 @@ public class SyncLagCalculator {
      */
     public SyncLagCalculator(final NodeId selfId, final Roster roster) {
         this.selfId = selfId;
-        totalWeight = roster.rosterEntries().stream()
+        otherNodesTotalWeight = roster.rosterEntries().stream()
                 .peek(entry -> weightMap.put(NodeId.of(entry.nodeId()), entry.weight()))
                 .peek(entry -> {
                     if (selfId.id() != entry.nodeId()) {
@@ -87,13 +87,13 @@ public class SyncLagCalculator {
     public double getSyncRoundLag() {
         final var lagArray = consensusLag.values().toArray(WeightAndLag[]::new);
         double medianLag;
-        if (lagArray.length > 0) {
+        if (otherNodesTotalWeight > 0) {
             // shut up compiler about the loop exit
             medianLag = lagArray[0].lag();
             // we need to sort everything based on lags to look for median
             Arrays.sort(lagArray, Comparator.comparing(WeightAndLag::lag));
 
-            final long correctedTotalWeight = totalWeight;
+            final long correctedTotalWeight = otherNodesTotalWeight;
             long runningWeight = 0;
             for (int i = 0; i < lagArray.length; i++) {
                 runningWeight += lagArray[i].weight();
@@ -110,7 +110,7 @@ public class SyncLagCalculator {
                 }
             }
         } else {
-            // this should never happen normally, but sometimes we test single-node networks in unit tests
+            // this should not happen normally, but sometimes we test single-node networks in unit tests
             medianLag = 0.0;
         }
 

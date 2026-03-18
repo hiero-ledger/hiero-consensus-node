@@ -3,10 +3,6 @@ package com.hedera.node.app.history.handlers;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.history.HistorySignature;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
-import com.hedera.node.app.history.WritableHistoryStore;
-import com.hedera.node.app.history.impl.ProofControllers;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -19,11 +15,9 @@ import javax.inject.Singleton;
 
 @Singleton
 public class HistoryProofSignatureHandler implements TransactionHandler {
-    private final ProofControllers controllers;
-
     @Inject
-    public HistoryProofSignatureHandler(@NonNull final ProofControllers controllers) {
-        this.controllers = requireNonNull(controllers);
+    public HistoryProofSignatureHandler() {
+        // Dagger2
     }
 
     @Override
@@ -39,16 +33,6 @@ public class HistoryProofSignatureHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
-        final var op = context.body().historyProofSignatureOrThrow();
-        final long constructionId = op.constructionId();
-        controllers.getInProgressById(constructionId).ifPresent(controller -> {
-            final long nodeId = context.creatorInfo().nodeId();
-            final var publication = new HistorySignaturePublication(
-                    nodeId, op.signatureOrElse(HistorySignature.DEFAULT), context.consensusNow());
-            if (controller.addSignaturePublication(publication)) {
-                final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
-                historyStore.addSignature(constructionId, publication);
-            }
-        });
+        // No-op, obsolete in TSS 3.0
     }
 }

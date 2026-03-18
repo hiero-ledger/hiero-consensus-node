@@ -33,6 +33,55 @@ class BlockNodeStatsTest {
     }
 
     @Test
+    void test_behindPublisher_exceededMaxPermitted() {
+        final Instant now = Instant.now();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isTrue();
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(3);
+    }
+
+    @Test
+    void test_behindPublisher_expiredTimestampsPruned() {
+        final Instant now = Instant.now();
+        // Add timestamps that will be outside the time window
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(15), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(12), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Add a recent timestamp - the old ones should be pruned
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Only the recent timestamp should remain
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(1);
+    }
+
+    @Test
+    void test_behindPublisher_independentOfEndOfStream() {
+        final Instant now = Instant.now();
+        // Add EndOfStream events
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // EndOfStream count should be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
+
+        // Add BehindPublisher events
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // BehindPublisher count should be 2 (independent of EndOfStream)
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(2);
+        // EndOfStream count should still be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
+    }
+
+    @Test
     void test_ackLatency_consecutiveHighLatencyAndSwitching() {
         final Duration threshold = Duration.ofMillis(50);
         final int eventsBeforeSwitching = 2;
@@ -69,5 +118,64 @@ class BlockNodeStatsTest {
         assertThat(res.isHighLatency()).isFalse();
         assertThat(res.consecutiveHighLatencyEvents()).isGreaterThanOrEqualTo(0);
         assertThat(res.shouldSwitch()).isFalse();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_firstMessageInNewWindow() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message in new window (queue is empty) should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue (simulating what happens after ignore check in real code)
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_afterIgnorePeriodExpires() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Message after 5 seconds (ignore period expired) - should NOT be ignored, starts new period
+        // Note: The queue still has the first timestamp so it's not a new window
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(6), ignorePeriod, timeFrame))
+                .isFalse();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_newWindowResetsIgnorePeriod() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period - should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+
+        // Third message in new window (after timeframe expires, queue empty due to pruning) - should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(35), ignorePeriod, timeFrame))
+                .isFalse();
     }
 }

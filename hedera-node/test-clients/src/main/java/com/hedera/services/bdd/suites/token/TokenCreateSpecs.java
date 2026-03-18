@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -88,6 +87,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.lang.Integer.parseInt;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
@@ -201,7 +201,6 @@ public class TokenCreateSpecs {
      * automatic associations limit defined by https://hips.hedera.com/hip/hip-23.
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> validateNewTokenAssociations() {
         final String notToBeToken = "notToBeToken";
         final String hbarCollector = "hbarCollector";
@@ -278,7 +277,6 @@ public class TokenCreateSpecs {
      * Validates the default values for a {@code TokenCreate}'s token type (fungible) and supply type (infinite).
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createsFungibleInfiniteByDefault() {
         return defaultHapiSpec("CreatesFungibleInfiniteByDefault")
                 .given()
@@ -337,7 +335,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationYieldsExpectedToken() {
         return defaultHapiSpec("CreationYieldsExpectedToken")
                 .given(cryptoCreate(TOKEN_TREASURY).balance(0L), newKeyNamed("freeze"))
@@ -370,7 +367,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationHappyPath() {
         String memo = "JUMP";
         String saltedName = salted(PRIMARY);
@@ -470,7 +466,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> missingTreasurySignatureFails() {
         String memo = "JUMP";
         String saltedName = salted(PRIMARY);
@@ -560,7 +555,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationSetsCorrectExpiry() {
         return defaultHapiSpec("CreationSetsCorrectExpiry")
                 .given(
@@ -585,7 +579,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationValidatesExpiry() {
         return defaultHapiSpec("CreationValidatesExpiry")
                 .given()
@@ -594,7 +587,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationValidatesFreezeDefaultWithNoFreezeKey() {
         return defaultHapiSpec("CreationValidatesFreezeDefaultWithNoFreezeKey")
                 .given()
@@ -656,8 +648,7 @@ public class TokenCreateSpecs {
                                 .hasPrecheck(INVALID_TOKEN_INITIAL_SUPPLY));
     }
 
-    @HapiTest
-    @Tag(MATS)
+    @LeakyHapiTest
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeCreated() {
         final long negativeHtsFee = -100L;
         final String invalidEntityId = "1.2.786";
@@ -834,7 +825,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feeCollectorSigningReqsWorkForTokenCreate() {
         return hapiTest(
                 newKeyNamed(customFeesKey),
@@ -888,7 +878,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationValidatesName() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -907,7 +896,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationValidatesSymbol() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -930,7 +918,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationRequiresAppropriateSigs() {
         return defaultHapiSpec("CreationRequiresAppropriateSigs")
                 .given(
@@ -957,7 +944,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationRequiresAppropriateSigsHappyPath() {
         return hapiTest(
                 cryptoCreate(PAYER),
@@ -971,7 +957,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> creationValidatesTreasuryAccount() {
         return defaultHapiSpec("CreationValidatesTreasuryAccount")
                 .given(cryptoCreate(TOKEN_TREASURY).balance(0L))
@@ -982,7 +967,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> initialSupplyMustBeSane() {
         return defaultHapiSpec("InitialSupplyMustBeSane")
                 .given()
@@ -1051,7 +1035,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deletedAccountCannotBeFeeCollector() {
         final var account = "account";
         return hapiTest(
@@ -1066,7 +1049,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> autoRenewLessThenAMonth() {
         return hapiTest(
                 cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
@@ -1077,7 +1059,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeWithFallback() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
@@ -1098,7 +1079,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeWithFallback() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
@@ -1147,7 +1127,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canOmitAutoRenewPeriod() {
         String memo = "JUMP";
         String saltedName = salted(PRIMARY);
@@ -1186,7 +1165,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> withNegativeAutoRenewPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1202,7 +1180,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> withNegativeMinAutoRenewPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1218,7 +1195,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> withNegativeExpiry() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1233,7 +1209,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenCreateWithAutoRenewPeriodAndNoAccount() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
