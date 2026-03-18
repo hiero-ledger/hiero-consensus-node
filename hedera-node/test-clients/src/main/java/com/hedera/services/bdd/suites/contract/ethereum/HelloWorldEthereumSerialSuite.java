@@ -39,21 +39,23 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @OrderedInIsolation
 public class HelloWorldEthereumSerialSuite {
+
+    private static final String BLOCKQUERIES_CONTRACT = "BlockQueries";
+
     @LeakyHapiTest
     final Stream<DynamicTest> customizedEvmValuesAreCustomized() {
-        final var blockQueriesContract = "BlockQueries";
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via("autoAccount"),
                 getTxnRecord("autoAccount").andAllChildRecords(),
-                uploadInitCode(blockQueriesContract),
-                contractCreate(blockQueriesContract).adminKey(THRESHOLD),
-                ethereumCall(blockQueriesContract, "getBlobBaseFee")
+                uploadInitCode(BLOCKQUERIES_CONTRACT),
+                contractCreate(BLOCKQUERIES_CONTRACT).adminKey(THRESHOLD),
+                ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFee")
                         .via("callTxn1")
                         .hasKnownStatus(SUCCESS),
-                ethereumCall(blockQueriesContract, "getBlobBaseFeeR", BigInteger.TEN)
+                ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFeeR", BigInteger.TEN)
                         .via("callTxn2")
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),

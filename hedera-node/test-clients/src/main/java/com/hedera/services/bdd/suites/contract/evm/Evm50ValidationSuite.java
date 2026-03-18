@@ -24,18 +24,16 @@ public class Evm50ValidationSuite {
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> verifiesNonExistenceForV50OpcodesInV46() {
+        final var contract = Module05OpcodesExist_CONTRACT;
         return hapiTest(
                 overriding("contracts.evm.version", "v0.46"),
-                uploadInitCode(Module05OpcodesExist_CONTRACT),
-                contractCreate(Module05OpcodesExist_CONTRACT),
-                contractCall(Module05OpcodesExist_CONTRACT, "try_transient_storage")
+                uploadInitCode(contract),
+                contractCreate(contract),
+                contractCall(contract, "try_transient_storage")
                         .gas(A_BUNCH_OF_GAS)
                         .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION),
-                contractCall(Module05OpcodesExist_CONTRACT, "try_mcopy")
-                        .gas(A_BUNCH_OF_GAS)
-                        .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION),
-                contractCall(Module05OpcodesExist_CONTRACT, "try_kzg_precompile")
-                        .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION));
+                contractCall(contract, "try_mcopy").gas(A_BUNCH_OF_GAS).hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION),
+                contractCall(contract, "try_kzg_precompile").hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION));
     }
 
     @HapiTest
