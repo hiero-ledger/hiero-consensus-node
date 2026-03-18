@@ -15,7 +15,6 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
-import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +28,8 @@ import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -61,8 +61,7 @@ class EventIntakeProcessorStressTests {
     private EventHasher eventHasher;
     final Randotron random = Randotron.create();
 
-    private final Function<PublicKey, BytesSignatureVerifier> trueVerifierFactory =
-            publicKey -> (data, signature) -> true;
+    private final Function<Bytes, BytesSignatureVerifier> trueVerifierFactory = publicKey -> (data, signature) -> true;
 
     private final EventFieldValidator passingValidator = event -> true;
 
@@ -99,8 +98,7 @@ class EventIntakeProcessorStressTests {
                 time,
                 eventHasher,
                 passingValidator,
-                trueVerifierFactory,
-                rosterHistory,
+                new EventSignatureChecker(time, trueVerifierFactory, rosterHistory),
                 intakeEventCounter,
                 null);
     }
@@ -435,7 +433,7 @@ class EventIntakeProcessorStressTests {
         // A deliberately non-thread-safe verifier that detects concurrent access.
         // If two threads share the same instance, the counter check will fail.
         // The ThreadLocal cache ensures each thread gets its own instance.
-        final Function<PublicKey, BytesSignatureVerifier> unsafeVerifierFactory =
+        final Function<Bytes, BytesSignatureVerifier> unsafeVerifierFactory =
                 publicKey -> new BytesSignatureVerifier() {
                     private int entryCount = 0;
 
@@ -457,8 +455,7 @@ class EventIntakeProcessorStressTests {
                 time,
                 eventHasher,
                 passingValidator,
-                unsafeVerifierFactory,
-                rosterHistory,
+                new EventSignatureChecker(time, unsafeVerifierFactory, rosterHistory),
                 intakeEventCounter,
                 null);
 
