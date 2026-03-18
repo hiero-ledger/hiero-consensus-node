@@ -2,34 +2,38 @@
 
 ## Overview
 
-This document outlines the configuration settings for the CITR (Continuous Integration Test & Release) environment used in our workflows. The CITR environment is designed to facilitate automated testing and deployment processes.
+This document outlines the configuration settings for the CITR (Continuous Integration Test & Release) environment used
+in our workflows. The CITR environment is designed to facilitate automated testing and deployment processes.
 
-There are several test suites that are run in the CITR environment, each with its own configuration settings. The main test suites include:
+There are several test suites that are run in the CITR environment, each with its own configuration settings. The main
+test suites include:
 
-| Test Suite  |             Name              |                                      Description                                       | Automated |
-|-------------|-------------------------------|----------------------------------------------------------------------------------------|-----------|
-| MATS        | Minimal Acceptable Test Suite | Basic checks against main branch when changes are made                                 | X         |
-| XTS         | Extended Test Suite           | More comprehensive tests run on a scheduled basis                                      | X         |
-| SDCT        | Single Day Canonical Tests    | More comprehensive tests that focus on load, throughput and E2E latency                | X         |
-| SDLT        | Single Day Longevity Tests    | Longevity tests to ensure stability over extended periods                              | X         |
-| SDPT        | Single Day Performance Tests  | Performance-focused tests to evaluate system responsiveness                            | X         |
-| MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            | X         |
-| MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
-| Shortgevity | Short Longevity Tests         | Short-term longevity tests for checking performance against a mainnet-like environment |           |
+| Test Suite  |             Name              |                                             Description                                             | Automated |
+|-------------|-------------------------------|-----------------------------------------------------------------------------------------------------|-----------|
+| MATS        | Minimal Acceptable Test Suite | Basic functional checks against main branch when changes are made                                   | X         |
+| XTS         | Extended Test Suite           | Longer runner functional tests run on a scheduled basis                                             | X         |
+| SDCT        | Single Day Canonical Tests    | Long established transaction loads by transaction types to measure E2E latency                      | X         |
+| SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
+| SDPT        | Single Day Performance Tests  | Unthrottled high TPS tests with large states to evaluate throughput capability                      | X         |
+| MDLT        | Multi Day Longevity Tests     | Production throttled mixed TPS load over many days to test long term network stability              | X         |
+| Shortgevity | Short Longevity Tests         | Production throttled mixed TPS load with reconnects on a mainnet-like environment over several days |           |
+| MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
 
 ## MATS
 
 ### Environment
 
-- MATS runs inside of self-hosted github runners on every *push* to the **default branch** (`main`).
+- MATS runs inside self-hosted github runners on every *push* to the **default branch** (`main`).
 - MATS is expected to complete within 30 minutes of the test suite starting.
 - MATS has an equivalent set of tests that run in PRs against feature branches triggered on *pull_request* events.
 
 ### Workflows
 
 - MATS is triggered by the [Node: Build Application](/.github/workflows/node-flow-build-application.yaml) workflow.
-- The PR Check equivalent checks are triggered by the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
-- MATS Dry-Run is triggered manually via the [[CITR] MATS Dry Run](/.github/workflows/flow-dry-run-mats-suite.yaml) workflow.
+- The PR Check equivalent checks are triggered by
+  the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
+- MATS Dry-Run is triggered manually via the [[CITR] MATS Dry Run](/.github/workflows/flow-dry-run-mats-suite.yaml)
+  workflow.
 
 ### Included Tests
 
@@ -65,8 +69,10 @@ There are several test suites that are run in the CITR environment, each with it
 
 ### Workflows
 
-- XTS is triggered by the [ZXCron: [CITR] Extended Test Suite](/.github/workflows/zxcron-extended-test-suite.yaml) workflow.
-- XTS Dry Run is triggered manually via the [[CITR] XTS Dry Run](/.github/workflows/flow-dry-run-extended-test-suite.yaml) workflow.
+- XTS is triggered by the [ZXCron: [CITR] Extended Test Suite](/.github/workflows/zxcron-extended-test-suite.yaml)
+  workflow.
+- XTS Dry Run is triggered manually via
+  the [[CITR] XTS Dry Run](/.github/workflows/flow-dry-run-extended-test-suite.yaml) workflow.
 
 ### Included Tests
 
@@ -94,20 +100,30 @@ There are several test suites that are run in the CITR environment, each with it
 
 ## SDCT
 
+### Purpose
+
+SDCT (Single Day Canonical Test) is designed to run long-established transaction loads by transaction types to measure
+end-to-end latency performance. It serves as a benchmark for evaluating the performance of the network under various
+transaction loads compared to previous releases. This test provides the official E2E latency numbers used to determine
+if the E2E SLA is met. It runs on a large, mainnet-like environment.
+
 ### Environment
 
-- SDCT runs on the **performance** (**perf1**) network that has a Mirrornode setup, hosted on GCP and various external server providers (**Latitude**, **OVH**, **AWS**, etc.).
+- SDCT runs on the **performance** (**perf1**) network that has a Mirror node setup, hosted on GCP and various external
+  server providers (**Latitude**, **OVH**, **AWS**, etc.).
 - SDCT is expected to complete around 20 hours after the test suite starts.
 - SDCT supports artifacts built from any PR, tag, or branch.
 
 ### Workflows
 
-- SDCT is triggered by the [ZXF: [CITR] Single Day Canonical Test (SDCT)](https://www.notion.so/.github/workflows/zxf-single-day-canonical-test.yaml) workflow
+- SDCT is triggered by
+  the [ZXF: [CITR] Single Day Canonical Test (SDCT)](/.github/workflows/zxf-single-day-canonical-test.yaml)
+  workflow
   - The workflow is currently being updated with a fast-fail enhancement
 
 ### Included Tests
 
-These tests run sequentially with a Mirrornode setup to measure E2E latency performance.
+These tests run sequentially with a Mirror node setup to measure E2E latency performance.
 
 |                       Test                        | TPS |
 |---------------------------------------------------|-----|
@@ -123,6 +139,11 @@ These tests run sequentially with a Mirrornode setup to measure E2E latency perf
 
 ## SDLT
 
+### Purpose
+
+SDLT (Single Day Longevity Test) is designed to run a production throttled mixed TPS load on small, heterogeneous
+environment to quickly identify regressions in overall network stability and robustness under load.
+
 ### Environment
 
 - SDLT runs inside of self-hosted github runners every 24 hours on the **default branch** (`main`).
@@ -131,12 +152,17 @@ These tests run sequentially with a Mirrornode setup to measure E2E latency perf
 
 ### Workflows
 
-- SDLT is triggered by the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml) workflow.
-- SDLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml) workflow.
+- SDLT is triggered by
+  the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml)
+  workflow.
+- SDLT Dry Run is triggered manually via
+  the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml)
+  workflow.
 
 ### Hardware
 
 Latitude kubernetes cluster
+
 - 7 nodes for Consensus Nodes
 - 1 node for aux services and NLG client
 
@@ -164,20 +190,31 @@ Latitude kubernetes cluster
 
 ## SDPT
 
+### Purpose
+
+SDPT (Single Day Performance Test) is designed to run unthrottled high TPS tests with large states to evaluate the
+throughput capability of the network at scale. It runs on a small, heterogeneous network environment to quickly identify
+potential performance regressions.
+
 ### Environment
 
-- SDPT runs inside of self-hosted github runners every 24 hours on the **default branch** (`main`).
+- SDPT runs inside self-hosted github runners every 24 hours on the **default branch** (`main`).
 - SDPT is expected to complete within 20 hours of the test suite starting.
 - SDPT has a dry-run equivalent that can be run against any PR, tag, or branch.
 
 ### Workflows
 
-- SDPT is triggered by the [ZXF: [CITR] Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller.yaml) workflow.
-- SDPT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml) workflow.
+- SDPT is triggered by
+  the [ZXF: [CITR] Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller.yaml)
+  workflow.
+- SDPT Dry Run is triggered manually via
+  the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml)
+  workflow.
 
 ### Hardware
 
 Latitude kubernetes cluster
+
 - 7 nodes for Consensus Nodes
 - 1 node for CryptoBench
 - 1 node for aux services and NLG client
@@ -192,7 +229,7 @@ Latitude kubernetes cluster
 | CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
 | HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
 | SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
-| State  Validator       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
+| State Validator        | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
 
 ### Runtime durations, practical settings
 
@@ -202,20 +239,31 @@ Latitude kubernetes cluster
 
 ## MDLT
 
+### Purpose
+
+MDLT (Multi Day Longevity Test) is designed to run a production throttled mixed TPS load for an extended period of
+time (7 days) to identify regressions in overall network stability and robustness under load. It serves as a longer
+running version of SDLT to catch potential issues that may not surface within the shorter SDLT.
+
 ### Environment
 
-- MDLT runs inside of self-hosted github runners on demand, against any PR, tag, or branch, assuming release candidate
+- MDLT runs inside self-hosted github runners on demand, against any PR, tag, or branch, assuming release candidate
 - MDLT is expected to complete within 7 days of the test suite starting.
 - MDLT has a dry-run equivalent to SDLT
 
 ### Workflows
 
-- MDLT is triggered by the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml) workflow.
-- MDLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml) workflow.
+- MDLT is triggered by
+  the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml)
+  workflow.
+- MDLT Dry Run is triggered manually via
+  the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml)
+  workflow.
 
 ### Hardware
 
 Latitude kubernetes cluster
+
 - 7 nodes for Consensus Nodes
 - 1 node for aux services and NLG client
 
@@ -243,15 +291,23 @@ Latitude kubernetes cluster
 
 ## Shortgevity
 
+### Purpose
+
+Shortgevity is similar to the MDLT (Multi Day Longevity Test) but runs on a mainnet-like network for a shorter period of
+time. It is designed to detect stability regressions under high load in a more realistic environment.
+
 ### Environment
 
-- Shortgevity runs on the **performance** (**perf1**) network, which is hosted on **GCP** and various external server hosting providers (**Latitude**, **OVH**, **AWS**, etc.).
-- Shortgevity runs range from 6–8 hours to 3 days, depending on the size of the change set being tested and the potential impact on performance.
+- Shortgevity runs on the **performance** (**perf1**) network, which is hosted on **GCP** and various external server
+  hosting providers (**Latitude**, **OVH**, **AWS**, etc.).
+- Shortgevity runs range from 6–8 hours to 3 days, depending on the size of the change set being tested and the
+  potential impact on performance.
 - Shortgevity supports artifacts built from any PR, tag, or branch.
 
 ### Workflows
 
-- Shortgevity runs manually because it operates on an ad hoc basis and is limited by the availability of the shared **performance** network resource.
+- Shortgevity runs manually because it operates on an ad hoc basis and is limited by the availability of the shared
+  **performance** network resource.
 
 ### Included Tests
 
@@ -259,10 +315,10 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 
 |                Test Type                |                     Ratio                      |
 |-----------------------------------------|------------------------------------------------|
-| Crypto                                  | %30~                                           |
-| HCS                                     | %30~                                           |
-| HTS                                     | %10~                                           |
-| NFT                                     | %30~                                           |
+| Crypto                                  | ~30%                                           |
+| HCS                                     | ~30%                                           |
+| HTS                                     | ~10%                                           |
+| NFT                                     | ~30%                                           |
 | Smartcontract                           | ~350(including Uniswaps/ERCs)                  |
 | K/V pairs                               | 200M                                           |
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
@@ -272,18 +328,23 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 
 ### Environment
 
-- MQPT runs inside of self-hosted github runners regularly against Trunk.io Merge Queues
+- MQPT runs inside self-hosted github runners regularly against Trunk.io Merge Queues
 - MQPT is expected to complete within 3 hours 40 mins of the test suite starting.
 - MQPT has a dry-run equivalent that can be run against any PR, tag, or branch.
 
 ### Workflows
 
-- MQPT is triggered by the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller.yaml) workflow.
-- MQPT AdHoc Run is triggered manually via the [ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller-adhoc.yaml) workflow.
+- MQPT is triggered by
+  the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller.yaml)
+  workflow.
+- MQPT AdHoc Run is triggered manually via
+  the [ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller-adhoc.yaml)
+  workflow.
 
 ### Hardware
 
 Latitude kubernetes cluster
+
 - 7 nodes for Consensus Nodes
 - 1 node for aux services and NLG client
 
