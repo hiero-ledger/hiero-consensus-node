@@ -507,9 +507,7 @@ public class SystemTransactions {
             final var votingStateSingleton = blockRecordStates.<MigrationRootHashVotingState>getSingleton(
                     V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
             final var existingVotingState = votingStateSingleton.get();
-            if (existingVotingState != null
-                    && (existingVotingState.votingComplete()
-                            || existingVotingState.votingCompletionDeadlineBlockNumber() > 0)) {
+            if (existingVotingState != null) {
                 // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
                 startupMigrationVoteSubmissionRequested = true;
                 startupMigrationJumpstartArchiveHandled = true;
@@ -529,7 +527,6 @@ public class SystemTransactions {
                             .votingComplete(false)
                             .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
                             .build());
-                    ((WritableSingletonStateBase<MigrationRootHashVotingState>) votingStateSingleton).commit();
                 });
 
                 log.info(

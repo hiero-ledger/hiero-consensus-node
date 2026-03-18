@@ -85,6 +85,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -411,13 +412,19 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze, streaming
-                // the resulting queue push and BlockInfo singleton update to the block stream
-                final var writableBlockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-                doStreamingAllChanges(
-                        writableBlockRecordStates,
-                        null,
-                        () -> blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state));
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .liveWritePrevWrappedRecordHashes()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -626,7 +633,10 @@ public class HandleWorkflow {
             return false;
         }
         if (streamMode != BLOCKS && startsNewRecordFile) {
-            blockRecordManager.startUserTransaction(consensusNow, state);
+            if (blockRecordManager.startUserTransaction(consensusNow, state)) {
+                // startTrackingNewBlock
+                //
+            }
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
@@ -942,7 +952,7 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action) {
-        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true);
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true, true);
     }
 
     /**
@@ -956,7 +966,7 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action) {
-        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false);
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false, false);
     }
 
     /**
@@ -972,11 +982,15 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action,
-            final boolean includeSingletons) {
+            final boolean includeSingletons,
+            final boolean includeQueues) {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             if (includeSingletons) {
                 boundaryStateChangeListener.reset();
+            }
+            if (includeQueues) {
+                immediateStateChangeListener.resetQueueStateChanges();
             }
         }
         action.run();
@@ -998,6 +1012,14 @@ public class HandleWorkflow {
                 if (!singletonChanges.isEmpty()) {
                     blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                             .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                            .build());
+                }
+            }
+            if (includeQueues) {
+                final var queueChanges = immediateStateChangeListener.getQueueStateChanges();
+                if (!queueChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(queueChanges)))
                             .build());
                 }
             }

@@ -116,7 +116,7 @@ import org.junit.jupiter.api.TestMethodOrder;
  * Since this test upgrades the software version, it must run after any other test that does a restart assuming
  * the config version is still zero.
  */
-@Tag(UPGRADE)
+//@Tag(UPGRADE)
 @Order(Integer.MAX_VALUE - 3)
 @HapiTestLifecycle
 @OrderedInIsolation

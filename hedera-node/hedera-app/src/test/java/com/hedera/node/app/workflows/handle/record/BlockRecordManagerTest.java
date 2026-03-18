@@ -843,7 +843,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
                 // Call freeze with state — computes wrapped hash for the in-progress block 1
                 // and persists the updated BlockInfo to state (leaf count → 2).
-                manager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                manager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
 
                 final var blockInfoAfterFreeze = readBlockInfo(state);
                 // Freeze persisted the updated wrapped hash state

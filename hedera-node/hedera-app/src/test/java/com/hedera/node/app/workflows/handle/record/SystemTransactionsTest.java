@@ -137,6 +137,9 @@ class SystemTransactionsTest {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private NodeInfo creatorNodeInfo;
 
+    @Mock
+    private SystemTransactions.StateChangeStreaming stateChangeStreaming;
+
     private SystemTransactions subject;
 
     @BeforeEach
@@ -535,7 +538,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
@@ -600,7 +603,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();
@@ -666,7 +669,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         assertTrue(Files.exists(jumpstartFile), "Jumpstart file should remain until vote is observed in state");
         assertFalse(
@@ -729,7 +732,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
@@ -802,7 +805,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Post-upgrade setup no longer writes migration values directly to BlockInfo;
         // they are applied only when voting finalizes.
