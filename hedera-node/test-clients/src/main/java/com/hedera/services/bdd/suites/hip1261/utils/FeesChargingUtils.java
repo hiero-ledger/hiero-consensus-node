@@ -1765,6 +1765,28 @@ public class FeesChargingUtils {
         return nodeFee * NETWORK_MULTIPLIER;
     }
 
+    /**
+     * Network-only fee for TokenGrantKyc failures in pre-handle.
+     */
+    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenGrantKycNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     // -------- TokenRevokeKyc simple fees utils ---------//
 
     /**
