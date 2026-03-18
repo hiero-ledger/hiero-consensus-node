@@ -411,8 +411,13 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze
-                blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                // Persist live wrapped record block hashes to state before the freeze, streaming
+                // the resulting queue push and BlockInfo singleton update to the block stream
+                final var writableBlockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+                doStreamingAllChanges(
+                        writableBlockRecordStates,
+                        null,
+                        () -> blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state));
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -577,7 +582,7 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
-            systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            systemTransactions.doPostUpgradeSetup(consensusNow, state, this::doStreamingAllChanges);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }

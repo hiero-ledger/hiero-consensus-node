@@ -49,6 +49,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableQueueState;
+import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -341,7 +342,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                             currentBlockNumber,
                             previousWrappedRecordBlockRootHash);
                 }
-            } else if (writeWrappedRecordFileBlockHashesToDisk()) {
+            }
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
                 // Only write to the wrapped hashes file if live writing isn't enabled
                 appendWrappedRecordFileBlockHashesToDisk(
                         currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
@@ -355,7 +357,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
-        refreshWrappedHashStateFromBlockInfoIfVotingComplete(state);
+        // refreshWrappedHashStateFromBlockInfoIfVotingComplete(state);
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
@@ -413,16 +415,27 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 if (liveWritePrevWrappedRecordHashes()) {
                     final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
-                    if (wrappedRecordFileBlockHashes != null && !votingComplete && queueingEnabled) {
+                    logger.info(
+                            "Computed wrapped record block hashes for block {}: {}",
+                            justFinishedBlockNumber,
+                            wrappedRecordFileBlockHashes);
+                    if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
+                        logger.info(
+                                "Enqueueing wrapped record block hashes for block {} because migration voting is still pending",
+                                justFinishedBlockNumber);
+                        // Voting not complete, deadline not reached, enqueue hashes for just complete block
                         putMigrationWrappedHashesQueueEntry(
                                 state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
                     }
                     if (votingComplete) {
+                        // Live record wrapping
                         wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
                         wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
                         wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
                     }
-                } else if (writeWrappedRecordFileBlockHashesToDisk()) {
+                }
+                if (writeWrappedRecordFileBlockHashesToDisk()) {
+                    // Write hashes to wrapped record file on disk
                     appendWrappedRecordFileBlockHashesToDisk(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
                 }
@@ -904,19 +917,25 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private @Nullable MigrationRootHashVotingState migrationRootHashVotingState(@NonNull final State state) {
         final var singleton = state.getReadableStates(BlockRecordService.NAME)
                 .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
-        return singleton == null ? null : singleton.get();
+        return singleton.get();
     }
 
     private boolean migrationRootHashVotingComplete(@NonNull final State state) {
         final var votingState = migrationRootHashVotingState(state);
         if (votingState == null) {
-            return !computeHashesFromWrappedRecordBlocks();
+            return false;
         }
         return votingState.votingComplete();
     }
 
     private boolean migrationRootHashVotingQueueingEnabled(@NonNull final State state, final long currentBlockNumber) {
         final var votingState = migrationRootHashVotingState(state);
+        logger.info(
+                "votingState {} votingComplete {} currentBlockNumber {} votingCompletionDeadlineBlockNumber {}",
+                votingState,
+                votingState != null ? votingState.votingComplete() : null,
+                currentBlockNumber,
+                votingState != null ? votingState.votingCompletionDeadlineBlockNumber() : null);
         if (votingState == null) {
             return false;
         }
@@ -1000,6 +1019,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .consensusTimestampHash(wrappedRecordFileBlockHashes.consensusTimestampHash())
                 .outputItemsTreeRootHash(wrappedRecordFileBlockHashes.outputItemsTreeRootHash())
                 .build());
+        ((WritableQueueStateBase<MigrationWrappedHashes>) queueState).commit();
     }
 
     private boolean writeWrappedRecordFileBlockHashesToDisk() {

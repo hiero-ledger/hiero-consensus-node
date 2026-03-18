@@ -116,8 +116,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                                 return;
                             }
 
-                            if (logger.isDebugEnabled()) {
-                                logger.debug(
+                            if (logger.isInfoEnabled()) {
+                                logger.info(
                                         "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
                                         entry.blockNumber(),
                                         entry.consensusTimestampHash().toHex(),
@@ -145,6 +145,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                         executor)
                 .exceptionally(ex -> {
                     // Swallow to keep the chain alive; errors are logged in-task.
+                    logger.info(
+                            "Error in wrapped record-file block hashes append task; skipping. Error: {}",
+                            ex.getMessage());
                     return null;
                 }));
     }

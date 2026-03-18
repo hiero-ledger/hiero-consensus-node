@@ -56,7 +56,6 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var nodeId = context.creatorInfo().nodeId();
-        log.info("Handling migration root hash vote from node{}", nodeId);
         final var store = context.storeFactory().writableStore(WritableMigrationRootHashStore.class);
         if (store.isVotingComplete()) {
             log.info("Ignoring migration root hash vote from node{} because voting is already complete", nodeId);
@@ -64,6 +63,15 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         }
 
         final var op = context.body().migrationRootHashVoteOrThrow();
+        log.info(
+                "Migration root hash vote from node{}: previousWrappedRecordBlockRootHash={},"
+                        + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
+                nodeId,
+                op.previousWrappedRecordBlockRootHash().toHex(),
+                op.wrappedIntermediatePreviousBlockRootHashes().stream()
+                        .map(Bytes::toHex)
+                        .collect(Collectors.joining(", ")),
+                op.wrappedIntermediateBlockRootsLeafCount());
         if (!store.putVoteIfAbsent(nodeId, op)) {
             log.info("Ignoring duplicate migration root hash vote from node{}", nodeId);
             return;
@@ -74,10 +82,6 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         if (activeRoster == null || activeRoster.rosterEntries().isEmpty()) {
             return;
         }
-        final var rosterWeights = activeRoster.rosterEntries().stream()
-                .map(entry -> entry.nodeId() + ":" + entry.weight())
-                .collect(Collectors.joining(", "));
-        log.info("Migration root hash vote active roster weights [{}]", rosterWeights);
         final var nodeWeight = activeRoster.rosterEntries().stream()
                 .filter(entry -> entry.nodeId() == nodeId)
                 .mapToLong(entry -> entry.weight())
@@ -114,6 +118,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .map(Bytes::toByteArray)
                         .toList(),
                 op.wrappedIntermediateBlockRootsLeafCount());
+        log.info("store queue: {}", store.queuedHashesInOrder());
         for (final var queuedHashes : store.queuedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
@@ -123,6 +128,14 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                             .consensusTimestampHash(queuedHashes.consensusTimestampHash())
                             .outputItemsTreeRootHash(queuedHashes.outputItemsTreeRootHash())
                             .build());
+            log.info(
+                    "Applied queued hash for block{}: consensusTimestampHash={}, outputItemsTreeRootHash={},"
+                            + " allPrevBlocksRootHash={}, blockRootHash={}",
+                    queuedHashes.blockNumber(),
+                    queuedHashes.consensusTimestampHash().toHex(),
+                    queuedHashes.outputItemsTreeRootHash().toHex(),
+                    allPrevBlocksRootHash.toHex(),
+                    blockRootHash.toHex());
             hasher.addNodeByHash(blockRootHash.toByteArray());
             previousWrappedRecordBlockRootHash = blockRootHash;
         }

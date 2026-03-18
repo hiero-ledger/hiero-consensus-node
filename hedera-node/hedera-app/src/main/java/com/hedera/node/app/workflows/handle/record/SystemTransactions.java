@@ -95,18 +95,7 @@ import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.BootstrapConfig;
-import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.FeesConfig;
-import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.NetworkAdminConfig;
-import com.hedera.node.config.data.NodesConfig;
-import com.hedera.node.config.data.SchedulingConfig;
-import com.hedera.node.config.data.StakingConfig;
+import com.hedera.node.config.data.*;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -114,6 +103,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -437,7 +427,10 @@ public class SystemTransactions {
      * @param now the current time
      * @param state the state to set up
      */
-    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doPostUpgradeSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var config = configProvider.getConfiguration();
@@ -506,49 +499,62 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-        final var votingStateSingleton = blockRecordStates.<MigrationRootHashVotingState>getSingleton(
-                V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
-        final var existingVotingState = votingStateSingleton.get();
-        if (existingVotingState != null && existingVotingState.votingCompletionDeadlineBlockNumber() > 0) {
-            // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
-            startupMigrationVoteSubmissionRequested = true;
-            startupMigrationJumpstartArchiveHandled = true;
-            log.info(
-                    "Migration voting state already initialized for node{} (deadlineBlock={}, votingComplete={}); skipping post-upgrade vote setup",
-                    networkInfo.selfNodeInfo().nodeId(),
-                    existingVotingState.votingCompletionDeadlineBlockNumber(),
-                    existingVotingState.votingComplete());
-        } else {
-            // Initialize migration voting state for the post-upgrade period, even if this node has no local result.
-            // This ensures nodes with incomplete local wrapped-hash history still wait for network voting.
-            final var blockInfo = requireNonNull(blockRecordStates
-                    .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
-                    .get());
-            final long votingCompletionDeadlineBlockNumber = blockInfo.lastBlockNumber() + 10;
-            votingStateSingleton.put(MigrationRootHashVotingState.newBuilder()
-                    .votingComplete(false)
-                    .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                    .build());
-
-            // Keep migration result available for asynchronous submission once gossip is active.
-            final var migration = wrappedRecordBlockHashMigration.result();
-            if (migration != null) {
-                startupMigrationVoteSubmissionRequested = false;
-                startupMigrationJumpstartArchiveHandled = false;
-                log.info(
-                        "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}, votingDeadlineBlock={}); will submit when round handling runs",
-                        networkInfo.selfNodeInfo().nodeId(),
-                        migration.wrappedIntermediateBlockRootsLeafCount(),
-                        migration.wrappedIntermediatePreviousBlockRootHashes().size(),
-                        votingCompletionDeadlineBlockNumber);
-            } else {
+        if (configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .liveWritePrevWrappedRecordHashes()) {
+            final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+            final var votingStateSingleton = blockRecordStates.<MigrationRootHashVotingState>getSingleton(
+                    V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
+            final var existingVotingState = votingStateSingleton.get();
+            if (existingVotingState != null
+                    && (existingVotingState.votingComplete()
+                            || existingVotingState.votingCompletionDeadlineBlockNumber() > 0)) {
+                // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
                 startupMigrationVoteSubmissionRequested = true;
                 startupMigrationJumpstartArchiveHandled = true;
                 log.info(
-                        "No local startup migration root hash result for node{}; awaiting network vote (votingDeadlineBlock={})",
-                        networkInfo.selfNodeInfo().nodeId(),
+                        "Wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                        existingVotingState.votingCompletionDeadlineBlockNumber(),
+                        existingVotingState.votingComplete());
+            } else {
+                // Initialize migration voting state for the post-upgrade period, even if this node has no local result.
+                // This ensures nodes with incomplete local wrapped-hash history still wait for network voting.
+                final var blockInfo = requireNonNull(blockRecordStates
+                        .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                        .get());
+                final long votingCompletionDeadlineBlockNumber = blockInfo.lastBlockNumber() + 10;
+                stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
+                    votingStateSingleton.put(MigrationRootHashVotingState.newBuilder()
+                            .votingComplete(false)
+                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                            .build());
+                    ((WritableSingletonStateBase<MigrationRootHashVotingState>) votingStateSingleton).commit();
+                });
+
+                log.info(
+                        "Initialized wrapped record voting singleton with deadline={}",
                         votingCompletionDeadlineBlockNumber);
+
+                // Keep migration result available for asynchronous submission once gossip is active.
+                final var migration = wrappedRecordBlockHashMigration.result();
+                if (migration != null) {
+                    startupMigrationVoteSubmissionRequested = false;
+                    startupMigrationJumpstartArchiveHandled = false;
+                    log.info(
+                            "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
+                            networkInfo.selfNodeInfo().nodeId(),
+                            migration.wrappedIntermediateBlockRootsLeafCount(),
+                            migration
+                                    .wrappedIntermediatePreviousBlockRootHashes()
+                                    .size());
+                } else {
+                    startupMigrationVoteSubmissionRequested = true;
+                    startupMigrationJumpstartArchiveHandled = true;
+                    log.info(
+                            "No local startup migration root hash result for node{}",
+                            networkInfo.selfNodeInfo().nodeId());
+                }
             }
         }
     }

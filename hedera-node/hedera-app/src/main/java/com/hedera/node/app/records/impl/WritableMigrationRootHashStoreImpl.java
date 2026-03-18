@@ -120,7 +120,6 @@ public class WritableMigrationRootHashStoreImpl implements WritableMigrationRoot
 
         blockInfoState.put(builder.build());
 
-        votingState.put(
-                MigrationRootHashVotingState.newBuilder().votingComplete(true).build());
+        votingState.put(getVotingState().copyBuilder().votingComplete(true).build());
     }
 }

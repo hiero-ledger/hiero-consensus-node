@@ -160,6 +160,7 @@ public final class RcdFileBlockHashReplay {
             // Compute block root hash via Merkle tree (independent of production code)
             final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
             final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
+            log.info("Computed block root hash for block {}: {}", blockNumber, blockRootHash);
 
             // Update chain
             initialHasher.addNodeByHash(blockRootHash.toByteArray());
