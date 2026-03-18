@@ -193,7 +193,6 @@ public class DuplicateManagementTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
                 uncheckedSubmit(
                         cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
-                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
