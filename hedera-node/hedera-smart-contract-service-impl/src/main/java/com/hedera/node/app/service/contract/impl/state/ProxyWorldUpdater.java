@@ -105,7 +105,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @NonNull final EvmFrameStateFactory evmFrameStateFactory,
             @Nullable final WorldUpdater parent) {
         this.parent = parent;
-        this.enhancement = requireNonNull(enhancement);
+        this.enhancement = enhancement;
         this.evmFrameStateFactory = requireNonNull(evmFrameStateFactory);
         this.evmFrameState = evmFrameStateFactory.get();
     }
@@ -163,6 +163,21 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             }
         }
         return account.hederaContractId();
+    }
+
+    public ContractID getHederaContractIdNotThrowing(Address address) {
+        var account = (HederaEvmAccount) get(address);
+        if (account != null) return account.hederaContractId();
+        // Also return ids for pending creations
+        if (pendingCreation != null && pendingCreation.address().equals(address))
+            return entityIdFactory().newContractId(pendingCreation.number());
+
+        if (!contractMustBePresent) {
+            return isLongZero(address)
+                    ? asNumberedContractId(entityIdFactory(), address)
+                    : asEvmContractId(entityIdFactory(), address);
+        }
+        return null; // Instead of throwing IAE
     }
 
     @Override

@@ -266,11 +266,19 @@ public class ActionStack {
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
     }
 
+
+    public void pushActionOfIntermediate(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
+        final var builder = ContractAction.newBuilder()
+                .callOperationType(opCall)
+                .callingContract(contractIdWith(parent, hederaIdNumOfContractIn(parent)));
+        completePush(builder, child);
+    }
+
     public boolean isEmpty() {
         return actionsStack.isEmpty();
     }
 
-    private void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {
+    public void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {
         builder.callType(asActionType(frame.getType()))
                 .gas(frame.getRemainingGas())
                 .input(tuweniToPbjBytes(frame.getInputData()))
@@ -342,7 +350,7 @@ public class ActionStack {
         return entityIdFactory(frame).newAccountId(num);
     }
 
-    private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
+    public ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
         return entityIdFactory(frame).newContractId(num);
     }
 

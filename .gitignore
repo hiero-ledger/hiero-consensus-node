@@ -70,6 +70,13 @@ local.properties
 .loadpath
 .recommenders
 
+### Emacs
+TAGS
+#*
+cliff*.sh
+.dir-locals.el
+
+
 # External tool builders
 .externalToolBuilders/
 
