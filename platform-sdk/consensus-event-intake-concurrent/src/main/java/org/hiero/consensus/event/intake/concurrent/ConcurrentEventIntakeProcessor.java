@@ -9,12 +9,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
+import org.hiero.consensus.metrics.FunctionGauge;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
@@ -80,6 +82,9 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
 
     private final CountPerSecond duplicateEventsPerSecond;
 
+    // --- In-flight tracking ---
+    private final AtomicInteger inflightEvents = new AtomicInteger(0);
+
     private static final RunningAverageMetric.Config AVG_DUPLICATE_PERCENT_CONFIG = new RunningAverageMetric.Config(
                     PLATFORM_CATEGORY, "dupEvPercent")
             .withDescription("percentage of events received that are already known")
@@ -134,6 +139,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
                         .withDescription("number of events received per second that are already known")
                         .withUnit("hz"));
         this.avgDuplicatePercent = metrics.getOrCreate(AVG_DUPLICATE_PERCENT_CONFIG);
+
+        // In-flight gauge
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        PLATFORM_CATEGORY,
+                        "intakeInFlightEvents",
+                        Integer.class,
+                        inflightEvents::get)
+                .withDescription(
+                        "Number of events currently being processed in the concurrent event intake pipeline"));
     }
 
     /**
@@ -142,9 +156,14 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     @Override
     @Nullable
     public PlatformEvent processUnhashedEvent(@NonNull final PlatformEvent event) {
-        eventHasher.hashEvent(event);
-        recordStage(STAGE_HASHING, event);
-        return processHashedEvent(event);
+        inflightEvents.incrementAndGet();
+        try {
+            eventHasher.hashEvent(event);
+            recordStage(STAGE_HASHING, event);
+            return processHashedEventInternal(event);
+        } finally {
+            inflightEvents.decrementAndGet();
+        }
     }
 
     /**
@@ -153,6 +172,16 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     @Override
     @Nullable
     public PlatformEvent processHashedEvent(@NonNull final PlatformEvent event) {
+        inflightEvents.incrementAndGet();
+        try {
+            return processHashedEventInternal(event);
+        } finally {
+            inflightEvents.decrementAndGet();
+        }
+    }
+
+    @Nullable
+    private PlatformEvent processHashedEventInternal(@NonNull final PlatformEvent event) {
         // 1. Ancient check — once, before any work
         if (eventWindow.isAncient(event)) {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
