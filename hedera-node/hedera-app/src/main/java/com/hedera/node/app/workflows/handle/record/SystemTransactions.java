@@ -263,6 +263,7 @@ public class SystemTransactions {
                     writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
             platformStateSingleton.put(platformStateSingleton.get());
         });
+        final int networkSize = networkInfo.addressBook().size();
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             if (PlatformStateService.NAME.equals(service.getServiceName())) {
@@ -271,7 +272,7 @@ public class SystemTransactions {
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
             stateChangeStreaming.doStreamingChanges(
-                    writableStates, null, () -> service.doGenesisSetup(writableStates, config));
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
         }
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
@@ -564,8 +565,8 @@ public class SystemTransactions {
             log.info("No fees to distribute for nodes");
             return;
         }
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final var systemContext =
+                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
