@@ -70,7 +70,7 @@ the time constraint. The time limit for MATS is critical because it is also run 
 ### Purpose
 
 XTS (Extended Test Suite) runs additional functional tests that go beyond the scope of MATS. It includes any functional
-test that runs longer than the 30-minute limit for MATS, or simple cannot fit into the MATS time budget or
+test that runs longer than the 30-minute limit for MATS, or simply cannot fit into the MATS time budget or
 parallel runners. The balance between XTS and MATS is continuously evaluated to ensure that MATS provides as much
 coverage as possible while still adhering to the time constraint, and that XTS includes tests that are valuable for
 catching regressions without being unnecessarily long-running.
