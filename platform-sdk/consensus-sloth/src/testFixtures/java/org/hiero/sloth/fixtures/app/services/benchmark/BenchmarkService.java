@@ -90,6 +90,14 @@ public class BenchmarkService implements SlothService {
 
         if (!event.getCreatorId().equals(selfId)) {
             // Only log transactions created by this node because the timestamp was based on the local clock
+            // Debug: track skipped self benchmark transactions
+            log.info(
+                    DEMO_INFO.getMarker(),
+                    "BENCHMARK_SKIP: nonce={}, eventCreator={}, selfId={}, eventHash={}",
+                    transaction.getNonce(),
+                    event.getCreatorId(),
+                    selfId,
+                    event.getHash());
             return;
         }
 
