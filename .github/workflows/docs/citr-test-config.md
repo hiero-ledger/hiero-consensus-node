@@ -11,7 +11,7 @@ test suites include:
 | Test Suite  |             Name              |                                             Description                                             | Automated |
 |-------------|-------------------------------|-----------------------------------------------------------------------------------------------------|-----------|
 | MATS        | Minimal Acceptable Test Suite | Basic functional checks against main branch when changes are made                                   | X         |
-| XTS         | Extended Test Suite           | Longer runner functional tests run on a scheduled basis                                             | X         |
+| XTS         | Extended Test Suite           | Longer functional tests run on a scheduled basis                                                    | X         |
 | SDCT        | Single Day Canonical Tests    | Long established transaction loads by transaction types to measure E2E latency                      | X         |
 | SDPT        | Single Day Performance Tests  | Unthrottled high TPS tests with large states to evaluate throughput capability                      | X         |
 | SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
@@ -20,6 +20,12 @@ test suites include:
 | MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
 
 ## MATS
+
+### Purpose
+
+MATS (Minimal Acceptable Test Suite) runs as many functional tests as possible while staying under 30 minutes of
+runtime. Tests suites are broken out into multiple parallel jobs to maximize the number of tests that can be run within
+the time constraint. The time limit for MATS is critical because it is also run on PRs as a required gate.
 
 ### Environment
 
@@ -61,9 +67,17 @@ test suites include:
 
 ## XTS
 
+### Purpose
+
+XTS (Extended Test Suite) runs additional functional tests that go beyond the scope of MATS. It includes any functional
+test that runs longer than the 30-minute limit for MATS, or simple cannot fit into the MATS time budget or
+parallel runners. The balance between XTS and MATS is continuously evaluated to ensure that MATS provides as much
+coverage as possible while still adhering to the time constraint, and that XTS includes tests that are valuable for
+catching regressions without being unnecessarily long-running.
+
 ### Environment
 
-- XTS runs inside of self-hosted github runners every 3 hours on the **default branch** (`main`).
+- XTS runs inside self-hosted github runners every 3 hours on the **default branch** (`main`).
 - XTS is expected to complete within 3 hours of the test suite starting.
 - XTS has a dry-run equivalent that can be run against any PR, tag, or branch.
 
