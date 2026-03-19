@@ -128,6 +128,7 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common.tls;
     requires io.helidon.common;
     requires io.helidon.webclient.api;
     requires io.helidon.webserver;
