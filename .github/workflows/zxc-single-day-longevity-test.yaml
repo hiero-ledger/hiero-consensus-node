@@ -791,7 +791,6 @@ jobs:
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
 
-
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
