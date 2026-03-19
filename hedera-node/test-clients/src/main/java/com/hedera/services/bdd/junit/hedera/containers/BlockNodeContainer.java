@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.ToStringConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
@@ -48,6 +49,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             MAVEN_CENTRAL_BASE_URL + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar",
             "disruptor-4.0.0.jar",
             MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar");
+    private final ToStringConsumer logConsumer = new ToStringConsumer();
     private String containerId;
 
     /**
@@ -72,11 +74,19 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
 
         // Expose the gRPC port for block node communication
         this.addFixedExposedPort(port, GRPC_PORT);
+        this.withLogConsumer(logConsumer);
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
                 // Wait for the block node app to log its startup message
                 .waitingFor(Wait.forLogMessage(".*Started BlockNode Server.*", 1)
                         .withStartupTimeout(Duration.ofMinutes(3)));
+    }
+
+    /**
+     * Returns all container output (stdout + stderr) captured so far.
+     */
+    public String getCapturedLogs() {
+        return logConsumer.toUtf8String();
     }
 
     private static String pluginsDirInContainer() {

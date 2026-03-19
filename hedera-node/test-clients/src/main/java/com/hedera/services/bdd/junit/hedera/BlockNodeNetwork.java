@@ -161,16 +161,19 @@ public class BlockNodeNetwork {
 
     private void startRealBlockNodeContainer(final long id) {
         final int port = findAvailablePort();
+        final BlockNodeContainer container = new BlockNodeContainer(id, port);
         try {
-            final BlockNodeContainer container = new BlockNodeContainer(id, port);
-
             container.start();
 
             blockNodeContainerById.put(id, container);
 
             logger.info("Started real block node container {} @ {}", id, container);
         } catch (final Exception e) {
-            throw new RuntimeException("Failed to start real block node container " + id + " on port " + port, e);
+            final String logs = container.getCapturedLogs();
+            throw new RuntimeException(
+                    "Failed to start real block node container " + id + " on port " + port
+                            + "\n--- Container output ---\n" + (logs.isEmpty() ? "(no output captured)" : logs),
+                    e);
         }
     }
 
