@@ -42,8 +42,9 @@ jobs:
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         with:
           script: |
-            // Check for run-full-ci label first — forces full CI regardless
             const labels = context.payload.pull_request.labels || [];
+            // Check for run-full-ci label first — forces full CI regardless
+            
             if (labels.some(l => l.name === 'run-full-ci')) {
               core.info('Label "run-full-ci" detected — forcing full CI');
               core.setOutput('docs-only', 'false');
