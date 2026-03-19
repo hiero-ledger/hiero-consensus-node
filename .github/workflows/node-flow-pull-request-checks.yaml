@@ -37,6 +37,14 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Confirm File Exists
+        run: |
+          ls -la .github/workflows/support/scripts
+          if [[ ! -f ".github/workflows/support/scripts/classify-changed-files.js" ]]; then
+              echo "Required script classify-changed-files.js not found!"
+              exit 1
+          fi
+
       - name: Classify Changed Files
         id: classify
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
