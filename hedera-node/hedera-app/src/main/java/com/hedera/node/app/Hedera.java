@@ -29,6 +29,7 @@ import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFOR
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
+import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -137,11 +138,13 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.File;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -1354,6 +1357,42 @@ public final class Hedera
                     "Fatal precondition violation in HederaNode#{}: digest factory does not support SHA-384", nodeId);
             System.exit(1);
         }
+
+        final var config = configProvider.getConfiguration();
+        if (config.getConfigData(TssConfig.class).wrapsEnabled() && !WRAPSLibraryBridge.isProofSupported()) {
+            final var wrapsArtifactPath = Optional.ofNullable(System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH"))
+                    .orElse("");
+            if (wrapsArtifactPath.isBlank()) {
+                logger.error(
+                        "WRAPS enabled but this node cannot build recursive proofs (TSS_LIB_WRAPS_ARTIFACTS_PATH='{}')",
+                        wrapsArtifactPath);
+            } else {
+                logger.error(
+                        "WRAPS enabled but this node cannot build recursive proofs "
+                                + "(TSS_LIB_WRAPS_ARTIFACTS_PATH='{}', contents={})",
+                        wrapsArtifactPath,
+                        wrapsArtifactPathContents(wrapsArtifactPath));
+            }
+        }
+    }
+
+    private static String wrapsArtifactPathContents(@NonNull final String wrapsArtifactPath) {
+        if (wrapsArtifactPath.contains("..")) {
+            return "<not listed because path contains '..'>";
+        }
+        final File wrapsArtifactDir = new File(wrapsArtifactPath);
+        if (!wrapsArtifactDir.exists()) {
+            return "<path does not exist>";
+        }
+        if (!wrapsArtifactDir.isDirectory()) {
+            return "<path is not a directory>";
+        }
+        final var contents = wrapsArtifactDir.list();
+        if (contents == null) {
+            return "<directory contents unavailable>";
+        }
+        Arrays.sort(contents);
+        return Arrays.toString(contents);
     }
 
     private <T extends State> T withListeners(@NonNull final T state) {
