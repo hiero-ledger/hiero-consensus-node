@@ -24,7 +24,7 @@ test suites include:
 ### Purpose
 
 MATS (Minimal Acceptable Test Suite) runs as many functional tests as possible while staying under 30 minutes of
-runtime. Tests suites are broken out into multiple parallel jobs to maximize the number of tests that can be run within
+runtime. Test suites are broken out into multiple parallel jobs to maximize the number of tests that can be run within
 the time constraint. The time limit for MATS is critical because it is also run on PRs as a required gate.
 
 ### Environment
