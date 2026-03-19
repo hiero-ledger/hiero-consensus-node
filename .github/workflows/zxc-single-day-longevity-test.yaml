@@ -908,7 +908,6 @@ jobs:
             result=$?
             echo "value=${result}" >> "${GITHUB_OUTPUT}"
           fi
-          exit ${result}
 
       - name: Run Validator after Reconnect
         id: validator-status
