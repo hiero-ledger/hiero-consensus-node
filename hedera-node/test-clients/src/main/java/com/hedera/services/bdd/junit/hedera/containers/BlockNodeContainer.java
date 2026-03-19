@@ -44,11 +44,28 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "server-status",
             "stream-publisher",
             "stream-subscriber");
-    private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.of(
-            "spotbugs-annotations-4.9.8.jar",
-            MAVEN_CENTRAL_BASE_URL + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar",
-            "disruptor-4.0.0.jar",
-            MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar");
+    private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.ofEntries(
+            Map.entry(
+                    "spotbugs-annotations-4.9.8.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar"),
+            Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
+            // Transitive deps of the verification plugin (new in 0.29.0)
+            Map.entry(
+                    "hedera-cryptography-wraps-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.6.0/hedera-cryptography-wraps-3.6.0.jar"),
+            Map.entry(
+                    "hedera-cryptography-hints-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.6.0/hedera-cryptography-hints-3.6.0.jar"),
+            Map.entry(
+                    "hedera-common-nativesupport-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/common/hedera-common-nativesupport/3.6.0/hedera-common-nativesupport-3.6.0.jar"),
+            Map.entry(
+                    "antlr4-runtime-4.13.2.jar",
+                    MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
     private final ToStringConsumer logConsumer = new ToStringConsumer();
     private String containerId;
 
