@@ -164,9 +164,9 @@ class CompactionInterruptTest {
                     keyToPathCompactor,
                     pathToKeyValueCompactor);
         } finally {
-            dataSource.close();
             exec.shutdown();
             assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS), "Should not timeout");
+            dataSource.close();
         }
         return true;
     }
