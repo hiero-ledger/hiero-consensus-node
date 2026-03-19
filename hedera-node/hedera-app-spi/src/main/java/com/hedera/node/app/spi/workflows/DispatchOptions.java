@@ -4,7 +4,6 @@ package com.hedera.node.app.spi.workflows;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Collections.emptySet;
@@ -207,21 +206,10 @@ public record DispatchOptions<T extends StreamBuilder>(
                     case ON -> TransactionCategory.SCHEDULED;
                     case OFF -> TransactionCategory.CHILD;
                 };
-        // Scheduled dispatches need explicit write tracing because child stacks lack
-        // ImmediateStateChangeListener, making implicit key-to-index conversion impossible
         final var metadata =
                 switch (propagateFeeChargingStrategy) {
-                    case YES -> {
-                        var m = new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
-                        if (category == TransactionCategory.SCHEDULED) {
-                            m.putMetadata(EXPLICIT_WRITE_TRACING, true);
-                        }
-                        yield m;
-                    }
-                    case NO ->
-                        category == TransactionCategory.SCHEDULED
-                                ? new DispatchMetadata(EXPLICIT_WRITE_TRACING, true)
-                                : EMPTY_METADATA;
+                    case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
+                    case NO -> EMPTY_METADATA;
                 };
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
