@@ -91,7 +91,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: 'main'
+          ref: "main"
 
       - name: Checkout target CN Code
         env:
@@ -191,7 +191,6 @@ jobs:
           cat /etc/*elease
           sudo apt-get update
           sudo apt-get install -y net-tools iputils-ping node-typescript
-
 
       - name: Create report dir
         shell: bash
@@ -565,7 +564,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: 'main'
+          ref: "main"
 
       - name: Create report dir
         shell: bash
@@ -722,7 +721,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: 'main'
+          ref: "main"
 
       - name: Create report dir
         shell: bash
