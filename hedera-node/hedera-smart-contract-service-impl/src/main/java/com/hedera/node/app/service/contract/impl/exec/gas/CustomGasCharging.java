@@ -159,7 +159,6 @@ public class CustomGasCharging {
                 transaction.codeDelegations());
 
         if (transaction.isEthereumTransaction()) {
-            // TODO Glib: fix warning?
             final var fee =
                     feeForAborted(transaction.relayerId(), context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(transaction.relayerId(), fee, false);

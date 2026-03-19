@@ -23,6 +23,7 @@ import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -44,7 +45,9 @@ public record CodeDelegationProcessor(long chainId) {
 
     private static final int MAX_Y_PARITY = 2 ^ 8;
 
-    /** The size of the delegated code */
+    /**
+     * The size of the delegated code
+     */
     public static final int DELEGATED_CODE_SIZE = CODE_DELEGATION_PREFIX.size() + Address.SIZE;
 
     /**
@@ -64,9 +67,9 @@ public record CodeDelegationProcessor(long chainId) {
      *   <li>Increase the nonce of `authority` by one.
      * </ol>
      *
-     * @param worldUpdater The world state updater which is aware of code delegation.
+     * @param worldUpdater             The world state updater which is aware of code delegation.
      * @param lazyCreationGasAvailable gas amount available for charing Hedera-specific lazy account creation cost
-     * @param codeDelegations code delegations to process
+     * @param codeDelegations          code delegations to process
      * @return The result of the code delegation processing.
      */
     public CodeDelegationResult process(
@@ -76,20 +79,31 @@ public record CodeDelegationProcessor(long chainId) {
         final CodeDelegationProcessingState state = new CodeDelegationProcessingState(lazyCreationGasAvailable);
 
         if (codeDelegations == null || codeDelegations.isEmpty()) {
-            return state.toResult();
+            return state.toResult(List.of());
         }
 
         // Get a new proxy world updater to handle state changes and records for code delegations.
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
-        codeDelegations.forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state));
+        final var authorities = codeDelegations.stream()
+                .map(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state))
+                .filter(Objects::nonNull)
+                .toList();
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
-        return state.toResult();
+        return state.toResult(authorities);
     }
 
+    /**
+     * Process each code delegation item
+     *
+     * @param proxyWorldUpdater The world updater to handle state changes and records for code delegations
+     * @param codeDelegation    The code delegation to handle
+     * @param state             The code delegation processing state
+     * @return authority of the processed code delegation
+     */
     @SuppressWarnings("java:S3776")
-    private void processCodeDelegation(
+    private Address processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
             final CodeDelegation codeDelegation,
             final CodeDelegationProcessingState state) {
@@ -97,31 +111,32 @@ public record CodeDelegationProcessor(long chainId) {
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.ChainIdMismatch);
-            return;
+            return null;
         }
 
         if (codeDelegation.nonce() == MAX_NONCE) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-            return;
+            return null;
         }
 
         if (codeDelegation.getS().compareTo(HALF_CURVE_ORDER) > 0) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return;
+            return null;
         }
 
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return;
+            return null;
         }
 
         final Optional<EthTxSigs> maybeAuthorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
         if (maybeAuthorizer.isEmpty()) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return;
+            return null;
         }
         final var authorizer = maybeAuthorizer.get();
 
+        // TODO Glib: add this authority to accessed addresses
         final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
                 Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
@@ -134,7 +149,7 @@ public record CodeDelegationProcessor(long chainId) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return;
+                return null;
             }
 
             // The base gas defined in EIP-7702 (PER_EMPTY_ACCOUNT_COST = 25000) is already included
@@ -157,49 +172,50 @@ public record CodeDelegationProcessor(long chainId) {
                 failedRecord.signedTx(synthCreateTransactionBody(
                         authorizerAddress, delegatedContractAddress, unlimitedAutoAssociations));
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
-                return;
+                return null;
             }
 
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorizerAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return;
+                return null;
             }
 
             authority = proxyWorldUpdater.getAccount(authorizerAddress);
             if (authority == null) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return;
+                return null;
             }
         } else {
             authority = maybeAuthorityAccount.get();
 
             if (!canSetCodeDelegation(authority)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
-                return;
+                return null;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return;
+                return null;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return;
+                return null;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return;
+                return null;
             }
             state.incrementAuthorizationsEligibleForRefund();
         }
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
+        return authorizerAddress;
     }
 
     @NonNull
@@ -258,12 +274,13 @@ public record CodeDelegationProcessor(long chainId) {
             this.successfullyProcessedAuthorizations += 1;
         }
 
-        CodeDelegationResult toResult() {
+        CodeDelegationResult toResult(List<Address> authorities) {
             return new CodeDelegationResult(
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,
                     successfullyProcessedAuthorizations,
-                    numIgnoredEntriesByReason);
+                    numIgnoredEntriesByReason,
+                    authorities);
         }
     }
 }

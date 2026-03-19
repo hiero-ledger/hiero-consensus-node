@@ -34,6 +34,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -72,16 +73,18 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction  the transaction
-     * @param worldUpdater the world updater for the transaction
-     * @param context      the Hedera EVM context (gas price, block values, etc.)
-     * @param config       the active Hedera configuration
-     * @param featureFlags the feature flag currently used
-     * @param from         the sender of the transaction
-     * @param to           the recipient of the transaction
-     * @param initialGas   the initial gas amount available for execution
-     * @param codeFactory  the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     *                     *                    from raw bytecode.
+     * @param transaction               the transaction
+     * @param worldUpdater              the world updater for the transaction
+     * @param context                   the Hedera EVM context (gas price, block values, etc.)
+     * @param config                    the active Hedera configuration
+     * @param featureFlags              the feature flag currently used
+     * @param from                      the sender of the transaction
+     * @param to                        the recipient of the transaction
+     * @param initialGas                the initial gas amount available for execution
+     * @param codeFactory               the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
+     *                                  *                    from raw bytecode.
+     * @param gasCalculator             the gas calculator
+     * @param codeDelegationAuthorities the authorities of the processed code delegations
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -96,7 +99,8 @@ public class FrameBuilder {
             @NonNull final Address to,
             final long initialGas,
             @NonNull final CodeFactory codeFactory,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final List<Address> codeDelegationAuthorities) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -249,9 +253,6 @@ public class FrameBuilder {
             }
             code = CodeV0.EMPTY_CODE;
         }
-
-        // TODO Glib:
-        // TODO(AccessLists): Add EIP-7702 addresses to access list (see `accessListWarmUpAddresses` in besu)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)

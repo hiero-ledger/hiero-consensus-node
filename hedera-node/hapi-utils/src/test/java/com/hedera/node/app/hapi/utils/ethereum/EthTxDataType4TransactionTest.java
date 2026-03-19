@@ -8,14 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class EthTxDataType4TransactionTest {
@@ -118,9 +116,8 @@ class EthTxDataType4TransactionTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
 
-        final List<?> delegations = tx.extractCodeDelegations();
-        assertNotNull(delegations);
-        assertTrue(delegations.isEmpty());
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        assertEquals("Authorization list item should be a list", thrown.getMessage());
     }
 
     @Test
@@ -145,7 +142,8 @@ class EthTxDataType4TransactionTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
 
-        assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        assertEquals("Authorization list item does not contain expected number of elements", thrown.getMessage());
     }
 
     @Test
@@ -170,7 +168,8 @@ class EthTxDataType4TransactionTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
 
-        assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        assertEquals("Authorization list item does not contain expected number of elements", thrown.getMessage());
     }
 
     private static byte[] buildType4Raw(

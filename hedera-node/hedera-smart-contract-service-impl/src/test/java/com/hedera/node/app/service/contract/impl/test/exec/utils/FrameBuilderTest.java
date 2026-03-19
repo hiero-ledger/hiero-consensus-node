@@ -50,6 +50,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
@@ -124,7 +125,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -178,7 +180,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -230,7 +233,8 @@ class FrameBuilderTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         INTRINSIC_GAS,
                         CODE_FACTORY,
-                        GAS_CALCULATOR));
+                        GAS_CALCULATOR,
+                        List.of()));
     }
 
     @Test
@@ -254,7 +258,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
@@ -297,7 +302,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
@@ -341,7 +347,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertTrue(FrameUtils.hasActionValidationEnabled(frame));
@@ -389,7 +396,8 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
                 CODE_FACTORY,
-                GAS_CALCULATOR);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());

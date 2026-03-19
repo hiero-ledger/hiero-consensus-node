@@ -148,7 +148,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists, "qwe");
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
         assertEquals("Access list item should be a list", thrown.getMessage());
     }
 
@@ -169,7 +169,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists, "qwe");
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
         assertEquals("Access list item does not contain expected number of elements", thrown.getMessage());
     }
 
@@ -190,7 +190,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists, "qwe");
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
         assertEquals("Access list storage keys should be a list", thrown.getMessage());
     }
 }

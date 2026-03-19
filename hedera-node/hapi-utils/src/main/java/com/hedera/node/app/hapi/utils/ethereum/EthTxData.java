@@ -115,8 +115,7 @@ public record EthTxData(
                 value,
                 newCallData,
                 accessList,
-                // TODO Glib: why we are ignoring accessListAsRlp here?
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -140,8 +139,7 @@ public record EthTxData(
                 replacementValue,
                 callData,
                 accessList,
-                // TODO Glib: why we are ignoring accessListAsRlp here?
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -384,8 +382,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                // TODO Glib: why we are ignoring accessListAsRlp here?
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -409,8 +406,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                // TODO Glib: why we are ignoring accessListAsRlp here?
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 newRecId,
@@ -471,9 +467,9 @@ public record EthTxData(
      * Parse <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a> Access Lists from its RLP bytes.
      *
      * @return parsed access lists
-     * @throws IllegalArgumentException if RLP list of the Access list is not a list
+     * @throws IllegalArgumentException if RLP item of the Access list is not a list
      * @throws IllegalArgumentException if RLP list does not contain expected number of elements
-     * @throws IllegalArgumentException if RLP list of the Access list storage keys is not a list
+     * @throws IllegalArgumentException if RLP item of the Access list storage keys is not a list
      */
     @Nullable
     public List<AccessList> extractAccessLists() throws IllegalArgumentException {
@@ -508,23 +504,22 @@ public record EthTxData(
      * Parse authorization list for a code delegation <a href="https://eips.ethereum.org/EIPS/eip-7702">EIP-7702</a> transaction.
      *
      * @return parsed authorization lists
+     * @throws IllegalArgumentException if RLP item of the Authorization list is not a list
      * @throws IllegalArgumentException if RLP list does not contain expected number of elements
      */
-    @NonNull
+    @Nullable
     public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
-        final List<CodeDelegation> codeDelegations = new ArrayList<>();
         if (authorizationList != null) {
+            final List<CodeDelegation> codeDelegations = new ArrayList<>();
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
             while (decoder.hasNext()) {
                 final var rlpItem = decoder.next();
                 if (!rlpItem.isList()) {
-                    // TODO Glib: if it is not a list, then skip. If there is wrong size of elements, throw exception.
-                    //  mb we should always skip or always throw?
-                    return codeDelegations;
+                    throw new IllegalArgumentException("Authorization list item should be a list");
                 }
                 if (rlpItem.asRLPList().elements().size() != 6) {
                     throw new IllegalArgumentException(
-                            "Code authorization does not contain expected number of elements");
+                            "Authorization list item does not contain expected number of elements");
                 }
                 final var elements = rlpItem.asRLPList().elements();
                 codeDelegations.add(new CodeDelegation(
@@ -536,8 +531,10 @@ public record EthTxData(
                         elements.get(5).data() // s
                         ));
             }
+            return codeDelegations;
+        } else {
+            return null;
         }
-        return codeDelegations;
     }
 
     /**
