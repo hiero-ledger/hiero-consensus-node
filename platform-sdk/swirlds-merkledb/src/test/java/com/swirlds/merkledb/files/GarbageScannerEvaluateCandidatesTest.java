@@ -41,8 +41,8 @@ class GarbageScannerEvaluateCandidatesTest {
 
         final ScanResult result = scanner.scan();
 
-        assertEquals(1, result.filesToCompact().size());
-        assertEquals(List.of(file1), result.filesToCompact().get(0));
+        assertEquals(1, result.candidatesByLevel().size());
+        assertEquals(List.of(file1), result.candidatesByLevel().get(0));
     }
 
     @Test
@@ -60,7 +60,7 @@ class GarbageScannerEvaluateCandidatesTest {
 
         final ScanResult result = scanner.scan();
 
-        assertTrue(result.filesToCompact().isEmpty());
+        assertTrue(result.candidatesByLevel().isEmpty());
     }
 
     @Test
@@ -81,7 +81,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "HashStoreDisk", config);
 
         final ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(2, filesToCompact.size());
         assertEquals(List.of(level0File2), filesToCompact.get(0));
@@ -102,7 +102,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "PathToKeyValue", config);
 
         final ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size());
         assertEquals(List.of(zeroTotal), filesToCompact.get(1));
@@ -124,7 +124,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "ObjectKeyToPath", config);
 
         final ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertTrue(filesToCompact.isEmpty());
     }
@@ -143,7 +143,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "HashStoreDisk", config);
 
         final ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size());
         assertEquals(1, filesToCompact.get(0).size());

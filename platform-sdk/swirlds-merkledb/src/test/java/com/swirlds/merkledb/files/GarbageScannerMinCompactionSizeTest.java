@@ -53,7 +53,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertTrue(
                 filesToCompact.isEmpty(), "Level should be excluded because alive size (100 bytes) < threshold (1 KB)");
@@ -77,7 +77,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(
                 1, filesToCompact.size(), "Level should be included because alive size (2 KB) >= threshold (1 KB)");
@@ -105,7 +105,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertTrue(
                 filesToCompact.isEmpty(), "Empty files should not trigger compaction when min size threshold is set");
@@ -126,7 +126,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size(), "With threshold disabled, file with 70% garbage should be selected");
     }
@@ -152,7 +152,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size(), "Only level 0 should pass; level 2 threshold is 4x higher");
         assertTrue(filesToCompact.containsKey(0), "Level 0 should be in results");
@@ -186,7 +186,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = scanner.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size(), "Only level 0 should pass the alive size threshold");
         assertTrue(filesToCompact.containsKey(0), "Level 0 should be in results");
@@ -214,7 +214,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = assertDoesNotThrow(scanner::scan);
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         // File 1 has 5/10 alive = 50% garbage, which exceeds 0.4 threshold
         assertEquals(1, filesToCompact.size());
@@ -237,7 +237,7 @@ class GarbageScannerMinCompactionSizeTest {
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
 
         final GarbageScanner.ScanResult result = assertDoesNotThrow(scanner::scan);
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         // File 1 has 0 alive items out of 10 total = 100% garbage => selected
         assertEquals(1, filesToCompact.size());

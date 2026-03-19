@@ -37,7 +37,7 @@ class GarbageScannerTest {
         final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2, file3));
 
         final GarbageScanner.ScanResult result = task.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(2, filesToCompact.size());
         assertEquals(List.of(file1, file2), filesToCompact.get(0));
@@ -52,7 +52,7 @@ class GarbageScannerTest {
         final GarbageScanner task = createTask(new TestIndex(new LinkedHashMap<>()), List.of(file1, file2));
 
         final GarbageScanner.ScanResult result = task.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(2, filesToCompact.size());
         assertEquals(List.of(file1), filesToCompact.get(0));
@@ -73,7 +73,7 @@ class GarbageScannerTest {
         final GarbageScanner task = createTask(new TestIndex(indexEntries), List.of(file1, file2, file3));
 
         final GarbageScanner.ScanResult result = task.scan();
-        final Map<Integer, List<DataFileReader>> filesToCompact = result.filesToCompact();
+        final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size());
         assertEquals(List.of(file1, file3), filesToCompact.get(0));
