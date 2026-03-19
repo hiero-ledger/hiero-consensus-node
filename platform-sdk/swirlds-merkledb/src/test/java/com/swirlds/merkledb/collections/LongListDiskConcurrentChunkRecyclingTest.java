@@ -380,29 +380,35 @@ class LongListDiskConcurrentChunkRecyclingTest {
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // Test 6: Concurrency — heavy shrink/expand cycling with many readers
+    // Test 6: Concurrency — heavy chunk recycling with many readers
     //
-    // This is the most aggressive variant: uses a tight loop with minimal
-    // chunk size and very frequent recycling to maximize contention.
+    // This is the most aggressive variant.  It uses a very small chunk
+    // size (2 longs) so that almost every mutator iteration frees a
+    // chunk on the left via updateValidRange → closeChunk, which pushes
+    // the file offset into freeChunks.  The subsequent put() calls to
+    // higher indices trigger createOrGetChunk(), which polls that same
+    // offset from freeChunks and reuses it for a completely different
+    // index range.  Readers running in parallel must never observe a
+    // value that belongs to the old index range at the recycled offset.
     // ────────────────────────────────────────────────────────────────────
 
     @RepeatedTest(3)
     @DisplayName("Heavy chunk recycling stress test")
     void heavyChunkRecyclingStress() throws Exception {
         // Even smaller chunks for maximum recycling frequency
-        final int tinyChunk = 2;
-        final long tinyCapacity = tinyChunk * 500L;
-        list = new LongListDisk(tinyChunk, tinyCapacity, 0, CONFIGURATION);
+        final int stressLongsPerChunk = 2;
+        final long stressCapacity = stressLongsPerChunk * 500L;
+        list = new LongListDisk(stressLongsPerChunk, stressCapacity, 0, CONFIGURATION);
 
-        final int initialCount = tinyChunk * 50;
-        list.updateValidRange(0, tinyCapacity - 1);
-        for (int i = 0; i < initialCount; i++) {
+        final int initiallyPopulatedCount = stressLongsPerChunk * 50;
+        list.updateValidRange(0, stressCapacity - 1);
+        for (int i = 0; i < initiallyPopulatedCount; i++) {
             list.put(i, i + VALUE_MAGIC);
         }
 
         final AtomicBoolean stop = new AtomicBoolean(false);
         final AtomicLong currentMinValid = new AtomicLong(0);
-        final AtomicLong currentMaxWritten = new AtomicLong(initialCount - 1);
+        final AtomicLong currentMaxWritten = new AtomicLong(initiallyPopulatedCount - 1);
         final AtomicLong anomalyCount = new AtomicLong(0);
         final AtomicReference<String> firstAnomaly = new AtomicReference<>();
 
@@ -412,55 +418,70 @@ class LongListDiskConcurrentChunkRecyclingTest {
         final List<Future<?>> futures = new ArrayList<>();
 
         for (int r = 0; r < readerCount; r++) {
-            final int rid = r;
+            final int readerId = r;
             futures.add(pool.submit(() -> {
                 try {
                     barrier.await();
                 } catch (Exception e) {
                     return;
                 }
-                long n = 0;
+                long readCount = 0;
                 while (!stop.get()) {
-                    final long maxW = currentMaxWritten.get();
-                    if (maxW <= 0) continue;
-                    final long idx = (n * 11 + rid * 17) % (maxW + 1);
-                    n++;
-                    final long val = list.get(idx, 0);
-                    if (val == 0) continue;
-                    final long expected = idx + VALUE_MAGIC;
-                    if (val != expected) {
+                    final long maxWrittenSnapshot = currentMaxWritten.get();
+                    if (maxWrittenSnapshot <= 0) continue;
+                    final long index = (readCount * 11 + readerId * 17) % (maxWrittenSnapshot + 1);
+                    readCount++;
+                    final long value = list.get(index, 0);
+                    if (value == 0) continue;
+                    final long expectedValue = index + VALUE_MAGIC;
+                    if (value != expectedValue) {
                         anomalyCount.incrementAndGet();
                         firstAnomaly.compareAndSet(
                                 null,
                                 String.format(
-                                        "R%d: idx=%d exp=%d got=%d min=%d maxW=%d",
-                                        rid, idx, expected, val, currentMinValid.get(), maxW));
+                                        "Reader %d: index=%d expected=%d actual=%d minValid=%d maxWritten=%d",
+                                        readerId,
+                                        index,
+                                        expectedValue,
+                                        value,
+                                        currentMinValid.get(),
+                                        maxWrittenSnapshot));
                     }
                 }
             }));
         }
 
-        // Aggressive mutator
+        // Mutator: shrinks the left boundary by one chunk per iteration,
+        // then writes values at higher indices.  The put() calls trigger
+        // createOrGetChunk() which reuses the file offsets freed by the
+        // preceding updateValidRange → closeChunk call.
         futures.add(pool.submit(() -> {
             try {
                 barrier.await();
             } catch (Exception e) {
                 return;
             }
-            long minV = 0;
-            long maxW = initialCount - 1;
-            for (int iter = 0; iter < 400 && !stop.get() && maxW + tinyChunk < tinyCapacity; iter++) {
-                minV += tinyChunk;
-                list.updateValidRange(minV, tinyCapacity - 1);
-                currentMinValid.set(minV);
+            long minValidIndex = 0;
+            long maxWrittenIndex = initiallyPopulatedCount - 1;
+            final int iterations = 400;
+            for (int iter = 0;
+                    iter < iterations && !stop.get() && maxWrittenIndex + stressLongsPerChunk < stressCapacity;
+                    iter++) {
 
-                final long ws = maxW + 1;
-                final long we = Math.min(ws + tinyChunk, tinyCapacity);
-                for (long i = ws; i < we; i++) {
+                // Free one chunk on the left
+                minValidIndex += stressLongsPerChunk;
+                list.updateValidRange(minValidIndex, stressCapacity - 1);
+                currentMinValid.set(minValidIndex);
+
+                // Write one chunk's worth of values on the right.
+                // createOrGetChunk() will poll the just-freed file offset from freeChunks.
+                final long writeStart = maxWrittenIndex + 1;
+                final long writeEnd = Math.min(writeStart + stressLongsPerChunk, stressCapacity);
+                for (long i = writeStart; i < writeEnd; i++) {
                     list.put(i, i + VALUE_MAGIC);
                 }
-                maxW = we - 1;
-                currentMaxWritten.set(maxW);
+                maxWrittenIndex = writeEnd - 1;
+                currentMaxWritten.set(maxWrittenIndex);
                 // No yield — keep pressure high
             }
             stop.set(true);
