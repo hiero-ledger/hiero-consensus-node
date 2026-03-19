@@ -29,7 +29,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileAppendFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedInnerTxnSizeFor;
@@ -413,11 +415,11 @@ public class AtomicBatchBoundarySimpleFeesTest {
                     validateInnerChargedUsdWithinWithTxnSize(
                             "innerFileUpdate1001",
                             "batchTxnUpdate1001",
-                            txnSize -> expectedFileCreateFullFeeUsd(Map.of(
+                            txnSize -> expectedFileUpdateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 1001L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.1)));
+                            1)));
         }
 
         @HapiTest
@@ -452,7 +454,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                     validateInnerChargedUsdWithinWithTxnSize(
                             "innerFileAppend1001",
                             "batchTxnAppend1001",
-                            txnSize -> expectedFileCreateFullFeeUsd(Map.of(
+                            txnSize -> expectedFileAppendFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 1001L,
                                     PROCESSING_BYTES, (long) txnSize)),
