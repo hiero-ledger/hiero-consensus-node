@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,6 +27,8 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -34,6 +37,7 @@ import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,6 +63,12 @@ class HintsServiceImplTest {
 
     @Mock
     private WritableHintsStore hintsStore;
+
+    @Mock
+    private NodeInfo nodeInfo;
+
+    @Mock
+    private NetworkInfo networkInfo;
 
     @Mock
     private HintsServiceComponent component;
@@ -283,7 +293,7 @@ class HintsServiceImplTest {
         given(component.controllers()).willReturn(controllers);
         given(controllers.getAnyInProgress()).willReturn(Optional.empty());
 
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, tssConfig);
+        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, networkInfo);
 
         verifyNoInteractions(hintsStore, controller);
     }
@@ -294,10 +304,10 @@ class HintsServiceImplTest {
         given(component.controllers()).willReturn(controllers);
         given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
-        given(tssConfig.initialCrsParties()).willReturn((short) 5);
-        given(library.newCrs((short) 5)).willReturn(newCrs);
+        given(networkInfo.addressBook()).willReturn(List.of(nodeInfo, nodeInfo, nodeInfo, nodeInfo, nodeInfo));
+        given(library.newCrs((short) partySizeForRosterNodeCount(5))).willReturn(newCrs);
 
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, false, tssConfig);
+        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, false, networkInfo);
 
         verify(hintsStore)
                 .setCrsState(CRSState.newBuilder()
@@ -317,7 +327,7 @@ class HintsServiceImplTest {
         given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(hintsStore.getCrsState()).willReturn(completedState);
 
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, tssConfig);
+        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, networkInfo);
 
         verify(controller, never()).advanceCrsWork(any(), any(), any(Boolean.class));
         verify(hintsStore, never()).setCrsState(any());
@@ -328,8 +338,7 @@ class HintsServiceImplTest {
         final var newCrs = Bytes.wrap(new byte[] {4, 5, 6});
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(tssConfig.hintsEnabled()).willReturn(true);
-        given(tssConfig.initialCrsParties()).willReturn((short) 7);
-        given(library.newCrs((short) 7)).willReturn(newCrs);
+        given(library.newCrs((short) partySizeForRosterNodeCount(7))).willReturn(newCrs);
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(activeConstructionState);
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
@@ -337,7 +346,7 @@ class HintsServiceImplTest {
         given(writableStates.<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID))
                 .willReturn(crsState);
 
-        assertTrue(subject.doGenesisSetup(writableStates, configuration));
+        assertTrue(subject.doGenesisSetup(writableStates, configuration, 7));
 
         verify(activeConstructionState).put(HintsConstruction.DEFAULT);
         verify(nextConstructionState).put(HintsConstruction.DEFAULT);
@@ -360,7 +369,7 @@ class HintsServiceImplTest {
         given(writableStates.<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID))
                 .willReturn(crsState);
 
-        assertTrue(subject.doGenesisSetup(writableStates, configuration));
+        assertTrue(subject.doGenesisSetup(writableStates, configuration, 4));
 
         verify(activeConstructionState).put(HintsConstruction.DEFAULT);
         verify(nextConstructionState).put(HintsConstruction.DEFAULT);

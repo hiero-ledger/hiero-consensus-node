@@ -160,13 +160,11 @@ public class BlockNodeNetwork {
     }
 
     private void startRealBlockNodeContainer(final long id) {
-        // Find an available port
         final int port = findAvailablePort();
         try {
-            final BlockNodeContainer container = new BlockNodeContainer(id, findAvailablePort());
+            final BlockNodeContainer container = new BlockNodeContainer(id, port);
 
             container.start();
-            container.waitForHealthy(Duration.ofMinutes(2));
 
             blockNodeContainerById.put(id, container);
 
