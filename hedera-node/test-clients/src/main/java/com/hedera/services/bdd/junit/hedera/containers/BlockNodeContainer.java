@@ -74,9 +74,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         this.addFixedExposedPort(port, GRPC_PORT);
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
-                // Use the health plugin's livez endpoint on the main server port
-                .waitingFor(
-                        Wait.forHttp("/healthz/livez").forPort(GRPC_PORT).withStartupTimeout(Duration.ofMinutes(2)));
+                // Wait for the block node app to log its startup message
+                .waitingFor(Wait.forLogMessage(".*Started BlockNode Server.*", 1)
+                        .withStartupTimeout(Duration.ofMinutes(3)));
     }
 
     private static String pluginsDirInContainer() {
