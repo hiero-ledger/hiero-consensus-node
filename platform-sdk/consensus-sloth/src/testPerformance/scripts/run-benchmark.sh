@@ -133,8 +133,8 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         echo "Log file: $LOG_FILE"
 
         # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date").
-        # SLOTH_JVM_PROPS (e.g. "-Dsloth.tps=100 -Dsloth.benchmarkTime=60s") is forwarded to
-        # the Gradle JVM, which in turn passes matching sloth.* properties to the test JVM
+        # SLOTH_JVM_PROPS (e.g. "-Psloth.tps=100 -Psloth.benchmarkTime=60s") is forwarded as
+        # Gradle project properties, which the build script then passes to the test JVM
         # (see the testPerformance task configuration in build.gradle.kts).
         # Capture the Gradle exit code without aborting the script — we still want to collect
         # whatever artifacts the containers produced even when the test itself fails (e.g. a

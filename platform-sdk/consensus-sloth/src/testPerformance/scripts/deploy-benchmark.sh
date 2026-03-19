@@ -55,12 +55,12 @@ SLOTH_JVM_PROPS=""
 POSITIONAL=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.tps=$2";                   shift 2 ;;
-        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.numberOfNodes=$2";          shift 2 ;;
-        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.stabilizationTime=$2";     shift 2 ;;
-        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.warmupTime=$2";             shift 2 ;;
-        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.benchmarkTime=$2";         shift 2 ;;
-        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.collectionTime=$2";        shift 2 ;;
+        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.tps=$2";                   shift 2 ;;
+        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.numberOfNodes=$2";          shift 2 ;;
+        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.stabilizationTime=$2";     shift 2 ;;
+        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.warmupTime=$2";             shift 2 ;;
+        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.benchmarkTime=$2";         shift 2 ;;
+        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.collectionTime=$2";        shift 2 ;;
         --*)                  echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
         *)
             POSITIONAL=$((POSITIONAL + 1))
@@ -184,7 +184,7 @@ fi
 
 echo "Checking out branch: $BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
-git pull --ff-only origin "$BRANCH" || true
+git reset --hard "origin/$BRANCH"
 
 echo "Branch is at: \$(git log --oneline -1)"
 REMOTE_EOF
@@ -209,6 +209,12 @@ set -eo pipefail
 for f in "/etc/profile" "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc"; do
     [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
 done
+
+# SDKMAN init is guarded by a non-interactive check in .bashrc, so source it directly
+if [[ -s "\$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="\$HOME/.sdkman"
+    source "\$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
 
 # Verify Java is available
 if [[ -z "\$JAVA_HOME" ]] && ! command -v java &>/dev/null; then
@@ -282,6 +288,10 @@ ssh -o BatchMode=yes "$SSH_DEST" -t bash <<'STOP_EOF'
 for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
     [[ -f "$f" ]] && source "$f" 2>/dev/null || true
 done
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="$HOME/.sdkman"
+    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
 cd hedera-services && ./gradlew --stop 2>/dev/null || true
 STOP_EOF
 
