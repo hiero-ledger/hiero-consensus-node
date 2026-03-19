@@ -131,15 +131,13 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
             if (linkedEvent == null) {
                 // linker discarded an ancient event
-                if (eventToAdd.getTransactionCount() > 0) {
-                    logger.info(
-                            LogMarker.DEMO_INFO.getMarker(),
-                            "Linker dropped ancient event with transactions: creator={}, hash={}, birthRound={}, txCount={}",
-                            eventToAdd.getCreatorId(),
-                            eventToAdd.getHash(),
-                            eventToAdd.getBirthRound(),
-                            eventToAdd.getTransactionCount());
-                }
+                logger.info(
+                        LogMarker.DEMO_INFO.getMarker(),
+                        "Linker dropped ancient event: creator={}, hash={}, birthRound={}, txCount={}",
+                        eventToAdd.getCreatorId(),
+                        eventToAdd.getHash(),
+                        eventToAdd.getBirthRound(),
+                        eventToAdd.getTransactionCount());
                 consensusEngineMetrics.reportStaleEvent(eventToAdd);
                 continue;
             }
@@ -194,21 +192,29 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // This will also return any ancient events that were previously linked.
             // Some of these ancient events may be stale, so we will add them to the stale events list.
             final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
-            ancientEvents.stream()
-                    .filter(e -> !e.isConsensus())
-                    .map(EventImpl::getBaseEvent)
-                    .peek(e -> {
-                        if (e.getTransactionCount() > 0) {
-                            logger.info(
-                                    LogMarker.DEMO_INFO.getMarker(),
-                                    "Stale event with transactions evicted from linker: creator={}, hash={}, birthRound={}, txCount={}",
-                                    e.getCreatorId(),
-                                    e.getHash(),
-                                    e.getBirthRound(),
-                                    e.getTransactionCount());
-                        }
-                    })
-                    .forEach(staleEvents::add);
+            for (final EventImpl ancientEvent : ancientEvents) {
+                final PlatformEvent base = ancientEvent.getBaseEvent();
+                if (ancientEvent.isConsensus()) {
+                    if (base.getTransactionCount() > 0) {
+                        logger.info(
+                                LogMarker.DEMO_INFO.getMarker(),
+                                "Ancient consensus event evicted: creator={}, hash={}, birthRound={}, txCount={}",
+                                base.getCreatorId(),
+                                base.getHash(),
+                                base.getBirthRound(),
+                                base.getTransactionCount());
+                    }
+                } else {
+                    logger.info(
+                            LogMarker.DEMO_INFO.getMarker(),
+                            "Stale event evicted from linker: creator={}, hash={}, birthRound={}, txCount={}",
+                            base.getCreatorId(),
+                            base.getHash(),
+                            base.getBirthRound(),
+                            base.getTransactionCount());
+                    staleEvents.add(base);
+                }
+            }
             eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
 

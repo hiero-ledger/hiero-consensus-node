@@ -88,15 +88,13 @@ public class FutureEventBuffer {
     public PlatformEvent addEvent(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
-            if (event.getTransactionCount() > 0) {
-                logger.info(
-                        LogMarker.DEMO_INFO.getMarker(),
-                        "FutureEventBuffer dropped ancient event with transactions: creator={}, hash={}, birthRound={}, txCount={}",
-                        event.getCreatorId(),
-                        event.getHash(),
-                        event.getBirthRound(),
-                        event.getTransactionCount());
-            }
+            logger.info(
+                    LogMarker.DEMO_INFO.getMarker(),
+                    "FutureEventBuffer dropped ancient event: creator={}, hash={}, birthRound={}, txCount={}",
+                    event.getCreatorId(),
+                    event.getHash(),
+                    event.getBirthRound(),
+                    event.getTransactionCount());
             return null;
         } else if (event.getBirthRound() <= bufferingOption.getMaximumReleasableRound(eventWindow)) {
             // this is not a future event, no need to buffer it

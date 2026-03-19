@@ -123,14 +123,17 @@ public class SlothTransactionGenerator {
     }
 
     private void generateAndSubmit(@NonNull final SlothTransactionType type) {
+        final long nonce = nonceGenerator.incrementAndGet();
         final SlothTransaction tx =
                 switch (type) {
-                    case EMPTY -> TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet());
-                    case BENCHMARK ->
-                        TransactionFactory.createBenchmarkTransaction(nonceGenerator.incrementAndGet(), time.now());
+                    case EMPTY -> TransactionFactory.createEmptyTransaction(nonce);
+                    case BENCHMARK -> TransactionFactory.createBenchmarkTransaction(nonce, time.now());
                 };
-        if (transactionPool.submitApplicationTransaction(Bytes.wrap(tx.toByteArray()))) {
+        final boolean accepted = transactionPool.submitApplicationTransaction(Bytes.wrap(tx.toByteArray()));
+        if (accepted) {
             generatedCount.incrementAndGet();
+        } else {
+            log.info("Transaction rejected by pool: nonce={}, type={}", nonce, type);
         }
     }
 }
