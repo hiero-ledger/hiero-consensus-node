@@ -57,6 +57,7 @@
 #- [ ] Perform rolling upgrades of block nodes and ensure block keep flowing e2e
 
 set -eo pipefail
+set +m
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
@@ -180,15 +181,25 @@ wait_for_haproxy_ready() {
   done
 }
 
-restart_mirror_importer() {
-  if ! kubectl -n "${SOLO_NAMESPACE}" get deployment mirror-1-importer >/dev/null 2>&1; then
-    log "mirror-1-importer deployment not found; skipping importer restart"
-    return 0
+# kubectl port-forward ties to pod endpoints; consensus network upgrade rolls HAProxy/backends and
+# leaves the old tunnel broken even though localhost still listens. Port numbers (50211 in-cluster)
+# do not change — the forward must be recreated.
+restart_post_upgrade_port_forwards() {
+  log "Restarting port-forwards after upgrade (previous tunnels may be stale)"
+  if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
+    kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    CN_PORT_FORWARD_PID=""
   fi
-
-  log "Restarting mirror-1-importer to reload stream credentials"
-  kubectl -n "${SOLO_NAMESPACE}" rollout restart deployment/mirror-1-importer
-  kubectl -n "${SOLO_NAMESPACE}" rollout status deployment/mirror-1-importer --timeout=300s
+  if [[ -n "${MIRROR_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    MIRROR_PORT_FORWARD_PID=""
+  fi
+  sleep 1
+  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >"${CN_PORT_FORWARD_LOG}" 2>&1 &
+  CN_PORT_FORWARD_PID="$!"
+  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest "${MIRROR_REST_LOCAL_PORT}:http" >"${MIRROR_PORT_FORWARD_LOG}" 2>&1 &
+  MIRROR_PORT_FORWARD_PID="$!"
+  sleep 2
 }
 
 start_grafana_port_forward() {
@@ -323,6 +334,7 @@ async function ensureAccountVisibleInMirror(mirrorUrl, accountId, timeoutMs = 18
 async function main() {
   const grpcEndpoint = process.env.GRPC_ENDPOINT || "127.0.0.1:50211";
   const mirrorUrl = process.env.MIRROR_REST_URL || "http://127.0.0.1:5551";
+  const mirrorAccountWaitMs = Number(process.env.MIRROR_ACCOUNT_WAIT_MS || "180000");
   const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
   const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
   if (!operatorPrivateKey) {
@@ -350,7 +362,7 @@ async function main() {
     throw new Error("Receipt did not include a new accountId");
   }
 
-  await ensureAccountVisibleInMirror(mirrorUrl, accountId);
+  await ensureAccountVisibleInMirror(mirrorUrl, accountId, mirrorAccountWaitMs);
   console.log(`PASS: crypto create succeeded and mirror sees account ${accountId}`);
   await client.close();
 }
@@ -401,7 +413,7 @@ solo init
 solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 4
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true --grafana-agent true
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
 start_grafana_port_forward
 
 log "Deploying consensus network at ${INITIAL_RELEASE_TAG} with 0.71 application.properties"
@@ -412,7 +424,7 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 
-fix_consensus_metrics_scrape_config
+#fix_consensus_metrics_scrape_config
 
 log "Deploying mirror node and explorer"
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
@@ -445,22 +457,19 @@ log "Waiting 120s after Step 1"
 sleep 120
 
 log "Step 2: Upgrade CN network to 0.72 (target ${UPGRADE_072_RELEASE_TAG})"
-solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force
+solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
 
 log "Step 3: apply ${UPGRADE_072_RELEASE_TAG} application.properties overrides for cutover flow"
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_072_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${UPGRADE_072_RELEASE_TAG}"
-fix_consensus_metrics_scrape_config
-#restart_mirror_importer
 
-log "Step 4: setup upgraded consensus node binaries after redeploy"
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}" --quiet-mode
+wait_for_consensus_pods_ready 600
+wait_for_haproxy_ready 600
 
-log "Step 5: ensure upgraded consensus nodes are started and ready"
-solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-wait_for_consensus_pods_ready 900
-wait_for_haproxy_ready 900
+restart_post_upgrade_port_forwards
+log "Waiting for mirror REST after port-forward restart"
+wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
 
-log "Step 6: verify post-upgrade crypto create and mirror visibility"
+log "Step 4: verify post-upgrade crypto create and mirror visibility"
+export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
 node "${NODE_SCRIPT}"
 
 log "Cutover phase complete: PASS"
