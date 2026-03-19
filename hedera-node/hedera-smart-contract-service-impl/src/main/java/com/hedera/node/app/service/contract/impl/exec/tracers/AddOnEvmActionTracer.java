@@ -71,6 +71,18 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     // Two OperationTracer methods we delegate to both the evmActionTracer and our add-on tracers
     // ---------------------------------------------------------------------------------------------
 
+    //  The BESU API design here requires an allocated OperationResult per-
+    //  opcode-executed which is a hard performance fail.  Replace it with an
+    //  "open" API where the parts (gas, halt reason) are passed in instead of
+    //  making a wrapper object.  Keeping the old API for running BESU EVM
+    //  tests.  Hedera and Bonneville EVMs should not call this.
+    @Override
+    public void tracePostExecution(
+            @NonNull final MessageFrame frame, @NonNull final Operation.OperationResult operationResult) {
+        evmActionTracer.tracePostExecution(frame, operationResult);
+        addOnTracers.forEach(tracer -> tracer.tracePostExecution(frame, operationResult));
+    }
+
     @Override
     public void traceAccountCreationResult(
             @NonNull final MessageFrame frame, @NonNull final Optional<ExceptionalHaltReason> haltReason) {

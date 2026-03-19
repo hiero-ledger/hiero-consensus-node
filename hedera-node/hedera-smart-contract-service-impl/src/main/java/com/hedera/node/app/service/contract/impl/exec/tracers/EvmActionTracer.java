@@ -54,6 +54,27 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
         }
     }
 
+    //  The BESU API design here requires an allocated OperationResult per-
+    //  opcode-executed which is a hard performance fail.  Replace it with an
+    //  "open" API where the parts (gas, halt reason) are passed in instead of
+    //  making a wrapper object.  Keeping the old API for running BESU EVM
+    //  tests.  Hedera and Bonneville EVMs should not call this.
+    @Override
+    public void tracePostExecution(
+            @NonNull final MessageFrame frame, @NonNull final Operation.OperationResult operationResult) {
+        requireNonNull(frame);
+        requireNonNull(operationResult);
+        if (!hasActionSidecarsEnabled(frame)) {
+            return;
+        }
+        final var state = frame.getState();
+        if (state == CODE_SUSPENDED) {
+            actionStack.pushActionOfIntermediate(frame);
+        } else if (state != CODE_EXECUTING) {
+            actionStack.finalizeLastAction(frame, stackValidationChoice(frame));
+        }
+    }
+
     @Override
     public void tracePrecompileResult(@NonNull final MessageFrame frame, @NonNull final ContractActionType type) {
         requireNonNull(type);
@@ -91,7 +112,6 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
         requireNonNull(frame);
         return hasActionValidationEnabled(frame) ? ActionStack.Validation.ON : ActionStack.Validation.OFF;
     }
-
 
     // Called as a hot call from the Bonneville EVM.
     // Frame is in State CODE_EXECUTING.

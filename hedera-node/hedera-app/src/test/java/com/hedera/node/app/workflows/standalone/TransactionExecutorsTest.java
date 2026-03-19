@@ -583,6 +583,12 @@ public class TransactionExecutorsTest {
         }
 
         @Override
+        public void tracePostExecution(
+                @NonNull final MessageFrame frame, @NonNull final Operation.OperationResult operationResult) {
+            delegate.tracePostExecution(frame, operationResult);
+        }
+
+        @Override
         public void tracePrecompileCall(
                 @NonNull final MessageFrame frame,
                 final long gasRequirement,

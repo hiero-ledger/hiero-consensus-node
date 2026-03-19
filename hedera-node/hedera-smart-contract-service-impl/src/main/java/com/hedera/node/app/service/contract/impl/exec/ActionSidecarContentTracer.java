@@ -55,11 +55,10 @@ public interface ActionSidecarContentTracer extends OperationTracer {
        The BESU API design here requires an allocated OperationResult
        per-opcode-executed which is a hard performance fail.  Replace it with an
        "open" API where the parts (gas, halt reason) are passed in instead of
-       making a wrapper object.
+       making a wrapper object.  Keeping the old API for running BESU EVM tests.
+       Hedera and Bonneville EVMs should not call this.
      */
-    default void tracePostExecution(MessageFrame frame, Operation.OperationResult operationResult) {
-        throw new TODO("do not override or call this");
-    }
+    void tracePostExecution(MessageFrame frame, Operation.OperationResult operationResult);
 
     /**
      * Called by Bonneville in hot code.
