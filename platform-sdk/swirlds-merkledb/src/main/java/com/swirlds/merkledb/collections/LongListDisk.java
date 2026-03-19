@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.StampedLock;
 
 /**
  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
@@ -63,6 +64,25 @@ public class LongListDisk extends AbstractLongList<Long> {
      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
      */
     private final Deque<Long> freeChunks = new ConcurrentLinkedDeque<>();
+
+    /**
+     * Protects readers from observing a chunk file-offset that has been
+     * recycled by a concurrent {@link #closeChunk} / {@link #createChunk}
+     * cycle.
+     *
+     * <ul>
+     *   <li><b>Optimistic / read-lock</b> – held by {@link #get} while it
+     *       resolves a chunk offset and reads the value from the backing
+     *       file.  Multiple readers proceed concurrently.</li>
+     *   <li><b>Write-lock</b> – held by {@link #closeChunk} while it
+     *       recycles a chunk offset into {@link #freeChunks}.  Acquiring
+     *       the write-lock invalidates every outstanding optimistic stamp,
+     *       so any in-flight reader that grabbed a stale offset will detect
+     *       the conflict and retry under a proper read-lock (by which time
+     *       the chunk-list entry is already {@code null}).</li>
+     * </ul>
+     */
+    private final StampedLock structureLock = new StampedLock();
 
     /**
      * A helper flag to make sure close() can be called multiple times.
@@ -258,6 +278,58 @@ public class LongListDisk extends AbstractLongList<Long> {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Uses an optimistic-read strategy so that the common case (no
+     * concurrent structural change) pays almost zero synchronisation cost.
+     * Only when a {@link #closeChunk} occurs between the moment we snapshot
+     * the chunk offset and the moment we finish the file read do we fall
+     * back to a pessimistic read-lock and retry.
+     */
+    @Override
+    public long get(final long index, final long defaultValue) {
+        if (index < 0 || index >= capacity) {
+            throw new IndexOutOfBoundsException(index);
+        }
+
+        // ── fast path: optimistic read (no CAS, no memory fence on x86) ──
+        long stamp = structureLock.tryOptimisticRead();
+        long result = readValueAt(index, defaultValue);
+        if (structureLock.validate(stamp)) {
+            return result;
+        }
+
+        // ── slow path: a write-lock was acquired between our two snapshots.
+        //    Acquire a real read-lock (still concurrent with other readers)
+        //    and retry.  By now the recycled chunk-list slot is already null,
+        //    so we will either see the default or a freshly-assigned offset. ─
+        stamp = structureLock.readLock();
+        try {
+            return readValueAt(index, defaultValue);
+        } finally {
+            structureLock.unlockRead(stamp);
+        }
+    }
+
+    /**
+     * The raw read logic extracted from {@link AbstractLongList#get} so that
+     * both the optimistic and the pessimistic paths can share it.
+     */
+    private long readValueAt(final long index, final long defaultValue) {
+        if (index >= size.get()) {
+            return defaultValue;
+        }
+        final int chunkIndex = toIntExact(index / longsPerChunk);
+        final long subIndex = index % longsPerChunk;
+        final Long chunk = chunkList.get(chunkIndex);
+        if (chunk == null) {
+            return defaultValue;
+        }
+        final long presentValue = lookupInChunk(chunk, subIndex);
+        return presentValue == IMPERMISSIBLE_VALUE ? defaultValue : presentValue;
+    }
+
     /** {@inheritDoc} */
     @Override
     protected synchronized boolean putIfEqual(
@@ -395,9 +467,36 @@ public class LongListDisk extends AbstractLongList<Long> {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Acquires the structure write-lock <em>before</em> recycling the
+     * chunk offset.  This guarantees that:
+     * <ol>
+     *   <li>Every optimistic stamp obtained before this point is
+     *       invalidated, so any reader that grabbed the now-stale offset
+     *       will detect the conflict in {@link StampedLock#validate} and
+     *       retry.</li>
+     *   <li>No new read-lock can be acquired while the offset is being
+     *       recycled, so no reader can start a file read with an offset
+     *       that is about to be reused.</li>
+     * </ol>
+     *
+     * <p>The critical section is intentionally minimal: only the
+     * {@code freeChunks.add()} call lives under the write-lock.  The
+     * (relatively expensive) file-zeroing happens <em>outside</em> the
+     * lock because the chunk-list entry has already been set to
+     * {@code null} by the caller ({@code shrinkLeftSideIfNeeded} /
+     * {@code shrinkRightSideIfNeeded}) via {@code compareAndSet}, so no
+     * reader can reach this offset through the chunk-list anymore.  The
+     * only remaining hazard is a reader that grabbed the offset before
+     * the CAS, which is exactly what the write-lock invalidation covers.
+     */
     @Override
     protected void closeChunk(@NonNull final Long chunk) {
+        // Zero out the chunk region in the backing file.
+        // This can happen outside the lock – the chunk-list entry is
+        // already null, so no NEW reader can reach this offset.
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
         fillBufferWithZeroes(transferBuffer);
         try {
@@ -405,7 +504,17 @@ public class LongListDisk extends AbstractLongList<Long> {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        freeChunks.add(chunk);
+
+        // Recycle the offset under the write-lock.
+        // This invalidates every outstanding optimistic stamp, forcing
+        // any in-flight reader that still holds the stale offset to
+        // retry.
+        final long stamp = structureLock.writeLock();
+        try {
+            freeChunks.add(chunk);
+        } finally {
+            structureLock.unlockWrite(stamp);
+        }
     }
 
     /** {@inheritDoc} */
