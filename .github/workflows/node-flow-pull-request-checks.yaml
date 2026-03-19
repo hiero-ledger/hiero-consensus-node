@@ -42,8 +42,6 @@ jobs:
       enable-hapi-tests-simplefees: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
-      enable-gradle-determinism: "false"
-      enable-docker-determinism: "false"
       java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "Standard"
