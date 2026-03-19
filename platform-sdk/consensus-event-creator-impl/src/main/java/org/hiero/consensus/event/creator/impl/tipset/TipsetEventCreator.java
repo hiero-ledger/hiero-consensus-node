@@ -481,14 +481,25 @@ public class TipsetEventCreator implements EventCreator {
                 .toList();
         final List<EventDescriptorWrapper> allParentDescriptors =
                 allParents.stream().map(PlatformEvent::getDescriptor).toList();
+        final List<com.hedera.pbj.runtime.io.buffer.Bytes> transactionBytes =
+                transactions.stream().map(TimestampedTransaction::transaction).toList();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 allParentDescriptors,
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, allParents, transactions),
-                transactions.stream().map(TimestampedTransaction::transaction).toList(),
+                transactionBytes,
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
+
+        if (!transactionBytes.isEmpty()) {
+            logger.info(
+                    LogMarker.DEMO_INFO.getMarker(),
+                    "Created self-event: hash={}, birthRound={}, txCount={}",
+                    event.getHash(),
+                    event.getMetadata().getBirthRound(),
+                    transactionBytes.size());
+        }
 
         return event;
     }

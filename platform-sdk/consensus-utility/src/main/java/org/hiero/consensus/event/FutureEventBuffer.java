@@ -6,6 +6,7 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.LongGauge.Config;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -29,6 +32,8 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
  * buffer is topologically ordered.
  */
 public class FutureEventBuffer {
+
+    private static final Logger logger = LogManager.getLogger(FutureEventBuffer.class);
 
     /**
      * A little lambda that builds a new array list. Cache this here so we don't have to create a new lambda each time
@@ -83,6 +88,15 @@ public class FutureEventBuffer {
     public PlatformEvent addEvent(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
+            if (event.getTransactionCount() > 0) {
+                logger.info(
+                        LogMarker.DEMO_INFO.getMarker(),
+                        "FutureEventBuffer dropped ancient event with transactions: creator={}, hash={}, birthRound={}, txCount={}",
+                        event.getCreatorId(),
+                        event.getHash(),
+                        event.getBirthRound(),
+                        event.getTransactionCount());
+            }
             return null;
         } else if (event.getBirthRound() <= bufferingOption.getMaximumReleasableRound(eventWindow)) {
             // this is not a future event, no need to buffer it

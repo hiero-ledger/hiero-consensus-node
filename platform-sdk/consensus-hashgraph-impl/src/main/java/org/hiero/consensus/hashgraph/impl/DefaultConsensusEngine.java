@@ -8,12 +8,15 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
@@ -36,6 +39,8 @@ import org.hiero.consensus.round.EventWindowUtils;
  * The default implementation of the {@link ConsensusEngine} interface
  */
 public class DefaultConsensusEngine implements ConsensusEngine {
+
+    private static final Logger logger = LogManager.getLogger(DefaultConsensusEngine.class);
 
     /**
      * Stores non-ancient events and manages linking and unlinking.
@@ -126,6 +131,15 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
             if (linkedEvent == null) {
                 // linker discarded an ancient event
+                if (eventToAdd.getTransactionCount() > 0) {
+                    logger.info(
+                            LogMarker.DEMO_INFO.getMarker(),
+                            "Linker dropped ancient event with transactions: creator={}, hash={}, birthRound={}, txCount={}",
+                            eventToAdd.getCreatorId(),
+                            eventToAdd.getHash(),
+                            eventToAdd.getBirthRound(),
+                            eventToAdd.getTransactionCount());
+                }
                 consensusEngineMetrics.reportStaleEvent(eventToAdd);
                 continue;
             }
@@ -183,6 +197,17 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             ancientEvents.stream()
                     .filter(e -> !e.isConsensus())
                     .map(EventImpl::getBaseEvent)
+                    .peek(e -> {
+                        if (e.getTransactionCount() > 0) {
+                            logger.info(
+                                    LogMarker.DEMO_INFO.getMarker(),
+                                    "Stale event with transactions evicted from linker: creator={}, hash={}, birthRound={}, txCount={}",
+                                    e.getCreatorId(),
+                                    e.getHash(),
+                                    e.getBirthRound(),
+                                    e.getTransactionCount());
+                        }
+                    })
                     .forEach(staleEvents::add);
             eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
