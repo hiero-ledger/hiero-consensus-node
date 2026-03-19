@@ -28,14 +28,6 @@ public interface TestEnvironment {
     TimeManager timeManager();
 
     /**
-     * Get the transaction generator associated with this test environment.
-     *
-     * @return the transaction generator
-     */
-    @NonNull
-    TransactionGenerator transactionGenerator();
-
-    /**
      * Destroys the test environment. Once this method is called, the test environment and all its
      * components are no longer usable. This method is idempotent, meaning that it is safe to call
      * multiple times.

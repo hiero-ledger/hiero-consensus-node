@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 usage() {
-    echo "Usage: $0 <user@server> <branch> [experiment] [num_runs]"
+    echo "Usage: $0 <user@server> <branch> [experiment] [num_runs] [options]"
     echo ""
     echo "Runs consensus-sloth benchmark experiments on a remote server via SSH."
     echo ""
@@ -28,6 +28,14 @@ usage() {
     echo "    - signature, combined, benchmark, all"
     echo "  num_runs     Number of times to run each experiment (default: 1)"
     echo ""
+    echo "Benchmark parameter overrides (optional, apply to ConsensusLayerBenchmark):"
+    echo "  --tps N                   Transactions per second (default: 20)"
+    echo "  --nodes N                 Number of nodes (default: 4)"
+    echo "  --stabilization-time Xs   Stabilization duration, e.g. 5s (default: 3s)"
+    echo "  --warmup-time Xs          Warmup duration, e.g. 30s (default: 5s)"
+    echo "  --benchmark-time Xs       Benchmark measurement duration, e.g. 120s (default: 50s)"
+    echo "  --collection-time Xs      Result collection duration, e.g. 15s (default: 10s)"
+    echo ""
     echo "The script will:"
     echo "  1. Verify SSH connectivity (key-based auth required)"
     echo "  2. Check no Gradle tasks or other active users are on the server"
@@ -38,10 +46,37 @@ usage() {
 }
 
 # Parse arguments
-SSH_DEST="${1:-}"
-BRANCH="${2:-}"
-EXPERIMENT="${3:-all}"
-NUM_RUNS="${4:-1}"
+SSH_DEST=""
+BRANCH=""
+EXPERIMENT="all"
+NUM_RUNS="1"
+SLOTH_JVM_PROPS=""
+
+POSITIONAL=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.tps=$2";                   shift 2 ;;
+        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.numberOfNodes=$2";          shift 2 ;;
+        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.stabilizationTime=$2";     shift 2 ;;
+        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.warmupTime=$2";             shift 2 ;;
+        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.benchmarkTime=$2";         shift 2 ;;
+        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.collectionTime=$2";        shift 2 ;;
+        --*)                  echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
+        *)
+            POSITIONAL=$((POSITIONAL + 1))
+            case "$POSITIONAL" in
+                1) SSH_DEST="$1" ;;
+                2) BRANCH="$1" ;;
+                3) EXPERIMENT="$1" ;;
+                4) NUM_RUNS="$1" ;;
+                *) echo -e "${RED}Error: Unexpected argument: $1${NC}"; usage ;;
+            esac
+            shift ;;
+    esac
+done
+
+# Trim leading space from accumulated JVM props
+SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS# }"
 
 if [[ -z "$SSH_DEST" || -z "$BRANCH" ]]; then
     usage
@@ -61,6 +96,11 @@ echo "SSH destination:  $SSH_DEST"
 echo "Branch:           $BRANCH"
 echo "Experiment(s):    $EXPERIMENT"
 echo "Runs per exp:     $NUM_RUNS"
+if [[ -n "$SLOTH_JVM_PROPS" ]]; then
+    echo "Benchmark params: $SLOTH_JVM_PROPS"
+else
+    echo "Benchmark params: (defaults)"
+fi
 echo ""
 
 # ── Step 1: Verify SSH connectivity with key-based auth ──────────────────────
@@ -191,6 +231,7 @@ if [[ ! -f "\$SCRIPT_PATH" ]]; then
 fi
 
 chmod +x "\$SCRIPT_PATH"
+export SLOTH_JVM_PROPS="$SLOTH_JVM_PROPS"
 bash "\$SCRIPT_PATH" "$EXPERIMENT" "$NUM_RUNS"
 REMOTE_EOF
 

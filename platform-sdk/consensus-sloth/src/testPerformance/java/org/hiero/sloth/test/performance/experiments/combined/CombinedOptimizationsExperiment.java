@@ -16,7 +16,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 
 /**
  * Experiment testing combined optimizations for maximum performance.
@@ -37,7 +36,6 @@ import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
-    public static final BenchmarkParameters DEFAULTS = BenchmarkParameters.defaults();
 
     /**
      * Apply all identified optimizations together.
@@ -45,9 +43,9 @@ public class CombinedOptimizationsExperiment {
     @Benchmark
     void combinedAllOptimizations(@NonNull final TestEnvironment env) {
         log.info("=== Combined Experiment: All Optimizations ===");
-        runBenchmark(env, "combinedAllOptimizations", DEFAULTS, network -> {
+        runBenchmark(env, "combinedAllOptimizations", (network, params) -> {
             // Apply all config optimizations
-            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes())
+            network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
                     .withConfigValue("event.creation.maxCreationRate", 0)
                     .withConfigValue("event.creation.period", "400us")

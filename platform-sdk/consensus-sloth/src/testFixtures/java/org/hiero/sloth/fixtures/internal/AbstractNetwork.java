@@ -37,7 +37,6 @@ import org.hiero.sloth.fixtures.AsyncNetworkActions;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.network.ConnectionKey;
 import org.hiero.sloth.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.sloth.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -114,14 +113,6 @@ public abstract class AbstractNetwork implements Network {
      */
     @NonNull
     protected abstract TimeManager timeManager();
-
-    /**
-     * The {@link TransactionGenerator} for this network.
-     *
-     * @return the {@link TransactionGenerator} instance
-     */
-    @NonNull
-    protected abstract TransactionGenerator transactionGenerator();
 
     /**
      * {@inheritDoc}
@@ -228,8 +219,6 @@ public abstract class AbstractNetwork implements Network {
             ((AbstractNode) node).roster(roster);
             node.start();
         }
-
-        transactionGenerator().start();
 
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
@@ -450,8 +439,6 @@ public abstract class AbstractNetwork implements Network {
         }
 
         lifecycle = Lifecycle.SHUTDOWN;
-
-        transactionGenerator().stop();
 
         log.info("Nodes have been killed.");
     }
