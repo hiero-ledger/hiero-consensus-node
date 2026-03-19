@@ -96,6 +96,7 @@ class HintsContextTest {
                 Duration.ofSeconds(5),
                 validateBlockSignatures,
                 true,
+                false,
                 "",
                 "",
                 "",
