@@ -284,13 +284,19 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     private static void checkPrOverridesForBlockNodeStreaming(HederaNetwork network) {
         if (network instanceof SubProcessNetwork) {
             Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-            if (prCheckOverrides.containsKey("blockStream.writerMode")
-                    && prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")) {
+            final String writerMode = prCheckOverrides.get("blockStream.writerMode");
+            if ("FILE_AND_GRPC".equals(writerMode) || "GRPC".equals(writerMode)) {
+                // Determine block node mode from system property, default to SIMULATOR
+                final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
+                        .map(BlockNodeMode::valueOf)
+                        .orElse(BlockNodeMode.SIMULATOR);
                 log.info(
-                        "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
+                        "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
+                        writerMode,
+                        blockNodeMode);
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);
+                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), blockNodeMode);
                     blockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
                             .put(node.getNodeId(), new long[] {node.getNodeId()});
@@ -299,7 +305,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
                 SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
-                subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
+                subProcessNetwork.setBlockNodeMode(blockNodeMode);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);

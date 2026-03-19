@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.simulator;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -91,6 +93,10 @@ public class SimulatedBlockNodeServer {
 
     // Track all block numbers for which we have received end of block
     private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
+
+    // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
+    private static final int MAX_STORED_BLOCKS = 10_000;
+    private final Map<Long, List<BlockItem>> storedBlockItems = new ConcurrentHashMap<>();
 
     // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
@@ -394,6 +400,9 @@ public class SimulatedBlockNodeServer {
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
+                                // Store all block items for later retrieval by StreamValidationOp
+                                storeBlockItem(item, currentBlockNumber);
+
                                 if (item.hasBlockHeader()) {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
@@ -978,6 +987,67 @@ public class SimulatedBlockNodeServer {
                 @NonNull Pipeline<? super Bytes> replies) {
             return BlockStreamPublishServiceInterface.super.open(method, options, replies);
         }
+    }
+
+    /**
+     * Stores a block item for the given block number. If the item is a block header, it initializes
+     * storage for that block. For all other items, they are appended to the current block's storage.
+     * Evicts oldest blocks if the storage limit is exceeded.
+     *
+     * @param item the block item to store
+     * @param currentBlockNumber the block number currently being processed, may be null
+     */
+    private void storeBlockItem(@NonNull final BlockItem item, @Nullable final Long currentBlockNumber) {
+        if (item.hasBlockHeader()) {
+            final long blockNumber = item.blockHeader().number();
+            storedBlockItems
+                    .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                    .add(item);
+            // Evict oldest blocks if we exceed the limit
+            while (storedBlockItems.size() > MAX_STORED_BLOCKS) {
+                storedBlockItems.keySet().stream().min(Long::compareTo).ifPresent(storedBlockItems::remove);
+            }
+        } else if (currentBlockNumber != null) {
+            final var items = storedBlockItems.get(currentBlockNumber);
+            if (items != null) {
+                items.add(item);
+            }
+        }
+    }
+
+    /**
+     * Returns all verified blocks (those for which both header and end-of-block were received)
+     * as {@link Block} objects, sorted by block number in ascending order.
+     *
+     * @return list of verified blocks
+     */
+    @NonNull
+    public List<Block> getAllVerifiedBlocks() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return endedBlocks.stream()
+                    .sorted()
+                    .map(this::getBlock)
+                    .filter(Objects::nonNull)
+                    .toList();
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Returns a single block by number, constructed from the stored block items.
+     *
+     * @param blockNumber the block number to retrieve
+     * @return the block, or null if no items are stored for this block number
+     */
+    @Nullable
+    public Block getBlock(final long blockNumber) {
+        final var items = storedBlockItems.get(blockNumber);
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        return new Block(List.copyOf(items));
     }
 
     /**
