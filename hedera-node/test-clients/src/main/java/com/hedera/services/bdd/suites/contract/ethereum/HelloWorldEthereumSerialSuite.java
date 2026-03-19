@@ -52,9 +52,11 @@ public class HelloWorldEthereumSerialSuite {
                 getTxnRecord("autoAccount").andAllChildRecords(),
                 uploadInitCode(BLOCKQUERIES_CONTRACT),
                 contractCreate(BLOCKQUERIES_CONTRACT).adminKey(THRESHOLD),
+                // Blobbasefee set correctly initially:
                 ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFee")
                         .via("callTxn1")
                         .hasKnownStatus(SUCCESS),
+                // Blobbasefee propagates to child frames correctly:
                 ethereumCall(BLOCKQUERIES_CONTRACT, "getBlobBaseFeeR", BigInteger.TEN)
                         .via("callTxn2")
                         .hasKnownStatus(SUCCESS),

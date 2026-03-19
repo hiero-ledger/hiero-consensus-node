@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -45,7 +46,6 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -82,26 +82,26 @@ public class ContractCreateSerialSuite {
                 contractCreate(initCreateContract)
                         .refusingEthConversion()
                         .via("constructorWithoutExplicitAssociations")
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, initCreateContract))
-                        .hasKnownStatus(ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 contractCreate(createContract)
                         .refusingEthConversion()
                         .maxAutomaticTokenAssociations(0)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 contractCreate(multiPurpose)
                         .refusingEthConversion()
                         .maxAutomaticTokenAssociations(3)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 contractCreate(slotUserContract)
                         .refusingEthConversion()
                         .via("constructorCreate")
                         .maxAutomaticTokenAssociations(5)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 contractCall(createContract, "create")
                         .via("createViaCall")
                         .gas(400_000L)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 ethereumCall(createContract, "create")
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -111,7 +111,7 @@ public class ContractCreateSerialSuite {
                         .maxFeePerGas(50L)
                         .maxPriorityGas(2L)
                         .gasLimit(1_000_000L)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 getContractInfo(initCreateContract)
                         .has(contractWith().maxAutoAssociations(0))
                         .logged(),
@@ -171,16 +171,20 @@ public class ContractCreateSerialSuite {
     final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
         final var justSendContract = "JustSend";
         final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
+
         final var beneficiary = "civilian";
         final var totalToSend = 1_000L;
         final var origKey = KeyShape.threshOf(1, SIMPLE, CONTRACT);
         final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
+
         final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
         final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(justSendContract, sendInternalAndDelegateContract),
+                // refuse eth conversion because we can't delegate call contract by contract num
+                // when it has EVM address alias (isNotPriority check fails)
                 contractCreate(justSendContract)
                         .gas(300_000L)
                         .exposingContractIdTo(justSendContractId::set)
@@ -191,6 +195,10 @@ public class ContractCreateSerialSuite {
                         .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
                         .receiverSigRequired(true)
                         .exposingCreatedIdTo(beneficiaryAccountId::set),
+                /* Without delegateContractId permissions, the second send via delegate call will
+                 * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
+                 * call doesn't fail because exceptional halts in "raw calls" don't automatically
+                 * propagate up the stack like a Solidity revert does.) */
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
@@ -198,6 +206,7 @@ public class ContractCreateSerialSuite {
                         new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
+                /* But now we update the beneficiary to have a delegateContractId */
                 newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
                 cryptoUpdate(beneficiary).key(newKey),
                 sourcing(() -> contractCall(
