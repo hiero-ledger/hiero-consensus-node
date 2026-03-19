@@ -793,7 +793,7 @@ jobs:
 
 
   # Send this output back to the caller workflow
-  single-day-longevity-test-reconnect:
+  longevity-test-reconnect:
     name: Reconnect test
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
@@ -884,7 +884,7 @@ jobs:
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
-      - longevity-tests-reconnect
+      - longevity-test-reconnect
     outputs:
       result: ${{ steps.sdlt-status.outputs.result }}
     steps:
@@ -903,7 +903,7 @@ jobs:
           HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
           SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
           VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
-          RECONNECT="${{ needs.longevity-tests-reconnect.outputs.ReconnectStatus }}"
+          RECONNECT="${{ needs.longevity-test-reconnect.outputs.ReconnectStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
           if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" || [[ "${RECONNECT}" != "0" ]]; then
@@ -932,11 +932,11 @@ jobs:
       - longevity-tests-start
       - longevity-tests-wait
       - longevity-tests-finish
-      - longevity-tests-reconnect
+      - longevity-test-reconnect
       - single-day-longevity-test-result
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
       needs.single-day-longevity-test-result.result != 'success' ||
-      needs.longevity-tests-reconnect.result != 'success') &&
+      needs.longevity-test-reconnect.result != 'success') &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -975,7 +975,7 @@ jobs:
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result
-      - single-day-longevity-test-reconnect
+      - longevity-test-reconnect
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1019,7 +1019,7 @@ jobs:
             Validator="FAILED"
           fi
 
-          if [[ "${{ needs.longevity-tests-reconnect.outputs.ReconnectStatus }}" == "0" ]]
+          if [[ "${{ needs.longevity-test-reconnect.outputs.ReconnectStatus }}" == "0" ]]
           then
             Reconnect="PASSED"
           else
