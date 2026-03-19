@@ -28,14 +28,18 @@ jobs:
       enable-dependency-check: "true"
       enable-unit-tests: "true"
       enable-integration-tests: "true"
+      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
       enable-hapi-tests: "true"
       enable-hapi-tests-crypto: "true"
       enable-hapi-tests-token: "true"
+      enable-hapi-tests-time-consuming: "true"
+      enable-hapi-tests-state-throttling: "true"
+      enable-hapi-tests-simplefees: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "21.0.6"
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:
@@ -320,14 +324,6 @@ jobs:
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

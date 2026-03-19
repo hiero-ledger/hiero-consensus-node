@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.file;
 
-import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
@@ -20,7 +19,6 @@ import com.google.protobuf.StringValue;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
-import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.queries.file.HapiGetFileContents;
 import com.hedera.services.bdd.spec.queries.file.HapiGetFileInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -85,7 +83,6 @@ public class HapiFileUpdate extends HapiTxnOp<HapiFileUpdate> {
 
     public HapiFileUpdate(String file) {
         this.file = file;
-        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     /**
@@ -319,9 +316,7 @@ public class HapiFileUpdate extends HapiTxnOp<HapiFileUpdate> {
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         List<Function<HapiSpec, Key>> signers = new ArrayList<>(oldDefaults());
-        if (newWaclKey.isPresent()) {
-            signers.add(spec -> spec.registry().getKey(newWaclKey.get()));
-        }
+        newWaclKey.ifPresent(s -> signers.add(spec -> spec.registry().getKey(s)));
         return signers;
     }
 

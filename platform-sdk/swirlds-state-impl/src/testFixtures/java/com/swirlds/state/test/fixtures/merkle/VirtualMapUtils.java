@@ -41,9 +41,7 @@ public final class VirtualMapUtils {
     }
 
     public static VirtualMap createVirtualMap(@NonNull Configuration configuration, final long maxNumberOfKeys) {
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final var dsBuilder = new MerkleDbDataSourceBuilder(
-                configuration, maxNumberOfKeys, merkleDbConfig.hashesRamToDiskThreshold());
+        final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, maxNumberOfKeys);
         return new VirtualMap(dsBuilder, configuration);
     }
 }

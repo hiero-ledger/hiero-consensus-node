@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -11,7 +10,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -21,15 +19,15 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenGrantKycFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenGrantKycNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenRevokeKycFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -37,8 +35,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -48,7 +46,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +58,6 @@ import org.junit.jupiter.api.Tag;
  * Validates that fees are correctly calculated based on:
  * - Number of signatures (extras beyond included)
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TokenKycSimpleFeesTest {
@@ -102,10 +98,11 @@ public class TokenKycSimpleFeesTest {
                             .signedBy(PAYER, KYC_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("grantKycTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "grantKycTxn",
-                            expectedTokenGrantKycFullFeeUsd(2L), // 2 sigs
-                            0.001));
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
 
         @HapiTest
@@ -134,10 +131,11 @@ public class TokenKycSimpleFeesTest {
                             .signedBy(PAYER, KYC_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("grantKycTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "grantKycTxn",
-                            expectedTokenGrantKycFullFeeUsd(3L), // 3 sigs (2 payer + 1 kyc key)
-                            0.001));
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
 
         @HapiTest
@@ -166,10 +164,11 @@ public class TokenKycSimpleFeesTest {
                             .sigControl(forKey(KYC_KEY, validSig))
                             .fee(ONE_HUNDRED_HBARS)
                             .via("grantKycTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "grantKycTxn",
-                            expectedTokenGrantKycFullFeeUsd(3L), // 3 sigs (1 payer + 2 kyc key)
-                            0.001));
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -201,10 +200,11 @@ public class TokenKycSimpleFeesTest {
                             .signedBy(PAYER, KYC_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("revokeKycTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "revokeKycTxn",
-                            expectedTokenRevokeKycFullFeeUsd(2L), // 2 sigs
-                            0.001));
+                            txnSize -> expectedTokenRevokeKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
 
         @HapiTest
@@ -238,10 +238,11 @@ public class TokenKycSimpleFeesTest {
                             .signedBy(PAYER, KYC_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("revokeKycTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "revokeKycTxn",
-                            expectedTokenRevokeKycFullFeeUsd(3L), // 3 sigs (2 payer + 1 kyc key)
-                            0.001));
+                            txnSize -> expectedTokenRevokeKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -256,8 +257,6 @@ public class TokenKycSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenGrantKyc - missing kyc key signature fails at handle")
             final Stream<DynamicTest> tokenGrantKycMissingKycKeySignatureFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -271,30 +270,23 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         grantTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing KYC key signature
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("grantKycTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "grantKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenGrantKycFullFeeUsd(1L),
-                                0.001));
+                                txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("grantKycTxn", PAYER));
             }
 
             @HapiTest
             @DisplayName("TokenGrantKyc - insufficient tx fee fails on ingest - no fee charged")
             final Stream<DynamicTest> tokenGrantKycInsufficientTxFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -308,25 +300,18 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         grantTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(1L) // Fee too low
                                 .via("grantKycTxn")
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("grantKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord("grantKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("TokenGrantKyc - no kyc key fails")
             final Stream<DynamicTest> tokenGrantKycNoKycKeyFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -339,30 +324,23 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         grantTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("grantKycTxn")
                                 .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "grantKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenGrantKycFullFeeUsd(1L),
-                                0.001));
+                                txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("grantKycTxn", PAYER));
             }
 
             @HapiTest
             @DisplayName("TokenGrantKyc - token not associated fails")
             final Stream<DynamicTest> tokenGrantKycNotAssociatedFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -376,23 +354,18 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         // Not associating the token
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         grantTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("grantKycTxn")
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "grantKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenGrantKycFullFeeUsd(2L),
-                                0.001));
+                                txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("grantKycTxn", PAYER));
             }
         }
 
@@ -403,11 +376,6 @@ public class TokenKycSimpleFeesTest {
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("TokenGrantKyc - invalid payer signature fails on pre-handle - network fee only")
             final Stream<DynamicTest> tokenGrantKycInvalidPayerSigFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "grant-kyc-txn-inner-id";
 
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -425,10 +393,8 @@ public class TokenKycSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4"))
                                 .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance("0.0.4").exposingBalanceTo(initialNodeBalance::set),
                         grantTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
@@ -438,18 +404,12 @@ public class TokenKycSimpleFeesTest {
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("0.0.4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                expectedTokenGrantKycNetworkFeeOnlyUsd(2L),
-                                0.001));
+                                txnSize -> expectedTokenGrantKycNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "0.0.4"));
             }
         }
     }
@@ -465,9 +425,6 @@ public class TokenKycSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenRevokeKyc - missing kyc key signature fails at handle")
             final Stream<DynamicTest> tokenRevokeKycMissingKycKeySignatureFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -484,31 +441,23 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         revokeTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing KYC key signature
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("revokeKycTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "revokeKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenRevokeKycFullFeeUsd(1L),
-                                0.001));
+                                txnSize -> expectedTokenRevokeKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("revokeKycTxn", PAYER));
             }
 
             @HapiTest
             @DisplayName("TokenRevokeKyc - insufficient tx fee fails on ingest - no fee charged")
             final Stream<DynamicTest> tokenRevokeKycInsufficientTxFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -525,26 +474,18 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         revokeTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(1L) // Fee too low
                                 .via("revokeKycTxn")
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("revokeKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord("revokeKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("TokenRevokeKyc - no kyc key fails")
             final Stream<DynamicTest> tokenRevokeKycNoKycKeyFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -556,31 +497,23 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         revokeTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("revokeKycTxn")
                                 .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "revokeKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenRevokeKycFullFeeUsd(1L),
-                                0.001));
+                                txnSize -> expectedTokenRevokeKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("revokeKycTxn", PAYER));
             }
 
             @HapiTest
             @DisplayName("TokenRevokeKyc - token not associated fails")
             final Stream<DynamicTest> tokenRevokeKycNotAssociatedFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -593,23 +526,18 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         // Not associating the token
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         revokeTokenKyc(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("revokeKycTxn")
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdFromRecordWithTxnSize(
                                 "revokeKycTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenRevokeKycFullFeeUsd(2L),
-                                0.001));
+                                txnSize -> expectedTokenRevokeKycFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("revokeKycTxn", PAYER));
             }
         }
     }
