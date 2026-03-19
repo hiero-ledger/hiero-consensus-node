@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
-import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.TestTags.WRAPS_DOWNLOAD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -46,7 +46,7 @@ import org.testcontainers.utility.MountableFile;
  * the network with a config that points to a missing local file, thereby forcing
  * the node to download the key via HTTP.
  */
-@Tag(RESTART)
+@Tag(WRAPS_DOWNLOAD)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
@@ -112,7 +112,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 // Requires lazy execution due to the container copy op
                 sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/downloaded-proving-key.tar.gz",
+                        "data/keys/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -149,7 +149,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 // Requires lazy execution due to the container copy op
                 sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/downloaded-proving-key.tar.gz",
+                        "data/keys/downloaded-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -174,13 +174,14 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 doingContextual(spec -> {
                     final var invalidBytes = readClasspathResource(INVALID_WRAPS_PROVING_KEY);
                     for (final var node : spec.getNetworkNodes()) {
-                        final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
-                        writeBytes(invalidBytes, configDir.resolve("invalid-wraps-proving-key.tar.gz"));
+                        final var keysDir =
+                                node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
+                        writeBytes(invalidBytes, keysDir.resolve("invalid-wraps-proving-key.tar.gz"));
                     }
                 }),
                 sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/invalid-wraps-proving-key.tar.gz",
+                        "data/keys/invalid-wraps-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex()))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),

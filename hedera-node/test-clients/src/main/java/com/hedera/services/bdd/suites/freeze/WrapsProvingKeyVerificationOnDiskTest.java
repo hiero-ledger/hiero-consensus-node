@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
-import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.TestTags.WRAPS_DOWNLOAD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Tag;
  * Subprocess test that verifies the WRAPS proving key without requiring a key download. Instead, the
  * test copies proving key files to the config directory of each node before the tests run.
  */
-@Tag(RESTART)
+@Tag(WRAPS_DOWNLOAD)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
@@ -76,14 +76,13 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 validVariantProvingKeyHash,
                 "Precondition: valid and valid variant proving key hashes can't be the same");
 
-        // Copy valid and valid variant proving key files to the config directory of each node
+        // Copy valid and valid variant proving key files to the keys directory of each node
         testLifecycle.doAdhoc(doingContextual(spec -> {
-            final var workingDirs = spec.getNetworkNodes().stream()
-                    .map(n -> n.getExternalPath(ExternalPath.DATA_CONFIG_DIR))
-                    .toList();
-            for (final var workingDir : workingDirs) {
-                writeBytes(validBytes, workingDir.resolve("valid-wraps-proving-key.tar.gz"));
-                writeBytes(variantBytes, workingDir.resolve("valid-wraps-proving-key-variant.tar.gz"));
+            for (final var node : spec.getNetworkNodes()) {
+                final var keysDir =
+                        node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
+                writeBytes(validBytes, keysDir.resolve("valid-wraps-proving-key.tar.gz"));
+                writeBytes(variantBytes, keysDir.resolve("valid-wraps-proving-key-variant.tar.gz"));
             }
         }));
     }
@@ -99,14 +98,14 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/valid-wraps-proving-key.tar.gz",
+                        "data/keys/valid-wraps-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex())),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(30))
+                                Duration.ofSeconds(5))
                         .exposingMatchGroupTo(1, selectedProvingKeyHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
@@ -125,14 +124,14 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/valid-wraps-proving-key-variant.tar.gz",
+                        "data/keys/valid-wraps-proving-key-variant.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validVariantProvingKeyHash.toHex())),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Overwriting previous WRAPS proving key hash (\\S+) with new pending hash (\\S+)",
-                                Duration.ofSeconds(30))
+                                Duration.ofSeconds(5))
                         .exposingMatchGroupTo(1, prevProvingKeyHash)
                         .exposingMatchGroupTo(2, selectedProvingKeyHash),
                 verify(() -> {

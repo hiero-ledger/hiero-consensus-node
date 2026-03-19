@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
-import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.TestTags.WRAPS_DOWNLOAD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -48,7 +48,7 @@ import org.testcontainers.utility.MountableFile;
  *   <li>Failed download is retried and, once the file becomes available, extracted to the correct path</li>
  * </ul>
  */
-@Tag(RESTART)
+@Tag(WRAPS_DOWNLOAD)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
@@ -67,8 +67,11 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of(
+                "tss.hintsEnabled", "true",
+                "tss.historyEnabled", "true",
+                "tss.wrapsEnabled", "true",
+                "tss.wrapsProvingKeyDownloadEnabled", "true"));
 
         // Start Python HTTP server container for the retry test (test 3);
         // the /data directory starts empty so initial downloads return 404
@@ -105,7 +108,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/nonexistent-proving-key.tar.gz",
+                        "data/keys/nonexistent-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         CONFIG_HASH_A)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -128,7 +131,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/nonexistent-proving-key.tar.gz",
+                        "data/keys/nonexistent-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         CONFIG_HASH_B)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -150,13 +153,14 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 doingContextual(spec -> {
                     final var invalidBytes = "not-a-valid-proving-key-content".getBytes();
                     for (final var node : spec.getNetworkNodes()) {
-                        final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
-                        writeBytes(invalidBytes, configDir.resolve("bad-proving-key.tar.gz"));
+                        final var keysDir =
+                                node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
+                        writeBytes(invalidBytes, keysDir.resolve("bad-proving-key.tar.gz"));
                     }
                 }),
                 upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/bad-proving-key.tar.gz",
+                        "data/keys/bad-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         "aa".repeat(48),
                         "tss.wrapsProvingKeyDownloadUrl",
@@ -187,7 +191,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 // Restart with the proving key NOT yet in the HTTP container (will 404)
                 sourcing(() -> upgradeToNextConfigVersion(Map.of(
                         "tss.wrapsProvingKeyPath",
-                        "data/config/retry-proving-key.tar.gz",
+                        "data/keys/retry-proving-key.tar.gz",
                         "tss.wrapsProvingKeyHash",
                         validProvingKeyHash.toHex(),
                         "tss.wrapsProvingKeyDownloadUrl",
@@ -206,15 +210,15 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "Successfully downloaded and verified WRAPS proving key on retry \\(hash=\\S+\\)",
-                        Duration.ofSeconds(30)),
+                        Duration.ofSeconds(5)),
                 // Verify the extracted file from the tar.gz exists at the correct path
                 doingContextual(spec -> {
                     for (final var node : spec.getNetworkNodes()) {
-                        final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
-                        final var extractedFile = configDir.resolve("MrBleaney.txt");
+                        final var keysDir =
+                                node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
+                        final var extractedFile = keysDir.resolve("MrBleaney.txt");
                         assertTrue(
-                                Files.exists(extractedFile),
-                                "Extracted file MrBleaney.txt should exist in " + configDir);
+                                Files.exists(extractedFile), "Extracted file MrBleaney.txt should exist in " + keysDir);
                         log.info("Verified extracted file exists at {}", extractedFile);
                     }
                 }));
