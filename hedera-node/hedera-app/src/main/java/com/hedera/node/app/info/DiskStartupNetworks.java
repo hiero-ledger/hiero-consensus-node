@@ -115,11 +115,17 @@ public class DiskStartupNetworks implements StartupNetworks {
                 Files.createDirectories(roundDir);
                 Files.move(path, scopedPath);
                 log.info("Moved override network file to {}", scopedPath);
-                lastOverrideRoundNumber = roundNumber;
             } catch (IOException e) {
                 log.warn("Failed to move override network file", e);
             }
         }
+        // Even if above code didn't move a data/config/override-network.json to a
+        // data/config/<roundNumber>/override-network.json file, we still need to
+        // track the round number we are applying this override roster in; if not,
+        // when reconnecting from a <roundNumber> state after *already restarting*
+        // from that state we will fail to repeat the post-upgrade transplant
+        // dispatches and hit an ISS immediately after restart
+        lastOverrideRoundNumber = roundNumber;
     }
 
     @Override
