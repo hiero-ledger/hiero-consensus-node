@@ -126,6 +126,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
             if (linkedEvent == null) {
                 // linker discarded an ancient event
+                consensusEngineMetrics.reportStaleEvent(eventToAdd);
                 continue;
             }
 
