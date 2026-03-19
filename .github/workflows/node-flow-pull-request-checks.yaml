@@ -100,17 +100,20 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-spotless-check: "true"
-      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-token: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-gradle-determinism: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-docker-determinism: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: "21.0.6"
+      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:

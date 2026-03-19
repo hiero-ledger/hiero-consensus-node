@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -16,9 +15,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
@@ -36,15 +35,13 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(MATS)
 public class ScheduleServiceFeesSuite {
     private static final double BASE_FEE_SCHEDULE_CREATE = 0.01;
     private static final double BASE_FEE_SCHEDULE_SIGN = 0.001;
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
-    private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
+    private static final double BASE_FEE_SCHEDULE_INFO = 0.000102;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
 
     @BeforeAll
@@ -103,12 +100,12 @@ public class ScheduleServiceFeesSuite {
                 safeValidateChargedUsdWithin(
                         "canonicalSigning",
                         BASE_FEE_SCHEDULE_SIGN,
-                        3.0,
+                        1.0,
                         // base plus one extra signature
                         SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER,
                         0.1),
                 validateChargedUsdWithin("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, 3.0),
                 validateChargedUsdWithin("canonicalContractCall", BASE_FEE_CONTRACT_CALL, 3.0),
-                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));
+                safeValidateChargedUsdWithin("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, 1.0, QUERY_BASE_FEE, 0.1));
     }
 }

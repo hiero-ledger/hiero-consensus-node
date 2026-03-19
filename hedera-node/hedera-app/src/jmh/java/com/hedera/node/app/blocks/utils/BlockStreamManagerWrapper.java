@@ -101,11 +101,6 @@ public class BlockStreamManagerWrapper {
                 public void flushPendingBlock(@NonNull PendingProof pendingProof) {
                     original.flushPendingBlock(pendingProof);
                 }
-
-                @Override
-                public void jumpToBlockAfterFreeze(long blockNumber) {
-                    original.jumpToBlockAfterFreeze(blockNumber);
-                }
             };
         };
 
@@ -214,11 +209,6 @@ public class BlockStreamManagerWrapper {
 
         BenchmarkState(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {
             this.blockStreamInfoRef = blockStreamInfoRef;
-        }
-
-        @Override
-        public @NonNull VirtualMapState copy() {
-            return this; // No-op for benchmark
         }
 
         @Override

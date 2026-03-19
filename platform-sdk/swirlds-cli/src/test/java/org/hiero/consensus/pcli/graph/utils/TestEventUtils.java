@@ -19,6 +19,7 @@ import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterFactory;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -74,7 +75,8 @@ public class TestEventUtils {
                                         .map(t -> t.getApplicationTransaction())
                                         .toList(),
                                 event.getEventCore().coin()),
-                        signature.getBytes());
+                        signature.getBytes(),
+                        EventOrigin.GOSSIP);
             });
         }
 

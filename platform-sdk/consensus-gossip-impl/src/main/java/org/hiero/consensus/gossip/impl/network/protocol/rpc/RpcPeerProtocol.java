@@ -212,7 +212,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.time = Objects.requireNonNull(time);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.syncConfig = syncConfig;
-        this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
+        this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this, syncConfig.pingPeriod());
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
@@ -380,14 +380,16 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     logger.warn(EXCEPTION.getMarker(), "Interrupted while waiting for message", e);
                     break;
                 }
-                if (message == null) {
-                    final GossipPing ping = pingHandler.possiblyInitiatePing();
-                    if (ping != null) {
-                        sendPingSameThread(ping, output);
-                    }
-                } else {
+                if (message != null) {
                     message.write(output);
                 }
+
+                final GossipPing ping = pingHandler.possiblyInitiatePing();
+                if (ping != null) {
+                    sendPingSameThread(ping.correlationId(), output);
+                    output.flush();
+                }
+
                 if (outputQueue.isEmpty()) {
                     // otherwise we will keep pushing messages to output, and they will get autoflushed, or we will
                     // reach the end of the queue and do explicit flush
@@ -473,12 +475,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             inputQueue.add(receiver::receiveEventsFinished);
                             break;
                         case PING:
-                            pingHandler.handleIncomingPing(input.readPbjRecord(GossipPing.PROTOBUF));
+                            pingHandler.handleIncomingPing(input.readLong());
                             break;
                         case PING_REPLY:
-                            final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
+                            final long correlationId = input.readLong();
                             final long pingMillis =
-                                    TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(pingReply));
+                                    TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(correlationId));
                             overloadMonitor.reportPing(pingMillis);
                             break;
                     }
@@ -558,18 +560,18 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         });
     }
 
-    void sendPingReply(final GossipPing reply) {
+    void sendPingReply(final long correlationId) {
         outputQueue.add(out -> {
             out.writeShort(1); // single message
             out.write(PING_REPLY);
-            out.writePbjRecord(reply, GossipPing.PROTOBUF);
+            out.writeLong(correlationId);
         });
     }
 
-    private void sendPingSameThread(final GossipPing ping, final SyncOutputStream output) throws IOException {
+    private void sendPingSameThread(final long correlationId, final SyncOutputStream output) throws IOException {
         output.writeShort(1); // single message
         output.write(PING);
-        output.writePbjRecord(ping, GossipPing.PROTOBUF);
+        output.writeLong(correlationId);
     }
 
     /**

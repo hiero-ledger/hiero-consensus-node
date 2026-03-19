@@ -10,14 +10,11 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -56,11 +53,13 @@ public class VirtualLeafBytes<V> {
     // Leaf path
     private final long path;
 
-    // When this leaf record is loaded from disk, this field contains the path on disk. This
-    // allows us to skip key-to-path updates during flushes, if the record was updated, but
-    // not moved. For new records not loaded from disk, this field typically contains an
-    // invalid path
-    private final long pathOnDisk;
+    // Indicate if this leaf record has been potentially moved since it was loaded from disk.
+    // In some cases this field may be set to true even when the path is the same as in the
+    // data source, for example, when a leaf was moved to a different path and then moved
+    // again to the original path. If a record is created from scratch, not loaded, the
+    // field is true. This field may be checked during data flushes to skip key to path
+    // updates, when they are not needed
+    private final boolean moved;
 
     // Leaf key
     private final Bytes keyBytes;
@@ -72,36 +71,36 @@ public class VirtualLeafBytes<V> {
 
     public VirtualLeafBytes(
             final long path, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
-        this(path, Path.INVALID_PATH, keyBytes, value, valueCodec, null);
+        this(path, true, keyBytes, value, valueCodec, null);
     }
 
-    private VirtualLeafBytes(
+    public VirtualLeafBytes(
             final long path,
-            final long pathOnDisk,
+            final boolean moved,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable Codec<V> valueCodec) {
-        this(path, pathOnDisk, keyBytes, value, valueCodec, null);
+        this(path, moved, keyBytes, value, valueCodec, null);
     }
 
     public VirtualLeafBytes(final long path, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
-        this(path, Path.INVALID_PATH, keyBytes, null, null, valueBytes);
+        this(path, true, keyBytes, null, null, valueBytes);
     }
 
-    private VirtualLeafBytes(
-            final long path, final long pathOnDisk, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
-        this(path, pathOnDisk, keyBytes, null, null, valueBytes);
+    public VirtualLeafBytes(
+            final long path, final boolean moved, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
+        this(path, moved, keyBytes, null, null, valueBytes);
     }
 
     private VirtualLeafBytes(
             final long path,
-            final long pathOnDisk,
+            final boolean moved,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable final Codec<V> valueCodec,
             @Nullable final Bytes valueBytes) {
         this.path = path;
-        this.pathOnDisk = pathOnDisk;
+        this.moved = moved;
         this.keyBytes = Objects.requireNonNull(keyBytes);
         this.value = value;
         this.valueCodec = valueCodec;
@@ -126,7 +125,7 @@ public class VirtualLeafBytes<V> {
      */
     public boolean isNewOrMoved() {
         assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";
-        return path != pathOnDisk;
+        return moved;
     }
 
     public Bytes keyBytes() {
@@ -165,28 +164,24 @@ public class VirtualLeafBytes<V> {
             // times, but always to the same value
             if (value != null) {
                 assert (valueCodec != null);
-                final byte[] vb = new byte[valueCodec.measureRecord(value)];
-                try {
-                    valueCodec.write(value, BufferedData.wrap(vb));
-                    valueBytes = Bytes.wrap(vb);
-                } catch (final IOException e) {
-                    throw new RuntimeException("Failed to serialize a value to bytes", e);
-                }
+                valueBytes = valueCodec.toBytes(value);
             }
         }
         return valueBytes;
     }
 
     public VirtualLeafBytes<V> withPath(final long newPath) {
-        return new VirtualLeafBytes<>(newPath, pathOnDisk, keyBytes, value, valueCodec, valueBytes);
+        // If the current record is already moved, or the new path is different, mark the
+        // newly created record as moved, too
+        return new VirtualLeafBytes<>(newPath, moved || (path != newPath), keyBytes, value, valueCodec, valueBytes);
     }
 
     public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
-        return new VirtualLeafBytes<>(path, pathOnDisk, keyBytes, newValue, newValueCodec);
+        return new VirtualLeafBytes<>(path, moved, keyBytes, newValue, newValueCodec);
     }
 
     public VirtualLeafBytes<V> withValueBytes(final Bytes newValueBytes) {
-        return new VirtualLeafBytes<>(path, pathOnDisk, keyBytes, newValueBytes);
+        return new VirtualLeafBytes<>(path, moved, keyBytes, newValueBytes);
     }
 
     /**
@@ -232,14 +227,16 @@ public class VirtualLeafBytes<V> {
         Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
 
         // Key hash code is not deserialized
-        return new VirtualLeafBytes<>(path, path, keyBytes, valueBytes);
+        return new VirtualLeafBytes<>(path, false, keyBytes, valueBytes);
     }
 
     public int getSizeInBytes() {
         int size = 0;
-        // Path is FIXED64
-        size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
-        size += Long.BYTES;
+        if (path != 0) {
+            // Path is FIXED64
+            size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
+            size += Long.BYTES;
+        }
         size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()));
         final int valueBytesLen;
         // Don't call valueBytes() as it may trigger value serialization to Bytes
@@ -264,8 +261,10 @@ public class VirtualLeafBytes<V> {
      */
     public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
-        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
-        out.writeLong(path);
+        if (path != 0) {
+            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
+            out.writeLong(path);
+        }
         final Bytes kb = keyBytes();
         // ProtoWriterTools.writeDelimited() is not used to avoid using kb::writeTo method handle
         ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);

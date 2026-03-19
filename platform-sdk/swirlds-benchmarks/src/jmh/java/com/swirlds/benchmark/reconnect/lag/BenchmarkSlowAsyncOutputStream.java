@@ -2,7 +2,6 @@
 package com.swirlds.benchmark.reconnect.lag;
 
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
@@ -10,13 +9,14 @@ import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.jspecify.annotations.NonNull;
 
 /**
  * This variant of the async output stream introduces an extra delay for every single
  * message, which emulates I/O-related performance issues (slow disk when the message
  * was read from disk originally, and then slow network I/O).
  */
-public class BenchmarkSlowAsyncOutputStream<T extends SelfSerializable> extends AsyncOutputStream<T> {
+public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
 
     private final LongFuzzer delayStorageMicrosecondsFuzzer;
     private final LongFuzzer delayNetworkMicrosecondsFuzzer;
@@ -46,21 +46,20 @@ public class BenchmarkSlowAsyncOutputStream<T extends SelfSerializable> extends 
      * {@inheritDoc}
      */
     @Override
-    public void sendAsync(final T message) throws InterruptedException {
-        if (!isAlive()) {
-            throw new MerkleSynchronizationException("Messages can not be sent after close has been called.");
-        }
+    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
         sleepMicros(delayStorageMicrosecondsFuzzer.next());
-        getOutgoingMessages().put(message);
+        super.sendAsync(message);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void serializeMessage(final T message) throws IOException {
+    protected void serializeMessage(
+            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
+            throws IOException {
         sleepMicros(delayNetworkMicrosecondsFuzzer.next());
-        message.serialize(getOutputStream());
+        super.serializeMessage(message, out);
     }
 
     /**

@@ -89,7 +89,7 @@ public interface WiringModel extends Startable, Stoppable {
      * factors.
      *
      * @param period the period of the heartbeat. For example, setting a period of 100ms will cause the heartbeat to be
-     *               sent at 10 hertz. Note that time is measured at millisecond precision, and so periods less than 1ms
+     *               sent at 10 hertz. Note that time is measured at microsecond precision, and so periods less than 1us
      *               are not supported.
      * @return the output wire
      * @throws IllegalStateException if start() has already been called
@@ -119,18 +119,6 @@ public interface WiringModel extends Startable, Stoppable {
     Duration getUnhealthyDuration();
 
     /**
-     * Build a wire that produces an instant (reflecting current time) at the specified rate. Note that the exact rate
-     * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
-     * factors.
-     *
-     * @param frequency the frequency of the heartbeat in hertz. Note that time is measured at millisecond precision,
-     *                  and so frequencies greater than 1000hz are not supported.
-     * @return the output wire
-     */
-    @NonNull
-    OutputWire<Instant> buildHeartbeatWire(final double frequency);
-
-    /**
      * Start everything in the model that needs to be started. Performs static analysis of the wiring topology and
      * writes errors to the logs if problems are detected.
      */
@@ -142,4 +130,11 @@ public interface WiringModel extends Startable, Stoppable {
      */
     @Override
     void stop();
+
+    /**
+     * Check to see if the model is currently running.
+     *
+     * @return true if the model is currently running, false otherwise
+     */
+    boolean isRunning();
 }
