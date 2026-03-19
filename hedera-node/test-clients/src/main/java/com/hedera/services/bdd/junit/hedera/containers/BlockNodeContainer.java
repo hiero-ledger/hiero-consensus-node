@@ -30,7 +30,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
-    private static final int HEALTH_PORT = 16007;
     private static final String MAVEN_CENTRAL_BASE_URL = "https://repo1.maven.org/maven2";
     private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
     private static final Object PLUGINS_LOCK = new Object();
@@ -73,12 +72,11 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
 
         // Expose the gRPC port for block node communication
         this.addFixedExposedPort(port, GRPC_PORT);
-        // Also expose the health check port
-        this.addExposedPort(HEALTH_PORT);
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
-                // Use HTTP health check on the health port to verify the service is ready
-                .waitingFor(Wait.forHttp("/-/healthy").forPort(HEALTH_PORT).withStartupTimeout(Duration.ofMinutes(2)));
+                // Use the health plugin's livez endpoint on the main server port
+                .waitingFor(
+                        Wait.forHttp("/healthz/livez").forPort(GRPC_PORT).withStartupTimeout(Duration.ofMinutes(2)));
     }
 
     private static String pluginsDirInContainer() {
@@ -175,7 +173,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         if (!isRunning()) {
             super.start();
         }
-        waitForHealthy(Duration.ofMinutes(2));
         containerId = getContainerId();
     }
 
@@ -193,15 +190,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      */
     public int getPort() {
         return getMappedPort(GRPC_PORT);
-    }
-
-    /**
-     * Waits for the block node container to be healthy by configuring the health check timeout.
-     *
-     * @param timeout the maximum duration to wait for the container's health check to pass
-     */
-    public void waitForHealthy(final Duration timeout) {
-        this.waitingFor(Wait.forHealthcheck().withStartupTimeout(timeout));
     }
 
     /**
