@@ -884,8 +884,8 @@ jobs:
           set +x
           set +e
 
-          downtime=1 #1800
-          warmtime=1 #600
+          downtime=1800
+          warmtime=600
           NofLoops=2
           result=13
 
