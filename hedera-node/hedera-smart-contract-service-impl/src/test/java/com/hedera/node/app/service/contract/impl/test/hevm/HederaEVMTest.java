@@ -2,12 +2,12 @@
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import java.math.BigInteger;
@@ -50,7 +50,8 @@ class HederaEVMTest {
         final var opsDurationSchedule = OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG);
 
         final var operationRegistry = new OperationRegistry();
-        registerShanghaiOperations(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO);
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
+                .register(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO, EvmConfiguration.DEFAULT);
 
         final var hederaEvm = new HederaEVM(
                 operationRegistry,

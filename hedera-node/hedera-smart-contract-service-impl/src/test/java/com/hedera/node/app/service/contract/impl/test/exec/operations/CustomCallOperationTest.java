@@ -81,8 +81,7 @@ class CustomCallOperationTest {
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
 
-            final var expected =
-                    new Operation.OperationResult(0L, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
+            final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
             final var actual = subject.execute(frame, evm);
 
             assertSameResult(expected, actual);
@@ -107,8 +106,7 @@ class CustomCallOperationTest {
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
 
-            final var expected =
-                    new Operation.OperationResult(0L, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
+            final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
             final var actual = subject.execute(frame, evm);
 
             assertSameResult(expected, actual);

@@ -71,7 +71,7 @@ gradle.lifecycle.beforeProject {
                 "org.hyperledger.besu.internal.rlp",
             )
             module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
-            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.boringssl")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
             module("io.consensys.tuweni:tuweni-units", "tuweni.units")
             module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
             module("io.vertx:vertx-core", "io.vertx.core")

@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -114,7 +115,7 @@ class CustomStaticCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
         given(frame.getStackItem(1)).willReturn(to);
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
