@@ -52,6 +52,8 @@ class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
     void setUp() throws PreCheckException, InvalidKeyException {
         setUpBase();
         subject = new ScheduleGetInfoHandler(new ScheduleOpsUsage());
+        given(mockQueryContext.ledgerId())
+                .willReturn(testConfig.getConfigData(LedgerConfig.class).id());
     }
 
     @Test

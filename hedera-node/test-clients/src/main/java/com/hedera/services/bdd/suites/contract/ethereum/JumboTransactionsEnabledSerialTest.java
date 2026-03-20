@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -47,6 +46,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class JumboTransactionsEnabledSerialTest {
+
+    private static final String PAYER = "payer";
+    private static final String RECEIVER = "receiver";
     private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
     private static final String FUNCTION = "callme";
     private static final String SERIAL_RELAYER = "jumboSerialRelayer";
@@ -54,10 +56,18 @@ public class JumboTransactionsEnabledSerialTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(SERIAL_RELAYER).balance(ONE_MILLION_HBARS),
                 uploadInitCode(CONTRACT_CALLDATA_SIZE),
                 contractCreate(CONTRACT_CALLDATA_SIZE));
-        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
+
+        testLifecycle.overrideInClass(Map.of(
+                "jumboTransactions.maxBytesPerSec",
+                "99999999999", // to avoid throttling
+                "contracts.throttle.throttleByGas",
+                "false", // to avoid gas throttling
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "10000")); // to avoid memo size limit
     }
 
     private static HapiEthereumCall jumboEthCall(final byte[] payload) {
@@ -72,24 +82,35 @@ public class JumboTransactionsEnabledSerialTest {
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
-        final var payload = new byte[127 * 1024];
+        final var payloadSize = 127 * 1024;
         final var bytesPerSec = 130 * 1024;
+        final var payload = new byte[payloadSize];
         return hapiTest(
                 overriding("jumboTransactions.maxBytesPerSec", String.valueOf(bytesPerSec)),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                jumboEthCall(payload).fee(ONE_MILLION_HBARS).noLogging(),
+                jumboEthCall(payload).markAsJumboTxn().fee(ONE_MILLION_HBARS).noLogging(),
+                // Wait for the bytes throttle bucked to be emptied
                 sleepFor(1_000),
-                jumboEthCall(payload).fee(ONE_MILLION_HBARS).noLogging().deferStatusResolution(),
-                jumboEthCall(payload).fee(ONE_MILLION_HBARS).noLogging().hasPrecheck(BUSY));
+                jumboEthCall(payload)
+                        .markAsJumboTxn()
+                        .fee(ONE_MILLION_HBARS)
+                        .noLogging()
+                        .deferStatusResolution(),
+                jumboEthCall(payload)
+                        .markAsJumboTxn()
+                        .fee(ONE_MILLION_HBARS)
+                        .noLogging()
+                        .hasPrecheck(BUSY));
     }
 
     @HapiTest
     @DisplayName("Privileged account is exempt from bytes throttles")
     @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> privilegedAccountIsExemptFromThrottles() {
-        final var payload = new byte[127 * 1024];
+        final var payloadSize = 127 * 1024;
         final var bytesPerSec = 60 * 1024;
+        final var payload = new byte[payloadSize];
         final var initialNonce = new AtomicLong(0);
         return hapiTest(
                 overriding("jumboTransactions.maxBytesPerSec", String.valueOf(bytesPerSec)),
@@ -107,16 +128,15 @@ public class JumboTransactionsEnabledSerialTest {
 
     @HapiTest
     @DisplayName("Non-jumbo transaction bigger than 6kb should fail")
+    // JUMBO_N_07
     public Stream<DynamicTest> nonJumboTransactionBiggerThan6kb() {
-        final var payer = "payer";
-        final var receiver = "receiver";
         return hapiTest(
-                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
-                cryptoCreate(receiver),
-                cryptoTransfer(tinyBarsFromTo(payer, receiver, ONE_HUNDRED_HBARS))
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(RECEIVER),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, ONE_HUNDRED_HBARS))
                         .memo(StringUtils.repeat("a", 6145))
-                        .payingWith(payer)
-                        .hasPrecheckFrom(TRANSACTION_OVERSIZE, MEMO_TOO_LONG)
+                        .payingWith(PAYER)
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
                         .orUnavailableStatus());
     }
 }

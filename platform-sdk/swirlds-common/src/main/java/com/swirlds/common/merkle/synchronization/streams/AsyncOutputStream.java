@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
@@ -76,7 +76,7 @@ public class AsyncOutputStream {
     /**
      * A condition to check whether it's time to terminate this output stream.
      */
-    private final Supplier<Boolean> alive;
+    private final AtomicBoolean isDone = new AtomicBoolean(false);
 
     /**
      * Constructs a new instance using the given underlying {@link SerializableDataOutputStream} and
@@ -84,20 +84,16 @@ public class AsyncOutputStream {
      *
      * @param outputStream the outputStream to which all objects are written
      * @param workGroup    the work group that should be used to execute this thread
-     * @param alive        the condition to check if this output stream should be finished, once
-     *                     all scheduled messages are processed
      * @param config       the reconnect configuration
      */
     public AsyncOutputStream(
             @NonNull final SerializableDataOutputStream outputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final Supplier<Boolean> alive,
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(config, "config must not be null");
 
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.alive = Objects.requireNonNull(alive, "alive must not be null");
         this.streamQueue = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
         this.timeSinceLastFlush = new StopWatch();
         this.timeSinceLastFlush.start();
@@ -115,7 +111,7 @@ public class AsyncOutputStream {
     public void run() {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
         try {
-            while ((alive.get() || !streamQueue.isEmpty())
+            while ((!isDone.get() || !streamQueue.isEmpty())
                     && !Thread.currentThread().isInterrupted()) {
                 flushIfRequired();
                 boolean workDone = handleQueuedMessages();
@@ -236,5 +232,14 @@ public class AsyncOutputStream {
         if (timeSinceLastFlush.getElapsedTimeNano() > flushInterval.toNanos()) {
             flush();
         }
+    }
+
+    /**
+     * Marks this async output stream as done. All messages currently enqueued are processed,
+     * then the thread behind this object is exited. In the end, the stream sends a reconnect
+     * termination marker to the underlying output stream.
+     */
+    public void done() {
+        isDone.set(true);
     }
 }

@@ -30,14 +30,14 @@ do
 
   echo "Stopping java"
 
-  ${k} exec ${LEARNER_POD} -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
+  ${k} exec ${LEARNER_POD} -c root-container -- bash -c "/package/admin/s6/command/s6-svc -d /run/service/network-node"
   sleep 60
   ${k} exec ${LEARNER_POD} -c root-container -- su - hedera -c "mv ${LEARNER_LOG_DIR}/${LEARNER_LOG_LOCAL} ${LEARNER_LOG_DIR}/swirlds_reconnect_${counter}.log"
 
   echo "Down for downtime=${downtime} ..."
   sleep ${downtime}
 
-  ${k} exec ${LEARNER_POD} -c root-container -- su - hedera -c bash -c "cd ${LEARNER_LOG_DIR}/../; sh startPodJava.sh ${LEARNER_NODEID}"
+  ${k} exec ${LEARNER_POD} -c root-container -- bash -c "/package/admin/s6/command/s6-svc -u /run/service/network-node"
 
   sleep 10
   date
@@ -54,7 +54,7 @@ do
     if [[ ${?} -eq 0 ]]
     then
       echo "ERROR!!! Unknown bucket field. STOP-ing and exiting.."
-      ${k} exec ${LEARNER_POD} -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
+      ${k} exec ${LEARNER_POD} -c root-container -- bash -c "/package/admin/s6/command/s6-svc -d /run/service/network-node"
       exit 13
     fi
 
@@ -75,7 +75,7 @@ do
     if [[ ${?} -eq 0 ]]
     then
       echo "ERROR!!! Unknown bucket field. STOP-ing and exiting.."
-      ${k} exec ${LEARNER_POD} -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
+      ${k} exec ${LEARNER_POD} -c root-container -- bash -c "/package/admin/s6/command/s6-svc -d /run/service/network-node"
       exit 13
     fi
     grep 'Now in ACTIVE' ${LEARNER_LOG_LOCAL} >/dev/null

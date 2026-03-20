@@ -32,17 +32,19 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @OrderedInIsolation
 public class NonceSerialSuite {
+
+    private static final String INTERNAL_CALLEE_CONTRACT = "InternalCallee";
+    private static final String EXTERNAL_FUNCTION = "externalFunction";
+
     @LeakyHapiTest
     final Stream<DynamicTest> nonceNotUpdatedWhenMaxGasPerSecPrecheckFailed() {
-        final var internalCalleeContract = "InternalCallee";
-        final var externalFunction = "externalFunction";
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
-                uploadInitCode(internalCalleeContract),
-                contractCreate(internalCalleeContract),
-                sourcing(() -> ethereumCall(internalCalleeContract, externalFunction)
+                uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                contractCreate(INTERNAL_CALLEE_CONTRACT),
+                sourcing(() -> ethereumCall(INTERNAL_CALLEE_CONTRACT, EXTERNAL_FUNCTION)
                         .type(EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)

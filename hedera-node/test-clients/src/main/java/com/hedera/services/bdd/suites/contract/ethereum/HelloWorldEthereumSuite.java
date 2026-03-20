@@ -94,7 +94,6 @@ public class HelloWorldEthereumSuite {
     private static final String TOKEN_CREATE_CONTRACT = "TokenCreateContract";
     private static final String OC_TOKEN_CONTRACT = "OcToken";
     private static final String CALLDATA_SIZE_CONTRACT = "CalldataSize";
-    private static final String BLOCKQUERIES_CONTRACT = "BlockQueries";
     private static final String DEPOSIT = "deposit";
 
     @HapiTest
