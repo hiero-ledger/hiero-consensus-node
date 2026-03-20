@@ -26,8 +26,9 @@ public class HalfDiskMapBench extends BaseBench {
 
     private static final long INVALID_PATH = -1L;
 
+    @Override
     String benchmarkName() {
-        return "KeyValueStoreBench";
+        return "HalfDiskMapBench";
     }
 
     @Benchmark

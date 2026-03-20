@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class VirtualMapBench extends VirtualMapBaseBench {
 
+    @Override
     String benchmarkName() {
         return "VirtualMapBench";
     }

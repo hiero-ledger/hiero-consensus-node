@@ -84,6 +84,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     private long[] teacherData;
 
+    @Override
     String benchmarkName() {
         return "ReconnectBench";
     }
