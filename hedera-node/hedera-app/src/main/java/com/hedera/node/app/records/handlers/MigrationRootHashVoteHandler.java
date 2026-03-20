@@ -90,12 +90,18 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 .findFirst()
                 .orElse(0L);
         if (nodeWeight <= 0) {
+            log.info(
+                    "Ignoring migration root hash vote from node{} because it has non-positive weight in the active roster",
+                    nodeId);
             return;
         }
         final var totalWeight = activeRoster.rosterEntries().stream()
                 .mapToLong(RosterEntry::weight)
                 .sum();
         if (totalWeight <= 0) {
+            log.info(
+                    "Ignoring migration root hash vote from node{} because total weight of the active roster is non-positive",
+                    nodeId);
             return;
         }
 

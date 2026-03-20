@@ -82,7 +82,6 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
     exports com.hedera.hapi.services.auxiliary.hints;
     exports com.hedera.hapi.services.auxiliary.history;
-    exports com.hedera.hapi.services.auxiliary.blockrecords;
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.platform.message.legacy;
     exports com.hedera.hapi.node.state.entity;
@@ -101,7 +100,6 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.node.state.hooks.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
-    opens com.hedera.hapi.services.auxiliary.blockrecords.legacy;
     opens com.hedera.node.internal.network.legacy;
     opens com.hedera.hapi.node.state.token.legacy;
     opens com.hedera.hapi.node.tss.legacy;
@@ -118,6 +116,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.history.legacy;
     exports com.hedera.hapi.node.state.token.legacy;
     exports com.hedera.hapi.node.tss;
+    exports com.hedera.hapi.services.auxiliary.blockrecords;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

@@ -8,7 +8,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 /**
- * Queue entry values needed to replay wrapped record hash progression.
+ * Values needed to replay wrapped record hash progression while voting is in progress.
  */
 message MigrationWrappedHashes {
   /**

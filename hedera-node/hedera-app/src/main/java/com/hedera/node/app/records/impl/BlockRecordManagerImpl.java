@@ -376,10 +376,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 if (liveWritePrevWrappedRecordHashes()) {
                     final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
-                    logger.info(
-                            "Computed wrapped record block hashes for block {}: {}",
-                            justFinishedBlockNumber,
-                            wrappedRecordFileBlockHashes);
                     if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
                         logger.info(
                                 "Enqueueing wrapped record block hashes for block {} because migration voting is still pending",

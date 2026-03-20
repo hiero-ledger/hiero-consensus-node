@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -56,7 +55,6 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -252,12 +250,6 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
                                 EvmHookSlotKey.DEFAULT,
                                 SlotValue.DEFAULT);
-
-                    case MIGRATION_ROOT_HASH_VOTE_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_MIGRATION_ROOT_HASH_TALLIES.protoOrdinal(),
-                                MigrationRootHashVoteTransactionBody.DEFAULT,
-                                MigrationRootHashVoteTally.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));

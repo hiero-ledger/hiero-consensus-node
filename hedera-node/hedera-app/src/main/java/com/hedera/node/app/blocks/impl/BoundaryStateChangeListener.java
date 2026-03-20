@@ -9,7 +9,6 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -26,7 +25,6 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
@@ -262,14 +260,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
-            }
-            case NodeId highestNodeId -> {
-                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_ID_VALUE, highestNodeId);
-            }
-            case MigrationRootHashVotingState migrationRootHashVotingState -> {
-                return new OneOf<>(
-                        SingletonUpdateChange.NewValueOneOfType.MIGRATION_ROOT_HASH_VOTING_STATE_VALUE,
-                        migrationRootHashVotingState);
             }
             default ->
                 throw new IllegalArgumentException(

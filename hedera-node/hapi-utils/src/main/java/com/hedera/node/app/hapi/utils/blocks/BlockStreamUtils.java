@@ -56,11 +56,6 @@ public final class BlockStreamUtils {
             case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
             case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
             case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
-            case STATE_ID_HIGHEST_NODE_ID -> "EntityIdService.HIGHEST_NODE_ID";
-            case STATE_ID_MIGRATION_ROOT_HASH_VOTING_STATE -> "BlockRecordService.MIGRATION_ROOT_HASH_VOTING_STATE";
-            case STATE_ID_MIGRATION_ROOT_HASH_VOTES -> "BlockRecordService.MIGRATION_ROOT_HASH_VOTES";
-            case STATE_ID_MIGRATION_ROOT_HASH_TALLIES -> "BlockRecordService.MIGRATION_ROOT_HASH_TALLIES";
-            case STATE_ID_MIGRATION_WRAPPED_HASHES_QUEUE -> "BlockRecordService.MIGRATION_WRAPPED_HASHES_QUEUE";
             case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY_SEC -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
@@ -122,9 +117,6 @@ public final class BlockStreamUtils {
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
-            case NODE_ID_VALUE -> singletonUpdateChange.nodeIdValueOrThrow();
-            case MIGRATION_ROOT_HASH_VOTING_STATE_VALUE ->
-                singletonUpdateChange.migrationRootHashVotingStateValueOrThrow();
         };
     }
 
@@ -133,7 +125,6 @@ public final class BlockStreamUtils {
             case UNSET, PROTO_STRING_ELEMENT -> throw new IllegalStateException("Queue push value is not supported");
             case PROTO_BYTES_ELEMENT -> new ProtoBytes(queuePushChange.protoBytesElementOrThrow());
             case TRANSACTION_RECEIPT_ENTRIES_ELEMENT -> queuePushChange.transactionReceiptEntriesElementOrThrow();
-            case MIGRATION_WRAPPED_HASHES_ELEMENT -> queuePushChange.migrationWrappedHashesElementOrThrow();
         };
     }
 
@@ -164,7 +155,6 @@ public final class BlockStreamUtils {
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
-            case MIGRATION_ROOT_HASH_VOTE_KEY -> mapChangeKey.migrationRootHashVoteKeyOrThrow();
         };
     }
 
@@ -203,8 +193,6 @@ public final class BlockStreamUtils {
             case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
             case REGISTERED_NODE_VALUE -> mapChangeValue.registeredNodeValueOrThrow();
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
-            case MIGRATION_ROOT_HASH_VOTE_VALUE -> mapChangeValue.migrationRootHashVoteValueOrThrow();
-            case MIGRATION_ROOT_HASH_VOTE_TALLY_VALUE -> mapChangeValue.migrationRootHashVoteTallyValueOrThrow();
         };
     }
 
