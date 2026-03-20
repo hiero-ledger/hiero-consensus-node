@@ -205,7 +205,7 @@ jobs:
           #cat .env
           #task up
           cd "${{ github.workspace }}"/solo
-          sh ./test/e2e/dual-cluster/setup-dual-e2e.sh
+          bash ./test/e2e/dual-cluster/setup-dual-e2e.sh
           
           wait_in_minutes=$(expr ${{ inputs.nlg-time }} / 60)
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
