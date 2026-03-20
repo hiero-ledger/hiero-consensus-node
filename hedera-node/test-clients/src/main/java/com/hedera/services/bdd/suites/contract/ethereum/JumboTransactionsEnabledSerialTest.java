@@ -56,10 +56,18 @@ public class JumboTransactionsEnabledSerialTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(SERIAL_RELAYER).balance(ONE_MILLION_HBARS),
                 uploadInitCode(CONTRACT_CALLDATA_SIZE),
                 contractCreate(CONTRACT_CALLDATA_SIZE));
-        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
+
+        testLifecycle.overrideInClass(Map.of(
+                "jumboTransactions.maxBytesPerSec",
+                "99999999999", // to avoid throttling
+                "contracts.throttle.throttleByGas",
+                "false", // to avoid gas throttling
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "10000")); // to avoid memo size limit
     }
 
     private static HapiEthereumCall jumboEthCall(final byte[] payload) {
