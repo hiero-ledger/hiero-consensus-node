@@ -5,11 +5,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.records.WritableMigrationRootHashStore;
+import com.hedera.node.app.records.WritableBlockRecordStore;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -20,6 +21,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -56,7 +58,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var nodeId = context.creatorInfo().nodeId();
-        final var store = context.storeFactory().writableStore(WritableMigrationRootHashStore.class);
+        final var store = context.storeFactory().writableStore(WritableBlockRecordStore.class);
         if (store.isVotingComplete()) {
             log.info("Ignoring migration root hash vote from node{} because voting is already complete", nodeId);
             return;
@@ -97,10 +99,17 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return;
         }
 
-        store.addToTally(op, nodeWeight);
-        final var tallyWeight = Optional.ofNullable(store.getTally(op))
-                .map(MigrationRootHashVoteTally::totalWeight)
-                .orElse(0L);
+        final var weightByNode = activeRoster.rosterEntries().stream()
+                .collect(Collectors.toMap(RosterEntry::nodeId, RosterEntry::weight));
+        final var tallyByVote = new HashMap<MigrationRootHashVoteTransactionBody, Long>();
+        for (final var vote : store.votes()) {
+            final var votingNodeId = vote.nodeIdOrElse(NodeId.DEFAULT).id();
+            final var votingWeight = weightByNode.getOrDefault(votingNodeId, 0L);
+            if (votingWeight > 0) {
+                tallyByVote.merge(vote.voteOrElse(op), votingWeight, Long::sum);
+            }
+        }
+        final var tallyWeight = Optional.ofNullable(tallyByVote.get(op)).orElse(0L);
         log.info(
                 "Recorded migration root hash vote from node{} (nodeWeight={}, tallyWeight={}, totalWeight={})",
                 nodeId,
@@ -118,8 +127,8 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .map(Bytes::toByteArray)
                         .toList(),
                 op.wrappedIntermediateBlockRootsLeafCount());
-        log.info("store queue: {}", store.queuedHashesInOrder());
-        for (final var queuedHashes : store.queuedHashesInOrder()) {
+        log.info("store wrapped hashes: {}", store.wrappedHashesInOrder());
+        for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
                     previousWrappedRecordBlockRootHash,
@@ -147,12 +156,12 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             blockRecordManager.syncFinalizedMigrationHashes(
                     previousWrappedRecordBlockRootHash, finalizedIntermediateState, finalizedLeafCount);
         }
+        log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
         log.info(
                 "Finalized migration root hash vote values: previousWrappedRecordBlockRootHash={},"
                         + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
                 previousWrappedRecordBlockRootHash.toHex(),
                 finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
                 finalizedLeafCount);
-        log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
     }
 }

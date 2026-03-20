@@ -4,7 +4,6 @@ package com.hedera.node.app.records;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -172,7 +171,6 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @param state the state to persist BlockInfo to
      */
     void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state);
-
 
     void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull State state);
 }

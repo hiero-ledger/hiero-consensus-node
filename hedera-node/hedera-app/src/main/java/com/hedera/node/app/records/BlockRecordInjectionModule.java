@@ -89,8 +89,7 @@ public abstract class BlockRecordInjectionModule {
                 platform,
                 wrappedRecordHashesDiskWriter,
                 initTrigger,
-                wrappedRecordBlockHashMigration.result(),
-                blockStreamManager);
+                wrappedRecordBlockHashMigration.result());
     }
 
     @Provides

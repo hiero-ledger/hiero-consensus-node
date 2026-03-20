@@ -40,7 +40,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -62,7 +62,6 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
-import com.hedera.node.app.records.schemas.V0730BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -103,7 +102,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -504,26 +502,22 @@ public class SystemTransactions {
                 .getConfigData(BlockRecordStreamConfig.class)
                 .liveWritePrevWrappedRecordHashes()) {
             final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-            final var votingStateSingleton = blockRecordStates.<MigrationRootHashVotingState>getSingleton(
-                    V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID);
-            final var existingVotingState = votingStateSingleton.get();
-            if (existingVotingState != null) {
+            final var blockInfoSingleton =
+                    blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
+            if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
                 // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
                 startupMigrationVoteSubmissionRequested = true;
                 startupMigrationJumpstartArchiveHandled = true;
                 log.info(
-                        "Wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
-                        existingVotingState.votingCompletionDeadlineBlockNumber(),
-                        existingVotingState.votingComplete());
+                        "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                        existingBlockInfo.votingCompletionDeadlineBlockNumber(),
+                        existingBlockInfo.votingComplete());
             } else {
-                // Initialize migration voting state for the post-upgrade period, even if this node has no local result.
-                // This ensures nodes with incomplete local wrapped-hash history still wait for network voting.
-                final var blockInfo = requireNonNull(blockRecordStates
-                        .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
-                        .get());
-                final long votingCompletionDeadlineBlockNumber = blockInfo.lastBlockNumber() + 10;
+                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
                 stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
-                    votingStateSingleton.put(MigrationRootHashVotingState.newBuilder()
+                    blockInfoSingleton.put(existingBlockInfo
+                            .copyBuilder()
                             .votingComplete(false)
                             .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
                             .build());
@@ -574,17 +568,18 @@ public class SystemTransactions {
 
         final var selfNodeId = networkInfo.selfNodeInfo().nodeId();
         final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-        final var votingState = blockRecordStates
-                .<MigrationRootHashVotingState>getSingleton(V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID)
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
                 .get();
-        if (votingState == null) {
+        if (blockInfo == null) {
             return;
         }
-        final var existingVote = blockRecordStates
-                .<NodeId, MigrationRootHashVoteTransactionBody>get(
-                        V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTES_STATE_ID)
-                .get(new NodeId(selfNodeId));
-        if (existingVote != null || votingState.votingComplete()) {
+        final var existingVote = blockInfo.migrationRootHashVotes().stream()
+                .filter(vote -> vote.nodeIdOrElse(NodeId.DEFAULT).id() == selfNodeId)
+                .map(NodeMigrationRootHashVote::vote)
+                .findFirst()
+                .orElse(null);
+        if (existingVote != null || blockInfo.votingComplete()) {
             archiveJumpstartFileIfPresent();
             return;
         }

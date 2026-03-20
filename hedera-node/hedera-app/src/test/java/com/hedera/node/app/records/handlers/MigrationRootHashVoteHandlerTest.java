@@ -4,19 +4,19 @@ package com.hedera.node.app.records.handlers;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVoteTally;
 import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.records.WritableMigrationRootHashStore;
+import com.hedera.node.app.records.WritableBlockRecordStore;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -48,7 +48,7 @@ class MigrationRootHashVoteHandlerTest {
     private StoreFactory storeFactory;
 
     @Mock
-    private WritableMigrationRootHashStore store;
+    private WritableBlockRecordStore store;
 
     @Mock
     private ReadableRosterStore rosterStore;
@@ -77,13 +77,12 @@ class MigrationRootHashVoteHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
         given(store.isVotingComplete()).willReturn(true);
 
         assertDoesNotThrow(() -> subject.handle(context));
 
         verify(store, never()).putVoteIfAbsent(anyLong(), any());
-        verify(store, never()).addToTally(any(), anyLong());
     }
 
     @Test
@@ -107,20 +106,20 @@ class MigrationRootHashVoteHandlerTest {
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
-        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
         given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
         given(rosterStore.getActiveRoster()).willReturn(activeRoster);
-        given(store.getTally(vote))
-                .willReturn(
-                        MigrationRootHashVoteTally.newBuilder().totalWeight(11L).build());
-        given(store.queuedHashesInOrder()).willReturn(List.of(queuedHashes));
+        given(store.votes())
+                .willReturn(List.of(NodeMigrationRootHashVote.newBuilder()
+                        .nodeId(new NodeId(NODE_ID))
+                        .vote(vote)
+                        .build()));
+        given(store.wrappedHashesInOrder()).willReturn(List.of(queuedHashes));
 
         assertDoesNotThrow(() -> subject.handle(context));
 
-        verify(store).addToTally(eq(vote), eq(20L));
-        verify(store).getTally(vote);
         verify(store).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 
@@ -137,14 +136,12 @@ class MigrationRootHashVoteHandlerTest {
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
-        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(false);
 
         assertDoesNotThrow(() -> subject.handle(context));
 
-        verify(store, never()).addToTally(any(), anyLong());
-        verify(store, never()).getTally(any());
         verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 
@@ -164,19 +161,19 @@ class MigrationRootHashVoteHandlerTest {
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
-        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
         given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
         given(rosterStore.getActiveRoster()).willReturn(activeRoster);
-        given(store.getTally(vote))
-                .willReturn(
-                        MigrationRootHashVoteTally.newBuilder().totalWeight(10L).build());
+        given(store.votes())
+                .willReturn(List.of(NodeMigrationRootHashVote.newBuilder()
+                        .nodeId(new NodeId(NODE_ID))
+                        .vote(vote)
+                        .build()));
 
         assertDoesNotThrow(() -> subject.handle(context));
 
-        verify(store).addToTally(eq(vote), eq(10L));
-        verify(store).getTally(vote);
         verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 
@@ -193,7 +190,7 @@ class MigrationRootHashVoteHandlerTest {
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
-        given(storeFactory.writableStore(WritableMigrationRootHashStore.class)).willReturn(store);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
         given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
         given(store.isVotingComplete()).willReturn(false);
         given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
@@ -201,8 +198,54 @@ class MigrationRootHashVoteHandlerTest {
 
         assertDoesNotThrow(() -> subject.handle(context));
 
-        verify(store, never()).addToTally(any(), anyLong());
-        verify(store, never()).getTally(any());
         verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleTalliesEquivalentVoteBodiesFromDifferentInstances() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var equivalentVote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var queuedHashes = MigrationWrappedHashes.newBuilder()
+                .blockNumber(1L)
+                .consensusTimestampHash(Bytes.wrap(new byte[48]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .build();
+        final var activeRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(NODE_ID).weight(1L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(1L).build(),
+                RosterEntry.newBuilder().nodeId(2L).weight(1L).build()));
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(activeRoster);
+        given(store.votes())
+                .willReturn(List.of(
+                        NodeMigrationRootHashVote.newBuilder()
+                                .nodeId(new NodeId(NODE_ID))
+                                .vote(vote)
+                                .build(),
+                        NodeMigrationRootHashVote.newBuilder()
+                                .nodeId(new NodeId(1L))
+                                .vote(equivalentVote)
+                                .build()));
+        given(store.wrappedHashesInOrder()).willReturn(List.of(queuedHashes));
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 }

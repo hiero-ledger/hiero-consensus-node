@@ -6,9 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.QueuePushChange;
-import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,38 +28,10 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi"))
                 .toAbsolutePath()
                 .normalize();
+        final var validator = new BlockContentsValidator();
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
-        for (final var block : blocks) {
-            final var blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
-            final var items = block.items();
-            for (int itemIndex = 0, n = items.size(); itemIndex < n; itemIndex++) {
-                final var item = items.get(itemIndex);
-                if (!item.hasStateChanges()) {
-                    continue;
-                }
-                final var stateChanges = item.stateChangesOrThrow().stateChanges();
-                for (int stateChangeIndex = 0, m = stateChanges.size(); stateChangeIndex < m; stateChangeIndex++) {
-                    final var stateChange = stateChanges.get(stateChangeIndex);
-                    if (stateChange.changeOperation().kind() == StateChange.ChangeOperationOneOfType.QUEUE_PUSH
-                            && stateChange.stateId()
-                                    == StateIdentifier.STATE_ID_MIGRATION_WRAPPED_HASHES_QUEUE.protoOrdinal()
-                            && stateChange.queuePushOrThrow().value().kind()
-                                    == QueuePushChange.ValueOneOfType.MIGRATION_WRAPPED_HASHES_ELEMENT) {
-                        System.out.printf(
-                                "Found migrationWrappedHashes queue push in block #%d at state-changes item index %d and state-change index %d%n",
-                                blockNumber, itemIndex, stateChangeIndex);
-                    }
-                    if (stateChange.changeOperation().kind() == StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE
-                        && stateChange.stateId()
-                        == StateIdentifier.STATE_ID_MIGRATION_ROOT_HASH_VOTING_STATE.protoOrdinal()) {
-                        System.out.printf(
-                                "Found voting state singleton update in block #%d at state-changes item index %d and state-change index %d%n",
-                                blockNumber, itemIndex, stateChangeIndex);
-                    }
-                }
-            }
-        }
+        validator.validateBlocks(blocks);
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
@@ -156,5 +125,4 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
         return currentIndex;
     }
-
 }

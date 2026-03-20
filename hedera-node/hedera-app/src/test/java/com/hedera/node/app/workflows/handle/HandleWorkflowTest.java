@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
@@ -23,6 +24,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -43,6 +45,7 @@ import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -59,13 +62,16 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -196,14 +202,16 @@ class HandleWorkflowTest {
     void setUp() {
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
-        given(singletonState.get())
-                .willReturn(PlatformState.newBuilder()
+        org.mockito.Mockito.lenient()
+                .when(singletonState.get())
+                .thenReturn(PlatformState.newBuilder()
                         .creationSoftwareVersion(
                                 SemanticVersion.newBuilder().minor(1).build())
                         .build());
-        given(state.getReadableStates(NAME)).willReturn(readableStates);
-        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
-                .willReturn(singletonState);
+        org.mockito.Mockito.lenient().when(state.getReadableStates(NAME)).thenReturn(readableStates);
+        org.mockito.Mockito.lenient()
+                .when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .thenReturn(singletonState);
     }
 
     @Test
@@ -258,6 +266,36 @@ class HandleWorkflowTest {
                 .writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(BLOCK_TIME).build())
                         .build()));
+    }
+
+    @Test
+    void doStreamingAllChangesFlushesPendingSingletonChangesBeforeReset() throws Exception {
+        immediateStateChangeListener = new ImmediateStateChangeListener();
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                mock(StoreMetricsService.class), HederaTestConfigBuilder.create()::getOrCreateConfig);
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
+        boundaryStateChangeListener.singletonUpdateChange(BLOCKS_STATE_ID, BlockInfo.DEFAULT);
+
+        final WritableStates writableStates = mock(
+                WritableStates.class,
+                org.mockito.Mockito.withSettings().extraInterfaces(CommittableWritableStates.class));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, writableStates, null, (Runnable) () -> {});
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemSpecCaptor =
+                ArgumentCaptor.forClass((Class<Function<Timestamp, BlockItem>>) (Class<?>) Function.class);
+        verify(blockStreamManager).writeItem(itemSpecCaptor.capture());
+        final var item = itemSpecCaptor.getValue().apply(BLOCK_TIME);
+        assertTrue(item.hasStateChanges());
+        assertEquals(1, item.stateChangesOrThrow().stateChanges().size());
+        assertEquals(
+                BLOCKS_STATE_ID,
+                item.stateChangesOrThrow().stateChanges().getFirst().stateId());
+        assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
     }
 
     @Test
@@ -497,7 +535,7 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+        org.mockito.Mockito.lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,

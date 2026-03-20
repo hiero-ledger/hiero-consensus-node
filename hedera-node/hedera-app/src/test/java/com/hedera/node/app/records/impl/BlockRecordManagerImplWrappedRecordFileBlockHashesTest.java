@@ -8,8 +8,6 @@ import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_T
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_ROOT_HASH_VOTING_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0730BlockRecordSchema.MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,8 +28,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockrecords.MigrationRootHashVotingState;
-import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -97,16 +93,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -163,16 +155,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -321,16 +309,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -445,17 +429,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(false)
-                                .votingCompletionDeadlineBlockNumber(10)
                                 .build())
                 .commit();
 
@@ -487,14 +467,15 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t1, state);
         }
 
-        final var queue = state.getWritableStates(BlockRecordService.NAME)
-                .<MigrationWrappedHashes>getQueue(MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
-        assertTrue(queue.iterator().hasNext());
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertTrue(requireNonNull(blockInfo).migrationWrappedHashes().size() > 0);
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void liveModeQueuePushIsExternalizedToBlockStream() {
+    void liveModeQueuePushIsNotExternalizedToBlockStream() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -515,17 +496,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(false)
-                                .votingCompletionDeadlineBlockNumber(10)
                                 .build())
                 .commit();
 
@@ -549,8 +526,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 app.platform(),
                 diskWriter,
                 InitTrigger.RECONNECT,
-                null,
-                blockStreamManager)) {
+                null)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -559,7 +535,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t1, state);
         }
 
-        verify(blockStreamManager).writeItem(any(java.util.function.Function.class));
+        verify(blockStreamManager, never()).writeItem(any(java.util.function.Function.class));
     }
 
     @Test
@@ -583,17 +559,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(0)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(false)
-                                .votingCompletionDeadlineBlockNumber(0)
                                 .build())
                 .commit();
 
@@ -625,9 +597,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t1, state);
         }
 
-        final var queue = state.getWritableStates(BlockRecordService.NAME)
-                .<MigrationWrappedHashes>getQueue(MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
-        assertFalse(queue.iterator().hasNext());
+        final var queuedHashes = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get()
+                .migrationWrappedHashes();
+        assertFalse(queuedHashes.iterator().hasNext());
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
@@ -657,16 +631,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -698,13 +668,15 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t1, state);
         }
 
-        final var queue = state.getWritableStates(BlockRecordService.NAME)
-                .<MigrationWrappedHashes>getQueue(MIGRATION_WRAPPED_HASHES_QUEUE_STATE_ID);
-        assertFalse(queue.iterator().hasNext());
+        final var queuedHashes = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get()
+                .migrationWrappedHashes();
+        assertFalse(queuedHashes.iterator().hasNext());
     }
 
     @Test
-    void liveAndDiskModeDoesNotCallDiskWriter() {
+    void liveAndDiskModeCallsDiskWriter() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -761,9 +733,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t1, state);
         }
 
-        // When live mode is on, hashes are computed in-memory via recordWrappedBlockHashes —
-        // the disk writer is never used (live mode takes precedence over disk hashes mode)
-        verify(diskWriter, never()).appendAsync(any());
+        verify(diskWriter).appendAsync(any());
     }
 
     @Test
@@ -867,16 +837,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .previousWrappedRecordBlockRootHash(seedPrevHash)
                                 .wrappedIntermediatePreviousBlockRootHashes(seedIntermediateHashes)
                                 .wrappedIntermediateBlockRootsLeafCount(1)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
                                 .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .withSingletonState(
-                        MIGRATION_ROOT_HASH_VOTING_STATE_ID,
-                        MigrationRootHashVotingState.newBuilder()
-                                .votingComplete(true)
                                 .build())
                 .commit();
 
@@ -956,6 +922,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .previousWrappedRecordBlockRootHash(seedPrevHash)
                                 .wrappedIntermediatePreviousBlockRootHashes(seedIntermediateHashes)
                                 .wrappedIntermediateBlockRootsLeafCount(1)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
@@ -1030,6 +997,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
@@ -1180,6 +1148,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
