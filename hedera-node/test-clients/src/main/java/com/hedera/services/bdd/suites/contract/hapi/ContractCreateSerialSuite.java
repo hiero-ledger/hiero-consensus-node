@@ -59,6 +59,7 @@ import org.junit.jupiter.api.Tag;
 public class ContractCreateSerialSuite {
 
     private static final String FUNGIBLE_TOKEN = "fungible";
+
     @SuppressWarnings("java:S2068")
     private static final String MULTI_KEY = "multiKey";
 
