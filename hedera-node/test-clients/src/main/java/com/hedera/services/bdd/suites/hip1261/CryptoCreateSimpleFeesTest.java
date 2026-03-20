@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -32,6 +33,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -43,12 +45,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.hiero.base.utility.CommonUtils.hex;
 import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -363,6 +367,74 @@ public class CryptoCreateSimpleFeesTest {
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("CryptoCreate signed txn above NODE_INCLUDED_BYTES threshold - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> cryptoCreateAboveProcessingBytesThresholdFullFeesWithExtrasCharged() {
+            // create large key
+            final KeyShape largeKeyShape = threshOf(1,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("largeKeyAccount")
+                            .key(PAYER_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(cryptoCreatetxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, cryptoCreatetxn);
+                        log.info("Large-key CryptoCreate signed size: {} bytes (threshold: {})", txnSize, NODE_INCLUDED_BYTES);
+                        assertTrue(txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size (" + txnSize + ") to exceed NODE_INCLUDED_BYTES (" + NODE_INCLUDED_BYTES + ")");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoCreatetxn,
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 20L,
+                                    KEYS, 20L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
+
+        }
+
+        @HapiTest
+        @DisplayName("CryptoCreate very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> cryptoCreateVeryLargeTxnProcessingBytesFullFeesWithExtrasCharged() {
+            // threshOf(1, 41×SIMPLE) — pushes serialized size very close below 6KB range
+            final KeyShape veryLargeKeyShape = threshOf(1,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("veryLargeKeyAccount")
+                            .key(PAYER_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(cryptoCreatetxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, cryptoCreatetxn);
+                        log.info("Very-large CryptoCreate signed size: {} bytes", txnSize);
+                        assertTrue(txnSize < 6_000,
+                                "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoCreatetxn,
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 41L,
+                                    KEYS, 41L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(cryptoCreatetxn, PAYER));
@@ -730,6 +802,30 @@ public class CryptoCreateSimpleFeesTest {
                         // assert no txn record is created
                         getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
+
+            @HapiTest
+            @DisplayName("CryptoCreate very large txn (just above 6KB) - fails on ingest")
+            final Stream<DynamicTest> cryptoCreateVeryLargeTxnAboveSixKBProcessingBytesFailsOnIngest() {
+                // threshOf(1, 43×SIMPLE) — pushes serialized size just above 6KB range
+                final KeyShape veryLargeKeyShape = threshOf(1,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE);
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate("veryLargeKeyAccount")
+                                .key(PAYER_KEY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(cryptoCreatetxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+
+                        // assert no txn record is created
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
         }
 
         @Nested
@@ -750,7 +846,6 @@ public class CryptoCreateSimpleFeesTest {
                         cryptoCreate("testAccount")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .balance(0L)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
@@ -759,18 +854,17 @@ public class CryptoCreateSimpleFeesTest {
                         cryptoCreate("testAccount")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(DUPLICATE_TXN_ID)
                                 .balance(0L)
                                 .setNode(3)
                                 .via("cryptoCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-                        withOpContext((spec, log) -> allRunFor(
-                                spec,
-                                validateChargedUsd(
-                                        cryptoCreatetxn,
-                                        expectedCryptoCreateFullFeeUsd(
-                                                1L, 0L, signedTxnSizeFor(spec, cryptoCreatetxn))))),
+                        validateChargedUsdWithinWithTxnSize(
+                                cryptoCreatetxn,
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
                         validateChargedAccount(cryptoCreatetxn, PAYER));
             }
         }
