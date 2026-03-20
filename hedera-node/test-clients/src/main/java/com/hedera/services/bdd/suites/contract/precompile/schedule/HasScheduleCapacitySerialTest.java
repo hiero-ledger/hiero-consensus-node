@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @OrderedInIsolation
 @HapiTestLifecycle
+@SuppressWarnings("java:S2187")
 public class HasScheduleCapacitySerialTest {
     private static final AtomicInteger EXPIRY_SHIFT = new AtomicInteger(120);
     private static final String FUNCTION_NAME = "hasScheduleCapacityProxy";
@@ -44,7 +45,7 @@ public class HasScheduleCapacitySerialTest {
     private static final String THROTTLE_BY_GAS_CONFIG_NAME = "contracts.throttle.throttleByGas";
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
-    static SpecContract contract;
+    private static SpecContract contract;
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {

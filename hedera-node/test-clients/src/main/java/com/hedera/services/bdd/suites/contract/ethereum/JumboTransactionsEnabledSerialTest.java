@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @OrderedInIsolation
 @HapiTestLifecycle
+@SuppressWarnings("java:S2187")
 public class JumboTransactionsEnabledSerialTest {
 
     private static final String PAYER = "payer";

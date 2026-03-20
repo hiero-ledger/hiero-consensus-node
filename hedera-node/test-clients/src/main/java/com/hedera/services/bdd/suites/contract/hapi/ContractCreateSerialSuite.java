@@ -57,7 +57,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @SuppressWarnings("java:S1192")
 public class ContractCreateSerialSuite {
+
     private static final String FUNGIBLE_TOKEN = "fungible";
+    @SuppressWarnings("java:S2068")
     private static final String MULTI_KEY = "multiKey";
 
     @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations"})
