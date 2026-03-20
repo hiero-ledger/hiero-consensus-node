@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: Apache-2.0
+
 module.exports = async ({ github, context, core }) => {
+  // Get labels associated to the pull request
   const labels = context.payload.pull_request.labels || [];
+
   // Check for run-full-ci label first — forces full CI regardless
   if (labels.some(l => l.name === 'run-full-ci')) {
     core.info('Label "run-full-ci" detected — forcing full CI');
