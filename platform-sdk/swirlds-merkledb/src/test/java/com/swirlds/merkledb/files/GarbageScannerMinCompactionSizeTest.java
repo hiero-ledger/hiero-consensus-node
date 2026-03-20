@@ -6,16 +6,13 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.merkledb.collections.CASableLongIndex;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.GarbageScanner.IndexedGarbageFileStats;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +40,7 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader file1 = mockFileReader(1, 0, 10, 100);
         final DataFileReader file2 = mockFileReader(2, 0, 10, 100);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
@@ -68,7 +65,7 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader file1 = mockFileReader(1, 0, 10, 2 * KIBIBYTES_TO_BYTES);
         final DataFileReader file2 = mockFileReader(2, 0, 10, 2 * KIBIBYTES_TO_BYTES);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
@@ -95,7 +92,7 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader empty3 = mockFileReader(3, 1, 0, 27);
 
         // No index entries point to these files
-        final CASableLongIndex index = mockIndexWithEntries();
+        final LongList index = mockIndexWithEntries();
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(empty1, empty2, empty3));
@@ -116,7 +113,7 @@ class GarbageScannerMinCompactionSizeTest {
     void disabledThresholdAllowsAllLevels() {
         final DataFileReader file1 = mockFileReader(1, 0, 10, 50);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 3));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 3));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1));
@@ -142,7 +139,7 @@ class GarbageScannerMinCompactionSizeTest {
         // Threshold at level 2: 1 KB * 2^2 = 4 KB => 2 KB < 4 KB => excluded
         final DataFileReader level2File = mockFileReader(2, 2, 10, 4 * KIBIBYTES_TO_BYTES);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
@@ -169,7 +166,7 @@ class GarbageScannerMinCompactionSizeTest {
         final DataFileReader small1 = mockFileReader(3, 2, 10, 50);
         final DataFileReader small2 = mockFileReader(4, 2, 10, 50);
 
-        final CASableLongIndex index = mockIndexWithEntries(
+        final LongList index = mockIndexWithEntries(
                 locationsForFile(1, 40), // 60% garbage
                 locationsForFile(2, 30), // 70% garbage
                 locationsForFile(3, 4), // 60% garbage
@@ -206,7 +203,7 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1));
 
         // Index has entries pointing to file 1 AND file 99 (which was deleted concurrently)
-        final CASableLongIndex index = mockIndexWithEntries(
+        final LongList index = mockIndexWithEntries(
                 locationsForFile(1, 5), locationsForFile(99, 3)); // file 99 doesn't exist in collection
 
         // Should not throw — null fileStats are skipped
@@ -231,7 +228,7 @@ class GarbageScannerMinCompactionSizeTest {
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1));
 
         // All index entries point to deleted file 99
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(99, 10));
+        final LongList index = mockIndexWithEntries(locationsForFile(99, 10));
 
         final MerkleDbConfig config = config(0.5, 0, 5);
         final GarbageScanner scanner = new GarbageScanner(index, dataFileCollection, "test", config);
@@ -332,28 +329,24 @@ class GarbageScannerMinCompactionSizeTest {
                 DEFAULT_CONFIG.useDiskIndices());
     }
 
-    private static CASableLongIndex mockIndexWithEntries(final long[]... blocks) {
-        final CASableLongIndex index = mock(CASableLongIndex.class);
-        try {
-            doAnswer(invocation -> {
-                        final CASableLongIndex.LongAction<RuntimeException> action = invocation.getArgument(0);
-                        long key = 0;
-                        for (final long[] block : blocks) {
-                            for (final long location : block) {
-                                try {
-                                    action.handle(key++, location);
-                                } catch (final InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }
-                        return true;
-                    })
-                    .when(index)
-                    .forEach(any(), isNull());
-        } catch (final InterruptedException e) {
-            throw new UndeclaredThrowableException(e);
+    private static LongList mockIndexWithEntries(final long[]... blocks) {
+        long totalEntries = 0;
+        for (final long[] block : blocks) {
+            totalEntries += block.length;
         }
+
+        final LongList index = new LongListHeap(
+                DEFAULT_CONFIG.longListChunkSize(),
+                Math.max(1, totalEntries),
+                DEFAULT_CONFIG.longListReservedBufferSize());
+
+        long key = 0;
+        for (final long[] block : blocks) {
+            for (final long location : block) {
+                index.put(key++, location);
+            }
+        }
+
         return index;
     }
 

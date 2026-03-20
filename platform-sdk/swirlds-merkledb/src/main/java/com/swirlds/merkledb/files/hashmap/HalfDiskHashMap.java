@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.Snapshotable;
-import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListOffHeap;
@@ -993,7 +992,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         return fileCollection;
     }
 
-    public CASableLongIndex getBucketIndexToBucketLocation() {
+    public LongList getBucketIndexToBucketLocation() {
         return bucketIndexToBucketLocation;
     }
 

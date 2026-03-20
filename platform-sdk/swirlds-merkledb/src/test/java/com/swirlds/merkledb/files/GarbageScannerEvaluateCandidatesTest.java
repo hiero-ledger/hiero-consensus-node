@@ -6,16 +6,13 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.merkledb.collections.CASableLongIndex;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -30,7 +27,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader file2 = mockFileReader(2, 0, 10, 100);
         final DataFileReader file3 = mockFileReader(3, 0, 10, 100);
 
-        final CASableLongIndex index =
+        final LongList index =
                 mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 7), locationsForFile(3, 9));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
@@ -50,7 +47,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader file1 = mockFileReader(1, 1, 100, 100);
         final DataFileReader file2 = mockFileReader(2, 1, 100, 100);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 70), locationsForFile(2, 75));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 70), locationsForFile(2, 75));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
@@ -70,7 +67,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader level2File1 = mockFileReader(3, 2, 10, 100);
         final DataFileReader level2File2 = mockFileReader(4, 2, 10, 100);
 
-        final CASableLongIndex index = mockIndexWithEntries(
+        final LongList index = mockIndexWithEntries(
                 locationsForFile(1, 5), locationsForFile(2, 4), locationsForFile(3, 5), locationsForFile(4, 4));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
@@ -93,7 +90,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader zeroTotal = mockFileReader(1, 1, 0, 100);
         final DataFileReader exactlyOnThreshold = mockFileReader(2, 1, 4, 100);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(2, 3));
+        final LongList index = mockIndexWithEntries(locationsForFile(2, 3));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(zeroTotal, exactlyOnThreshold));
@@ -114,7 +111,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader file2 = mockFileReader(2, 0, 10, 600 * KIBIBYTES_TO_BYTES);
         final DataFileReader file3 = mockFileReader(3, 0, 10, 400 * KIBIBYTES_TO_BYTES);
 
-        final CASableLongIndex index =
+        final LongList index =
                 mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5), locationsForFile(3, 5));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
@@ -134,7 +131,7 @@ class GarbageScannerEvaluateCandidatesTest {
         final DataFileReader oversizedEligible = mockFileReader(1, 0, 10, 2 * 1024L * KIBIBYTES_TO_BYTES);
         final DataFileReader secondEligible = mockFileReader(2, 0, 10, 100 * KIBIBYTES_TO_BYTES);
 
-        final CASableLongIndex index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
+        final LongList index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(2, 5));
 
         final DataFileCollection dataFileCollection = mock(DataFileCollection.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of(oversizedEligible, secondEligible));
@@ -153,28 +150,24 @@ class GarbageScannerEvaluateCandidatesTest {
                 && filesToCompact.get(0).contains(secondEligible));
     }
 
-    private static CASableLongIndex mockIndexWithEntries(final long[]... blocks) {
-        final CASableLongIndex index = mock(CASableLongIndex.class);
-        try {
-            doAnswer(invocation -> {
-                        final CASableLongIndex.LongAction<RuntimeException> action = invocation.getArgument(0);
-                        long key = 0;
-                        for (final long[] block : blocks) {
-                            for (final long location : block) {
-                                try {
-                                    action.handle(key++, location);
-                                } catch (final InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }
-                        return true;
-                    })
-                    .when(index)
-                    .forEach(any(), isNull());
-        } catch (final InterruptedException e) {
-            throw new UndeclaredThrowableException(e);
+    private static LongList mockIndexWithEntries(final long[]... blocks) {
+        long totalEntries = 0;
+        for (final long[] block : blocks) {
+            totalEntries += block.length;
         }
+
+        final LongList index = new LongListHeap(
+                DEFAULT_CONFIG.longListChunkSize(),
+                Math.max(1, totalEntries),
+                DEFAULT_CONFIG.longListReservedBufferSize());
+
+        long key = 0;
+        for (final long[] block : blocks) {
+            for (final long location : block) {
+                index.put(key++, location);
+            }
+        }
+
         return index;
     }
 

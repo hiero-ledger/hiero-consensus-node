@@ -3,7 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 
-import com.swirlds.merkledb.collections.CASableLongIndex;
+import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import java.util.ArrayList;
@@ -35,20 +35,31 @@ public class GarbageScanner {
 
     private static final Logger logger = LogManager.getLogger(GarbageScanner.class);
 
-    private final CASableLongIndex index;
+    private final LongList index;
     private final DataFileCollection dataFileCollection;
     private final String storeName;
     private final double garbageThreshold;
+    private final boolean deduplicateMirroredEntries;
 
     public GarbageScanner(
-            final CASableLongIndex index,
+            final LongList index,
             final DataFileCollection dataFileCollection,
             final String storeName,
             final MerkleDbConfig config) {
+        this(index, dataFileCollection, storeName, config, false);
+    }
+
+    public GarbageScanner(
+            final LongList index,
+            final DataFileCollection dataFileCollection,
+            final String storeName,
+            final MerkleDbConfig config,
+            final boolean deduplicateMirroredEntries) {
         this.index = index;
         this.dataFileCollection = dataFileCollection;
         this.storeName = storeName;
         this.garbageThreshold = config.garbageThreshold();
+        this.deduplicateMirroredEntries = deduplicateMirroredEntries;
     }
 
     /**
@@ -67,24 +78,25 @@ public class GarbageScanner {
         final long start = System.currentTimeMillis();
 
         final IndexedGarbageFileStats statsByFileIndex = createStatsByFileIndexArray();
-        try {
-            index.forEach(
-                    (_, dataLocation) -> {
-                        final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
-                        final int idx = fileIndex - statsByFileIndex.offset;
-                        if (idx < 0 || idx >= statsByFileIndex.garbageFileStats.length) {
-                            return;
-                        }
-                        final GarbageFileStats fileStats = statsByFileIndex.garbageFileStats[idx];
-                        if (fileStats != null) {
-                            fileStats.incrementAliveItems();
-                        }
-                    },
-                    null);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn(MERKLE_DB.getMarker(), "[{}] Garbage scan was interrupted", storeName);
-            return ScanResult.EMPTY;
+        if (deduplicateMirroredEntries) {
+            final long halfSize = index.size() / 2;
+            for (long i = 0; i < halfSize; i++) {
+                final long locationLow = index.get(i, 0);
+                final long locationHigh = index.get(i + halfSize, 0);
+                if (locationLow != 0) {
+                    countAlive(locationLow, statsByFileIndex);
+                }
+                if (locationHigh != 0 && locationHigh != locationLow) {
+                    countAlive(locationHigh, statsByFileIndex);
+                }
+            }
+        } else {
+            for (long i = 0; i < index.size(); i++) {
+                final long location = index.get(i, 0);
+                if (location != 0) {
+                    countAlive(location, statsByFileIndex);
+                }
+            }
         }
 
         final Map<Integer, List<DataFileReader>> result = new HashMap<>();
@@ -101,6 +113,18 @@ public class GarbageScanner {
         logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
         return new ScanResult(result, statsByFileIndex);
+    }
+
+    private static void countAlive(long dataLocation, IndexedGarbageFileStats statsByFileIndex) {
+        final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
+        final int idx = fileIndex - statsByFileIndex.offset;
+        if (idx < 0 || idx >= statsByFileIndex.garbageFileStats.length) {
+            return;
+        }
+        final GarbageFileStats fileStats = statsByFileIndex.garbageFileStats[idx];
+        if (fileStats != null) {
+            fileStats.incrementAliveItems();
+        }
     }
 
     /**

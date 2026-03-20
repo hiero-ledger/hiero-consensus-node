@@ -82,8 +82,8 @@ public record MerkleDbConfig(
         @Deprecated @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
-        @Min(1) @ConfigProperty(defaultValue = "6") int compactionThreads,
-        @ConfigProperty(defaultValue = "0.2") double garbageThreshold,
+        @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
+        @ConfigProperty(defaultValue = "0.3") double garbageThreshold,
         /*Default is 1GB*/
         @ConfigProperty(defaultValue = "1000000") long maxCompactionDataPerLevelInKB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,

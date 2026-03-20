@@ -484,7 +484,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 keyToPath.getBucketIndexToBucketLocation(),
                 keyToPath.getFileCollection(),
                 OBJECT_KEY_TO_PATH,
-                merkleDbConfig);
+                merkleDbConfig,
+                true);
 
         logger.info(
                 MERKLE_DB.getMarker(),

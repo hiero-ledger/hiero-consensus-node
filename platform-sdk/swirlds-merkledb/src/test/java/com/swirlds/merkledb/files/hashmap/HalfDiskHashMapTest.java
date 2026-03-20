@@ -271,7 +271,7 @@ class HalfDiskHashMapTest {
         final long goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
         // Bucket index capacity doesn't depend on HDHM initial size, so 1024 below can be anything
         try (final HalfDiskHashMap hdhm = createNewTempMap("testInitialBucketIndexCapacity", 1024)) {
-            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             final long maxNumOfBuckets = maxNumOfKeys / goodAverageBucketEntryCount;
             final long expectedCapacity =
                     Long.highestOneBit(maxNumOfBuckets * 100 / HalfDiskHashMap.PERCENT_START_RESIZE) * 2;
@@ -386,7 +386,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) (i + 100), 11}), i + initialNumOfBuckets, i + 2L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -420,7 +420,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < numOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -445,7 +445,7 @@ class HalfDiskHashMapTest {
             }
             map.endWriting();
             map.resizeIfNeeded(499, 998);
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -498,7 +498,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) (i + 100)}), i + initialNumOfBuckets, i + 4L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             // Check bucket 0, it was not updated -> not sanitized
             {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, 0);
@@ -604,7 +604,7 @@ class HalfDiskHashMapTest {
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
                 config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
         try {
-            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
             assertEquals(4, hdhm.getNumOfBuckets());
