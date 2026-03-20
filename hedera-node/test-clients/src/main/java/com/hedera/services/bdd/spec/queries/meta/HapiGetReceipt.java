@@ -2,9 +2,6 @@
 package com.hedera.services.bdd.spec.queries.meta;
 
 import static com.hedera.services.bdd.spec.queries.QueryUtils.txnReceiptQueryFor;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.common.base.MoreObjects;
@@ -14,7 +11,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.Response;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -22,7 +18,6 @@ import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionReceipt;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Optional;
@@ -120,58 +115,6 @@ public class HapiGetReceipt extends HapiQueryOp<HapiGetReceipt> {
     public HapiGetReceipt hasSchedule(String name) {
         expectedSchedule = Optional.of(name);
         return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Overrides the default query submission to poll for a resolved (non-UNKNOWN) receipt
-     * status when an expected priority status has been configured. This avoids flaky test
-     * failures caused by querying a receipt before the transaction has reached consensus,
-     * where the node may return either {@code RECEIPT_NOT_FOUND} (transaction not yet seen)
-     * or {@code UNKNOWN} (transaction seen but not yet finalized).
-     */
-    @Override
-    protected boolean submitOp(HapiSpec spec) throws Throwable {
-        final boolean hasExpectedStatus = expectedPriorityStatus.isPresent() || expectedPriorityStatuses != null;
-        if (!hasExpectedStatus) {
-            return super.submitOp(spec);
-        }
-        configureTlsFor(spec);
-        final var txnId = explicitTxnId.orElseGet(
-                () -> useDefaultTxnId ? defaultTxnId : spec.registry().getTxnId(txn));
-        final long sleepMs = spec.setup().statusWaitSleepMs();
-        final long timeoutMs = spec.setup().statusWaitTimeoutMs();
-        final long beginWait = Instant.now().toEpochMilli();
-        do {
-            final Query receiptQuery = txnReceiptQueryFor(txnId, requestDuplicates, getChildReceipts);
-            final Response polledResponse =
-                    spec.targetNetworkOrThrow().send(receiptQuery, type(), targetNodeFor(spec), false);
-            final var precheckCode =
-                    polledResponse.getTransactionGetReceipt().getHeader().getNodeTransactionPrecheckCode();
-            if (precheckCode == RECEIPT_NOT_FOUND || precheckCode == UNKNOWN) {
-                // Transaction not yet seen or not yet finalized, keep polling
-                Thread.sleep(sleepMs);
-                continue;
-            }
-            if (precheckCode == OK) {
-                final var receiptStatus =
-                        polledResponse.getTransactionGetReceipt().getReceipt().getStatus();
-                if (receiptStatus == UNKNOWN) {
-                    // Receipt exists but not yet finalized, keep polling
-                    Thread.sleep(sleepMs);
-                    continue;
-                }
-            }
-            // We have a resolved response; store it and process as normal
-            response = polledResponse;
-            processAnswerOnlyResponse(spec);
-            txnSubmitted = Transaction.getDefaultInstance();
-            return true;
-        } while ((Instant.now().toEpochMilli() - beginWait) < timeoutMs);
-        // Timed out; fall back to the last response so assertExpectationsGiven can report the failure
-        log.warn("Receipt status not resolved for {} after {}ms, proceeding with last response", txn, timeoutMs);
-        return super.submitOp(spec);
     }
 
     @Override
