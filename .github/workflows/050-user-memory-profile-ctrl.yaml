@@ -227,13 +227,16 @@ jobs:
               if [ \"\$jpid\" != \"\" ]; then echo \"pod $i:\"; \
                 jcmd \$jpid GC.heap_info; echo \"\"; \
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
+            kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/$i.hprof 2>/dev/null
           done 2>/dev/null
           EOF
           wait_time=$(expr ${{ inputs.nlg-time }} / 10 \* 9)
-          nohup bash -c "sleep ${wait_time}; sh heapInfoByPod.sh" > heapInfoByPod.log 2>&1 &
+          nohup bash -c "sleep 360; sleep ${wait_time}; sh heapInfoByPod.sh" > heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
         run: |
+          set +e
+          set +x
           #cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           #task load:up NLG_TEST_TYPE="${{ inputs.nlg-test }}" NLG_ARGS="${{ inputs.nlg-args }} -a ${{ inputs.nlg-accounts }} -tt ${{ inputs.nlg-time }}s" NLG_MAX_TPS="${{ inputs.nlg-tps }}"
           cd "${{ github.workspace }}"/solo
@@ -268,9 +271,8 @@ jobs:
           set +x
           cd "${{ github.workspace }}"/
           #process hprof-s
-          for i in for i in `kubectl get namespaces | grep 'solo-' | awk '{print $1}' | grep -v 'solo-setup'`;\
+          for i in `ls -1 *.hprof'`;\
           do \
-            kubectl -n ${i} cp network-node1-0:/tmp/test.hprof $i.hprof 2>/dev/null
             if [ -f $i.hprof ]
             then
               mkdir $i
