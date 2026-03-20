@@ -61,6 +61,7 @@ on:
         required: false
         default: "600"
         type: string
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       disable-notifications:
         required: false
         default: true

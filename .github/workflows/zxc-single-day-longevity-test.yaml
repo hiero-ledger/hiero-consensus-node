@@ -42,7 +42,7 @@ on:
       reconnect-uptime:
         required: true
         default: "600"
-        description: "Reconnect uptime. Downtime is Uptime x 3"
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
         type: string
       delete-namespace:
         required: false
