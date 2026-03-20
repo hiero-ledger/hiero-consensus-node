@@ -645,7 +645,7 @@ public class SystemTransactions {
         final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
+        final var network = startupNetworks.lastUsedOverrideNetwork(configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
