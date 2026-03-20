@@ -55,12 +55,12 @@ SLOTH_JVM_PROPS=""
 POSITIONAL=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.tps=$2";                   shift 2 ;;
-        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.numberOfNodes=$2";          shift 2 ;;
-        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.stabilizationTime=$2";     shift 2 ;;
-        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.warmupTime=$2";             shift 2 ;;
-        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.benchmarkTime=$2";         shift 2 ;;
-        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Dsloth.collectionTime=$2";        shift 2 ;;
+        --tps)                SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.tps=$2";                   shift 2 ;;
+        --nodes)              SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.numberOfNodes=$2";          shift 2 ;;
+        --stabilization-time) SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.stabilizationTime=$2";     shift 2 ;;
+        --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.warmupTime=$2";             shift 2 ;;
+        --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.benchmarkTime=$2";         shift 2 ;;
+        --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.collectionTime=$2";        shift 2 ;;
         --*)                  echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
         *)
             POSITIONAL=$((POSITIONAL + 1))
@@ -120,7 +120,7 @@ echo ""
 # ── Step 2: Verify no Gradle tasks or active users ──────────────────────────
 echo -e "${BLUE}=== Step 2: Checking remote server is idle ===${NC}"
 
-REMOTE_CHECK=$(ssh -o BatchMode=yes "$SSH_DEST" bash <<'REMOTE_EOF'
+REMOTE_CHECK=$(ssh -o BatchMode=yes "$SSH_DEST" -t bash <<'REMOTE_EOF'
 ISSUES=""
 
 # Check for active Gradle builds (ignore idle daemons and worker processes)
@@ -169,7 +169,7 @@ echo ""
 # ── Step 3: Clone or update repo and checkout branch ─────────────────────────
 echo -e "${BLUE}=== Step 3: Preparing repository on remote (branch: $BRANCH) ===${NC}"
 
-ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF
+ssh -o BatchMode=yes "$SSH_DEST" -t bash <<REMOTE_EOF
 set -eo pipefail
 
 if [[ ! -d "$REMOTE_REPO_DIR/.git" ]]; then
@@ -184,7 +184,7 @@ fi
 
 echo "Checking out branch: $BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
-git pull --ff-only origin "$BRANCH" || true
+git reset --hard "origin/$BRANCH"
 
 echo "Branch is at: \$(git log --oneline -1)"
 REMOTE_EOF
@@ -201,7 +201,7 @@ echo "Remote results will be stored at: $REMOTE_TMP_RESULTS"
 echo ""
 
 BENCHMARK_EXIT=0
-ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF || BENCHMARK_EXIT=$?
+ssh -o BatchMode=yes "$SSH_DEST" -t bash <<REMOTE_EOF || BENCHMARK_EXIT=$?
 set -eo pipefail
 
 # Source profile to pick up JAVA_HOME and PATH in non-interactive SSH sessions
@@ -209,6 +209,12 @@ set -eo pipefail
 for f in "/etc/profile" "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc"; do
     [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
 done
+
+# SDKMAN init is guarded by a non-interactive check in .bashrc, so source it directly
+if [[ -s "\$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="\$HOME/.sdkman"
+    source "\$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
 
 # Verify Java is available
 if [[ -z "\$JAVA_HOME" ]] && ! command -v java &>/dev/null; then
@@ -253,7 +259,7 @@ LOCAL_TAR="${LOCAL_TAR_DIR}/benchmark-${SERVER}-${BRANCH//\//-}-${TIMESTAMP}.tar
 
 # Create tar on remote (best-effort: archive whatever results exist)
 TRANSFER_EXIT=0
-ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF || TRANSFER_EXIT=$?
+ssh -o BatchMode=yes "$SSH_DEST" -t bash <<REMOTE_EOF || TRANSFER_EXIT=$?
 set -eo pipefail
 if [[ ! -d "$REMOTE_TMP_RESULTS" ]] || [[ -z "\$(ls -A "$REMOTE_TMP_RESULTS")" ]]; then
     echo "WARNING: No results found at $REMOTE_TMP_RESULTS — nothing to archive."
@@ -278,10 +284,14 @@ fi
 echo "Cleaning up remote temporary files..."
 ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'" || true
 echo "Stopping Gradle daemons on remote..."
-ssh -o BatchMode=yes "$SSH_DEST" bash <<'STOP_EOF'
+ssh -o BatchMode=yes "$SSH_DEST" -t bash <<'STOP_EOF'
 for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
     [[ -f "$f" ]] && source "$f" 2>/dev/null || true
 done
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="$HOME/.sdkman"
+    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+fi
 cd hedera-services && ./gradlew --stop 2>/dev/null || true
 STOP_EOF
 
