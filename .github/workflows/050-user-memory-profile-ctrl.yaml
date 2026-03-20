@@ -48,7 +48,7 @@ on:
         description: 'Transactions Per Second'
       versions:
         required: true
-        default: "CN_VERSION=v0.72.0-rc.3\\nMN_VERSION=v0.150.0-rc3\\nBN_VERSION=v0.29.0-rc3\\nRELAY_VERSION=latest\\nTSS_ENABLED=true\\nSOLO_VERSION=latest\\nTCK_VERSION=latest"
+        default: "CN_VERSION=v0.72.0-rc.4\\nMN_VERSION=v0.150.0-rc3\\nBN_VERSION=v0.30.0-rc1\\nRELAY_VERSION=latest\\nTSS_ENABLED=true\\nSOLO_VERSION=latest\\nTCK_VERSION=latest"
         type: string
         description: 'Versions of containers'
 defaults:
@@ -194,9 +194,8 @@ jobs:
           ls ${HOME}/mat
 
       - name: Version update
-        if: false
         run: |
-          /usr/bin/echo -e "${{ inputs.versions }}" > hiero-block-node/tools-and-tests/scripts/solo-e2e-test/.env
+          /usr/bin/echo -e "${{ inputs.versions }}" > "${{ github.workspace }}"/solo/.env
 
       - name: Deploy K8S pod
         run: |
@@ -208,7 +207,7 @@ jobs:
           bash ./test/e2e/dual-cluster/setup-dual-e2e.sh
           
           wait_in_minutes=$(expr ${{ inputs.nlg-time }} / 60)
-          echo SOLO_TEST_CLUSTER=solo-e2e > .env
+          echo SOLO_TEST_CLUSTER=solo-e2e >> .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=${wait_in_minutes} >> .env
@@ -259,6 +258,7 @@ jobs:
           mkdir "${{ github.workspace }}"/report
 
       - name: Java heap info
+        if: ${{ !cancelled() }}
         run: |
           set +e
           set +x
@@ -266,6 +266,7 @@ jobs:
           cat heapInfoByPod.log
 
       - name: Analyze Java heaps
+        if: ${{ !cancelled() }}
         run: |
           set +e
           set +x
@@ -285,6 +286,7 @@ jobs:
           done
 
       - name: Publish logs
+        if: ${{ !cancelled() }}
         run: |
           gcloud --no-user-output-enabled storage cp --recursive "${{ github.workspace }}"/report "${{ env.GS_ROOT_DIR }}/MemoryProfile_${{ github.run_number }}"/report
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/MemoryProfile_${{ github.run_number }}"/report
