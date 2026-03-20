@@ -59,7 +59,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                         NodeSelector.byNodeId(0),
                         "Updating quiescence command from .* to QUIESCE",
                         Duration.ofSeconds(1)),
-                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
+                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(5 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
                     final var expected = scheduleExpiry.get();
