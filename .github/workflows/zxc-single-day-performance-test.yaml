@@ -1524,7 +1524,7 @@ jobs:
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
       - performance-post-test-validation
-      - needs.single-day-performance-test-result
+      - single-day-performance-test-result
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
