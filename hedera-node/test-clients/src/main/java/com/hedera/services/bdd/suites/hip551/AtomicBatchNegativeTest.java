@@ -791,7 +791,8 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(freezeOnly()
                                     .payingWith(GENESIS)
-                                    .startingAt(Instant.now().plusSeconds(20))
+                                    .startingIn(10)
+                                    .seconds()
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
@@ -807,7 +808,8 @@ public class AtomicBatchNegativeTest {
                                     cryptoCreate("foo").batchKey("batchOperator"),
                                     freezeOnly()
                                             .payingWith(GENESIS)
-                                            .startingAt(Instant.now().plusSeconds(20))
+                                            .startingIn(10)
+                                            .seconds()
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
