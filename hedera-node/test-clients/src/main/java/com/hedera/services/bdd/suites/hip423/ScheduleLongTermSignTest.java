@@ -30,6 +30,7 @@ public class ScheduleLongTermSignTest {
     private static final String PAYING_ACCOUNT = "payingAccount";
     private static final String RECEIVER = "receiver";
     private static final String SENDER = "sender";
+    private static final String RECEIVER_TXN = "receiverTxn";
 
     @HapiTest
     final Stream<DynamicTest> scheduleSignWhenAllSigPresent() {
@@ -70,16 +71,19 @@ public class ScheduleLongTermSignTest {
                         .lasting(90, TimeUnit.SECONDS));
     }
 
+    // if flake appears here - tag this test SERIAL and revert it to its original state
+    // concurrency was causing the scheduled transaction to expire while in the queue before reaching consensus due to
+    // higher traffic
     @HapiTest
     final Stream<DynamicTest> ensureUnExecutedScheduleIsPurgedDuringCi() {
         return hapiTest(
                 cryptoCreate(SENDER),
-                cryptoCreate(RECEIVER).balance(0L),
+                cryptoCreate(RECEIVER).balance(0L).via(RECEIVER_TXN),
                 scheduleCreate("toBePurgedWithoutExecution", cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1L)))
                         .waitForExpiry(true)
-                        .expiringIn(4L),
+                        .withRelativeExpiry(RECEIVER_TXN, 10),
                 runWithProvider(ignore -> () -> Optional.of(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))))
-                        .lasting(5, TimeUnit.SECONDS));
+                        .lasting(15, TimeUnit.SECONDS));
     }
 
     @HapiTest
