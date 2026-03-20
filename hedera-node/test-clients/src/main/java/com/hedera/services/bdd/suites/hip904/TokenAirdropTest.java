@@ -232,21 +232,24 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
             @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
             final Stream<DynamicTest> nftAirdropToExistingAccountsTransfers() {
+                final var s1 = nextNftSerial();
+                final var s2 = nextNftSerial();
+                final var s3 = nextNftSerial();
                 return hapiTest(
                         // receivers with free auto association slots
                         tokenAirdrop(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 3L)
+                                        movingUnique(NON_FUNGIBLE_TOKEN, s1)
                                                 .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 4L)
+                                        movingUnique(NON_FUNGIBLE_TOKEN, s2)
                                                 .between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 5L).between(OWNER, ASSOCIATED_RECEIVER))
+                                        movingUnique(NON_FUNGIBLE_TOKEN, s3).between(OWNER, ASSOCIATED_RECEIVER))
                                 .payingWith(OWNER)
                                 .via("non fungible airdrop"),
                         // assert txn record
                         getTxnRecord("non fungible airdrop")
                                 .hasPriority(recordWith()
                                         .tokenTransfers(includingNonfungibleMovement(
-                                                movingUnique(NON_FUNGIBLE_TOKEN, 3L, 4L, 5L)
+                                                movingUnique(NON_FUNGIBLE_TOKEN, s1, s2, s3)
                                                         .distributing(
                                                                 RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS,
                                                                 RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS,
@@ -291,12 +294,14 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
             @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
             final Stream<DynamicTest> nftAirdropToExistingAccountsPending() {
+                final var s1 = nextNftSerial();
+                final var s2 = nextNftSerial();
                 return hapiTest(
                         // without free auto association slots
                         tokenAirdrop(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                        movingUnique(NON_FUNGIBLE_TOKEN, s1)
                                                 .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                        movingUnique(NON_FUNGIBLE_TOKEN, s2)
                                                 .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS))
                                 .payingWith(OWNER)
                                 .via("non fungible airdrop"),
@@ -304,9 +309,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         getTxnRecord("non fungible airdrop")
                                 .hasPriority(recordWith()
                                         .pendingAirdrops(includingNftPendingAirdrop(
-                                                movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                movingUnique(NON_FUNGIBLE_TOKEN, s1)
                                                         .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
-                                                movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                                movingUnique(NON_FUNGIBLE_TOKEN, s2)
                                                         .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)))),
 
                         // assert account balances
@@ -341,12 +346,14 @@ public class TokenAirdropTest extends TokenAirdropBase {
             @DisplayName("charge association fee for NFT correctly")
             final Stream<DynamicTest> chargeAssociationFeeForNFT() {
                 var receiver = "receiver";
+                final var s1 = nextNftSerial();
+                final var s2 = nextNftSerial();
                 return hapiTest(
                         cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
-                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver))
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s1).between(OWNER, receiver))
                                 .payingWith(OWNER)
                                 .via("airdrop"),
-                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 2).between(OWNER, receiver))
+                        tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s2).between(OWNER, receiver))
                                 .payingWith(OWNER)
                                 .via("second airdrop"),
                         validateChargedUsd("airdrop", 0.1, 1),
@@ -533,9 +540,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("that is alias with 0 free maxAutoAssociations")
         final Stream<DynamicTest> airdropToAliasWithNoFreeSlots() {
             final var validAliasWithNoFreeSlots = "validAliasWithNoFreeSlots";
+            final var serial = nextNftSerial();
             return hapiTest(
                     newKeyNamed(validAliasWithNoFreeSlots),
-                    cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 10L).between(OWNER, validAliasWithNoFreeSlots))
+                    cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, validAliasWithNoFreeSlots))
                             .payingWith(OWNER)
                             .signedBy(OWNER, validAliasWithNoFreeSlots),
                     withOpContext((spec, opLog) -> updateSpecFor(spec, validAliasWithNoFreeSlots)),
@@ -973,7 +981,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(
                             movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)),
                     tokenAirdrop(movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(OWNER, HTS_COLLECTOR))
-                            .signedByPayerAnd(HTS_COLLECTOR, OWNER)
+                            .signedBy(HTS_COLLECTOR, OWNER)
                             .payingWith(OWNER)
                             .via("NFT with royalty fee airdrop to collector"),
                     // assert owner balance
@@ -1054,7 +1062,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(
                             movingUnique(NFT_WITH_ROYALTY_FEE, 3L).between(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)),
                     tokenAirdrop(movingUnique(NFT_WITH_ROYALTY_FEE, 3L).between(OWNER, TREASURY_FOR_CUSTOM_FEE_TOKENS))
-                            .signedByPayerAnd(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)
+                            .signedBy(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)
                             .payingWith(OWNER)
                             .via("NFT with royalty fee airdrop to treasury"),
                     // set new treasury balance variable
@@ -1075,7 +1083,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
                     validateFees(
-                            "NFT with royalty fee airdrop to treasury", 0.0008029, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
+                            "NFT with royalty fee airdrop to treasury",
+                            0.0008029,
+                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1317,10 +1327,11 @@ public class TokenAirdropTest extends TokenAirdropBase {
         final Stream<DynamicTest>
                 airdropNFTToNonExistingEvmAddressWithoutAutoAssociationsResultingInPendingAirdropToHollowAccount() {
             final var validAliasForAirdrop = "validAliasForAirdrop";
+            final var serial = nextNftSerial();
             return defaultHapiSpec(
                             "Send one NFT from EOA to EVM address without auto-associations resulting in the creation of Hollow account and pending airdrop")
                     .given()
-                    .when(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L).between(OWNER, validAliasForAirdrop))
+                    .when(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, validAliasForAirdrop))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
                             .via("EVM address NFT airdrop"))
@@ -1328,7 +1339,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             getTxnRecord("EVM address NFT airdrop")
                                     .hasPriority(recordWith()
                                             .pendingAirdrops(
-                                                    includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L)
+                                                    includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial)
                                                             .between(OWNER, validAliasForAirdrop)))),
                             // assert hollow account
                             getAliasedAccountInfo(validAliasForAirdrop)
@@ -1346,9 +1357,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
             final byte[] publicKey =
                     CommonUtils.unhex("02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
             final ByteString evmAddress = ByteStringUtils.wrapUnsafely(recoverAddressFromPubKey(publicKey));
-
+            final var serial = nextNftSerial();
             return hapiTest(
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 15L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, serial)
                                     .between(OWNER, evmAddress))
                             .payingWith(OWNER)
                             .via("evmAddressReceiver"),
@@ -1384,6 +1395,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("containing multiple senders")
         final Stream<DynamicTest> airdropWithMultipleSenders() {
+            final var s1 = nextNftSerial();
+            final var s2 = nextNftSerial();
             return hapiTest(
                     cryptoCreate("sender1"),
                     cryptoCreate("sender2"),
@@ -1395,8 +1408,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                     moving(5, FUNGIBLE_TOKEN).between("sender2", "receiver"))
                             .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN),
                     tokenAirdrop(
-                                    movingUnique(NON_FUNGIBLE_TOKEN, 1).between("sender1", "receiver"),
-                                    movingUnique(NON_FUNGIBLE_TOKEN, 2).between("sender2", "receiver"))
+                                    movingUnique(NON_FUNGIBLE_TOKEN, s1).between("sender1", "receiver"),
+                                    movingUnique(NON_FUNGIBLE_TOKEN, s2).between("sender2", "receiver"))
                             .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
         }
 
@@ -1535,10 +1548,11 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("containing duplicate entries in the transfer list")
         final Stream<DynamicTest> duplicateEntryInTokenTransferFails() {
+            final var serial = nextNftSerial();
             return hapiTest(tokenAirdrop(
-                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                            movingUnique(NON_FUNGIBLE_TOKEN, serial)
                                     .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
-                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                            movingUnique(NON_FUNGIBLE_TOKEN, serial)
                                     .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS))
                     .payingWith(OWNER)
                     .hasPrecheck(INVALID_ACCOUNT_AMOUNTS));
@@ -1548,11 +1562,12 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("already exists in pending airdrop state")
         final Stream<DynamicTest> duplicateEntryInPendingStateFails() {
             var receiver = "receiver";
+            final var serial = nextNftSerial();
             return hapiTest(
                     cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, receiver))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, receiver))
                             .payingWith(OWNER),
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, receiver))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, receiver))
                             .payingWith(OWNER)
                             .hasKnownStatus(PENDING_NFT_AIRDROP_ALREADY_EXISTS));
         }
@@ -1605,7 +1620,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
             final String OWNER_TWO = "owner2";
             return hapiTest(
                     cryptoCreate(OWNER_TWO).balance(ONE_HUNDRED_HBARS),
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER_TWO, ASSOCIATED_RECEIVER))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
+                                    .between(OWNER_TWO, ASSOCIATED_RECEIVER))
                             .signedByPayerAnd(OWNER_TWO)
                             .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
         }
@@ -1616,7 +1632,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
             final String OWNER_TWO = "owner2";
             return hapiTest(
                     cryptoCreate(OWNER_TWO).balance(ONE_HUNDRED_HBARS),
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, ASSOCIATED_RECEIVER))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
+                                    .between(OWNER, ASSOCIATED_RECEIVER))
                             .signedByPayerAnd(OWNER_TWO)
                             .hasKnownStatus(INVALID_SIGNATURE));
         }
@@ -1640,7 +1657,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("when sending nft to system address")
         final Stream<DynamicTest> nftTokenReceiverSystemAddress() {
-            return hapiTest(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, FREEZE_ADMIN))
+            return hapiTest(tokenAirdrop(
+                            movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial()).between(OWNER, FREEZE_ADMIN))
                     .signedByPayerAnd(OWNER)
                     .hasKnownStatus(INVALID_RECEIVING_NODE_ACCOUNT));
         }
@@ -1669,7 +1687,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     newKeyNamed(ecdsaKey).shape(SigControl.SECP256K1_ON),
                     cryptoCreate(deletedAccount).key(ecdsaKey),
                     cryptoDelete(deletedAccount),
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 6)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
                                     .between(OWNER, deletedAccount))
                             .signedBy(OWNER)
                             .payingWith(OWNER)
@@ -1700,7 +1718,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     newKeyNamed(ed25519).shape(SigControl.SECP256K1_ON),
                     cryptoCreate(deletedAccount).key(ed25519),
                     cryptoDelete(deletedAccount),
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 7)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
                                     .between(OWNER, deletedAccount))
                             .signedBy(OWNER)
                             .payingWith(OWNER)
@@ -1746,7 +1764,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(
                     cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
                     tokenAssociate(ALICE, NON_FUNGIBLE_TOKEN),
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
                                     .between(ALICE, "0.0.999999999999999"))
                             .signedByPayerAnd(ALICE, OWNER)
                             .hasKnownStatus(INVALID_ACCOUNT_ID));
@@ -1759,7 +1777,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(
                     cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
                     tokenAssociate(ALICE, NON_FUNGIBLE_TOKEN),
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
                                     .between("0.0.999999999999999", ALICE))
                             .signedByPayerAnd(ALICE, OWNER)
                             .hasKnownStatus(INVALID_ACCOUNT_ID));
@@ -1851,10 +1869,13 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("duplicate nft airdrop during handle")
         final Stream<DynamicTest> duplicateNFTHandleTokenAirdrop() {
+            final var serial = nextNftSerial();
             return hapiTest(
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial)
+                                    .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER),
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial)
+                                    .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER)
                             .hasKnownStatus(PENDING_NFT_AIRDROP_ALREADY_EXISTS));
         }
@@ -1862,9 +1883,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("duplicate nft airdrop during pure checks")
         final Stream<DynamicTest> duplicateNFTPreHAndleTokenAirdrop() {
+            final var serial = nextNftSerial();
             return hapiTest(tokenAirdrop(
-                            movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
-                            movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                            movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
+                            movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                     .payingWith(OWNER)
                     .hasPrecheck(INVALID_ACCOUNT_AMOUNTS));
         }
@@ -2280,7 +2302,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("to non-fungible token pending airdrop")
         final Stream<DynamicTest> canNotDeleteAccountRelatedToNFTAirdrop() {
             return hapiTest(
-                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 10L)
+                    tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
                                     .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER),
                     cryptoDelete(OWNER).hasKnownStatus(ACCOUNT_HAS_PENDING_AIRDROPS));
@@ -2563,7 +2585,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // Create a contract with a free associations
                     deployMutableContract(mutableContract, 1),
                     // Take the free association and verify that the user received them
-                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 11).between(OWNER, mutableContract))
+                    tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
+                                    .between(OWNER, mutableContract))
                             .payingWith(OWNER),
                     getAccountBalance(mutableContract).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1),
                     // Try airdropping the two tokens again and verify that when there are not more free associations

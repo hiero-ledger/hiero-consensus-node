@@ -36,6 +36,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -85,6 +88,7 @@ import com.hedera.services.bdd.junit.support.translators.impl.EthereumTransactio
 import com.hedera.services.bdd.junit.support.translators.impl.FileCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.NodeCreateTranslator;
+import com.hedera.services.bdd.junit.support.translators.impl.RegisteredNodeCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleDeleteTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleSignTranslator;
@@ -150,6 +154,9 @@ public class BlockTransactionalUnitTranslator {
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_STAKE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_CREATE, new RegisteredNodeCreateTranslator());
+                    put(REGISTERED_NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());

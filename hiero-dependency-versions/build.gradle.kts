@@ -9,7 +9,7 @@ dependencies {
 }
 
 val besu = "25.2.2"
-val bouncycastle = "1.81"
+val bouncycastle = "1.83"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.73.0"
@@ -21,7 +21,7 @@ val log4j = "2.25.3"
 val mockito = "5.18.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.33.5"
-val blockNodeProtobufSources = "0.28.0"
+val blockNodeProtobufSources = "0.29.0"
 val testContainers = "2.0.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"

@@ -9,6 +9,7 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
+import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -37,9 +38,6 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.history.ConstructionNodeId;
-import com.hedera.hapi.node.state.history.WrapsMessageDetails;
-import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -108,6 +106,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
     private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 2;
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
+    public static final AtomicBoolean AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED = new AtomicBoolean(true);
+    public static final AtomicBoolean ADAPTIVE_SIGNATURE_CHECKS_ENABLED = new AtomicBoolean(false);
 
     private static final int HASH_SIZE = 48;
     private static final int VISUALIZATION_HASH_DEPTH = 5;
@@ -125,7 +125,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Bytes expectedRootHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
-    private final Map<Long, List<WrapsMessageDetails>> wrapsMessages = new LinkedHashMap<>();
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private Instant lastStateChangesTime;
@@ -187,7 +186,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
-                16,
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
                 hintsThresholdDenominator,
@@ -237,16 +235,16 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
         final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
         final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-        final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
         final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
         return new StateChangesValidator(
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
                 node0.getExternalPath(APPLICATION_PROPERTIES),
                 node0.getExternalPath(DATA_CONFIG_DIR),
-                crsSize,
-                isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
-                isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
+                (adaptiveChecksEnabled || isHintsEnabled) ? HintsEnabled.YES : HintsEnabled.NO,
+                (adaptiveChecksEnabled || isHistoryEnabled) ? HistoryEnabled.YES : HistoryEnabled.NO,
+                adaptiveChecksEnabled || spec.startupProperties().getBoolean("tss.wrapsEnabled"),
                 Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                         .map(Long::parseLong)
                         .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
@@ -260,7 +258,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
-            final int crsSize,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
             final long hintsThresholdDenominator,
@@ -279,7 +276,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
         System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
-        System.setProperty("tss.initialCrsParties", "" + crsSize);
         System.setProperty(
                 "block.stateproof.verification.enabled", "" + (stateProofsEnabled == StateProofsEnabled.YES));
         System.setProperty("hedera.shard", String.valueOf(shard));
@@ -686,12 +682,10 @@ public class StateChangesValidator implements BlockStreamValidator {
             assertTrue(
                     proof.hasBlockStateProof(),
                     "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
-
             // If we don't currently have an indirect proof sequence, create one
             if (indirectProofSeq == null) {
                 indirectProofSeq = proofSeqFactory.get();
             }
-
             // The indirect proof seq field could still be null if the factory doesn't produce a validator
             if (indirectProofSeq != null) {
                 // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof
@@ -716,11 +710,15 @@ public class StateChangesValidator implements BlockStreamValidator {
                         expectedSiblingHashes);
             }
         }
-
         // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
-            if (historyLibrary == null) {
+            if (ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get() && signature.length() == 48) {
+                assertMockSignature(proof, expectedBlockHash);
+                return;
+            }
+            // TSS.verifyTSS() assumes target address book hash is always ledger id
+            if (historyLibrary == null || (!wrapsEnabled && proof.block() > 0)) {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
                 // convenience API directly here since we don't have a chain-of-trust proof
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
@@ -746,12 +744,16 @@ public class StateChangesValidator implements BlockStreamValidator {
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }
         } else {
-            final var expectedMockSignature = Bytes.wrap(noThrowSha384HashOf(expectedBlockHash.toByteArray()));
-            assertEquals(
-                    expectedMockSignature,
-                    proof.signedBlockProofOrThrow().blockSignature(),
-                    "Signature mismatch for " + proof);
+            assertMockSignature(proof, expectedBlockHash);
         }
+    }
+
+    private void assertMockSignature(@NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
+        final var expectedMockSignature = Bytes.wrap(noThrowSha384HashOf(expectedBlockHash.toByteArray()));
+        assertEquals(
+                expectedMockSignature,
+                proof.signedBlockProofOrThrow().blockSignature(),
+                "Signature mismatch for " + proof);
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
@@ -796,10 +798,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .computeIfAbsent(stateName, k -> new HashSet<>())
                             .add(key);
                     stateChangesSummary.countMapUpdate(serviceName, stateId);
-                    if (stateId == WRAPS_MESSAGE_HISTORIES_STATE_ID) {
-                        final long nodeId = ((ConstructionNodeId) key).nodeId();
-                        wrapsMessages.put(nodeId, ((WrapsMessageHistory) value).messages());
-                    }
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateId);
