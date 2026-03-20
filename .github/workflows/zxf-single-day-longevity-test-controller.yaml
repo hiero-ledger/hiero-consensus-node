@@ -66,9 +66,10 @@ jobs:
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
-      nlg-time: "840"
+      nlg-time: "780"
       add-app-props: ""
       add-settings: ""
+      reconnect-uptime: "600"
       delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

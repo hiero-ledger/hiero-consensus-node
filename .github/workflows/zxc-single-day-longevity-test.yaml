@@ -26,7 +26,7 @@ on:
         type: string
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "840"
+        default: "780"
         description: "Test execution time, mins (3, 9, 21, 180, 330)"
         type: string
       add-app-props:
@@ -39,6 +39,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: true
+        default: "600"
+        description: "Reconnect uptime. Downtime is Uptime x 3"
+        type: string
       delete-namespace:
         required: false
         default: true
@@ -886,9 +891,9 @@ jobs:
           set +x
           set +e
 
-          downtime=1800
-          warmtime=600
-          NofLoops=2
+          downtime=$(expr ${{ inputs.reconnect-uptime }} \* 3)
+          warmtime=${{ inputs.reconnect-uptime }}
+          NofLoops=3
           result=13
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
@@ -902,9 +907,10 @@ jobs:
 
           if [ ${result} -ne 0 ]
           then
-            echo "Failure: Reconnect finished later than LoadTest"
+            echo "Failure: Reconnect finished after LoadTest"
             echo "value=${result}" >> "${GITHUB_OUTPUT}"
           else
+            echo "Check for status of loop N=${NofLoops}:"
             grep -E "Reconnect N=${NofLoops} done" "${{ github.workspace }}"/report/reconnect/reconnect.log
             result=$?
             echo "value=${result}" >> "${GITHUB_OUTPUT}"

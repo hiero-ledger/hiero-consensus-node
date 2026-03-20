@@ -42,7 +42,7 @@ on:
           - "30"
           - "180"
           - "330"
-          - "840"
+          - "780"
           - "960"
           - "1200"
           - "10080"
@@ -57,6 +57,10 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: false
+        default: "600"
+        type: string
       disable-notifications:
         required: false
         default: true
@@ -134,6 +138,7 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
+      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
