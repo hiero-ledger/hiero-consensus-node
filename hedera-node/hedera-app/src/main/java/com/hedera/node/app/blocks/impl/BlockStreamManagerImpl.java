@@ -185,6 +185,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private boolean hasCheckedForPendingBlocks = false;
     /**
+     * True if there are recovered pending blocks that need individual signing.
+     */
+    private boolean hasRecoveredPendingBlocks = false;
+    /**
      * The counter for the number of blocks closed with indirect proofs.
      */
     private final Counter indirectProofCounter;
@@ -430,6 +434,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.pendingProof().blockTimestamp(),
                             block.siblingHashesIfUseful()));
                     log.info("Recovered pending block #{}", block.number());
+                    hasRecoveredPendingBlocks = true;
                 } catch (Exception e) {
                     log.warn("Failed to recover pending block #{}", block.number(), e);
                 }
@@ -605,74 +610,104 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.writer().flushPendingBlock(pendingProof);
                 });
             } else {
-                final var attempt = blockHashSigner.sign(finalBlockRootHash);
-                attempt.signatureFuture()
-                        .thenAcceptAsync(signature -> {
-                            if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
-                                log.debug(
-                                        "Signature future completed with empty signature for block num {}, final block hash {}",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                finishProofWithSignature(
-                                        finalBlockRootHash,
-                                        signature,
-                                        attempt.verificationKey(),
-                                        attempt.chainOfTrustProof());
-                            }
-                            if (quiescenceEnabled) {
-                                final var lastCommand = lastQuiescenceCommand.get();
-                                final var commandNow = quiescenceController.getQuiescenceStatus();
-                                if (commandNow != lastCommand
-                                        && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                                    log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                                    platform.quiescenceCommand(commandNow);
-                                    if (commandNow == QUIESCE) {
-                                        final var config = configProvider.getConfiguration();
-                                        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                                        quiescedHeartbeat.start(
-                                                blockStreamConfig.quiescedHeartbeatInterval(),
-                                                new TctProbe(
-                                                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                                        config.getConfigData(StakingConfig.class)
-                                                                .periodMins(),
-                                                        state));
+                // Encapsulate the new block signing so it can be run directly or
+                // chained after recovered pending blocks are individually signed
+                final Runnable signNewBlock = () -> {
+                    final var attempt = blockHashSigner.sign(finalBlockRootHash);
+                    attempt.signatureFuture()
+                            .thenAcceptAsync(signature -> {
+                                if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
+                                    log.debug(
+                                            "Signature future completed with empty signature for block num {}, final block hash {}",
+                                            blockNumber,
+                                            finalBlockRootHash);
+                                } else {
+                                    finishProofWithSignature(
+                                            finalBlockRootHash,
+                                            signature,
+                                            attempt.verificationKey(),
+                                            attempt.chainOfTrustProof());
+                                }
+                                if (quiescenceEnabled) {
+                                    final var lastCommand = lastQuiescenceCommand.get();
+                                    final var commandNow = quiescenceController.getQuiescenceStatus();
+                                    if (commandNow != lastCommand
+                                            && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                                        log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                                        platform.quiescenceCommand(commandNow);
+                                        if (commandNow == QUIESCE) {
+                                            final var config = configProvider.getConfiguration();
+                                            final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                            quiescedHeartbeat.start(
+                                                    blockStreamConfig.quiescedHeartbeatInterval(),
+                                                    new TctProbe(
+                                                            blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                            config.getConfigData(StakingConfig.class)
+                                                                    .periodMins(),
+                                                            state));
+                                        }
                                     }
                                 }
-                            }
-                        })
-                        .exceptionally(t -> {
-                            if (t.getCause() instanceof IllegalStateException illegalStateException) {
-                                if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
-                                        illegalStateException.getMessage())) {
-                                    log.error(
-                                            "Invalid signature detected on block #{} ({})",
+                            })
+                            .exceptionally(t -> {
+                                if (t.getCause() instanceof IllegalStateException illegalStateException) {
+                                    if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
+                                            illegalStateException.getMessage())) {
+                                        log.error(
+                                                "Invalid signature detected on block #{} ({})",
+                                                blockNumber,
+                                                finalBlockRootHash,
+                                                t);
+                                        return null;
+                                    }
+                                }
+                                final boolean alreadyClosed = t instanceof CompletionException completionException
+                                        && completionException.getCause() instanceof IllegalStateException e
+                                        && Optional.ofNullable(e.getMessage())
+                                                .filter(m -> m.startsWith(
+                                                        "Cannot write to a FileBlockItemWriter that is not open"))
+                                                .isPresent();
+                                if (alreadyClosed) {
+                                    log.info(
+                                            "Block #{} with hash {} already closed, skipping direct proof",
+                                            blockNumber,
+                                            finalBlockRootHash);
+                                } else {
+                                    log.warn(
+                                            "Unhandled exception while signing block #{} with hash {}",
                                             blockNumber,
                                             finalBlockRootHash,
                                             t);
-                                    return null;
                                 }
-                            }
-                            final boolean alreadyClosed = t instanceof CompletionException completionException
-                                    && completionException.getCause() instanceof IllegalStateException e
-                                    && Optional.ofNullable(e.getMessage())
-                                            .filter(m -> m.startsWith(
-                                                    "Cannot write to a FileBlockItemWriter that is not open"))
-                                            .isPresent();
-                            if (alreadyClosed) {
-                                log.info(
-                                        "Block #{} with hash {} already closed, skipping direct proof",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                log.warn(
-                                        "Unhandled exception while signing block #{} with hash {}",
-                                        blockNumber,
-                                        finalBlockRootHash,
-                                        t);
-                            }
-                            return null;
-                        });
+                                return null;
+                            });
+                };
+                if (hasRecoveredPendingBlocks) {
+                    hasRecoveredPendingBlocks = false;
+                    // Sign recovered pending blocks individually so they get direct
+                    // proofs instead of indirect proofs (which are unverifiable after
+                    // upgrade because the previousBlockHashes tree is re-initialized
+                    // empty); chain the new block signing after all recovered blocks
+                    // are proven to guarantee correct ordering without blocking
+                    var chain = CompletableFuture.<Void>completedFuture(null);
+                    for (final var pendingBlock : List.copyOf(pendingBlocks)) {
+                        if (pendingBlock.contentsPath() != null) {
+                            final var hash = pendingBlock.blockHash();
+                            chain = chain.thenCompose(ignored -> {
+                                final var ra = blockHashSigner.sign(hash);
+                                return ra.signatureFuture().thenAccept(sig -> {
+                                    if (sig != null && !Objects.equals(sig, Bytes.EMPTY)) {
+                                        finishProofWithSignature(
+                                                hash, sig, ra.verificationKey(), ra.chainOfTrustProof());
+                                    }
+                                });
+                            });
+                        }
+                    }
+                    chain.thenRun(signNewBlock);
+                } else {
+                    signNewBlock.run();
+                }
             }
 
             final var exportNetworkToDisk =
