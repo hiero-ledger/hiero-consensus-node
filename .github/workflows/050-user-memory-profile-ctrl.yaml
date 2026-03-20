@@ -272,7 +272,7 @@ jobs:
           set +x
           cd "${{ github.workspace }}"/
           #process hprof-s
-          for i in `ls -1 *.hprof'`;\
+          for i in `ls -1 *.hprof`;\
           do \
             if [ -f $i.hprof ]
             then
