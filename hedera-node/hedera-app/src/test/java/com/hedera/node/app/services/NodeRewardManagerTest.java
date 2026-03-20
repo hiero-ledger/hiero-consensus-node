@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -399,6 +400,27 @@ class NodeRewardManagerTest {
         // Node 0 is eligible, node 1 declines, node 2 is unknown (null nodeInfo → excluded)
         assertThat(eligible)
                 .containsExactly(new NodeRewardActivity(0L, NODE_0_ACCOUNT, missed, rounds, thresholdPercent));
+    }
+
+    @Test
+    void testMaybeRewardActiveNodesEmitsRewardMetrics() {
+        final var rewardPerNode = 5000L;
+        final var networkStakingRewards = NetworkStakingRewards.newBuilder()
+                .totalStakedStart(0)
+                .totalStakedRewardStart(0)
+                .pendingRewards(0)
+                .lastNodeRewardPaymentsTime(asTimestamp(PREV_PERIOD))
+                .stakingRewardsActivated(true)
+                .build();
+        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
+        final var metrics = mock(NodeMetrics.class);
+        nodeRewardManager =
+                new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager, networkInfo, metrics);
+        givenExchangeRates(rewardPerNode);
+
+        nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
+
+        verify(metrics).updateRewardMetrics(any(NodeRewardAmounts.class), anyInt());
     }
 
     @Test
