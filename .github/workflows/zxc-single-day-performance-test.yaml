@@ -1524,6 +1524,8 @@ jobs:
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
       - performance-post-test-validation
+      - needs.single-day-performance-test-result
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -1575,11 +1577,18 @@ jobs:
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
             {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 
+          COLOR="#FF0000"
+          if [[ "${{ needs.single-day-performance-test-result.outputs.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.single-day-performance-test-result.outputs.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+
           cat <<EOF > slack_payload.json
           {
             "attachments": [
               {
-                "color": "#777777",
+                "color": "${COLOR}",
                 "blocks": [
                   {
                     "type": "header",
