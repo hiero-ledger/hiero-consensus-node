@@ -30,8 +30,7 @@ files with significant garbage, copying their live data into new files, updating
 
 Compaction is a lower-priority background process. It must not interfere with transaction handling or the main MerkleDb
 operations (hash/KV reads and flushes). It must also coexist correctly with MerkleDb snapshots, which require
-all data files to be in a consistent, read-only state for the duration of the snapshot. Achieving a high degree of
-compaction parallelism is explicitly a non-goal, as it would contend with main operations for CPU and disk resources.
+all data files to be in a consistent, read-only state for the duration of the snapshot.
 
 ## How Compaction Works
 
@@ -39,7 +38,7 @@ compaction parallelism is explicitly a non-goal, as it would contend with main o
 
 Every data file has a compaction level, stored in the file's metadata (`DataFileMetadata.compactionLevel`). Files
 produced by flushes are level 0. When files at level N are compacted, the output file is promoted to level `N + 1`,
-capped at `maxCompactionLevel` (configurable, default 5).
+capped at `maxCompactionLevel` (configurable, default 10).
 
 Levels serve as a stability proxy. Data that has survived multiple compaction rounds and reached a higher level tends
 to change less frequently than freshly flushed data at level 0. This property is used to avoid mixing data of different
@@ -58,21 +57,20 @@ regardless of how many have since been superseded.
 
 ### File System Layout
 
-MerkleDb has a root storage directory (`<round_dir>/data/state/`). Within it, each store has its own subdirectory:
+MerkleDb has a root storage directory. Within it, each store has its own subdirectory:
 
 ```
 <storageDir>/
 ├── [...irrelevant files and directories...]
-
 ├── idToHashChunk/                 # IdToHashChunk file collection
 │   ├── state_idtohashchunk_2025-03-04_14-30-00-123__________0.pbj
 │   ├── state_idtohashchunk_2025-03-04_14-30-01-456__________1.pbj
 │   ├── state_idtohashchunk_2025-03-04_14-35-00-789_________10.pbj
-│   └── state_internalhashes_metadata.pbj
-├── objectKeyToPath/                       # ObjectKeyToPath file collection
+│   └── state_idtohashchunk_metadata.pbj
+├── objectKeyToPath/               # ObjectKeyToPath file collection
 │   ├── state_objectkeytopath_...________0.pbj
 │   └── state_objectkeytopath_metadata.pbj
-└── pathToHashKeyValue/                    # PathToKeyValue file collection
+└── pathToHashKeyValue/            # PathToKeyValue file collection
     ├── state_pathtohashkeyvalue_...________0.pbj
     └── state_pathtohashkeyvalue_metadata.pbj
 ```
@@ -89,9 +87,8 @@ Data files follow the naming convention:
 {storeName}_{timestamp}_{index}.pbj
 ```
 
-where `storeName` is the table-qualified store name (e.g. `myTable_internalhashes`), `timestamp` is the creation time
+where `storeName` is the table-qualified store name (e.g. `state_idtohashchunk`), `timestamp` is the creation time
 in `yyyy-MM-dd_HH-mm-ss-SSS` format (UTC), and `index` is a zero-padded integer (10 characters wide, right-aligned with underscores).
-For example: `myTable_internalhashes_2025-03-04_14-30-00-123__________0.pbj`.
 
 Each store also has a metadata file (`{storeName}_metadata.pbj`) that persists the valid key range across restarts.
 
@@ -169,17 +166,22 @@ The system needs to know how much garbage each file contains in order to make co
 Rather than maintaining real-time counters on the hot path, garbage is estimated by a background scanner task.
 
 The scanner (`GarbageScanner`) traverses the in-memory (off-heap) index for a given file collection. For each index entry, the scanner
-checks which file the entry points to and increments an alive counter for that file. After the full traversal,
+checks which file the entry points to and increments an alive counter for that file. Index entries pointing to files
+not present in the collection (e.g. files deleted by a concurrent compaction) are silently skipped. After the full traversal,
 the scanner knows how many items in each file are still referenced by the index. The garbage ratio for a file is then:
 
 ```
 garbageRatio(file) = 1 - (aliveItems / totalItems)
 ```
 
-After computing garbage ratios for all files, the scanner filters candidates in the same pass: any file whose garbage ratio
-exceeds `garbageThreshold` is eligible for compaction. An optional per-level size cap (`maxCompactionDataPerLevelInKB`)
-limits the total size of files selected for one compaction run at each level.
-The output of `scan()` is a `Map<Integer, List<DataFileReader>>` — compaction candidates grouped by level, ready to be consumed by compaction tasks.
+Files with `totalItems == 0` are assigned a garbage ratio of 1.0. This covers two cases: the file is truly empty (compaction
+will be a no-op, which is harmless), or the file was written by an older version that did not record the item count (a full
+compaction is needed to rewrite it with correct metadata).
+
+After computing garbage ratios, the scanner applies the garbage threshold filter: any file whose garbage ratio
+exceeds `garbageThreshold` is collected as a candidate for its level. The output of `scan()` is a `ScanResult`
+containing a `Map<Integer, List<DataFileReader>>` (candidates grouped by level) and `IndexedGarbageFileStats`
+(per-file statistics used by the coordinator to estimate projected output sizes when splitting work into tasks).
 
 A critical property makes periodic scanning viable rather than continuous tracking: **garbage only grows between compactions**.
 A file's alive count can only decrease (as flushes write newer versions of its items) or stay the same. It never increases,
@@ -195,57 +197,75 @@ already in progress when a new flush completes, no additional scan is scheduled.
 data source (during `MerkleDbDataSource` construction) and reused across flushes — only the scan execution is per-flush.
 The scanner reads fresh state from the index and file collection each time `scan()` is called, so reuse is safe.
 
+#### HalfDiskHashMap Deduplication
+
+The ObjectKeyToPath store uses a `HalfDiskHashMap` (HDHM), which can double its bucket count when the map grows beyond
+a load threshold. During doubling, the bucket index (`LongList`) is extended from size `M` to `2M`. For each original
+bucket at index `x` (where `x < M`), the entry at `x + M` initially points to the same data location as `x`. Buckets
+are only sanitized (entries filtered by hash mask) lazily when they are next read or written during a flush.
+
+Until sanitized, both `index[x]` and `index[x + M]` hold identical data locations. If the scanner naively iterates the
+full index, it double-counts alive items for every unsanitized pair. This inflates alive counts above total item counts,
+producing negative garbage ratios that prevent compaction from ever triggering for this store.
+
+The scanner handles this by enabling `deduplicateMirroredEntries` mode for the ObjectKeyToPath store. In this mode,
+instead of iterating the full index, the scanner iterates only the lower half (`0` to `N/2 - 1`). For each index `x`,
+it reads both `index[x]` and `index[x + N/2]`. If both data locations are identical, the entry at `x + N/2` is a
+stale duplicate and only the lower-half entry is counted. If they differ, both are counted — the bucket at `x + N/2`
+has been sanitized and contains independent data.
+
+This approach relies on the fact that HDHM doubling produces exact mirror pairs at offset `N/2`. With the large default
+initial capacity (1 billion buckets), doubling is a rare event, and essentially all buckets are sanitized by flushes
+before a second doubling could occur. In the unlikely event of two doublings in quick succession, the single-level
+dedup provides a 50% correction — imperfect but sufficient to prevent compaction freezing.
+
 ### Compaction Triggering
 
-Compaction decisions are driven by a garbage threshold and an optional per-level size cap. The `garbageThreshold` configuration parameter
-`(default 0.3)` controls which files are compacted: any file whose garbage ratio exceeds this threshold is eligible for the compaction set for
-its level. The `maxCompactionDataPerLevelInKB` parameter `(default 0, disabled)` caps the total size of files selected for one compaction run at
-that level. Both parameters are applied by the scanner during `scan()`, so the scan output is a ready-to-use candidate list.
+Compaction decisions are driven by a single garbage threshold. The `garbageThreshold` configuration parameter (default 0.3)
+controls which files are compacted: any file whose garbage ratio exceeds this threshold is eligible for the compaction set for
+its level.
 
 ### Compaction Task Submission
 
 After each flush, the flush handler submits two kinds of tasks to the compaction thread pool:
 
-1. **A scanner task** (if one is not already running for this store). The scanner traverses the in-memory index,
-   computes per-file garbage stats, applies threshold and size-cap filtering, and caches the resulting candidate lists in `scanResultsByStore`.
+1. **A scanner task** (if one is not already running for this store). The scanner traverses the in-memory index
+   and caches per-file garbage statistics in `scanResultsByStore`.
 
-2. **A compaction task for each level** present in the latest scan results (if a task for that store and level is not already queued or running).
-   Levels are discovered from `scanResultsByStore`, so compaction tasks are only submitted once the first scan for a store has completed.
+2. **Compaction tasks** for each level present in the latest scan results. The coordinator partitions candidates
+   at each level into non-overlapping chunks bounded by projected output size (`maxCompactionDataPerLevelInKB`),
+   and submits each chunk as an independent task. Multiple tasks for the same level run concurrently. This is safe
+   because each task operates on a disjoint set of input files and writes to its own output file.
 
-Crucially, compaction tasks do **not** evaluate scan results at submission time. Evaluation is deferred to execution time inside the task itself.
-This design addresses a staleness problem: if all compaction threads are busy with long-running higher-level compactions, a task submitted during flush `N`
-may not execute until flush `N+100` or later. By deferring evaluation, the task always uses the most recent scan results,
-ensuring it can include files that were written after the task was submitted.
+   Levels are discovered from `scanResultsByStore`, so compaction tasks are only submitted once the first scan
+   for a store has completed. New tasks for a level are only submitted when ALL tasks from the previous batch for
+   that level have completed (tracked by a per-level counter). This prevents overlapping file sets between old
+   and new batches.
+
+**Projected output size cap.** The `maxCompactionDataPerLevelInKB` parameter (default 1000000 = 1 GB) limits the estimated
+size of each compaction task's output. For each candidate file, the projected alive size is `fileSize × (1 - garbageRatio)`.
+Files are taken in iteration order (file index order from the scanner) and accumulated into a chunk until the next file would
+push the cumulative projected size over the cap; then a new chunk is started. At least one file per chunk is always included,
+so a single large-but-mostly-garbage file is never skipped.
+
+This output-oriented estimation matches the copying collector's cost model: a file's processing cost is proportional
+to its alive data (which must be read and copied), not its total size. A 500 GB file with 99.9% garbage is fast
+to process — only ~500 MB of data is copied — while a 1 GB file with 10% garbage requires copying 900 MB.
 
 **The flow for each compaction task when it executes:**
 
 1. Check if compaction is still enabled (exit if disabled during shutdown).
-2. Read cached scan results from `scanResultsByStore`. If no results are available (scanner hasn't completed yet), exit — the next flush will submit a new task.
-3. Read the scanner output for this task's level from `scanResultsByStore`. The scanner has already filtered by garbage threshold and size cap,
-   producing a ready-to-use list of `DataFileReader` instances.
-4. If no files are listed for this level (or the level is absent from results), exit (no-op).
-5. Create a `DataFileCompactor` via the factory, register it for pause/resume, and compact.
-
-This deferred evaluation model means that scanner-produced candidate lists are shared across all compaction
-tasks for the same store. The scanner runs once (per flush, at most), and all level tasks read from the same cached result.
-Since scanning is one to two orders of magnitude cheaper than compaction, the cost of a single scan amortized across multiple level tasks is negligible.
-
-Multiple compaction tasks may run concurrently for the same store, each compacting a different level.
-For example, level 0 and level 3 of IdToHashChunk may be compacted in parallel.
-This is safe because each task writes to a new output file and only deletes its own input files. The `DataFileCollection`
-uses atomic copy-on-write updates (`getAndUpdate` on an `AtomicReference<ImmutableIndexedObjectList>`) for adding and
-removing file readers, so concurrent modifications are handled correctly.
-
-This deferred evaluation model means that scanner-produced candidate lists are shared across all compaction
-tasks for the same store. The scanner runs once (per flush, at most), and all level tasks read from the same cached result.
-Since scanning is one to two orders of magnitude cheaper than compaction, the cost of a single scan amortized across multiple level tasks is negligible.
+2. Create a `DataFileCompactor` via the factory and register it for pause/resume/interrupt.
+3. Filter out stale entries: intersect the assigned file list with the current file collection
+   (`DataFileCollection.getAllCompletedFiles()`). Files that were already compacted and deleted
+   by a concurrent task since the scan are removed. If no valid files remain, exit.
+4. Compact the valid files into a new output file at `level + 1` (capped at `maxCompactionLevel`).
 
 ### Compaction Execution
 
-When a compaction task runs, it first evaluates cached scan results to decide whether compaction is needed for its level
-(see [Compaction Task Submission](#compaction-task-submission)). If thresholds are exceeded, it creates a `DataFileCompactor`,
-selects files from the current file list, and processes them. It creates a new output file at `level + 1`, traverses the index
-to identify live items in the compaction set, copies them to the output file, updates the index, and deletes the old files.
+When a compaction task runs, it creates a `DataFileCompactor` and processes its assigned chunk of files. It creates a
+new output file at `level + 1`, traverses the index to identify live items in the compaction set, copies them to the
+output file, updates the index, and deletes the old files.
 
 The inner loop works as follows: for each index entry that points to a file in the compaction set, the data item is
 read from the old file, written to the new file via `DataFileWriter.storeDataItemWithTag()`, and the index is atomically
@@ -264,48 +284,66 @@ each `DataFileCompactor`'s `snapshotCompactionLock`.
 
 `pauseCompactionAndRun()` is called with the snapshot action. This method:
 
-1. Pauses all active compactors. Each `DataFileCompactor.pauseCompaction()` acquires its `snapshotCompactionLock`. If compaction is writing to a file, the file is flushed and closed. No further writes occur until the action completes.
-2. Executes the snapshot action (hard links are created).
-3. In a `finally` block, resumes all compactors. Each `DataFileCompactor.resumeCompaction()` opens a new output file and releases the lock. Compaction resumes where it left off.
+1. Pauses all active compactors. Each `DataFileCompactor.pauseCompaction()` acquires its `snapshotCompactionLock`. If compaction is writing to a file,
+2. the file is flushed and closed. No further writes occur until the action completes.
+3. Executes the snapshot action (hard links are created).
+4. In a `finally` block, resumes all compactors. Each `DataFileCompactor.resumeCompaction()` opens a new output file and releases the lock. Compaction resumes where it left off.
 
 If no compaction is in progress for a given compactor, `pauseCompaction()` simply acquires the lock (preventing a new compaction from starting),
 and `resumeCompaction()` releases it.
 
-When multiple compaction tasks run concurrently for the same store (on different levels), `pauseCompactionAndRun()`
-iterates over all active compactors in `compactorsByName` and pauses each one. Each `DataFileCompactor` instance has its own `snapshotCompactionLock`, so pausing is independent per compactor.
+When multiple compaction tasks run concurrently for the same store (whether at different levels or within the same level
+as parallel chunks), `pauseCompactionAndRun()` iterates over all active compactors in `compactorsByName` and pauses each one.
+Each `DataFileCompactor` instance has its own `snapshotCompactionLock`, so pausing is independent per compactor.
 
 ## Implementation
 
 ### Thread Pool and Concurrency Model
 
 All compaction-related tasks (both scanning and compaction) run on a shared fixed-size `ThreadPoolExecutor`,
-managed by `MerkleDbCompactionCoordinator`. The pool size is configurable via `MerkleDbConfig.compactionThreads()` (default 6).
+managed by `MerkleDbCompactionCoordinator`. The pool size is configurable via `MerkleDbConfig.compactionThreads()` (default 4).
 
 **The concurrency constraints are:**
 
 - At most one scanner task per store at any time.
-- At most one compaction task per store per level at any time.
+- Multiple compaction tasks for the same store at the same level may run concurrently, each processing a non-overlapping chunk of files.
 - Multiple compaction tasks for the same store at different levels may run concurrently.
 - Scanner and compaction tasks for the same store may run concurrently.
 - Different stores are fully independent.
+- New tasks for a level are only submitted when all tasks from the previous batch for that level have completed (counter-based deduplication).
 
-The `MerkleDbCompactionCoordinator` tracks running tasks using keys that encode the store name, task type, and (for compaction tasks) the level — for example,
-`"IdToHashChunk_scan"` and `"IdToHashChunk_compact_2"`. Before submitting a task, the coordinator checks whether a task with the same key is already in the `tasks` set.
+The `MerkleDbCompactionCoordinator` tracks tasks using two structures:
+
+- A `tasks` set containing all active task keys (e.g. `"IdToHashChunk_scan"`, `"IdToHashChunk_compact_2_0"`, `"IdToHashChunk_compact_2_1"`).
+- A `compactionTaskCounts` map tracking the number of outstanding tasks per level key (e.g. `"IdToHashChunk_compact_2" → 3`).
+  When the count reaches zero, new tasks for that level can be submitted from the next scan cycle.
 
 ### Key Classes
 
 **`MerkleDbCompactionCoordinator`** manages the lifecycle of scanner and compaction tasks. It tracks two categories of state:
 
-- **Submitted tasks** (`tasks`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks — for deduplication. Task keys use distinct suffixes (`"_scan"` vs `"_compact_N"`) to ensure uniqueness across types. A task is in this set from submission until its `finally` block.
-- **Active compactors** (`compactorsByName`): tracks tasks that have evaluated scan results, decided to compact, and created a `DataFileCompactor`. This is a subset of submitted tasks. Used for `pauseCompactionAndRun()` during snapshots and `interruptCompaction()` during shutdown.
+- **Submitted tasks** (`tasks`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
+  Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for compaction where N is the level and C is the chunk index).
+  A task is in this set from submission until its `finally` block.
+- **Active compactors** (`compactorsByName`): tracks tasks that have created a `DataFileCompactor` and are actively compacting.
+  This is a subset of submitted tasks. Used for `pauseCompactionAndRun()` during snapshots and `interruptCompaction()` during shutdown.
 
-On each flush, the data source calls `submitScanIfNotRunning()` to ensure a scan is in progress, then `submitCompactionTasks()` which discovers levels from `scanResultsByStore` and submits a per-level task for each level without an existing submitted task.
+On each flush, the data source calls `submitScanIfNotRunning()` to ensure a scan is in progress, then `submitCompactionTasks()` which
+discovers levels from `scanResultsByStore`, partitions each level's candidates into chunks bounded by projected output size,
+and submits each chunk as an independent task.
 
-**`GarbageScanner`** is the background scanner. It accepts a `CASableLongIndex`, a `DataFileCollection`, a store name, and `MerkleDbConfig` (from which it reads `garbageThreshold`, `maxCompactionDataPerLevelInKB`, and `maxCompactionLevel`). It traverses the index, computes per-file garbage stats, applies threshold and size-cap filtering, and produces compaction candidates grouped by level (`Map<Integer, List<DataFileReader>>`). The scanner stores its results in `scanResultsByStore`; it does not submit compaction tasks. Scanner instances are created once per data source and reused across flushes.
+**`GarbageScanner`** is the background scanner. It accepts a `LongList` index, a `DataFileCollection`, a store name, and `MerkleDbConfig`
+(from which it reads `garbageThreshold`). It traverses the index, computes per-file garbage stats, and collects files
+exceeding the garbage threshold grouped by level. The output is a `ScanResult` containing the candidate map and per-file
+statistics (`IndexedGarbageFileStats`) for use by the coordinator when splitting into chunks.
+For the ObjectKeyToPath store, the scanner is constructed with `deduplicateMirroredEntries = true` to handle `HalfDiskHashMap`
+bucket index doubling (see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)). Scanner instances are created once per data source and reused across flushes.
 
-**`DataFileCompactor`** performs the actual compaction for a given file collection and level. Its key responsibilities are:
+**`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
+compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
+writer, and reader state. Its key responsibilities are:
 
-- `compactSingleLevel()`: the entry point. It receives a pre-computed list of files at a single level and the target output level,
+- `compactSingleLevel()`: the entry point. It receives a pre-computed list of files and the target output level,
   creates a new output file, traverses the index to identify live items, copies them, updates the index, and deletes the old files.
   It also handles logging and metrics reporting (duration, saved space, file size by level).
 
@@ -347,7 +385,7 @@ There is no harm in delaying compaction for a few seconds at startup.
 the file is flushed and closed via `pauseCompaction()`. After the snapshot, `resumeCompaction()` opens a new output file
 and compaction continues. This means a single compaction run may produce multiple output files (all at the same target level).
 This is handled transparently — the `newCompactedFiles` list tracks all files produced during one compaction run.
-When multiple compactors are active for the same store, each is paused independently.
+When multiple compactors are active for the same store (at different levels or as parallel chunks within a level), each is paused independently.
 
 **Compaction interrupted by shutdown.** The `interruptCompaction()` method sets a volatile flag that the main loop
 checks between data items. If the flag is set, compaction stops, and any files that were not fully processed are
@@ -363,23 +401,26 @@ which is acceptable since garbage only grows between compactions.
 The flush writes new data items and updates the index. The scanner might miss some updates, leading to a slight
 overcount of alive items in old files. The next scan will correct this.
 
-**Multiple compaction tasks for the same store at different levels.** Each task creates its own `DataFileCompactor`
+**Multiple compaction tasks at the same level (parallel chunks).** Each task creates its own `DataFileCompactor`
 instance with its own `snapshotCompactionLock`, `currentWriter`, `currentReader`, and `newCompactedFiles`.
-They operate on disjoint sets of files (different levels), so they do not interfere with each other's data.
-They do share the `DataFileCollection`, but `addNewDataFileReader()` and `deleteFiles()` are both atomic CAS-loop
-operations and are safe under concurrency.
+They operate on disjoint sets of files (non-overlapping chunks assigned at submission time), so they do not interfere
+with each other's data. They do share the `DataFileCollection`, but `addNewDataFileReader()` and `deleteFiles()` are
+both atomic CAS-loop operations and are safe under concurrency. Each chunk produces its own output file at the target level.
 
 **File with zero alive items.** A file where all items have been superseded by newer flushes has 100% garbage.
-It qualifies for compaction at any threshold. During compaction, the index traversal finds no items pointing to this
-file, so nothing is copied to the output. The file is simply deleted. This is correct behavior — the output file will
-only contain items from other files in the compaction set.
+Files with `totalItems == 0` (either truly empty or written by older metadata versions) are also assigned a garbage
+ratio of 1.0, ensuring they are always eligible for compaction.
 
 **All files at a level below the garbage threshold.** If no file at a level exceeds `garbageThreshold`,
-that level is not eligible for compaction, regardless of the aggregate garbage across all its files,
-compaction is not scheduled for this level.
+that level produces no candidates in the scanner output. Compaction is not scheduled for such levels.
+
+**Stale scan results referencing deleted files.** Between the time a scan completes and a compaction task executes,
+concurrent compaction tasks may have already compacted and deleted some of the candidate files. The compaction task
+handles this by intersecting the candidate list with the current file collection before proceeding. Files no longer
+present are silently dropped. If all candidates in a chunk have been deleted, the task exits as a no-op.
 
 **New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files.
-These files are not included in the current compaction run (the compaction set is fixed at the start).
+These files are not included in the current compaction run (the compaction set is fixed at scan time).
 They will be evaluated in the next scan cycle.
 
 **CAS failure during index update.** When the compactor calls `putIfEqual(path, oldLocation, newLocation)`, the CAS
@@ -391,16 +432,21 @@ The old file still gets deleted at the end of compaction, which is safe because 
 **Compaction output file at maxCompactionLevel.** When files at `maxCompactionLevel` are compacted, the output file
 stays at the same level (the cap prevents further promotion). This ensures a bounded number of levels and predictable metric cardinality.
 
+**HalfDiskHashMap doubling during compaction.** If the ObjectKeyToPath map doubles while a scan is in progress or between
+a scan and compaction, the scanner's deduplication heuristic may be slightly imprecise (comparing against the pre-doubling
+half size). This is harmless — at worst, some alive items are double-counted in the old scan result, leading to a slightly
+underestimated garbage ratio. The next scan will use the post-doubling index size and produce accurate results.
+
 ### Configuration
 
 The following configuration parameters in `MerkleDbConfig` control compaction behavior:
 
-|            Parameter            | Default |                                              Description                                               |
-|---------------------------------|---------|--------------------------------------------------------------------------------------------------------|
-| `compactionThreads`             | 6       | Size of the shared thread pool for scanner and compaction tasks.                                       |
-| `maxCompactionLevel`            | 5       | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.     |
-| `garbageThreshold`              | 0.3     | Garbage ratio that triggers compaction. Files exceeding this ratio are included in the compaction set. |
-| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum total size (KB) of files selected for one compaction run per level. 0 disables the cap.        |
+|            Parameter            | Default |                                                          Description                                                          |
+|---------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------|
+| `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                              |
+| `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                            |
+| `garbageThreshold`              | 0.3     | Garbage ratio that triggers compaction. Files exceeding this ratio are included in the compaction set.                        |
+| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Candidates are partitioned into chunks of this size. 1 GB by default. |
 
 ### Observability
 
@@ -409,6 +455,3 @@ The following metrics are reported:
 - **Compaction duration per level** (`compactionTimeMs`): how long each compaction task took, broken down by store and target compaction level.
 - **Space saved per level** (`compactionSavedSpaceMb`): bytes reclaimed per compaction task, reported as the difference between input and output file sizes.
 - **File size by level** (`fileSizeByLevelMb`): total disk space used by each compaction level, per store. This shows how data is distributed across levels and whether higher levels are growing.
-- **Compaction efficiency ratio**: bytes reclaimed divided by bytes rewritten. This directly measures whether compaction is doing useful work.
-- **Scanner duration**: time taken for each index traversal, per store. Tracks whether the scanner is keeping up with the flush rate.
-- **Garbage ratio per level**: aggregated from per-file scan results. Shows where garbage is accumulating across the system.
