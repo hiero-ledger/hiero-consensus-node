@@ -1903,95 +1903,96 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("deletedLeaves()")
     void deletedLeaves() {
-        // CREATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // CREATED+UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // DELETED followed by CREATED, CREATED+UPDATED, CREATED+DELETED, CREATED+UPDATED+DELETED, DELETED (nop)
+        // Rewritten to avoid using VirtualMap (which triggers async hashing) and instead
+        // directly create copies of the cache. The sequence below mirrors the previous
+        // behavior but performs only cache-level operations.
 
-        // Create the following chain of mutations:
-        // A: [D, v2] -> [U+D (AARDVARK), v1] -> [C (APPLE), v0]
-        // B: [D, v3] -> [C+U (BEAR, BLASTOFF), v2] -> [D, v1] -> [C (BANANA), v0]
-        // C: [C+U+D (CHEMISTRY, CHAD), v3] -> [D, v2] -> [U (COMET), v1] -> [C+U (CHERRY, CUTTLEFISH), v0]
-        // D: [C+U (DISCIPLINE, DENMARK), v2] -> [U+D (DRACO), v1] -> [C+U (DATE, DOG), v0]
-        // E: [C+U (EXOPLANET, ECOLOGY), v3] -> [D, v2] -> [C+U (EGGPLANT, EMU), v0]
-        // F: [C (FORCE), v3] -> [D, v2] -> [U (FOX), v1] -> [C (FIG), v0]
-        // G: [U (GRAVITY), v3] -> [U (GOOSE), v2] -> [C (GRAPE), v1]
+        // Create the following chain of mutations across caches 0..3 (keys A..G):
+        // The comments below describe the intended effective mutation for each key
+        // after each round, matching the original test's semantics.
 
-        final VirtualMap map0 = createMap();
-        final VirtualNodeCache cache0 = map0.getCache();
+        // Start with cache0 and add initial values (v0 state)
+        final VirtualNodeCache cache0 = cache;
         // A: [C (APPLE), v0]
         // B: [C (BANANA), v0]
         // C: [C+U (CHERRY, CUTTLEFISH), v0]
         // D: [C+U (DATE, DOG), v0]
         // E: [C+U (EGGPLANT, EMU), v0]
         // F: [C (FIG), v0]
-        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-        map0.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
-        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
-        map0.put(D_KEY, DOG, TestValueCodec.INSTANCE);
-        map0.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
-        map0.put(E_KEY, EMU, TestValueCodec.INSTANCE);
-        map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        cache0.putLeaf(appleLeaf(A_PATH));
+        cache0.putLeaf(bananaLeaf(B_PATH));
+        cache0.putLeaf(cherryLeaf(C_PATH));
+        cache0.putLeaf(cuttlefishLeaf(C_PATH));
+        cache0.putLeaf(dateLeaf(D_PATH));
+        cache0.putLeaf(dogLeaf(D_PATH));
+        cache0.putLeaf(eggplantLeaf(E_PATH));
+        cache0.putLeaf(emuLeaf(E_PATH));
+        cache0.putLeaf(figLeaf(F_PATH));
 
-        final VirtualMap map1 = map0.copy();
-        final VirtualNodeCache cache1 = map1.getCache();
+        // Create cache1 (copy of cache0)
+        nextRound();
+        final VirtualNodeCache cache1 = cache;
 
-        // A: [U+D (AARDVARK), v1]
-        // B: [D, v1]
-        // C: [U (COMET), v1]
-        // D: [U+D (DRACO), v1]
-        // F: [U (FOX), v1]
-        // G: [C (GRAPE), v1]
-        map1.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
-        map1.remove(A_KEY);
-        map1.remove(B_KEY);
-        map1.put(C_KEY, COMET, TestValueCodec.INSTANCE);
-        map1.put(D_KEY, DRACO, TestValueCodec.INSTANCE);
-        map1.remove(D_KEY);
-        map1.put(F_KEY, FOX, TestValueCodec.INSTANCE);
-        map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
+        // cache1 mutations (v1)
+        // A: put AARDVARK then delete A
+        cache1.putLeaf(aardvarkLeaf(A_PATH));
+        cache1.deleteLeaf(aardvarkLeaf(A_PATH));
+        // B: delete B
+        cache1.deleteLeaf(bananaLeaf(B_PATH));
+        // C: update to COMET
+        cache1.putLeaf(new VirtualLeafBytes<>(C_PATH, C_KEY, COMET, TestValueCodec.INSTANCE));
+        // D: put DRACO then delete D
+        cache1.putLeaf(new VirtualLeafBytes<>(D_PATH, D_KEY, DRACO, TestValueCodec.INSTANCE));
+        cache1.deleteLeaf(new VirtualLeafBytes<>(D_PATH, D_KEY, DRACO, TestValueCodec.INSTANCE));
+        // F: update to FOX
+        cache1.putLeaf(foxLeaf(F_PATH));
+        // G: create GRAPE
+        cache1.putLeaf(grapeLeaf(G_PATH));
 
-        final VirtualMap map2 = map1.copy();
-        final VirtualNodeCache cache2 = map2.getCache();
+        // Create cache2 (copy of cache1)
+        nextRound();
+        final VirtualNodeCache cache2 = cache;
 
-        // A: [D, v2]
-        // B: [C+U (BEAR, BLASTOFF), v2]
-        // C: [D, v2]
-        // D: [C+U (DISCIPLINE, DENMARK), v2]
-        // E: [D, v2]
-        // F: [D, v2]
-        // G: [U (GOOSE), v2]
-        map2.remove(A_KEY, TestValueCodec.INSTANCE);
-        map2.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
-        map2.put(B_KEY, BLASTOFF, TestValueCodec.INSTANCE);
-        map2.remove(C_KEY);
-        map2.put(D_KEY, DISCIPLINE, TestValueCodec.INSTANCE);
-        map2.put(D_KEY, DENMARK, TestValueCodec.INSTANCE);
-        map2.remove(E_KEY);
-        map2.remove(F_KEY);
-        map2.put(G_KEY, GOOSE, TestValueCodec.INSTANCE);
+        // cache2 mutations (v2)
+        // A: delete A
+        cache2.deleteLeaf(appleLeaf(A_PATH));
+        // B: put BEAR then BLASTOFF (two puts in same version)
+        cache2.putLeaf(bearLeaf(B_PATH));
+        cache2.putLeaf(new VirtualLeafBytes<>(B_PATH, B_KEY, BLASTOFF, TestValueCodec.INSTANCE));
+        // C: delete C
+        cache2.deleteLeaf(cuttlefishLeaf(C_PATH));
+        // D: put DISCIPLINE then DENMARK
+        cache2.putLeaf(new VirtualLeafBytes<>(D_PATH, D_KEY, DISCIPLINE, TestValueCodec.INSTANCE));
+        cache2.putLeaf(new VirtualLeafBytes<>(D_PATH, D_KEY, DENMARK, TestValueCodec.INSTANCE));
+        // E: delete E
+        cache2.deleteLeaf(emuLeaf(E_PATH));
+        // F: delete F
+        cache2.deleteLeaf(foxLeaf(F_PATH));
+        // G: update to GOOSE
+        cache2.putLeaf(gooseLeaf(G_PATH));
 
-        final VirtualMap map3 = map2.copy();
-        final VirtualNodeCache cache3 = map3.getCache();
+        // Create cache3 (copy of cache2)
+        nextRound();
+        final VirtualNodeCache cache3 = cache;
 
-        // B: [D, v3]
-        // C: [C+U+D (CHEMISTRY, CHAD), v3]
-        // E: [C+U (EXOPLANET, ECOLOGY), v3]
-        // F: [C (FORCE), v3]
-        // G: [U (GRAVITY), v3]
-        map3.remove(B_KEY);
-        map3.put(C_KEY, CHEMISTRY, TestValueCodec.INSTANCE);
-        map3.put(C_KEY, CHAD, TestValueCodec.INSTANCE);
-        map3.remove(C_KEY);
-        map3.put(E_KEY, EXOPLANET, TestValueCodec.INSTANCE);
-        map3.put(E_KEY, ECOLOGY, TestValueCodec.INSTANCE);
-        map3.put(F_KEY, FORCE, TestValueCodec.INSTANCE);
-        map3.put(G_KEY, GRAVITY, TestValueCodec.INSTANCE);
+        // cache3 mutations (v3)
+        // B: delete B
+        cache3.deleteLeaf(new VirtualLeafBytes<>(B_PATH, B_KEY, BLASTOFF, TestValueCodec.INSTANCE));
+        // C: put CHEMISTRY then CHAD then delete
+        cache3.putLeaf(new VirtualLeafBytes<>(C_PATH, C_KEY, CHEMISTRY, TestValueCodec.INSTANCE));
+        cache3.putLeaf(new VirtualLeafBytes<>(C_PATH, C_KEY, CHAD, TestValueCodec.INSTANCE));
+        cache3.deleteLeaf(new VirtualLeafBytes<>(C_PATH, C_KEY, CHAD, TestValueCodec.INSTANCE));
+        // E: put EXOPLANET then ECOLOGY
+        cache3.putLeaf(new VirtualLeafBytes<>(E_PATH, E_KEY, EXOPLANET, TestValueCodec.INSTANCE));
+        cache3.putLeaf(new VirtualLeafBytes<>(E_PATH, E_KEY, ECOLOGY, TestValueCodec.INSTANCE));
+        // F: put FORCE
+        cache3.putLeaf(new VirtualLeafBytes<>(F_PATH, F_KEY, FORCE, TestValueCodec.INSTANCE));
+        // G: update to GRAVITY
+        cache3.putLeaf(new VirtualLeafBytes<>(G_PATH, G_KEY, GRAVITY, TestValueCodec.INSTANCE));
 
-        // One last copy, so we can get the dirty leaves without an exception
-        final VirtualMap map4 = map3.copy();
+        // One last copy so we can safely inspect dirty/deleted leaves if needed
+        nextRound();
+        final VirtualNodeCache cache4 = cache;
 
         final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().collect(Collectors.toList());
         assertEquals(0, deletedLeaves0.size(), "No deleted leaves in cache0");
@@ -2012,11 +2013,11 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         validateDeletedLeaves(
                 cache3.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, C_KEY), "cache3");
 
-        map0.release();
-        map1.release();
-        map2.release();
-        map3.release();
-        map4.release();
+        cache0.release();
+        cache1.release();
+        cache2.release();
+        cache3.release();
+        cache4.release();
     }
 
     /**
