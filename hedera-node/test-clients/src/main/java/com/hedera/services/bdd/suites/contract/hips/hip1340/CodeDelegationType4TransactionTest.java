@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -15,34 +14,27 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
-import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
@@ -54,31 +46,15 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Via Ethereum Type 4 Transaction Tests")
 @HapiTestLifecycle
-public class CodeDelegationType4TransactionTest {
+public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     private static final AtomicReference<Address> DELEGATION_TARGET = new AtomicReference<>();
-    private static final String DELEGATING_ACCOUNT = "delegating_account";
-    private static final String DELEGATING_ACCOUNT_1 = DELEGATING_ACCOUNT + "_1";
-    private static final String DELEGATING_ACCOUNT_2 = DELEGATING_ACCOUNT + "_2";
-    private static final String DELEGATING_ACCOUNT_3 = DELEGATING_ACCOUNT + "_3";
-    private static final String DELEGATING_ACCOUNT_ID = "delegating_account_id";
-    private static final String DELEGATING_ACCOUNT_ID_1 = DELEGATING_ACCOUNT_ID + "_1";
-    private static final String DELEGATING_ACCOUNT_ID_2 = DELEGATING_ACCOUNT_ID + "_2";
-    private static final String DELEGATING_ACCOUNT_ID_3 = DELEGATING_ACCOUNT_ID + "_3";
-    private static final String CONTRACT = "CreateTrivial";
-    private static final String REVERTING_CONTRACT = "InternalCallee";
-    private static final String CREATION = "creation";
-    private static final String DELEGATION_SET = "delegation_set";
-    private static final String DELEGATION_CALL = "delegation_call";
-    private static final String DELEGATION_RESET = "delegation_reset";
-    private static final String PAYER_KEY = "PayerAccountKey";
-    private static final String PAYER = "PayerAccount";
 
     @BeforeAll
     public static void setup(@NonNull TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                uploadInitCode("CodeDelegationContract"),
-                contractCreate("CodeDelegationContract").exposingAddressTo(DELEGATION_TARGET::set),
+                uploadInitCode(CODE_DELEGATION_CONTRACT),
+                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS));
     }
 
@@ -89,7 +65,7 @@ public class CodeDelegationType4TransactionTest {
                 new Function("getValue()").encodeCall(Tuple.EMPTY).array());
 
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, CONTRACT);
+            deployEvmContract(spec, CONTRACT);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(
                     spec,
@@ -142,7 +118,7 @@ public class CodeDelegationType4TransactionTest {
     final Stream<DynamicTest> testMultipleCodeDelegationsSetViaEthCall() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, CONTRACT);
+            deployEvmContract(spec, CONTRACT);
             createSecp256k1Keys(
                     spec, DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(
@@ -193,7 +169,7 @@ public class CodeDelegationType4TransactionTest {
     @HapiTest
     final Stream<DynamicTest> testDelegatingToKey() {
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, CONTRACT);
+            deployEvmContract(spec, CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(
@@ -235,7 +211,7 @@ public class CodeDelegationType4TransactionTest {
     @HapiTest
     final Stream<DynamicTest> testDelegationSetToHollowAccountWithRevertingCall() {
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, REVERTING_CONTRACT);
+            deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
@@ -277,7 +253,7 @@ public class CodeDelegationType4TransactionTest {
     @HapiTest
     final Stream<DynamicTest> testDelegationSetToMultipleHollowAccountsWithRevertingCall() {
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, REVERTING_CONTRACT);
+            deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
@@ -333,7 +309,7 @@ public class CodeDelegationType4TransactionTest {
     @HapiTest
     final Stream<DynamicTest> testDelegationWithMultipleAccountsAndNotEnoughGasForLazyCreation() {
         return hapiTest(withOpContext((spec, opLog) -> {
-            deployContract(spec, CONTRACT);
+            deployEvmContract(spec, CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(spec, sourcing(() -> ethereumCall(CONTRACT, "create")
@@ -383,55 +359,5 @@ public class CodeDelegationType4TransactionTest {
                                             .status(ResponseCodeEnum.SUCCESS))
                             .logged());
         }));
-    }
-
-    private static void deployContract(HapiSpec spec, String contractName) {
-        allRunFor(
-                spec, uploadInitCode(contractName), contractCreate(contractName).gas(4_000_000L));
-    }
-
-    private static void createPayerAccountWithAlias(HapiSpec spec) {
-        allRunFor(
-                spec,
-                newKeyNamed(PAYER_KEY).shape(SECP_256K1_SHAPE).exposingKeyTo(key -> {
-                    final var evmAddress = ByteString.copyFrom(
-                            recoverAddressFromPubKey(key.getECDSASecp256K1().toByteArray()));
-                    spec.registry()
-                            .saveAccountAlias(
-                                    PAYER_KEY,
-                                    AccountID.newBuilder().setAlias(evmAddress).build());
-                }),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, PAYER_KEY))
-                        .via(CREATION),
-                getTxnRecord(CREATION).exposingCreationsTo(creations -> {
-                    final var createdId = HapiPropertySource.asAccount(creations.getFirst());
-                    spec.registry().saveAccountId(PAYER, createdId);
-                }));
-    }
-
-    private static void createSecp256k1Keys(HapiSpec spec, String... names) {
-        allRunFor(
-                spec,
-                Arrays.stream(names)
-                        .map(name -> (HapiSpecOperation) newKeyNamed(name).shape(SECP_256K1_SHAPE))
-                        .toArray(HapiSpecOperation[]::new));
-    }
-
-    private static void verifyDelegationSet(HapiSpec spec, Address target, String... accountNames) {
-        allRunFor(
-                spec,
-                Arrays.stream(accountNames)
-                        .map(name -> (HapiSpecOperation)
-                                getAliasedAccountInfo(name).isNotHollow().hasDelegationAddress(target))
-                        .toArray(HapiSpecOperation[]::new));
-    }
-
-    private static void verifyDelegationCleared(HapiSpec spec, String... accountNames) {
-        allRunFor(
-                spec,
-                Arrays.stream(accountNames)
-                        .map(name ->
-                                (HapiSpecOperation) getAliasedAccountInfo(name).hasNoDelegation())
-                        .toArray(HapiSpecOperation[]::new));
     }
 }
