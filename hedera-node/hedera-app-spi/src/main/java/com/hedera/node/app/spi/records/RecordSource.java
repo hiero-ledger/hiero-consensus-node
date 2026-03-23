@@ -27,7 +27,8 @@ public interface RecordSource {
      * @param txnId the transaction id
      * @param receipt the matching receipt
      */
-    record IdentifiedReceipt(@NonNull TransactionID txnId, @NonNull TransactionReceipt receipt) {
+    record IdentifiedReceipt(
+            @NonNull TransactionID txnId, @NonNull TransactionReceipt receipt) {
         public IdentifiedReceipt {
             requireNonNull(txnId);
             requireNonNull(receipt);

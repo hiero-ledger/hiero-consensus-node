@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 public class BlockRecordSource implements RecordSource {
     private final BlockItemsTranslator blockItemsTranslator;
     private final List<BlockStreamBuilder.Output> outputs;
+
     @Nullable
     private final Long blockNumber;
 

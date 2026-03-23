@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 public class PartialRecordSource implements RecordSource {
     @Nullable
     private final Long blockNumber;
+
     private final List<TransactionRecord> precomputedRecords;
     private final List<IdentifiedReceipt> identifiedReceipts;
 
@@ -49,7 +50,8 @@ public class PartialRecordSource implements RecordSource {
         this(precomputedRecords, RecordSourceBlockNumberUtils.sharedBlockNumberFromRecords(precomputedRecords));
     }
 
-    public PartialRecordSource(@NonNull final List<TransactionRecord> precomputedRecords, @Nullable final Long blockNumber) {
+    public PartialRecordSource(
+            @NonNull final List<TransactionRecord> precomputedRecords, @Nullable final Long blockNumber) {
         requireNonNull(precomputedRecords);
         this.blockNumber = blockNumber;
         this.precomputedRecords = new ArrayList<>(precomputedRecords.size());
@@ -61,8 +63,8 @@ public class PartialRecordSource implements RecordSource {
         requireNonNull(precomputedRecord);
         final var blockNumberedRecord = RecordSourceBlockNumberUtils.withBlockNumber(precomputedRecord, blockNumber);
         precomputedRecords.add(blockNumberedRecord);
-        identifiedReceipts.add(
-                new IdentifiedReceipt(blockNumberedRecord.transactionIDOrThrow(), blockNumberedRecord.receiptOrThrow()));
+        identifiedReceipts.add(new IdentifiedReceipt(
+                blockNumberedRecord.transactionIDOrThrow(), blockNumberedRecord.receiptOrThrow()));
     }
 
     @Override

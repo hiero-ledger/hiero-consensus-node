@@ -30,7 +30,10 @@ public record LegacyListRecordSource(
     public LegacyListRecordSource(
             @NonNull final List<SingleTransactionRecord> precomputedRecords,
             @NonNull final List<IdentifiedReceipt> identifiedReceipts) {
-        this(precomputedRecords, identifiedReceipts, RecordSourceBlockNumberUtils.sharedBlockNumber(identifiedReceipts));
+        this(
+                precomputedRecords,
+                identifiedReceipts,
+                RecordSourceBlockNumberUtils.sharedBlockNumber(identifiedReceipts));
     }
 
     public LegacyListRecordSource {

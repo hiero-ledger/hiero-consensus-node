@@ -1000,7 +1000,8 @@ public class SystemTransactions {
 
             dispatch.stack().commitFullStack();
             final var blockNumber = currentBlockNumber();
-            final var handleOutput = parentTxn.stack()
+            final var handleOutput = parentTxn
+                    .stack()
                     .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     creatorInfo.nodeId(),

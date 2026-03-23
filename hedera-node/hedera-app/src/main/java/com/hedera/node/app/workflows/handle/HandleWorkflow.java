@@ -861,7 +861,8 @@ public class HandleWorkflow {
                 updateWorkflowMetrics(parentTxn);
             }
             final var blockNumber = currentBlockNumber();
-            final var handleOutput = parentTxn.stack()
+            final var handleOutput = parentTxn
+                    .stack()
                     .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),

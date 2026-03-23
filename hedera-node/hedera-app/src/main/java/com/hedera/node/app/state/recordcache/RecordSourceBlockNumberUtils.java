@@ -24,8 +24,9 @@ final class RecordSourceBlockNumberUtils {
 
     static @Nullable Long sharedBlockNumberFromRecords(@NonNull final List<TransactionRecord> records) {
         requireNonNull(records);
-        return sharedBlockNumberFrom(
-                records.stream().map(record -> record.receiptOrThrow().blockNumber()).toList());
+        return sharedBlockNumberFrom(records.stream()
+                .map(record -> record.receiptOrThrow().blockNumber())
+                .toList());
     }
 
     private static @Nullable Long sharedBlockNumberFrom(@NonNull final List<Long> blockNumbers) {
