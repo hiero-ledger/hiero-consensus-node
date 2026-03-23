@@ -1151,7 +1151,7 @@ public class HandleWorkflow {
                                 new WritableHintsStoreImpl(crsWritableStates, entityCounters),
                                 workTime,
                                 isActive,
-                                tssConfig));
+                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,

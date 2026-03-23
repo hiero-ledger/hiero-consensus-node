@@ -86,7 +86,6 @@ class HintsContextTest {
                 Duration.ofSeconds(10),
                 Duration.ofSeconds(5),
                 "data/keys/tss",
-                (short) 512,
                 false,
                 false,
                 false,
@@ -95,7 +94,8 @@ class HintsContextTest {
                 2,
                 10,
                 Duration.ofSeconds(5),
-                validateBlockSignatures);
+                validateBlockSignatures,
+                true);
     }
 
     private static HintsPartialSignatureTransactionBody partialSigBody(final long constructionId) {
