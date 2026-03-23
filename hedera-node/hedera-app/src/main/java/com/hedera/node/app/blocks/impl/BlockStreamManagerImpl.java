@@ -684,11 +684,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 };
                 if (hasRecoveredPendingBlocks) {
                     hasRecoveredPendingBlocks = false;
-                    // Sign recovered pending blocks individually so they get direct
-                    // proofs instead of indirect proofs (which are unverifiable after
-                    // upgrade because the previousBlockHashes tree is re-initialized
-                    // empty); chain the new block signing after all recovered blocks
-                    // are proven to guarantee correct ordering without blocking
                     var chain = CompletableFuture.<Void>completedFuture(null);
                     for (final var pendingBlock : List.copyOf(pendingBlocks)) {
                         if (pendingBlock.contentsPath() != null) {
