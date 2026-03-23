@@ -609,7 +609,8 @@ final class RecordCacheImplTest extends AppTestBase {
             given(networkInfo.nodeInfo(0)).willReturn(nodeInfo);
 
             // When the unclassifiable record is added to the cache
-            cache.addRecordSource(0, txId, DueDiligenceFailure.YES, new PartialRecordSource(unclassifiableRecord), null);
+            cache.addRecordSource(
+                    0, txId, DueDiligenceFailure.YES, new PartialRecordSource(unclassifiableRecord), null);
             // It does not prevent a "good" record from using this transaction id
             assertThat(cache.hasDuplicate(txId, 0L)).isEqualTo(NO_DUPLICATE);
             cache.addRecordSource(0, txId, DueDiligenceFailure.NO, new PartialRecordSource(classifiableRecord), null);

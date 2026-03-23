@@ -235,7 +235,8 @@ public class RecordCacheImpl implements HederaRecordCache {
         }
     }
 
-    private record HistoryRecordSource(@NonNull RecordSource source, @Nullable Long blockNumber) {
+    private record HistoryRecordSource(
+            @NonNull RecordSource source, @Nullable Long blockNumber) {
         private HistoryRecordSource {
             requireNonNull(source);
         }
