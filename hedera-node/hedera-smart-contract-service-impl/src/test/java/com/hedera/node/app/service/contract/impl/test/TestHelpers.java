@@ -129,6 +129,9 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
 public class TestHelpers {
+
+    private TestHelpers() {}
+
     public static final String LEDGER_ID = "01";
     public static final long shard = 0;
     public static final long realm = 0;

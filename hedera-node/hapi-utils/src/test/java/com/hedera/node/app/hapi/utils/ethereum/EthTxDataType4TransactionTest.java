@@ -173,19 +173,19 @@ class EthTxDataType4TransactionTest {
     }
 
     private static byte[] buildType4Raw(
-            byte[] chainId,
+            final byte[] chainId,
             int nonce,
-            byte[] maxPriorityGas,
-            byte[] maxGas,
+            final byte[] maxPriorityGas,
+            final byte[] maxGas,
             int gasLimit,
-            byte[] to,
+            final byte[] to,
             long value,
-            byte[] callData,
+            final byte[] callData,
             Object[] accessListList,
-            byte[] authorizationList,
+            final byte[] authorizationList,
             int recId,
-            byte[] r,
-            byte[] s) {
+            final byte[] r,
+            final byte[] s) {
         return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
             chainId,
             Integers.toBytes(nonce),

@@ -10,6 +10,8 @@ import java.util.stream.IntStream;
 
 public class TestTransactionUtils {
 
+    private TestTransactionUtils() {}
+
     /**
      * Generate configurable AccessList for tests. @see <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a>
      *

@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -125,10 +126,12 @@ class EthTxDataAccessListsTest {
         assertArrayEquals(fillBytes(20, 0x20), accessLists.getLast().address());
         assertNotNull(accessLists.getFirst().storageKeys());
         assertEquals(2, accessLists.getFirst().storageKeys().size());
-        assertArrayEquals(
-                fillBytes(32, 0x30), accessLists.getFirst().storageKeys().getFirst());
-        assertArrayEquals(
-                fillBytes(32, 0x40), accessLists.getFirst().storageKeys().getLast());
+        assertEquals(
+                Bytes32.wrap(fillBytes(32, 0x30)),
+                accessLists.getFirst().storageKeys().getFirst());
+        assertEquals(
+                Bytes32.wrap(fillBytes(32, 0x40)),
+                accessLists.getFirst().storageKeys().getLast());
         assertNotNull(accessLists.getLast().storageKeys());
         assertEquals(0, accessLists.getLast().storageKeys().size());
     }
@@ -142,7 +145,7 @@ class EthTxDataAccessListsTest {
     }
 
     @MethodSource("provideTransactionsWhereAccessListIsNotList")
-    @ParameterizedTest(name = "Transaction {0}")
+    @ParameterizedTest(name = "Transaction.AccessListIsNotAList {0}")
     void throwsWhenAccessListIsNotAList(RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
@@ -163,7 +166,7 @@ class EthTxDataAccessListsTest {
     }
 
     @MethodSource("provideTransactionsWhereAccessListHasWrongItems")
-    @ParameterizedTest(name = "Transaction {0}")
+    @ParameterizedTest(name = "Transaction.AccessListHasWrongItems {0}")
     void throwsWhenAccessListHasWrongItems(RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
@@ -184,7 +187,7 @@ class EthTxDataAccessListsTest {
     }
 
     @MethodSource("provideTransactionsWhereStorageKeyIsNotList")
-    @ParameterizedTest(name = "Transaction {0}")
+    @ParameterizedTest(name = "Transaction.StorageKeyIsNotAList {0}")
     void throwsWhenStorageKeyIsNotAList(RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
