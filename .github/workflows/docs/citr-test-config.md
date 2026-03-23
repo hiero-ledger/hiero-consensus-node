@@ -1,5 +1,7 @@
 # CITR Environment Configuration
 
+# MODIFY SOME FILES BUT DO NOT MERGE THIS CHANGE
+
 ## Overview
 
 This document outlines the configuration settings for the CITR (Continuous Integration Test & Release) environment used
