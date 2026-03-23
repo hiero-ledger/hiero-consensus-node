@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
-import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
@@ -22,14 +21,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -37,11 +33,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
@@ -63,17 +57,15 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
@@ -109,7 +101,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN),
                     mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                     cryptoApproveAllowance()
@@ -125,7 +121,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES,1L,
+                                    ALLOWANCES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -139,11 +135,13 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN),
-                    mintToken(NFT_TOKEN, List.of(
-                            ByteString.copyFromUtf8("meta1"),
-                            ByteString.copyFromUtf8("meta2"))),
+                    mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"), ByteString.copyFromUtf8("meta2"))),
                     cryptoApproveAllowance()
                             .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, false, List.of(1L, 2L))
                             .payingWith(PAYER)
@@ -157,7 +155,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES,1L,
+                                    ALLOWANCES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -171,12 +169,20 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN),
-                    mintToken(NFT_TOKEN, List.of(
-                            ByteString.copyFromUtf8("m1"), ByteString.copyFromUtf8("m2"),
-                            ByteString.copyFromUtf8("m3"), ByteString.copyFromUtf8("m4"),
-                            ByteString.copyFromUtf8("m5"))),
+                    mintToken(
+                            NFT_TOKEN,
+                            List.of(
+                                    ByteString.copyFromUtf8("m1"),
+                                    ByteString.copyFromUtf8("m2"),
+                                    ByteString.copyFromUtf8("m3"),
+                                    ByteString.copyFromUtf8("m4"),
+                                    ByteString.copyFromUtf8("m5"))),
                     cryptoApproveAllowance()
                             .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, false, List.of(1L, 2L, 3L, 4L, 5L))
                             .payingWith(PAYER)
@@ -190,7 +196,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES,1L,
+                                    ALLOWANCES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -204,15 +210,21 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
-                    tokenCreate(NFT_TOKEN_SECOND).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
+                    tokenCreate(NFT_TOKEN_SECOND)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN, NFT_TOKEN_SECOND),
-                    mintToken(NFT_TOKEN, List.of(
-                            ByteString.copyFromUtf8("meta1"),
-                            ByteString.copyFromUtf8("meta2"))),
-                    mintToken(NFT_TOKEN_SECOND, List.of(
-                            ByteString.copyFromUtf8("meta1"),
-                            ByteString.copyFromUtf8("meta2"))),
+                    mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"), ByteString.copyFromUtf8("meta2"))),
+                    mintToken(
+                            NFT_TOKEN_SECOND,
+                            List.of(ByteString.copyFromUtf8("meta1"), ByteString.copyFromUtf8("meta2"))),
                     cryptoApproveAllowance()
                             .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, false, List.of(1L, 2L))
                             .addNftAllowance(OWNER, NFT_TOKEN_SECOND, SPENDER, false, List.of(1L, 2L))
@@ -228,7 +240,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES,2L,
+                                    ALLOWANCES, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -237,18 +249,20 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
         @HapiTest
         @DisplayName("CryptoDeleteAllowance - txn above NODE_INCLUDED_BYTES - extra PROCESSING_BYTES fees charged")
         final Stream<DynamicTest> cryptoDeleteAllowanceAboveProcessingBytesThresholdExtrasCharged() {
-            final KeyShape largeKeyShape = threshOf(1,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            final KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
                     newKeyNamed(PAYER_KEY).shape(largeKeyShape),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN),
                     mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                     cryptoApproveAllowance()
@@ -263,36 +277,42 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     assertionsHold((spec, log) -> {
                         final int txnSize = signedTxnSizeFor(spec, deleteAllowanceTxn);
                         log.info("Large-key CryptoDeleteAllowance signed size: {} bytes", txnSize);
-                        assertTrue(txnSize > NODE_INCLUDED_BYTES,
-                                "Expected txn size to exceed NODE_INCLUDED_BYTES (" + NODE_INCLUDED_BYTES + "), was " + txnSize);
+                        assertTrue(
+                                txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size to exceed NODE_INCLUDED_BYTES (" + NODE_INCLUDED_BYTES + "), was "
+                                        + txnSize);
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 21L,
-                                    ALLOWANCES,1L,
+                                    ALLOWANCES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
         }
 
         @HapiTest
-        @DisplayName("CryptoDeleteAllowance - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
+        @DisplayName(
+                "CryptoDeleteAllowance - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> cryptoDeleteAllowanceVeryLargeTxnJustBelow6KBExtraCharged() {
-            final KeyShape veryLargeKeyShape = threshOf(1,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            final KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
                     newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
                     tokenAssociate(SPENDER, NFT_TOKEN),
                     mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                     cryptoApproveAllowance()
@@ -307,14 +327,13 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                     assertionsHold((spec, log) -> {
                         final int txnSize = signedTxnSizeFor(spec, deleteAllowanceTxn);
                         log.info("Very-large CryptoDeleteAllowance signed size: {} bytes", txnSize);
-                        assertTrue(txnSize < 6_000,
-                                "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                        assertTrue(txnSize < 6_000, "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 56L,
-                                    ALLOWANCES,1L,
+                                    ALLOWANCES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -340,7 +359,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -368,7 +391,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -392,7 +419,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -417,7 +448,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HBAR / 100_000),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -442,7 +477,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -469,17 +508,24 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
                                 .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, false, List.of(1L))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, OWNER),
-                        usableTxnIdNamed(expiredTxnId).modifyValidStart(oneHourPast).payerId(PAYER),
+                        usableTxnIdNamed(expiredTxnId)
+                                .modifyValidStart(oneHourPast)
+                                .payerId(PAYER),
                         cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
-                                .payingWith(PAYER).signedBy(PAYER, OWNER)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, OWNER)
                                 .txnId(expiredTxnId)
                                 .via(deleteAllowanceTxn)
                                 .hasPrecheck(TRANSACTION_EXPIRED),
@@ -496,17 +542,24 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
                                 .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, false, List.of(1L))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, OWNER),
-                        usableTxnIdNamed(futureTxnId).modifyValidStart(oneHourAhead).payerId(PAYER),
+                        usableTxnIdNamed(futureTxnId)
+                                .modifyValidStart(oneHourAhead)
+                                .payerId(PAYER),
                         cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
-                                .payingWith(PAYER).signedBy(PAYER, OWNER)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, OWNER)
                                 .txnId(futureTxnId)
                                 .via(deleteAllowanceTxn)
                                 .hasPrecheck(INVALID_TRANSACTION_START),
@@ -521,7 +574,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -546,7 +603,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -570,21 +631,24 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
             @HapiTest
             @DisplayName("CryptoDeleteAllowance - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> cryptoDeleteAllowanceVeryLargeTxnAboveSixKBFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(1,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                final KeyShape veryLargeKeyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -593,7 +657,8 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 .signedBy(OWNER),
                         cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
-                                .payingWith(PAYER).signedBy(PAYER, OWNER)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, OWNER)
                                 .via(deleteAllowanceTxn)
                                 .hasPrecheck(TRANSACTION_OVERSIZE),
                         getTxnRecord(deleteAllowanceTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
@@ -613,7 +678,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         cryptoApproveAllowance()
@@ -628,10 +697,12 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 .signedBy(PAYER, OWNER)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
-                                .via(deleteAllowanceTxn).logged(),
+                                .via(deleteAllowanceTxn)
+                                .logged(),
                         cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
-                                .payingWith(PAYER).signedBy(PAYER, OWNER)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, OWNER)
                                 .txnId(DUPLICATE_TXN_ID)
                                 .setNode(3)
                                 .via("deleteAllowanceDuplicateTxn")
@@ -640,12 +711,11 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 deleteAllowanceTxn,
                                 txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
-                                        ALLOWANCES,1L,
+                                        ALLOWANCES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(deleteAllowanceTxn, PAYER));
             }
-
 
             @HapiTest
             @DisplayName("CryptoDeleteAllowance - deleted owner fails on handle - full fees charged")
@@ -659,13 +729,18 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(THIRD_ACCOUNT).key(THIRD_KEY).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFT_TOKEN).tokenType(NON_FUNGIBLE_UNIQUE).initialSupply(0).supplyKey(SUPPLY_KEY).treasury(OWNER),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
                         tokenAssociate(THIRD_ACCOUNT, NFT_TOKEN),
                         tokenAssociate(SPENDER, NFT_TOKEN),
                         mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
                         // OWNER transfers serial to THIRD_ACCOUNT
                         cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(OWNER, THIRD_ACCOUNT))
-                                .payingWith(PAYER).signedBy(PAYER, OWNER),
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, OWNER),
                         // approve allowance from THIRD_ACCOUNT
                         cryptoApproveAllowance()
                                 .addNftAllowance(THIRD_ACCOUNT, NFT_TOKEN, SPENDER, false, List.of(1L))
@@ -673,7 +748,8 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 .signedBy(PAYER, THIRD_KEY),
                         // Transfer NFT back to OWNER so THIRD_ACCOUNT can be deleted
                         cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(THIRD_ACCOUNT, OWNER))
-                                .payingWith(PAYER).signedBy(PAYER, THIRD_KEY),
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, THIRD_KEY),
                         cryptoDelete(THIRD_ACCOUNT).transfer(PAYER).payingWith(PAYER),
                         // Try to delete the allowance
                         cryptoDeleteAllowance()
@@ -686,7 +762,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 deleteAllowanceTxn,
                                 txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
-                                        ALLOWANCES,1L,
+                                        ALLOWANCES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(deleteAllowanceTxn, PAYER));

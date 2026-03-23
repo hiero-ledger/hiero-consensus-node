@@ -1,33 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.keys.SigControl;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
-
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
-import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -67,6 +50,22 @@ import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.SigControl;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests for CryptoUpdate simple fees.
@@ -113,9 +112,8 @@ public class CryptoUpdateSimpleFeesTest {
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
-                            txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    PROCESSING_BYTES, (long) txnSize)),
+                            txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(cryptoUpdateTxn, PAYER));
         }
@@ -152,9 +150,7 @@ public class CryptoUpdateSimpleFeesTest {
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
                     newKeyNamed(adminKey),
-                    cryptoCreate(PAYER)
-                            .key(adminKey)
-                            .balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
                             .key(PAYER_KEY)
                             .sigControl(forKey(PAYER_KEY, validSig))
@@ -173,16 +169,15 @@ public class CryptoUpdateSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("CryptoUpdate - update account key with extra key list - Full fees with extra signatures and keys charged")
+        @DisplayName(
+                "CryptoUpdate - update account key with extra key list - Full fees with extra signatures and keys charged")
         final Stream<DynamicTest> cryptoUpdateWithExtraSignaturesAndKeysCharged() {
             KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
             SigControl validSig = keyShape.signedWith(sigs(ON, OFF, sigs(ON, ON)));
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
                     newKeyNamed(adminKey),
-                    cryptoCreate(PAYER)
-                            .key(adminKey)
-                            .balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
                             .key(PAYER_KEY)
                             .sigControl(forKey(PAYER_KEY, validSig))
@@ -198,20 +193,18 @@ public class CryptoUpdateSimpleFeesTest {
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(cryptoUpdateTxn, PAYER));
-
         }
 
         @HapiTest
-        @DisplayName("CryptoUpdate - account key update with key list - Full fees with extra signatures and keys charged")
+        @DisplayName(
+                "CryptoUpdate - account key update with key list - Full fees with extra signatures and keys charged")
         Stream<DynamicTest> cryptoUpdateAccountKeyWithKeyListExtraSignaturesAndKeysCharged() {
             return hapiTest(
                     newKeyNamed("firstKey"),
                     newKeyNamed("secondKey"),
                     newKeyNamed(adminKey),
                     newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
-                    cryptoCreate(PAYER)
-                            .key(adminKey)
-                            .balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
@@ -261,9 +254,7 @@ public class CryptoUpdateSimpleFeesTest {
                     uploadInitCode(HOOK_CONTRACT),
                     contractCreate(HOOK_CONTRACT).gas(5_000_000L),
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER)
-                            .key(adminKey)
-                            .balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
                             .key(PAYER_KEY)
                             .sigControl(forKey(PAYER_KEY, validSig))
@@ -284,20 +275,17 @@ public class CryptoUpdateSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("CryptoUpdate - txn above NODE_INCLUDED_BYTES - Full fees with extra PROCESSING_BYTES fees charged")
+        @DisplayName(
+                "CryptoUpdate - txn above NODE_INCLUDED_BYTES - Full fees with extra PROCESSING_BYTES fees charged")
         final Stream<DynamicTest> cryptoUpdateAboveProcessingBytesThresholdExtrasCharged() {
-            final KeyShape largeKeyShape = threshOf(1,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            final KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(adminKey),
                     newKeyNamed(NEW_KEY).shape(largeKeyShape),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(ACCOUNT)
-                            .key(adminKey)
-                            .payingWith(PAYER),
+                    cryptoCreate(ACCOUNT).key(adminKey).payingWith(PAYER),
                     cryptoUpdate(ACCOUNT)
                             .key(NEW_KEY)
                             .payingWith(PAYER)
@@ -306,8 +294,10 @@ public class CryptoUpdateSimpleFeesTest {
                     assertionsHold((spec, log) -> {
                         final int txnSize = signedTxnSizeFor(spec, cryptoUpdateTxn);
                         log.info("Large-key CryptoUpdate signed size: {} bytes", txnSize);
-                        assertTrue(txnSize > NODE_INCLUDED_BYTES,
-                                "Expected txn size to exceed NODE_INCLUDED_BYTES (" + NODE_INCLUDED_BYTES + "), was " + txnSize);
+                        assertTrue(
+                                txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size to exceed NODE_INCLUDED_BYTES (" + NODE_INCLUDED_BYTES + "), was "
+                                        + txnSize);
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -322,18 +312,15 @@ public class CryptoUpdateSimpleFeesTest {
         @HapiTest
         @DisplayName("CryptoUpdate - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> cryptoUpdateVeryLargeTxnJustBelow6KBExtraCharged() {
-            final KeyShape veryLargeKeyShape = threshOf(1,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE);
+            final KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(adminKey),
                     newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
-                    cryptoCreate(PAYER)
-                            .key(adminKey)
-                            .balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
@@ -342,8 +329,7 @@ public class CryptoUpdateSimpleFeesTest {
                     assertionsHold((spec, log) -> {
                         final int txnSize = signedTxnSizeFor(spec, cryptoUpdateTxn);
                         log.info("Very-large CryptoUpdate signed size: {} bytes", txnSize);
-                        assertTrue(txnSize < 6_000,
-                                "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                        assertTrue(txnSize < 6_000, "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -556,7 +542,10 @@ public class CryptoUpdateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         // successful first transaction
-                        cryptoUpdate(PAYER).entityMemo("first update").fee(ONE_HBAR).via(cryptoUpdateTxn),
+                        cryptoUpdate(PAYER)
+                                .entityMemo("first update")
+                                .fee(ONE_HBAR)
+                                .via(cryptoUpdateTxn),
                         // duplicate transaction reusing the same txnId
                         cryptoUpdate(PAYER)
                                 .entityMemo("second update")
@@ -573,12 +562,12 @@ public class CryptoUpdateSimpleFeesTest {
             @DisplayName("CryptoUpdate - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> cryptoUpdateVeryLargeTxnAboveSixKBFailsOnIngest() {
                 // threshOf(1, 50×SIMPLE) — pushes serialized size above 6KB
-                final KeyShape veryLargeKeyShape = threshOf(1,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                final KeyShape veryLargeKeyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
@@ -613,9 +602,8 @@ public class CryptoUpdateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_ADMIN_KEY),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
@@ -634,9 +622,8 @@ public class CryptoUpdateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_ACCOUNT_ID),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
@@ -657,9 +644,8 @@ public class CryptoUpdateSimpleFeesTest {
                                 .hasKnownStatus(ACCOUNT_DELETED),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 2L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
@@ -681,9 +667,8 @@ public class CryptoUpdateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_ADMIN_KEY),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
@@ -705,12 +690,10 @@ public class CryptoUpdateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasKnownStatus(MEMO_TOO_LONG),
-
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 2L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
@@ -745,13 +728,11 @@ public class CryptoUpdateSimpleFeesTest {
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoUpdateTxn,
-                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(cryptoUpdateTxn, PAYER));
             }
         }
     }
 }
-
