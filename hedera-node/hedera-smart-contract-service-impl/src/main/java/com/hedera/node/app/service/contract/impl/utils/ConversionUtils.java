@@ -738,6 +738,16 @@ public class ConversionUtils {
     }
 
     /**
+     * Converts a PBJ bytes to Tuweni bytes 32.
+     *
+     * @param bytes the PBJ bytes
+     * @return the Tuweni bytes 32
+     */
+    public static @NonNull Bytes32 pbjToTuweniBytes32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        return Bytes32.leftPad(pbjToTuweniBytes(bytes));
+    }
+
+    /**
      * Returns whether the given alias is an EVM address.
      *
      * @param alias the alias
@@ -1122,7 +1132,7 @@ public class ConversionUtils {
                 asLongZeroAddress(log.contractIdOrThrow().contractNumOrThrow()),
                 pbjToTuweniBytes(log.data()),
                 paddedTopics.stream()
-                        .map(ConversionUtils::pbjToTuweniBytes)
+                        .map(ConversionUtils::pbjToTuweniBytes32)
                         .map(LogTopic::create)
                         .toList());
     }
@@ -1137,7 +1147,7 @@ public class ConversionUtils {
      *     entering the EVM); and,</li>
      *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
      * </ol>
-     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
+     * If no context is available, returns null. Otherwise, returns a {@link TxStorageUsage} with at least the read
      * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
      * @param updater the proxy world updater to extract write accesses from
      * @param accessTracker the access tracker to extract reads from

@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -104,16 +105,7 @@ class CustomDelegateCallOperationTest {
             givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
             given(frame.getRemainingGas()).willReturn(0L);
             given(gasCalculator.callOperationGasCost(
-                            any(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            any(),
-                            any(),
-                            any(),
-                            anyBoolean()))
+                            any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), anyBoolean()))
                     .willReturn(REQUIRED_GAS);
             given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
@@ -123,9 +115,9 @@ class CustomDelegateCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
-        given(frame.getStackItem(1)).willReturn(to);
+        lenient().when(frame.getStackItem(1)).thenReturn(to);
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
         given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
         given(frame.getStackItem(4)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
@@ -136,16 +128,7 @@ class CustomDelegateCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
         given(gasCalculator.callOperationGasCost(
-                        any(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        any(),
-                        any(),
-                        any(),
-                        anyBoolean()))
+                        any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), anyBoolean()))
                 .willReturn(REQUIRED_GAS);
     }
 

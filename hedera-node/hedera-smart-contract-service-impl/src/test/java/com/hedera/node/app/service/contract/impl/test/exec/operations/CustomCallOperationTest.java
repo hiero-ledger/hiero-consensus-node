@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -117,7 +118,6 @@ class CustomCallOperationTest {
     void withSystemAccountContinuesAsExpected() {
         givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
         given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS);
-        given(frame.getWorldUpdater()).willReturn(updater);
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
         final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
@@ -196,7 +196,7 @@ class CustomCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
         given(frame.getStackItem(1)).willReturn(to);
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
@@ -213,16 +213,7 @@ class CustomCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
         given(gasCalculator.callOperationGasCost(
-                        any(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        anyLong(),
-                        any(),
-                        any(),
-                        eq(to),
-                        anyBoolean()))
+                        any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), eq(to), anyBoolean()))
                 .willReturn(REQUIRED_GAS);
     }
 }

@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
@@ -79,7 +80,7 @@ public class LogBuilder {
             array = bytes.toArray();
         }
 
-        return LogTopic.wrap(Bytes.wrap(expandByteArrayTo32Length(array)));
+        return LogTopic.wrap(Bytes32.wrap(expandByteArrayTo32Length(array)));
     }
 
     private static void addTupleType(final Object param, final StringBuilder stringBuilder) {

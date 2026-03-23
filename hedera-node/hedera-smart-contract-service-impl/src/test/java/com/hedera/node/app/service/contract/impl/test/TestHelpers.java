@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.he
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes32;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
@@ -198,7 +199,9 @@ public class TestHelpers {
     public static final Bytecode BYTECODE = new Bytecode(CALL_DATA);
     public static final Bytes LOG_DATA = Bytes.wrap(new byte[] {6, 6, 6});
     public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[] {9, 8, 7, 6, 5, 4, 3, 2, 1});
-    public static final Bytes TOPIC = Bytes.wrap(new byte[] {11, 21, 31, 41, 51, 61, 71, 81, 91});
+    public static final Bytes TOPIC = Bytes.wrap(new byte[] {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 21, 31, 41, 51, 61, 71, 81, 91
+    });
     public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[] {99, 29, 39, 49, 59, 69, 79, 89, 99});
     public static final Bytes MAINNET_CHAIN_ID = Bytes.fromHex("0127");
     public static final AccountID SENDER_ID =
@@ -543,11 +546,11 @@ public class TestHelpers {
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
-            List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.TOPIC))));
+            List.of(LogTopic.of(pbjToTuweniBytes32(TestHelpers.TOPIC))));
     public static final Log SECOND_BESU_LOG = new Log(
             HTS_SYSTEM_CONTRACT_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
-            List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.OTHER_TOPIC))));
+            List.of(LogTopic.of(pbjToTuweniBytes32(TestHelpers.OTHER_TOPIC))));
     public static final List<Log> BESU_LOGS = List.of(BESU_LOG, SECOND_BESU_LOG);
 
     public static final GasCharges CHARGING_RESULT =
@@ -1145,7 +1148,7 @@ public class TestHelpers {
     }
 
     public static LogTopic convertAccountToLog(final Account account) {
-        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes.wrap(LogBuilder.expandByteArrayTo32Length(
+        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes32.wrap(LogBuilder.expandByteArrayTo32Length(
                 ConversionUtils.priorityAddressOf(account).toArray())));
     }
 
