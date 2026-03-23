@@ -1800,6 +1800,55 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testRefreshAvailableBlockNodes_schedulesRetry_whenAllNodesTimeout() throws Exception {
+        // Point manager at real bootstrap config directory so reload finds valid JSON
+        final var configPath = Objects.requireNonNull(
+                        BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
+                .getPath();
+        blockNodeConfigDirectoryHandle.set(connectionManager, Path.of(configPath));
+
+        // Manager must be active for the retry to be scheduled
+        isActiveFlag().set(true);
+
+        doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(200L).when(bufferService).getLastBlockNumberProduced();
+
+        // Simulate all block node status retrievals timing out by returning sleeping futures.
+        // Also re-inject the mock executor since refreshAvailableBlockNodes calls
+        // createScheduledExecutorService() which replaces it with a real one.
+        doAnswer(invocation -> {
+                    // Re-inject mock executor so scheduleBlockNodeSelectionRetry uses it
+                    sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(spy(createSleepingFuture()));
+                    }
+                    return futures;
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        invoke_refreshAvailableBlockNodes();
+
+        // Available nodes should be reloaded from bootstrap JSON
+        assertThat(availableNodes()).isNotEmpty();
+
+        // Since all nodes timed out, a retry should be scheduled on the shared executor.
+        // The retry is a Runnable (lambda), not a BlockNodeConnectionTask.
+        final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(scheduledExecutor).schedule(runnableCaptor.capture(), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+
+        // Verify no BlockNodeConnectionTask was scheduled (no node was selected)
+        assertThat(runnableCaptor.getValue()).isNotInstanceOf(BlockNodeConnectionTask.class);
+
+        // Verify the delay has jitter applied: range is [initialMs/2, initialMs]
+        final long initialMs = BlockNodeConnectionManager.INITIAL_RETRY_DELAY.toMillis();
+        assertThat(delayCaptor.getValue()).isBetween(initialMs / 2, initialMs);
+    }
+
+    @Test
     void testStartConfigWatcher_alreadyRunning() throws Exception {
         connectionManager.start(); // This starts the config watcher
 
