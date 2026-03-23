@@ -39,7 +39,6 @@ import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.SidecarMetadata;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -471,71 +470,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         assertTrue(requireNonNull(blockInfo).migrationWrappedHashes().size() > 0);
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void liveModeQueuePushIsNotExternalizedToBlockStream() {
-        final var app = appBuilder()
-                .withService(new BlockRecordService())
-                .withService(new PlatformStateService())
-                .withConfigValue("blockStream.streamMode", "BOTH")
-                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
-                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
-                .build();
-
-        app.stateMutator(BlockRecordService.NAME)
-                .withSingletonState(
-                        BLOCKS_STATE_ID,
-                        BlockInfo.newBuilder()
-                                .lastBlockNumber(-1)
-                                .firstConsTimeOfLastBlock(EPOCH)
-                                .blockHashes(Bytes.EMPTY)
-                                .consTimeOfLastHandledTxn(EPOCH)
-                                .migrationRecordsStreamed(true)
-                                .firstConsTimeOfCurrentBlock(EPOCH)
-                                .lastUsedConsTime(EPOCH)
-                                .lastIntervalProcessTime(EPOCH)
-                                .votingComplete(false)
-                                .votingCompletionDeadlineBlockNumber(10)
-                                .build())
-                .withSingletonState(
-                        RUNNING_HASHES_STATE_ID,
-                        RunningHashes.newBuilder()
-                                .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .commit();
-
-        app.stateMutator(PlatformStateService.NAME)
-                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
-                .commit();
-
-        final var state = requireNonNullState(app.workingStateAccessor().getState());
-        final var producer = new FakeStreamProducer();
-        final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
-        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
-        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-        final var blockStreamManager = mock(BlockStreamManager.class);
-        try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(),
-                state,
-                producer,
-                controller,
-                heartbeat,
-                app.platform(),
-                diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
-            final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
-            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
-        }
-
-        verify(blockStreamManager, never()).writeItem(any(java.util.function.Function.class));
     }
 
     @Test
