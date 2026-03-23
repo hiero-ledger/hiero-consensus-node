@@ -307,31 +307,31 @@ public class NetworkAdminHandlerTestBase {
                 primaryRecord.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
                 new PartialRecordSource(List.of(primaryRecord)),
-                0);
+                null);
         cache.addRecordSource(
                 1,
                 duplicate1.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
                 new PartialRecordSource(List.of(duplicate1)),
-                0);
+                null);
         cache.addRecordSource(
                 2,
                 duplicate2.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
                 new PartialRecordSource(List.of(duplicate2)),
-                0);
+                null);
         cache.addRecordSource(
                 3,
                 duplicate3.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
                 new PartialRecordSource(List.of(duplicate3)),
-                0);
+                null);
         cache.addRecordSource(
                 0,
                 otherTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
                 new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree)),
-                0);
+                null);
     }
 
     protected MapReadableKVState<AccountID, Account> readableAccountState() {

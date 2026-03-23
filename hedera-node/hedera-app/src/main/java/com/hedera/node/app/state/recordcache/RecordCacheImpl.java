@@ -235,7 +235,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         }
     }
 
-    private record HistoryRecordSource(@NonNull RecordSource source, long blockNumber) {
+    private record HistoryRecordSource(@NonNull RecordSource source, @Nullable Long blockNumber) {
         private HistoryRecordSource {
             requireNonNull(source);
         }
@@ -291,7 +291,7 @@ public class RecordCacheImpl implements HederaRecordCache {
                 // These steps only make a partial transaction record available for answering queries, and are not
                 // of critical importance for the operation of the node
                 if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new HistoryRecordSource(new PartialRecordSource(), 0));
+                    historySource.recordSources().add(new HistoryRecordSource(new PartialRecordSource(), null));
                 }
                 ((PartialRecordSource) historySource.recordSources.getFirst().source())
                         .incorporate(asTxnRecord(receipt));
@@ -311,7 +311,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             @NonNull final TransactionID userTxnId,
             @NonNull final DueDiligenceFailure dueDiligenceFailure,
             @NonNull final RecordSource recordSource,
-            final long blockNumber) {
+            @Nullable final Long blockNumber) {
         requireNonNull(userTxnId);
         requireNonNull(recordSource);
         final var historyRecordSource = new HistoryRecordSource(recordSource, blockNumber);
@@ -563,17 +563,17 @@ public class RecordCacheImpl implements HederaRecordCache {
     }
 
     private static @NonNull TransactionReceipt withBlockNumber(
-            @NonNull final TransactionReceipt receipt, final long blockNumber) {
+            @NonNull final TransactionReceipt receipt, @Nullable final Long blockNumber) {
         requireNonNull(receipt);
         final var currentBlockNumber = receipt.blockNumber();
-        if (blockNumber == 0 || (currentBlockNumber != null && currentBlockNumber == blockNumber)) {
+        if (blockNumber == null || (currentBlockNumber != null && currentBlockNumber.equals(blockNumber))) {
             return receipt;
         }
         return receipt.copyBuilder().blockNumber(blockNumber).build();
     }
 
     private static @NonNull TransactionRecord withBlockNumber(
-            @NonNull final TransactionRecord record, final long blockNumber) {
+            @NonNull final TransactionRecord record, @Nullable final Long blockNumber) {
         requireNonNull(record);
         final var receipt = record.receipt();
         if (receipt == null) {

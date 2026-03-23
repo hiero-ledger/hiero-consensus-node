@@ -265,15 +265,16 @@ class HandleWorkflowTest {
     }
 
     @Test
-    void currentBlockNumberIsUnsetInRecordsMode() throws Exception {
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockRecordManager.blockNo()).willReturn(123L);
 
         final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
         method.setAccessible(true);
 
-        assertEquals(0L, method.invoke(subject));
+        assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager, never()).blockNo();
-        verify(blockRecordManager, never()).blockNo();
+        verify(blockRecordManager).blockNo();
     }
 
     @Test

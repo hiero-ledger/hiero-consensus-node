@@ -744,7 +744,7 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void currentBlockNumberIsUnsetInRecordsMode() throws Exception {
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "RECORDS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -771,13 +771,14 @@ class SystemTransactionsTest {
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
                 wrappedRecordBlockHashMigration);
+        given(blockRecordManager.blockNo()).willReturn(123L);
 
         final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
         method.setAccessible(true);
 
-        assertEquals(0L, method.invoke(subject));
+        assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager, never()).blockNo();
-        verify(blockRecordManager, never()).blockNo();
+        verify(blockRecordManager).blockNo();
     }
 
     @Test

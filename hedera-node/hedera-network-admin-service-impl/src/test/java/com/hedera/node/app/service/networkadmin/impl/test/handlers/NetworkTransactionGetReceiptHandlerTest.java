@@ -148,7 +148,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                                         .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
                                         .build())
                                 .build())),
-                0);
+                null);
 
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
@@ -197,7 +197,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                                         .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
                                         .build())
                                 .build())),
-                0);
+                null);
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
         assertEquals(RECEIPT_NOT_FOUND, answer.headerOrThrow().nodeTransactionPrecheckCode());
@@ -233,7 +233,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
         assertEquals(OK, op.header().nodeTransactionPrecheckCode());
         assertNotNull(op.receipt());
         assertEquals(UNKNOWN, op.receiptOrThrow().status());
-        assertEquals(0L, op.receiptOrThrow().blockNumber());
+        assertNull(op.receiptOrThrow().blockNumber());
     }
 
     @Test

@@ -1016,7 +1016,7 @@ public class SystemTransactions {
     }
 
     private long currentBlockNumber() {
-        return streamMode == RECORDS ? 0L : blockStreamManager.blockNo();
+        return streamMode == RECORDS ? blockRecordManager.blockNo() : blockStreamManager.blockNo();
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {
