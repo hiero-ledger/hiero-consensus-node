@@ -307,16 +307,16 @@ class FrameBuilderTest {
         assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
         // check accessLIsts are warm
         if (accessLists != null) {
-            for (AccessList accessList : accessLists) {
+            for (final AccessList accessList : accessLists) {
                 final var address = Address.wrap(Bytes.wrap(accessList.address()));
                 assertTrue(frame.isAddressWarm(address));
-                for (Bytes32 storageKey : accessList.storageKeys()) {
+                for (final Bytes32 storageKey : accessList.storageKeys()) {
                     assertTrue(warmUpStorage.contains(address, storageKey));
                 }
             }
         }
         // check codeDelegation authorities are warm
-        for (Address authority : authorities) {
+        for (final Address authority : authorities) {
             assertTrue(frame.isAddressWarm(authority));
         }
     }

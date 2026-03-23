@@ -33,7 +33,7 @@ class EthTxDataType4TransactionTest {
         final byte[] addr2 = fillBytes(20, 0x60);
         final byte[] key1 = fillBytes(32, 0x70);
         final byte[] key2 = fillBytes(32, 0x80);
-        final Object[] accessListList = new Object[] {
+        final Object[] accessListList = {
             new Object[] {addr1, new Object[] {key1, key2}},
             new Object[] {addr2, new Object[] {}}
         };
@@ -122,7 +122,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void extractCodeDelegationsThrowsWhenInnerItemNotList() {
-        final byte[] auth = new byte[] {(byte) 0xC1, 0x01};
+        final byte[] auth = {(byte) 0xC1, 0x01};
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x0A),
@@ -174,16 +174,16 @@ class EthTxDataType4TransactionTest {
 
     private static byte[] buildType4Raw(
             final byte[] chainId,
-            int nonce,
+            final int nonce,
             final byte[] maxPriorityGas,
             final byte[] maxGas,
-            int gasLimit,
+            final int gasLimit,
             final byte[] to,
-            long value,
+            final long value,
             final byte[] callData,
-            Object[] accessListList,
+            final Object[] accessListList,
             final byte[] authorizationList,
-            int recId,
+            final int recId,
             final byte[] r,
             final byte[] s) {
         return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {

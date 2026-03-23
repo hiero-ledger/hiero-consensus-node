@@ -46,7 +46,7 @@ public record CodeDelegationProcessor(long chainId) {
     private static final int MAX_Y_PARITY = 2 ^ 8;
 
     /**
-     * The size of the delegated code
+     * The size of the delegated code.
      */
     public static final int DELEGATED_CODE_SIZE = CODE_DELEGATION_PREFIX.size() + Address.SIZE;
 
@@ -95,7 +95,7 @@ public record CodeDelegationProcessor(long chainId) {
     }
 
     /**
-     * Process each code delegation item
+     * Process each code delegation item.
      *
      * @param proxyWorldUpdater The world updater to handle state changes and records for code delegations
      * @param codeDelegation    The code delegation to handle
@@ -275,7 +275,7 @@ public record CodeDelegationProcessor(long chainId) {
             this.successfullyProcessedAuthorizations += 1;
         }
 
-        CodeDelegationResult toResult(List<Address> authorities) {
+        public CodeDelegationResult toResult(final List<Address> authorities) {
             return new CodeDelegationResult(
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,

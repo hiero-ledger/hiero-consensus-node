@@ -20,13 +20,13 @@ public interface HederaGasCalculator extends GasCalculator {
      *
      * @param payload          the payload of the transaction
      * @param isContractCreate is this call a 'contract creation'
-     * @param accessLists       the accessList of the transaction
+     * @param accessLists      the accessList of the transaction
      * @param codeDelegations  the authorizationList of the type 4 transaction
      * @return The gas requirements of the transaction
      */
     GasCharges transactionGasRequirements(
-            @NonNull final Bytes payload,
-            final boolean isContractCreate,
-            @Nullable final List<AccessList> accessLists,
-            @Nullable final List<CodeDelegation> codeDelegations);
+            @NonNull Bytes payload,
+            boolean isContractCreate,
+            @Nullable List<AccessList> accessLists,
+            @Nullable List<CodeDelegation> codeDelegations);
 }

@@ -167,7 +167,7 @@ class EthTxDataAccessListsTest {
 
     @MethodSource("provideTransactionsWhereAccessListHasWrongItems")
     @ParameterizedTest(name = "Transaction.AccessListHasWrongItems {0}")
-    void throwsWhenAccessListHasWrongItems(RawTransactionHolder raw) {
+    void throwsWhenAccessListHasWrongItems(final RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);

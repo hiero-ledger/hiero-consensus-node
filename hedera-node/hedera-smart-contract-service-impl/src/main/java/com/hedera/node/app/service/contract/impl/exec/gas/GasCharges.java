@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
-import org.apache.tuweni.bytes.Bytes;
-
 import java.util.List;
+import org.apache.tuweni.bytes.Bytes;
 
 /**
  * The gas charges of the transaction

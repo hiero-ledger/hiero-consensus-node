@@ -73,7 +73,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
             @Nullable final List<AccessList> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
         final int nonZeros = payload.size() - zeros;
-        long cost = TX_BASE_COST
+        final long cost = TX_BASE_COST
                 + TX_DATA_ZERO_COST * zeros
                 + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros
                 // accessList part of intrinsic gas

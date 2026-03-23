@@ -134,8 +134,8 @@ public class FrameBuilder {
             final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
             // add accessLists to "warmed" addresses
             if (transaction.accessLists() != null) {
-                for (AccessList accessList : transaction.accessLists()) {
-                    Address address = Address.wrap(Bytes.wrap(accessList.address()));
+                for (final AccessList accessList : transaction.accessLists()) {
+                    final Address address = Address.wrap(Bytes.wrap(accessList.address()));
                     accessListWarmAddresses.add(address);
                     accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
                 }

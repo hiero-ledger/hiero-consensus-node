@@ -143,7 +143,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
     }
 
-    private static List<AccessList> parseAccessLists(EthTxData ethTxData) throws PreCheckException {
+    private static List<AccessList> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
         try {
             return ethTxData.extractAccessLists();
         } catch (final IllegalArgumentException e) {
@@ -151,7 +151,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
     }
 
-    private static List<CodeDelegation> parseInnerCodeDelegations(EthTxData ethTxData) throws PreCheckException {
+    private static List<CodeDelegation> parseInnerCodeDelegations(final EthTxData ethTxData) throws PreCheckException {
         try {
             final var codeDelegations = ethTxData.extractCodeDelegations();
             validateTruePreCheck(codeDelegations != null && !codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
