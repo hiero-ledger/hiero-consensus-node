@@ -79,7 +79,8 @@ export SOLO_CLUSTER_NAME="solo"
 export SOLO_NAMESPACE="solo"
 export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
 export SOLO_DEPLOYMENT="solo-deployment"
-NODE_ALIASES="node1,node2,node3,node4"
+NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3}"
+CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 APP_PROPS_071_FILE="${SCRIPT_DIR}/resources/0.71/application.properties"
@@ -130,6 +131,19 @@ GRAFANA_PORT_FORWARD_PID=""
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+log_banner() {
+  local message="$1"
+  log "===================================================================="
+  log "${message}"
+  log "===================================================================="
+}
+
+announce_step() {
+  local step="$1"
+  local description="$2"
+  log_banner "STEP ${step}/5: ${description}"
 }
 
 cleanup() {
@@ -198,7 +212,8 @@ wait_for_http_ok() {
 wait_for_consensus_pods_ready() {
   local timeout_secs="${1:-600}"
   local pod
-  local nodes=(node1 node2 node3 node4)
+  local nodes
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
 
   for pod in "${nodes[@]}"; do
     log "Waiting for network-${pod}-0 to become Ready"
@@ -209,7 +224,13 @@ wait_for_consensus_pods_ready() {
 wait_for_haproxy_ready() {
   local timeout_secs="${1:-600}"
   local proxy
-  local proxies=(haproxy-node1 haproxy-node2 haproxy-node3 haproxy-node4)
+  local node_alias
+  local node_aliases
+  local proxies=()
+  IFS=',' read -r -a node_aliases <<< "${NODE_ALIASES}"
+  for node_alias in "${node_aliases[@]}"; do
+    proxies+=("haproxy-${node_alias}")
+  done
 
   for proxy in "${proxies[@]}"; do
     log "Waiting for ${proxy} rollout to become ready"
@@ -829,17 +850,22 @@ if ! validate_local_build_path "${LOCAL_BUILD_PATH}"; then
   exit 1
 fi
 
+log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+
 log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
 log "Configuring Solo deployment"
-solo init
 solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+log "Deleting existing Solo deployment config ${SOLO_DEPLOYMENT} (if any)"
+solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 4
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
 start_grafana_port_forward
 
+announce_step "1" "Deploy baseline network and verify pre-upgrade transaction flow"
 log "Deploying consensus network at ${INITIAL_RELEASE_TAG} with 0.71 application.properties"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_071_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
@@ -881,9 +907,11 @@ node "${NODE_SCRIPT}"
 log "Waiting 120s after Step 1"
 sleep 120
 
+announce_step "2" "Upgrade consensus network to ${UPGRADE_072_RELEASE_TAG}"
 log "Step 2: Upgrade CN network to 0.72 (target ${UPGRADE_072_RELEASE_TAG})"
 solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
 
+announce_step "3" "Wait for upgraded nodes and refresh service port-forwards"
 log "Step 3: apply ${UPGRADE_072_RELEASE_TAG} application.properties overrides for cutover flow"
 
 wait_for_consensus_pods_ready 600
@@ -893,10 +921,12 @@ restart_post_upgrade_port_forwards
 log "Waiting for mirror REST after port-forward restart"
 wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
 
+announce_step "4" "Verify post-upgrade transaction flow and mirror visibility"
 log "Step 4: verify post-upgrade crypto create and mirror visibility"
 export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
 node "${NODE_SCRIPT}"
 
+announce_step "5" "Process mirror/minio data, update File 121, then upgrade to 0.73"
 log "Step 5: mirror block query, File 121 jumpstart properties, upgrade to 0.73 (local build)"
 log "Step 5: waiting 30s before querying mirror for latest block number"
 sleep 30
