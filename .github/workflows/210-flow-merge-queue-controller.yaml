@@ -15,6 +15,8 @@ permissions:
   checks: write
   contents: write
 
+# EXAMPLE FULL CHANGE DO NOT MERGE
+
 jobs:
   # Trigger the MATS Tests
   trigger-mats-tests:
