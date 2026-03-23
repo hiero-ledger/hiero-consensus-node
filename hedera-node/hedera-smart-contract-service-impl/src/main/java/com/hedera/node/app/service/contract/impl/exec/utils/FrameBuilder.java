@@ -22,7 +22,10 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TR
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.hapi.utils.ethereum.AccessList;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
@@ -34,11 +37,14 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -122,7 +128,22 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
-        // TODO Glib: add accessLists and codeDelegations to besu (accessListWarmUpAddresses)
+        // add accessLists and codeDelegations authorities to "warmed" addresses
+        if (transaction.accessLists() != null || !codeDelegationAuthorities.isEmpty()) {
+            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAuthorities);
+            final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
+            // add accessLists to "warmed" addresses
+            if (transaction.accessLists() != null) {
+                for (AccessList accessList : transaction.accessLists()) {
+                    Address address = Address.wrap(Bytes.wrap(accessList.address()));
+                    accessListWarmAddresses.add(address);
+                    accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
+                }
+            }
+            builder.accessListWarmAddresses(accessListWarmAddresses);
+            builder.accessListWarmStorage(accessListWarmStorage);
+        }
+        // finish initial frame
         if (transaction.isCreate()) {
             return finishedAsCreate(to, builder, transaction, codeFactory);
         } else {

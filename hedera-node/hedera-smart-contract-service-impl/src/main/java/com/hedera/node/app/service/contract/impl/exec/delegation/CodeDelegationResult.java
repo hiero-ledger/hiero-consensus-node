@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,8 +11,8 @@ public record CodeDelegationResult(
         long totalLazyCreationGasCharged,
         int numAuthorizationsEligibleForRefund,
         int successfullyProcessedAuthorizations,
-        Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason,
-        List<Address> authorities) {
+        @NonNull Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason,
+        @NonNull List<Address> authorities) {
     public enum EntryIgnoreReason {
         ChainIdMismatch,
         NonceMismatch,

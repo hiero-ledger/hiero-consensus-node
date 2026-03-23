@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
@@ -91,8 +90,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verifyNoInteractions(world);
     }
 
@@ -104,8 +104,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -118,8 +119,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -133,8 +135,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -148,8 +151,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -164,8 +168,9 @@ class CodeDelegationProcessorTest {
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+        // then:
         assertNotNull(result);
+        assertEquals(0, result.authorities().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -183,8 +188,9 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(0, result.authorities().size());
             verify(proxyWorldUpdater).commit();
         }
     }
@@ -215,7 +221,6 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(tx.gasLimit()).thenReturn(100000L);
@@ -237,8 +242,10 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(1, result.authorities().size());
+            assertEquals(authAddr, result.authorities().getFirst());
             verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
             verify(proxyWorldUpdater).createAccountWithKeyAndCodeDelegation(authAddr, new byte[32], contractAddr);
             verify(acct).incrementNonce();
@@ -252,7 +259,6 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(tx.gasLimit()).thenReturn(20000L);
@@ -279,8 +285,9 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(0, result.authorities().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
             verify(proxyWorldUpdater).commit();
@@ -308,8 +315,9 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(0, result.authorities().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
         }
@@ -321,7 +329,6 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
@@ -343,8 +350,10 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(1, result.authorities().size());
+            assertEquals(authAddr, result.authorities().getFirst());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
             verify(acct).incrementNonce();
@@ -375,8 +384,9 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(0, result.authorities().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
@@ -408,8 +418,9 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(0, result.authorities().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
@@ -444,8 +455,10 @@ class CodeDelegationProcessorTest {
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
-
+            // then:
             assertNotNull(result);
+            assertEquals(1, result.authorities().size());
+            assertEquals(zeroAddr, result.authorities().getFirst());
             verify(proxyWorldUpdater).getAccount(zeroAddr);
             verify(acct).incrementNonce();
         }

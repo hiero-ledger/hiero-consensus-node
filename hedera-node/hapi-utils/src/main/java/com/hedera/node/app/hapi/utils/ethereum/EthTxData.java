@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
 
@@ -43,6 +44,8 @@ public record EthTxData(
         byte[] v, // actual `v` value, incoming, recovery id (`yParity` above) (possibly) encoded with chain id
         byte[] r,
         byte[] s) {
+
+    public static final int EVM_ADDRESS_LENGTH = 20;
 
     /**
      * A "wiebar" is 10⁻¹⁸ of an hbar.  The relationship is weibar : hbar as wei : ether.  Ethereum
@@ -468,8 +471,10 @@ public record EthTxData(
      *
      * @return parsed access lists
      * @throws IllegalArgumentException if RLP item of the Access list is not a list
-     * @throws IllegalArgumentException if RLP list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP list of the Access list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP item of the Access list address is not 20 bytes length
      * @throws IllegalArgumentException if RLP item of the Access list storage keys is not a list
+     * @throws IllegalArgumentException if RLP item of the Access list storage key is not 32 bytes length
      */
     @Nullable
     public List<AccessList> extractAccessLists() throws IllegalArgumentException {
@@ -486,13 +491,21 @@ public record EthTxData(
                     throw new IllegalArgumentException("Access list item does not contain expected number of elements");
                 }
                 final var address = accessListElements.getFirst().data();
+                if (address.length != EVM_ADDRESS_LENGTH) {
+                    throw new IllegalArgumentException("Access list item address is not 20 bytes length");
+                }
                 final var storageKeysItem = accessListElements.get(1);
                 if (!storageKeysItem.isList()) {
                     throw new IllegalArgumentException("Access list storage keys should be a list");
                 }
                 final var storageKeys = storageKeysItem.asRLPList().elements();
                 accessLists.add(new AccessList(
-                        address, storageKeys.stream().map(RLPItem::data).toList()));
+                        address,
+                        storageKeys.stream()
+                                .map(RLPItem::data)
+                                // this will throw IllegalArgumentException if bytes.length != 32
+                                .map(Bytes32::wrap)
+                                .toList()));
             }
             return accessLists;
         } else {

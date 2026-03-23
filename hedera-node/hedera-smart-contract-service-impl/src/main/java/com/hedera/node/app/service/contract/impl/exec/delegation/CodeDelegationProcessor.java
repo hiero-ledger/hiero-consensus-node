@@ -136,7 +136,6 @@ public record CodeDelegationProcessor(long chainId) {
         }
         final var authorizer = maybeAuthorizer.get();
 
-        // TODO Glib: add this authority to accessed addresses
         final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
                 Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
@@ -215,6 +214,8 @@ public record CodeDelegationProcessor(long chainId) {
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
+        // TODO Glib: should we return authorizerAddress, when we already "extract" it, but something fails after? Or
+        // just on success?
         return authorizerAddress;
     }
 

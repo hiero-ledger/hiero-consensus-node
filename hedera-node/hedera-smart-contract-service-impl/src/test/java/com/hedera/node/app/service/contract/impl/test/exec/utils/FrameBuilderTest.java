@@ -35,6 +35,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -47,11 +49,16 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.code.CodeV0;
@@ -59,11 +66,14 @@ import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FrameBuilderTest {
+
     @Mock
     private HederaEvmAccount account;
 
@@ -235,6 +245,80 @@ class FrameBuilderTest {
                         CODE_FACTORY,
                         GAS_CALCULATOR,
                         List.of()));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // accessList
+        "0,                     0",
+        "1;0,                   0",
+        "2;1,                   0",
+        "2;1;0,                 0",
+        "3;2;10;15;7;0;1,       0",
+        // codeDelegations
+        ",                      0",
+        ",                      1",
+        ",                      2",
+        ",                      10",
+        // accessList + codeDelegations
+        "0,                     1",
+        "1;0,                   2",
+        "2;1;0,                 3",
+    })
+    void constructsExpectedFrameWithAccessListAndCodeDelegations(
+            final String keysCountString, final String codeDelegationsCount) {
+        // given:
+        final var keysCount = keysCountString == null
+                ? List.<Integer>of()
+                : Arrays.stream(keysCountString.split(";"))
+                        .map(Integer::parseInt)
+                        .toList();
+        final var accessLists = TestTransactionUtils.generateAccessList(keysCount);
+        final var codeDelegations = TestTransactionUtils.generateAuthList(Integer.parseInt(codeDelegationsCount));
+        final var authorities = codeDelegations == null
+                ? List.<Address>of()
+                : codeDelegations.stream()
+                        .map(EthTxSigs::extractAuthoritySignature)
+                        .filter(Optional::isPresent)
+                        .map(e -> Address.wrap(Bytes.wrap(e.get().address())))
+                        .toList();
+        final var transaction = wellKnownHapiCall(accessLists, codeDelegations);
+        givenContractExists();
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        // when:
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                HederaTestConfigBuilder.create().getOrCreateConfig(),
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                CODE_FACTORY,
+                GAS_CALCULATOR,
+                authorities);
+        // then:
+        final var warmUpStorage = frame.getWarmedUpStorage();
+        assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
+        // check accessLIsts are warm
+        if (accessLists != null) {
+            for (AccessList accessList : accessLists) {
+                final var address = Address.wrap(Bytes.wrap(accessList.address()));
+                assertTrue(frame.isAddressWarm(address));
+                for (Bytes32 storageKey : accessList.storageKeys()) {
+                    assertTrue(warmUpStorage.contains(address, storageKey));
+                }
+            }
+        }
+        // check codeDelegation authorities are warm
+        for (Address authority : authorities) {
+            assertTrue(frame.isAddressWarm(authority));
+        }
     }
 
     @Test
