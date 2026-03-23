@@ -583,7 +583,7 @@ class SystemTransactionsTest {
 
         // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
-        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
         final WritableStates writableStates = mock(WritableStates.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
@@ -614,8 +614,8 @@ class SystemTransactionsTest {
         assertFalse(
                 Files.exists(tempDir.resolve("archived_jumpstart.bin")),
                 "Archived jumpstart file should not exist yet");
-        // Block info values match migration, so no update should have been made
-        verify(blockInfoSingleton, never()).put(any());
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
@@ -641,7 +641,7 @@ class SystemTransactionsTest {
         given(filesState.get(any())).willReturn(File.DEFAULT);
         final WritableStates blockRecordStates = mock(WritableStates.class);
         @SuppressWarnings("unchecked")
-        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
         given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
@@ -667,6 +667,8 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
@@ -736,10 +738,9 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
-        // Post-upgrade setup no longer writes migration values directly to BlockInfo;
-        // they are applied only when voting finalizes.
-        verify(blockInfoSingleton, never()).put(any());
-        verify(blockInfoSingleton, never()).commit();
+        // Post-upgrade setup initializes voting metadata on first upgrade.
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 

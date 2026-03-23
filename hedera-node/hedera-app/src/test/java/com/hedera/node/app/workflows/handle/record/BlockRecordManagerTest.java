@@ -607,6 +607,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
                                     .lastIntervalProcessTime(EPOCH)
+                                    .votingComplete(true)
                                     .build())
                     .commit();
             liveApp.stateMutator(PlatformStateService.NAME)
@@ -616,7 +617,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         private BlockRecordManagerImpl createGenesisManager(App theApp, State state) {
             return createManager(
-                    theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.GENESIS);
+                    theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.RESTART);
         }
 
         private BlockRecordManagerImpl createManager(
@@ -771,9 +772,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
             }
-            // Live mode computes hashes in-memory via recordWrappedBlockHashes —
-            // the disk writer is never used (live mode takes precedence)
-            verify(diskWriter, org.mockito.Mockito.never()).appendAsync(notNull());
+            // Live mode no longer suppresses disk writing when that feature is enabled.
+            verify(diskWriter, atLeastOnce()).appendAsync(notNull());
         }
 
         @Test
@@ -807,6 +807,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
                                     .lastIntervalProcessTime(EPOCH)
+                                    .votingComplete(true)
                                     .build())
                     .commit();
             liveOnlyApp
@@ -816,7 +817,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
             final var state = liveOnlyApp.workingStateAccessor().getState();
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-            try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.GENESIS)) {
+            try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.RESTART)) {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
 
