@@ -511,8 +511,21 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
+    void validatePureChecksIncorrectAccessList() {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.extractAccessLists()).willCallRealMethod();
+            given(ethTxDataReturned.accessList()).willReturn(new byte[] {1, 2});
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        }
+    }
+
+    @Test
     void validatePureChecksNonEmptyAuthorizationListForType4() {
-        // check at least intrinsic gas for contract create (hasToAddress() == false)
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
@@ -531,7 +544,6 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void validatePureChecksIfParsingInnerThrowsException() {
-        // check at least intrinsic gas for contract create (hasToAddress() == false)
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());

@@ -478,9 +478,9 @@ public record EthTxData(
      */
     @Nullable
     public List<AccessList> extractAccessLists() throws IllegalArgumentException {
-        if (accessList != null) {
+        if (accessList() != null) {
             final List<AccessList> accessLists = new ArrayList<>();
-            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList);
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList());
             while (decoder.hasNext()) {
                 final var accessListItem = decoder.next();
                 if (!accessListItem.isList()) {
@@ -522,9 +522,9 @@ public record EthTxData(
      */
     @Nullable
     public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
-        if (authorizationList != null) {
+        if (authorizationList() != null) {
             final List<CodeDelegation> codeDelegations = new ArrayList<>();
-            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList());
             while (decoder.hasNext()) {
                 final var rlpItem = decoder.next();
                 if (!rlpItem.isList()) {
