@@ -4,9 +4,9 @@ module.exports = async ({ github, context, core }) => {
   // Get labels associated to the pull request
   const labels = context.payload.pull_request.labels || [];
 
-  // Check for run-full-ci label first — forces full CI regardless
-  if (labels.some(l => l.name === 'run-full-ci')) {
-    core.info('Label "run-full-ci" detected — forcing full CI');
+  // Check for Run Full CI label first — forces full CI regardless
+  if (labels.some(l => l.name === 'Run Full CI')) {
+    core.info('Label "Run Full CI" detected — forcing full CI');
     core.setOutput('docs-only', 'false');
     core.setOutput('enable-tests', 'true');
     return;
