@@ -148,7 +148,7 @@ public class RecordCacheImpl implements HederaRecordCache {
      *
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
      * @param recordSources The sources of records for the relevant base {@link TransactionID}, along with the block
-     *     number to overlay on their records and receipts
+     * number to overlay on their records and receipts
      */
     private record HistorySource(
             @NonNull Set<Long> nodeIds, @NonNull List<HistoryRecordSource> recordSources) implements ReceiptSource {
@@ -563,6 +563,11 @@ public class RecordCacheImpl implements HederaRecordCache {
                 .build();
     }
 
+    /**
+     * Utility method that overlays a block number on a receipt or record if it is not already present, or if it is
+     * present but different from the given block number. This is used to ensure that all records and receipts for a
+     * given transaction ID have the same block number, which is important for answering queries in a consistent way.
+     */
     private static @NonNull TransactionReceipt withBlockNumber(
             @NonNull final TransactionReceipt receipt, @Nullable final Long blockNumber) {
         requireNonNull(receipt);
@@ -573,6 +578,11 @@ public class RecordCacheImpl implements HederaRecordCache {
         return receipt.copyBuilder().blockNumber(blockNumber).build();
     }
 
+    /**
+     * Utility method that overlays a block number on the receipt of a record if it is not already present, or if it is
+     * present but different from the given block number. This is used to ensure that all records and receipts for a
+     * given transaction ID have the same block number, which is important for answering queries in a consistent way.
+     */
     private static @NonNull TransactionRecord withBlockNumber(
             @NonNull final TransactionRecord record, @Nullable final Long blockNumber) {
         requireNonNull(record);
