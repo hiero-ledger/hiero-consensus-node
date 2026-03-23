@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public class TestTransactionUtils {
+public final class TestTransactionUtils {
 
     private TestTransactionUtils() {}
 

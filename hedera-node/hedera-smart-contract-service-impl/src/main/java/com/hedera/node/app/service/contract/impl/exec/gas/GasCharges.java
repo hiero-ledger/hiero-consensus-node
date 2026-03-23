@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import org.apache.tuweni.bytes.Bytes;
 
+import java.util.List;
+
 /**
  * The gas charges of the transaction
  *
@@ -10,7 +12,7 @@ import org.apache.tuweni.bytes.Bytes;
  * @param intrinsicGas         the intrinsic gas cost of a transaction
  * @param minimumGasUsed       the minimum gas used for transaction.
  *                             Calculated as {@code max(intrinsicGas, floorGas)} where `floorGas` defined at <a href="https://eips.ethereum.org/EIPS/eip-7623">EIP-7623</a>.
- *                             See {@link HederaGasCalculatorImpl#transactionGasRequirements(Bytes, boolean, long)}
+ *                             See {@link HederaGasCalculatorImpl#transactionGasRequirements(Bytes, boolean, List, List)}
  * @param relayerAllowanceUsed the gas for the relayer
  */
 public record GasCharges(long intrinsicGas, long minimumGasUsed, long relayerAllowanceUsed) {

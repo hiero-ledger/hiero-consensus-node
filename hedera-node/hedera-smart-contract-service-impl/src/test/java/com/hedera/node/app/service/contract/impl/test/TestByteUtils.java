@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.test;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.tuweni.bytes.Bytes32;
 
-public class TestByteUtils {
+public final class TestByteUtils {
 
     private TestByteUtils() {}
 

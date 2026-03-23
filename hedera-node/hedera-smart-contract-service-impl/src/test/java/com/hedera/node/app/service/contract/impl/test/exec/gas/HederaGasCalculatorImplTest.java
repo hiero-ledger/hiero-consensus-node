@@ -140,9 +140,9 @@ class HederaGasCalculatorImplTest {
         assertEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());
         assertEquals(
                 HederaGasCalculatorImpl.TX_BASE_COST
-                        + 2400L * keysCount.size()
-                        + 1900L * keysCount.stream().mapToInt(e -> e).sum()
-                        + 25000L * codeDelegationsCount,
+                        + 2_400L * keysCount.size()
+                        + 1_900L * keysCount.stream().mapToInt(e -> e).sum()
+                        + 25_000L * codeDelegationsCount,
                 gasRequirements.intrinsicGas());
     }
 }

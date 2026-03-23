@@ -128,7 +128,7 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
-public class TestHelpers {
+public final class TestHelpers {
 
     private TestHelpers() {}
 
