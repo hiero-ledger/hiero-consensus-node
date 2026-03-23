@@ -952,7 +952,7 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action) {
-        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true, true);
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true);
     }
 
     /**
@@ -966,7 +966,7 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action) {
-        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false, false);
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false);
     }
 
     /**
@@ -982,10 +982,12 @@ public class HandleWorkflow {
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action,
-            final boolean includeSingletons,
-            final boolean includeQueues) {
+            final boolean includeSingletons) {
         if (streamMode != RECORDS) {
-            flushStreamingChanges(includeSingletons, includeQueues);
+            immediateStateChangeListener.resetKvStateChanges(null);
+            if (includeSingletons) {
+                boundaryStateChangeListener.reset();
+            }
         }
         action.run();
         if (writableStates instanceof CommittableWritableStates committableWritableStates) {
@@ -995,35 +997,20 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            flushStreamingChanges(includeSingletons, includeQueues);
-        }
-    }
-
-    private void flushStreamingChanges(final boolean includeSingletons, final boolean includeQueues) {
-        final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
-        if (!kvStateChanges.isEmpty()) {
-            blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                    .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
-                    .build());
-        }
-        immediateStateChangeListener.resetKvStateChanges(null);
-        if (includeSingletons) {
-            final var singletonChanges = boundaryStateChangeListener.allStateChanges();
-            if (!singletonChanges.isEmpty()) {
+            final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
+            if (!kvStateChanges.isEmpty()) {
                 blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                        .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
                         .build());
             }
-            boundaryStateChangeListener.reset();
-        }
-        if (includeQueues) {
-            final var queueChanges = immediateStateChangeListener.getQueueStateChanges();
-            if (!queueChanges.isEmpty()) {
-                blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(queueChanges)))
-                        .build());
+            if (includeSingletons) {
+                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+                if (!singletonChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                            .build());
+                }
             }
-            immediateStateChangeListener.resetQueueStateChanges();
         }
     }
 

@@ -103,6 +103,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -517,14 +518,12 @@ public class SystemTransactions {
                         existingBlockInfo.votingComplete());
             } else {
                 final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
-                stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
-                    blockInfoSingleton.put(existingBlockInfo
-                            .copyBuilder()
-                            .votingComplete(false)
-                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                            .build());
-                });
-
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                        .build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
                 log.info(
                         "Initialized wrapped record voting singleton with deadline={}",
                         votingCompletionDeadlineBlockNumber);
