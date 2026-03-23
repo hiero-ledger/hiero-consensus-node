@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.pces.noop.impl;
+package org.hiero.consensus.pces.noop.impl.test.fixtures;
 
 import static java.util.Objects.requireNonNull;
 
@@ -28,7 +28,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
- * "No-op implementation of the {@link PcesModule}.
+ * No-op implementation of the {@link PcesModule}.
  */
 public class NoopPcesModule implements PcesModule {
 
@@ -38,6 +38,7 @@ public class NoopPcesModule implements PcesModule {
     private InputWire<Long> discontinuityInputWire;
     private OutputWire<PlatformEvent> writtenEventsOutputWire;
     private InputWire<EventWindow> eventWindowInputWire;
+
     /**
      * {@inheritDoc}
      */

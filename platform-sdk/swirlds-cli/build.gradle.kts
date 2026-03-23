@@ -5,7 +5,7 @@ plugins {
     id("org.hiero.gradle.feature.publish-maven-central")
 }
 
-mainModuleInfo { runtimeOnly("org.hiero.consensus.pces.noop.impl") }
+mainModuleInfo { runtimeOnly("org.hiero.consensus.pces.noop.impl.test.fixtures") }
 
 testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")

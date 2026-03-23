@@ -133,7 +133,8 @@ public class ConsensusNoOpModules {
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
-        final PcesModule pcesModule = createModule(PcesModule.class, "org.hiero.consensus.pces.noop.impl");
+        final PcesModule pcesModule =
+                createModule(PcesModule.class, "org.hiero.consensus.pces.noop.impl.test.fixtures");
         pcesModule.initialize(
                 model,
                 configuration,
