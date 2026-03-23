@@ -91,6 +91,7 @@ val basePrCheckTags =
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestSimpleFeesSerial" to "(SIMPLE_FEES&SERIAL)",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
@@ -112,6 +113,8 @@ val concurrentTasks =
         "hapiTestStateThrottling",
         "hapiTestSimpleFees",
         "hapiTestSimpleFeesSerial",
+        "hapiTestAtomicBatch",
+        "hapiTestAtomicBatchSerial",
     )
 
 val prCheckTags =
@@ -168,6 +171,7 @@ val prCheckStartPorts =
         put("hapiTestStateThrottling", "28600")
         put("hapiTestSimpleFees", "28800")
         put("hapiTestSimpleFeesSerial", "29000")
+        put("hapiTestAtomicBatchSerial", "29200")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -238,6 +242,7 @@ val prCheckPropOverrides =
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestAtomicBatchSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
@@ -268,6 +273,8 @@ val prCheckNetSizeOverrides =
         put("hapiTestSimpleFeesSerial", "3")
         put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
+        put("hapiTestAtomicBatch", "3")
+        put("hapiTestAtomicBatchSerial", "3")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
@@ -286,7 +293,8 @@ tasks {
                         taskName.contains("Token") ||
                         taskName.contains("Misc") ||
                         taskName.contains("TimeConsuming") ||
-                        taskName.contains("SimpleFees")) && !taskName.contains("Serial")
+                        taskName.contains("SimpleFees") ||
+                        taskName.contains("AtomicBatch")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
@@ -593,13 +601,19 @@ tasks.register<Test>("testRemote") {
 }
 
 val embeddedTasks =
-    setOf("hapiTestCryptoEmbedded", "hapiTestMiscEmbedded", "hapiEmbeddedSimpleFees")
+    setOf(
+        "hapiTestCryptoEmbedded",
+        "hapiTestMiscEmbedded",
+        "hapiEmbeddedSimpleFees",
+        "hapiTestAtomicBatchEmbedded",
+    )
 
 val embeddedBaseTags =
     mapOf(
-        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
+        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO|ATOMIC_BATCH)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
+        "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
     )
 
 val prEmbeddedCheckTags =
