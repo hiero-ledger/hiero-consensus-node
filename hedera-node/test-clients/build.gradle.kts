@@ -356,11 +356,14 @@ tasks.register<Test>("testSubprocess") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
-    val tssLibWrapsArtifactsPath =
-        gradle.startParameter.taskNames
-            .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-            ?.let { prCheckTssLibWrapsArtifactsPaths.getValue(it) } ?: "data/keys"
-    systemProperty("hapi.spec.tssLibWrapsArtifactsPath", tssLibWrapsArtifactsPath)
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -476,11 +479,14 @@ tasks.register<Test>("testSubprocessConcurrent") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
-    val tssLibWrapsArtifactsPath =
-        gradle.startParameter.taskNames
-            .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-            ?.let { prCheckTssLibWrapsArtifactsPaths.getValue(it) } ?: "data/keys"
-    systemProperty("hapi.spec.tssLibWrapsArtifactsPath", tssLibWrapsArtifactsPath)
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames
@@ -561,11 +567,14 @@ tasks.register<Test>("testRemote") {
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
         systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
     }
-    val tssLibWrapsArtifactsPath =
-        gradle.startParameter.taskNames
-            .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-            ?.let { prCheckTssLibWrapsArtifactsPaths.getValue(it) } ?: "data/keys"
-    systemProperty("hapi.spec.tssLibWrapsArtifactsPath", tssLibWrapsArtifactsPath)
+    gradle.startParameter.taskNames
+        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        ?.let {
+            systemProperty(
+                "hapi.spec.tssLibWrapsArtifactsPath",
+                prCheckTssLibWrapsArtifactsPaths.getValue(it),
+            )
+        }
 
     val prepareUpgradeOffsets =
         gradle.startParameter.taskNames

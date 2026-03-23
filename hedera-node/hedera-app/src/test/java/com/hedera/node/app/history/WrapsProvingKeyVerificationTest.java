@@ -6,6 +6,7 @@ import static com.hedera.node.app.history.WrapsProvingKeyVerification.validateAr
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -23,10 +24,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,6 +53,13 @@ class WrapsProvingKeyVerificationTest {
     @Mock
     private HttpWrapsProvingKeyDownloader downloader;
 
+    @Mock
+    private ScheduledExecutorService retryScheduler;
+
+    @Mock
+    @SuppressWarnings("rawtypes")
+    private ScheduledFuture scheduledFuture;
+
     @TempDir
     Path tempDir;
 
@@ -60,8 +72,6 @@ class WrapsProvingKeyVerificationTest {
         Mockito.lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
         Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
-
-    // ===== ensureProvingKey() tests =====
 
     @Test
     void throwsWhenWrapsEnabledAndBootstrapHashIsBlank() {
@@ -100,8 +110,6 @@ class WrapsProvingKeyVerificationTest {
 
         assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
     }
-
-    // ===== async download tests =====
 
     @Test
     void downloadsWhenFileMissing() throws Exception {
@@ -157,8 +165,6 @@ class WrapsProvingKeyVerificationTest {
         verify(downloader).download(eq(DOWNLOAD_URL), eq(path));
     }
 
-    // ===== artifacts path consistency validation =====
-
     @Test
     void throwsWhenEnvArtifactsPathNotUnderExtractionDir() {
         final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
@@ -187,6 +193,135 @@ class WrapsProvingKeyVerificationTest {
         final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
 
         assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, ""));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void schedulesRetryOnDownloadHashMismatch() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(retryScheduler).scheduleWithFixedDelay(any(), eq(60_000L), eq(60_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void schedulesRetryOnDownloadException() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
+
+        given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(retryScheduler).scheduleWithFixedDelay(any(), eq(60_000L), eq(60_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void retryUsesConfiguredInterval() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        given(tssConfig.wrapsProvingKeyRetryInterval()).willReturn(Duration.ofSeconds(42));
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(retryScheduler).scheduleWithFixedDelay(any(), eq(42_000L), eq(42_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void doesNotScheduleSecondRetryWhenRetryAlreadyScheduled() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(retryScheduler, Mockito.times(1))
+                .scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void retrySucceedsAndCancelsScheduledFuture() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
+        given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        // Re-stub downloader to return correct content for the retry
+        givenDownloaderWritesContent(path, CONTENT_A);
+        retryCaptor.getValue().run();
+
+        verify(scheduledFuture).cancel(false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void retryTaskContinuesOnHashMismatch() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
+        given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        // Retry still gets wrong content
+        retryCaptor.getValue().run();
+
+        verify(scheduledFuture, Mockito.never()).cancel(Mockito.anyBoolean());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void retryTaskContinuesOnDownloadException() throws Exception {
+        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
+        given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        // Re-stub downloader to throw on retry
+        doThrow(new IOException("retry error")).when(downloader).download(anyString(), any());
+
+        assertDoesNotThrow(() -> retryCaptor.getValue().run());
+        verify(scheduledFuture, Mockito.never()).cancel(Mockito.anyBoolean());
     }
 
     // ===== helpers =====
