@@ -1635,6 +1635,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // And finally snapshot the copy to the target dir
             dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
         } finally {
+            cacheSnapshot.getValue().shutdown();
             // Delete the snapshot directory
             FileUtils.deleteDirectory(snapshotPath);
             // And delete the data source copy directory

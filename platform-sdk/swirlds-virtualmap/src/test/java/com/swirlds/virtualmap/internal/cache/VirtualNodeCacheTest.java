@@ -9,8 +9,11 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -40,6 +43,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -2800,9 +2806,229 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 cache1.getEstimatedSize());
     }
 
+    @Test
+    @DisplayName("Snapshot cache uses a synchronous executor, not a thread pool")
+    void snapshotCacheDoesNotCreateThreadPool() {
+        cache.putLeaf(appleLeaf(1));
+        cache.putLeaf(bananaLeaf(2));
+        cache.copy();
+
+        final VirtualNodeCache snapshot = cache.snapshot();
+
+        // The snapshot's cleaning pool should NOT be an ExecutorService (thread pool).
+        // It should be a simple synchronous executor (Runnable::run).
+        assertFalse(
+                snapshot.getCleaningPool() instanceof ExecutorService,
+                "Snapshot cache should use a synchronous executor, not a thread pool");
+    }
+
+    @Test
+    @DisplayName("Chained snapshots do not create thread pools")
+    void chainedSnapshotsDoNotCreateThreadPools() {
+        cache.putLeaf(appleLeaf(1));
+        cache.copy();
+
+        final VirtualNodeCache snapshot1 = cache.snapshot();
+        final VirtualNodeCache snapshot2 = snapshot1.snapshot();
+        final VirtualNodeCache snapshot3 = snapshot2.snapshot();
+
+        assertFalse(snapshot1.getCleaningPool() instanceof ExecutorService, "Snapshot should not have a thread pool");
+        assertFalse(
+                snapshot2.getCleaningPool() instanceof ExecutorService,
+                "Snapshot of snapshot should not have a thread pool");
+        assertFalse(
+                snapshot3.getCleaningPool() instanceof ExecutorService,
+                "Snapshot of snapshot of snapshot should not have a thread pool");
+    }
+
+    @Test
+    @DisplayName("Calling shutdown on a snapshot cache does not throw")
+    void shutdownOnSnapshotIsSafe() {
+        cache.putLeaf(appleLeaf(1));
+        cache.copy();
+
+        final VirtualNodeCache snapshot = cache.snapshot();
+        // Should be a no-op since the snapshot uses Runnable::run
+        assertDoesNotThrow(snapshot::shutdown, "shutdown() on a snapshot should not throw");
+        // Calling it twice should also be fine
+        assertDoesNotThrow(snapshot::shutdown, "shutdown() on a snapshot should be idempotent");
+    }
+
+    @Test
+    @DisplayName("Snapshot's deletedLeaves works correctly with synchronous executor")
+    void snapshotDeletedLeavesWorksWithSynchronousExecutor() {
+        // Set up a cache with some leaves, then delete one
+        cache.putLeaf(appleLeaf(1));
+        cache.putLeaf(bananaLeaf(2));
+        cache.putLeaf(cherryLeaf(3));
+
+        final VirtualNodeCache cache1 = cache.copy();
+        cache1.deleteLeaf(appleLeaf(1));
+
+        final VirtualNodeCache cache2 = cache1.copy();
+
+        cache.prepareForHashing();
+        cache.seal();
+        cache1.prepareForHashing();
+        cache1.seal();
+
+        cache.merge();
+
+        // Take a snapshot of cache1 (which has the deletion)
+        final VirtualNodeCache snapshot = cache1.snapshot();
+
+        // deletedLeaves() uses parallelTraverse(cleaningPool, ...) internally.
+        // With a synchronous executor, this should still work correctly.
+        final List<VirtualLeafBytes> deleted = snapshot.deletedLeaves().toList();
+        assertEquals(1, deleted.size(), "Snapshot should report exactly one deleted leaf");
+        assertEquals(A_KEY, deleted.get(0).keyBytes(), "The deleted leaf should be apple");
+    }
+
+    @Test
+    @DisplayName("Snapshot's dirtyLeavesForFlush works correctly with synchronous executor")
+    void snapshotDirtyLeavesForFlushWorksWithSynchronousExecutor() {
+        cache.putLeaf(appleLeaf(1));
+        cache.putLeaf(bananaLeaf(2));
+
+        final VirtualNodeCache cache1 = cache.copy();
+        cache1.putLeaf(cherryLeaf(3));
+
+        cache.prepareForHashing();
+        cache.seal();
+        cache1.prepareForHashing();
+        cache1.seal();
+        cache.merge();
+
+        cache1.copy();
+
+        final VirtualNodeCache snapshot = cache1.snapshot();
+
+        // dirtyLeavesForFlush should work with the synchronous executor
+        final List<VirtualLeafBytes> dirtyLeaves =
+                snapshot.dirtyLeavesForFlush(1, 3).toList();
+        assertFalse(dirtyLeaves.isEmpty(), "Snapshot should have dirty leaves for flush");
+    }
+
+    /**
+     * This test creates a VirtualNodeCache WITHOUT the syncCleaningPool=true
+     * system property, so a real ThreadPoolExecutor is created. We verify
+     * that allowCoreThreadTimeOut is enabled on it.
+     */
+    @Test
+    @DisplayName("Primary constructor's thread pool has allowCoreThreadTimeOut enabled")
+    void primaryConstructorPoolAllowsCoreThreadTimeout() {
+        // Save and clear the system property so a real pool is created
+        final String original = System.getProperty("syncCleaningPool");
+        try {
+            System.clearProperty("syncCleaningPool");
+
+            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
+
+            try {
+                final Executor pool = realPoolCache.getCleaningPool();
+                assertInstanceOf(
+                        ThreadPoolExecutor.class,
+                        pool,
+                        "Without syncCleaningPool, a real ThreadPoolExecutor should be created");
+
+                final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) pool;
+                assertTrue(
+                        threadPool.allowsCoreThreadTimeOut(),
+                        "Core thread timeout should be enabled so idle threads are reclaimed");
+            } finally {
+                realPoolCache.shutdown();
+            }
+        } finally {
+            // Restore the property
+            if (original != null) {
+                System.setProperty("syncCleaningPool", original);
+            } else {
+                System.clearProperty("syncCleaningPool");
+            }
+        }
+    }
+
+    /**
+     * No thread leak from snapshots of real-pool caches
+     */
+    @Test
+    @DisplayName("Snapshots of a real-pool cache do not spawn additional cache-cleaner threads")
+    void snapshotsDoNotSpawnCleanerThreads() {
+        final String original = System.getProperty("syncCleaningPool");
+        try {
+            System.clearProperty("syncCleaningPool");
+
+            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
+
+            try {
+                realPoolCache.putLeaf(appleLeaf(1));
+                realPoolCache.putLeaf(bananaLeaf(2));
+                realPoolCache.copy();
+
+                final long cleanerThreadsBefore = countCacheCleanerThreads();
+
+                // Create many snapshots — none should spawn threads
+                for (int i = 0; i < 3; i++) {
+                    final VirtualNodeCache snapshot = realPoolCache.snapshot();
+                    assertFalse(
+                            snapshot.getCleaningPool() instanceof ExecutorService,
+                            "Snapshot #" + i + " should not have a thread pool");
+                }
+
+                final long cleanerThreadsAfter = countCacheCleanerThreads();
+                assertEquals(
+                        cleanerThreadsBefore,
+                        cleanerThreadsAfter,
+                        "No additional cache-cleaner threads should be created by snapshots");
+            } finally {
+                realPoolCache.shutdown();
+            }
+        } finally {
+            if (original != null) {
+                System.setProperty("syncCleaningPool", original);
+            } else {
+                System.clearProperty("syncCleaningPool");
+            }
+        }
+    }
+
+    /**
+     * Copy shares the pool, snapshot does not
+     */
+    @Test
+    @DisplayName("copy() shares the cleaning pool, snapshot() does not")
+    void copySharesPoolSnapshotDoesNot() {
+        cache.putLeaf(appleLeaf(1));
+
+        final VirtualNodeCache copy = cache.copy();
+        final VirtualNodeCache snapshot = cache.snapshot();
+
+        // copy() should share the same pool reference as the original
+        assertSame(
+                cache.getCleaningPool(),
+                copy.getCleaningPool(),
+                "copy() should share the cleaning pool with its source");
+
+        // snapshot() should NOT share the pool — it uses its own synchronous executor
+        assertNotSame(
+                cache.getCleaningPool(),
+                snapshot.getCleaningPool(),
+                "snapshot() should have its own executor, not the source's pool");
+        assertFalse(
+                snapshot.getCleaningPool() instanceof ExecutorService, "snapshot()'s executor should be synchronous");
+    }
+
     // ----------------------------------------------------------------------
     // Test Utility methods
     // ----------------------------------------------------------------------
+
+    private long countCacheCleanerThreads() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().contains("cache-cleaner"))
+                .count();
+    }
 
     @SuppressWarnings("unchecked")
     private TestValue lookupValue(final VirtualNodeCache cache, final Bytes key) {

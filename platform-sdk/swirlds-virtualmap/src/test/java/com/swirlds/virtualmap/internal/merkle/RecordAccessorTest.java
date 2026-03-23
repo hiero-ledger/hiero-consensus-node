@@ -5,10 +5,13 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -26,8 +29,12 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -242,6 +249,57 @@ public class RecordAccessorTest {
         final long path = records.findPath(key);
         final VirtualLeafBytes<?> record = records.findLeafRecord(path);
         assertEquals(key, record.keyBytes());
+    }
+
+    @Test
+    @DisplayName("close() shuts down the cache's cleaning pool")
+    void closeShutsCacheCleaningPool() throws IOException, NoSuchFieldException, IllegalAccessException {
+        // Save and clear the system property so a real thread pool is created
+        final String original = System.getProperty("syncCleaningPool");
+        try {
+            System.clearProperty("syncCleaningPool");
+
+            final VirtualMapMetadata state = new VirtualMapMetadata();
+            state.setLastLeafPath(2);
+            state.setFirstLeafPath(1);
+
+            final InMemoryDataSource ds = new InMemoryDataSource("closeShutsCacheCleaningPool");
+            final int hashChunkHeight = ds.getHashChunkHeight();
+
+            // Create a cache with a real thread pool (not syncCleaningPool).
+            // We intentionally use the primary constructor here, NOT a snapshot,
+            // to get a cache backed by a real ThreadPoolExecutor. This simulates
+            // a scenario where RecordAccessor receives a cache with a real pool.
+            final VirtualNodeCache realPoolCache =
+                    new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
+
+            // VirtualNodeCache.cleaningPool is private and the class is final,
+            // so we use reflection to verify the pool state.
+            final Field cleaningPoolField = VirtualNodeCache.class.getDeclaredField("cleaningPool");
+            cleaningPoolField.setAccessible(true);
+            final Executor pool = (Executor) cleaningPoolField.get(realPoolCache);
+            assertInstanceOf(
+                    ThreadPoolExecutor.class, pool, "Without syncCleaningPool, should have a real ThreadPoolExecutor");
+            final ExecutorService executorService = (ExecutorService) pool;
+
+            assertFalse(executorService.isShutdown(), "Pool should not be shut down yet");
+
+            // Wrap it in a RecordAccessor and close
+            final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, realPoolCache, ds);
+            accessor.close();
+
+            // After close(), both the data source and the cache's pool should be shut down
+            assertTrue(ds.isClosed(), "Data source should be closed after RecordAccessor.close()");
+            assertTrue(
+                    executorService.isShutdown(),
+                    "Cache's cleaning pool should be shut down after RecordAccessor.close()");
+        } finally {
+            if (original != null) {
+                System.setProperty("syncCleaningPool", original);
+            } else {
+                System.clearProperty("syncCleaningPool");
+            }
+        }
     }
 
     private static final class BreakableDataSource implements VirtualDataSource {
