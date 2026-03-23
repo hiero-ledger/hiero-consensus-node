@@ -27,15 +27,6 @@ public record LegacyListRecordSource(
         @Nullable Long blockNumber)
         implements RecordSource {
 
-    public LegacyListRecordSource(
-            @NonNull final List<SingleTransactionRecord> precomputedRecords,
-            @NonNull final List<IdentifiedReceipt> identifiedReceipts) {
-        this(
-                precomputedRecords,
-                identifiedReceipts,
-                RecordSourceBlockNumberUtils.sharedBlockNumber(identifiedReceipts));
-    }
-
     public LegacyListRecordSource {
         requireNonNull(precomputedRecords);
         requireNonNull(identifiedReceipts);

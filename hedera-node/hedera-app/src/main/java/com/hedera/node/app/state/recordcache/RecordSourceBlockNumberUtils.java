@@ -9,39 +9,10 @@ import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Objects;
 
 final class RecordSourceBlockNumberUtils {
     private RecordSourceBlockNumberUtils() {}
-
-    static @Nullable Long sharedBlockNumber(@NonNull final List<RecordSource.IdentifiedReceipt> receipts) {
-        requireNonNull(receipts);
-        return sharedBlockNumberFrom(receipts.stream()
-                .map(identifiedReceipt -> identifiedReceipt.receipt().blockNumber())
-                .toList());
-    }
-
-    static @Nullable Long sharedBlockNumberFromRecords(@NonNull final List<TransactionRecord> records) {
-        requireNonNull(records);
-        return sharedBlockNumberFrom(records.stream()
-                .map(record -> record.receiptOrThrow().blockNumber())
-                .toList());
-    }
-
-    private static @Nullable Long sharedBlockNumberFrom(@NonNull final List<Long> blockNumbers) {
-        requireNonNull(blockNumbers);
-        if (blockNumbers.isEmpty()) {
-            return null;
-        }
-        final var first = blockNumbers.getFirst();
-        for (int i = 1, n = blockNumbers.size(); i < n; i++) {
-            if (!Objects.equals(first, blockNumbers.get(i))) {
-                return null;
-            }
-        }
-        return first;
-    }
 
     static @NonNull TransactionReceipt withBlockNumber(
             @NonNull final TransactionReceipt receipt, @Nullable final Long blockNumber) {

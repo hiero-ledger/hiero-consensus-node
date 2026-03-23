@@ -58,8 +58,8 @@ public record HandleOutput(
             @NonNull final ParentTxn parentTxn,
             @NonNull final ExchangeRateSet exchangeRates,
             @NonNull final StreamMode streamMode,
-            final long blockNumber,
-            @NonNull final HederaRecordCache recordCache) {
+            @NonNull final HederaRecordCache recordCache,
+            final long blockNumber) {
         requireNonNull(parentTxn);
         requireNonNull(exchangeRates);
         requireNonNull(streamMode);

@@ -306,27 +306,27 @@ public class NetworkAdminHandlerTestBase {
                 0,
                 primaryRecord.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(primaryRecord)));
+                new PartialRecordSource(List.of(primaryRecord), 1L));
         cache.addRecordSource(
                 1,
                 duplicate1.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate1)));
+                new PartialRecordSource(List.of(duplicate1), 1L));
         cache.addRecordSource(
                 2,
                 duplicate2.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate2)));
+                new PartialRecordSource(List.of(duplicate2), 1L));
         cache.addRecordSource(
                 3,
                 duplicate3.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate3)));
+                new PartialRecordSource(List.of(duplicate3), 1L));
         cache.addRecordSource(
                 0,
                 otherTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree)));
+                new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree), 1L));
     }
 
     protected MapReadableKVState<AccountID, Account> readableAccountState() {

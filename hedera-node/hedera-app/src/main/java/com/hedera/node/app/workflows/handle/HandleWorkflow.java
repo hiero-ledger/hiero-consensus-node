@@ -873,7 +873,7 @@ public class HandleWorkflow {
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
+                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
         } finally {
             this.inFlightDispatch = null;
         }
@@ -919,7 +919,7 @@ public class HandleWorkflow {
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
+                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
         }
     }
 

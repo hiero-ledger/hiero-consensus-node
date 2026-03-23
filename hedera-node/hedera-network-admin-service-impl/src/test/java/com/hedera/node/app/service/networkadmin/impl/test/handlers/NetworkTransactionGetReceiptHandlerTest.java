@@ -129,25 +129,27 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 topLevelId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(
-                        TransactionRecord.newBuilder()
-                                .transactionID(topLevelId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(CONTRACT_REVERT_EXECUTED)
-                                        .build())
-                                .build(),
-                        TransactionRecord.newBuilder()
-                                .transactionID(otherChildTxnId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(REVERTED_SUCCESS)
-                                        .build())
-                                .build(),
-                        TransactionRecord.newBuilder()
-                                .transactionID(targetChildTxnId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
-                                        .build())
-                                .build())));
+                new PartialRecordSource(
+                        List.of(
+                                TransactionRecord.newBuilder()
+                                        .transactionID(topLevelId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(CONTRACT_REVERT_EXECUTED)
+                                                .build())
+                                        .build(),
+                                TransactionRecord.newBuilder()
+                                        .transactionID(otherChildTxnId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(REVERTED_SUCCESS)
+                                                .build())
+                                        .build(),
+                                TransactionRecord.newBuilder()
+                                        .transactionID(targetChildTxnId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
+                                                .build())
+                                        .build()),
+                        1L));
 
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
@@ -177,25 +179,27 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 topLevelId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(
-                        TransactionRecord.newBuilder()
-                                .transactionID(topLevelId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(CONTRACT_REVERT_EXECUTED)
-                                        .build())
-                                .build(),
-                        TransactionRecord.newBuilder()
-                                .transactionID(otherChildTxnId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(REVERTED_SUCCESS)
-                                        .build())
-                                .build(),
-                        TransactionRecord.newBuilder()
-                                .transactionID(targetChildTxnId)
-                                .receipt(TransactionReceipt.newBuilder()
-                                        .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
-                                        .build())
-                                .build())));
+                new PartialRecordSource(
+                        List.of(
+                                TransactionRecord.newBuilder()
+                                        .transactionID(topLevelId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(CONTRACT_REVERT_EXECUTED)
+                                                .build())
+                                        .build(),
+                                TransactionRecord.newBuilder()
+                                        .transactionID(otherChildTxnId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(REVERTED_SUCCESS)
+                                                .build())
+                                        .build(),
+                                TransactionRecord.newBuilder()
+                                        .transactionID(targetChildTxnId)
+                                        .receipt(TransactionReceipt.newBuilder()
+                                                .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
+                                                .build())
+                                        .build()),
+                        1L));
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
         assertEquals(RECEIPT_NOT_FOUND, answer.headerOrThrow().nodeTransactionPrecheckCode());
@@ -283,7 +287,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 queriedTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(recordWithBlockNumber)));
+                new PartialRecordSource(List.of(recordWithBlockNumber), 1L));
 
         final var query = createGetTransactionReceiptQuery(queriedTxnId, false, false);
         when(context.query()).thenReturn(query);

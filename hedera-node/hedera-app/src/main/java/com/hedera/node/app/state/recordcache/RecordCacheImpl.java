@@ -161,14 +161,12 @@ public class RecordCacheImpl implements HederaRecordCache {
             if (recordSources.isEmpty()) {
                 return PENDING_RECEIPT;
             }
-            final var firstSource = recordSources.getFirst();
-            final var firstPriorityReceipt = firstSource.receiptOf(txnId);
+            final var firstPriorityReceipt = recordSources.getFirst().receiptOf(txnId);
             if (!NODE_FAILURES.contains(firstPriorityReceipt.status())) {
                 return firstPriorityReceipt;
             } else {
                 for (int i = 1, n = recordSources.size(); i < n; i++) {
-                    final var nextSource = recordSources.get(i);
-                    final var nextPriorityReceipt = nextSource.receiptOf(txnId);
+                    final var nextPriorityReceipt = recordSources.get(i).receiptOf(txnId);
                     if (!NODE_FAILURES.contains(nextPriorityReceipt.status())) {
                         return nextPriorityReceipt;
                     }
@@ -217,11 +215,11 @@ public class RecordCacheImpl implements HederaRecordCache {
             final List<TransactionRecord> duplicateRecords = new ArrayList<>();
             final List<TransactionRecord> childRecords = new ArrayList<>();
             for (final var recordSource : recordSources) {
-                recordSource.forEachTxnRecord(record -> {
-                    final var txnId = record.transactionIDOrThrow();
+                recordSource.forEachTxnRecord(txnRecord -> {
+                    final var txnId = txnRecord.transactionIDOrThrow();
                     if (matchesExceptNonce(txnId, userTxnId)) {
                         final var source = txnId.nonce() > 0 ? childRecords : duplicateRecords;
-                        source.add(record);
+                        source.add(txnRecord);
                     }
                 });
             }
@@ -279,7 +277,7 @@ public class RecordCacheImpl implements HederaRecordCache {
                 // These steps only make a partial transaction record available for answering queries, and are not
                 // of critical importance for the operation of the node
                 if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new PartialRecordSource());
+                    historySource.recordSources().add(new PartialRecordSource(null));
                 }
                 ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
                 payerTxnIds
@@ -300,8 +298,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             @NonNull final RecordSource recordSource) {
         requireNonNull(userTxnId);
         requireNonNull(recordSource);
-        final var identifiedReceipts = recordSource.identifiedReceipts();
-        for (final var identifiedReceipt : identifiedReceipts) {
+        for (final var identifiedReceipt : recordSource.identifiedReceipts()) {
             final var txnId = identifiedReceipt.txnId();
             final var status = identifiedReceipt.receipt().status();
             transactionReceipts.add(new TransactionReceiptEntry(

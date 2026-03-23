@@ -566,7 +566,7 @@ public class SystemTransactions {
             return;
         }
         final var systemContext =
-                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+                newSystemContext(now, state, t -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -999,10 +999,10 @@ public class SystemTransactions {
             }
 
             dispatch.stack().commitFullStack();
-            final var blockNumber = currentBlockNumber();
             final var handleOutput = parentTxn
                     .stack()
-                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+                    .buildHandleOutput(
+                            parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), currentBlockNumber());
             recordCache.addRecordSource(
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -1012,7 +1012,7 @@ public class SystemTransactions {
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(
-                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, currentBlockNumber(), recordCache);
+                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
         }
     }
 

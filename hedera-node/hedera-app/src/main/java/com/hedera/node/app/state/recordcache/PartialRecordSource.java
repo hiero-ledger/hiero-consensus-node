@@ -4,6 +4,7 @@ package com.hedera.node.app.state.recordcache;
 import static com.hedera.node.app.spi.records.RecordCache.isChild;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -28,26 +29,20 @@ public class PartialRecordSource implements RecordSource {
     private final List<TransactionRecord> precomputedRecords;
     private final List<IdentifiedReceipt> identifiedReceipts;
 
-    public PartialRecordSource() {
-        this((Long) null);
-    }
-
+    /**
+     * Creates a new {@link PartialRecordSource} with the given block number and no precomputed records.
+     *
+     * @param blockNumber the block number to associate with the records in this source, or null if not applicable
+     */
     public PartialRecordSource(@Nullable final Long blockNumber) {
         this.blockNumber = blockNumber;
         this.precomputedRecords = new ArrayList<>();
         this.identifiedReceipts = new ArrayList<>();
     }
 
-    public PartialRecordSource(@NonNull final TransactionRecord precomputedRecord) {
-        this(List.of(precomputedRecord));
-    }
-
+    @VisibleForTesting
     public PartialRecordSource(@NonNull final TransactionRecord precomputedRecord, @Nullable final Long blockNumber) {
         this(List.of(precomputedRecord), blockNumber);
-    }
-
-    public PartialRecordSource(@NonNull final List<TransactionRecord> precomputedRecords) {
-        this(precomputedRecords, RecordSourceBlockNumberUtils.sharedBlockNumberFromRecords(precomputedRecords));
     }
 
     public PartialRecordSource(

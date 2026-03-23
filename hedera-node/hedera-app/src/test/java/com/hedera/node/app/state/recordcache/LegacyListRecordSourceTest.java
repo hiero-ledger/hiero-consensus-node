@@ -42,7 +42,7 @@ class LegacyListRecordSourceTest {
             new RecordSource.IdentifiedReceipt(FIRST_RECORD.transactionIDOrThrow(), FIRST_RECORD.receiptOrThrow()),
             new RecordSource.IdentifiedReceipt(SECOND_RECORD.transactionIDOrThrow(), SECOND_RECORD.receiptOrThrow()));
 
-    private final LegacyListRecordSource subject = new LegacyListRecordSource(ITEMS, RECEIPTS);
+    private final LegacyListRecordSource subject = new LegacyListRecordSource(ITEMS, RECEIPTS, 1L);
 
     @Mock
     private Consumer<TransactionRecord> recordAction;

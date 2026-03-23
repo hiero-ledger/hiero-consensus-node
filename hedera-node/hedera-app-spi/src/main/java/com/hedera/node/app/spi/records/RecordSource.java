@@ -36,13 +36,6 @@ public interface RecordSource {
     }
 
     /**
-     * Returns the shared block number for records from this source, if one is known.
-     */
-    default @Nullable Long blockNumber() {
-        return null;
-    }
-
-    /**
      * Returns all identified receipts known to this source.
      * @return the receipts
      */
@@ -64,4 +57,11 @@ public interface RecordSource {
      * Returns all child receipts for the given transaction id.
      */
     List<TransactionReceipt> childReceiptsOf(@NonNull TransactionID txnId);
+
+    /**
+     * Returns the shared block number for records from this source, if one is known.
+     */
+    default @Nullable Long blockNumber() {
+        return null;
+    }
 }

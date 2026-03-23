@@ -284,7 +284,19 @@ public class TokenServiceSimpleFeesSuite {
                         .supplyKey(SUPPLY_KEY)
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS),
-                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                mintToken(
+                                NFT_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("Bart Simpson"),
+                                        ByteString.copyFromUtf8("Bart Simpson1"),
+                                        ByteString.copyFromUtf8("Bart Simpson11"),
+                                        ByteString.copyFromUtf8("Bart Simpson111"),
+                                        ByteString.copyFromUtf8("Bart Simpson1111"),
+                                        ByteString.copyFromUtf8("Bart Simpson2"),
+                                        ByteString.copyFromUtf8("Bart Simpson22"),
+                                        ByteString.copyFromUtf8("Bart Simpson222"),
+                                        ByteString.copyFromUtf8("Bart Simpson2222"),
+                                        ByteString.copyFromUtf8("Bart Simpson3")))
                         .payingWith(PAYER)
                         .signedBy(SUPPLY_KEY)
                         .blankMemo()
