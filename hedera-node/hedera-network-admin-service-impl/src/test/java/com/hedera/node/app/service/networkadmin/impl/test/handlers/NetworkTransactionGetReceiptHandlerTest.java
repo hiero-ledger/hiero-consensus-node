@@ -147,8 +147,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                                 .receipt(TransactionReceipt.newBuilder()
                                         .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
                                         .build())
-                                .build())),
-                null);
+                                .build())));
 
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
@@ -196,8 +195,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                                 .receipt(TransactionReceipt.newBuilder()
                                         .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
                                         .build())
-                                .build())),
-                null);
+                                .build())));
         final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
         final var answer = response.transactionGetReceiptOrThrow();
         assertEquals(RECEIPT_NOT_FOUND, answer.headerOrThrow().nodeTransactionPrecheckCode());
@@ -285,8 +283,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 queriedTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(recordWithBlockNumber)),
-                blockNumber);
+                new PartialRecordSource(List.of(recordWithBlockNumber)));
 
         final var query = createGetTransactionReceiptQuery(queriedTxnId, false, false);
         when(context.query()).thenReturn(query);

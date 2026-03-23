@@ -147,11 +147,10 @@ public class RecordCacheImpl implements HederaRecordCache {
      * </ol>
      *
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
-     * @param recordSources The sources of records for the relevant base {@link TransactionID}, along with the block
-     * number to overlay on their records and receipts
+     * @param recordSources The sources of records for the relevant base {@link TransactionID}
      */
-    private record HistorySource(
-            @NonNull Set<Long> nodeIds, @NonNull List<HistoryRecordSource> recordSources) implements ReceiptSource {
+    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
+            implements ReceiptSource {
         public HistorySource() {
             this(new HashSet<>(), new ArrayList<>());
         }
@@ -163,15 +162,13 @@ public class RecordCacheImpl implements HederaRecordCache {
                 return PENDING_RECEIPT;
             }
             final var firstSource = recordSources.getFirst();
-            final var firstPriorityReceipt =
-                    withBlockNumber(firstSource.source().receiptOf(txnId), firstSource.blockNumber());
+            final var firstPriorityReceipt = firstSource.receiptOf(txnId);
             if (!NODE_FAILURES.contains(firstPriorityReceipt.status())) {
                 return firstPriorityReceipt;
             } else {
                 for (int i = 1, n = recordSources.size(); i < n; i++) {
                     final var nextSource = recordSources.get(i);
-                    final var nextPriorityReceipt =
-                            withBlockNumber(nextSource.source().receiptOf(txnId), nextSource.blockNumber());
+                    final var nextPriorityReceipt = nextSource.receiptOf(txnId);
                     if (!NODE_FAILURES.contains(nextPriorityReceipt.status())) {
                         return nextPriorityReceipt;
                     }
@@ -185,7 +182,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             requireNonNull(txnId);
             for (final var source : recordSources) {
                 try {
-                    return withBlockNumber(source.source().receiptOf(txnId), source.blockNumber());
+                    return source.receiptOf(txnId);
                 } catch (IllegalArgumentException ignore) {
                 }
             }
@@ -196,8 +193,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         public @NonNull List<TransactionReceipt> duplicateReceipts(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
             final List<TransactionReceipt> receipts = new ArrayList<>();
-            recordSources.forEach(
-                    source -> receipts.add(withBlockNumber(source.source().receiptOf(txnId), source.blockNumber())));
+            recordSources.forEach(source -> receipts.add(source.receiptOf(txnId)));
             receipts.remove(priorityReceipt(txnId));
             return receipts;
         }
@@ -206,9 +202,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         public @NonNull List<TransactionReceipt> childReceipts(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
             final List<TransactionReceipt> receipts = new ArrayList<>();
-            recordSources.forEach(source -> receipts.addAll(source.source().childReceiptsOf(txnId).stream()
-                    .map(receipt -> withBlockNumber(receipt, source.blockNumber()))
-                    .toList()));
+            recordSources.forEach(source -> receipts.addAll(source.childReceiptsOf(txnId)));
             return receipts;
         }
 
@@ -223,22 +217,15 @@ public class RecordCacheImpl implements HederaRecordCache {
             final List<TransactionRecord> duplicateRecords = new ArrayList<>();
             final List<TransactionRecord> childRecords = new ArrayList<>();
             for (final var recordSource : recordSources) {
-                recordSource.source().forEachTxnRecord(record -> {
+                recordSource.forEachTxnRecord(record -> {
                     final var txnId = record.transactionIDOrThrow();
                     if (matchesExceptNonce(txnId, userTxnId)) {
                         final var source = txnId.nonce() > 0 ? childRecords : duplicateRecords;
-                        source.add(withBlockNumber(record, recordSource.blockNumber()));
+                        source.add(record);
                     }
                 });
             }
             return new History(nodeIds, duplicateRecords, childRecords);
-        }
-    }
-
-    private record HistoryRecordSource(
-            @NonNull RecordSource source, @Nullable Long blockNumber) {
-        private HistoryRecordSource {
-            requireNonNull(source);
         }
     }
 
@@ -292,10 +279,9 @@ public class RecordCacheImpl implements HederaRecordCache {
                 // These steps only make a partial transaction record available for answering queries, and are not
                 // of critical importance for the operation of the node
                 if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new HistoryRecordSource(new PartialRecordSource(), null));
+                    historySource.recordSources().add(new PartialRecordSource());
                 }
-                ((PartialRecordSource) historySource.recordSources.getFirst().source())
-                        .incorporate(asTxnRecord(receipt));
+                ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
                 payerTxnIds
                         .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
                         .add(txnId);
@@ -311,16 +297,10 @@ public class RecordCacheImpl implements HederaRecordCache {
             final long nodeId,
             @NonNull final TransactionID userTxnId,
             @NonNull final DueDiligenceFailure dueDiligenceFailure,
-            @NonNull final RecordSource recordSource,
-            @Nullable final Long blockNumber) {
+            @NonNull final RecordSource recordSource) {
         requireNonNull(userTxnId);
         requireNonNull(recordSource);
-        final var historyRecordSource = new HistoryRecordSource(recordSource, blockNumber);
-        final var identifiedReceipts = historyRecordSource.source().identifiedReceipts().stream()
-                .map(identifiedReceipt -> new RecordSource.IdentifiedReceipt(
-                        identifiedReceipt.txnId(),
-                        withBlockNumber(identifiedReceipt.receipt(), historyRecordSource.blockNumber())))
-                .toList();
+        final var identifiedReceipts = recordSource.identifiedReceipts();
         for (final var identifiedReceipt : identifiedReceipts) {
             final var txnId = identifiedReceipt.txnId();
             final var status = identifiedReceipt.receipt().status();
@@ -336,8 +316,8 @@ public class RecordCacheImpl implements HederaRecordCache {
             // Only add each record source once per history; since very few record sources contain more than one
             // transaction id, and few transaction ids have duplicates, this is almost always an existence check
             // in an empty list
-            if (!historySource.recordSources().contains(historyRecordSource)) {
-                historySource.recordSources.add(historyRecordSource);
+            if (!historySource.recordSources().contains(recordSource)) {
+                historySource.recordSources.add(recordSource);
             }
             final AccountID effectivePayerId;
             if (dueDiligenceFailure == DueDiligenceFailure.YES && matchesExceptNonce(txnId, userTxnId)) {
@@ -563,37 +543,4 @@ public class RecordCacheImpl implements HederaRecordCache {
                 .build();
     }
 
-    /**
-     * Utility method that overlays a block number on a receipt or record if it is not already present, or if it is
-     * present but different from the given block number. This is used to ensure that all records and receipts for a
-     * given transaction ID have the same block number, which is important for answering queries in a consistent way.
-     */
-    private static @NonNull TransactionReceipt withBlockNumber(
-            @NonNull final TransactionReceipt receipt, @Nullable final Long blockNumber) {
-        requireNonNull(receipt);
-        final var currentBlockNumber = receipt.blockNumber();
-        if (blockNumber == null || (currentBlockNumber != null && currentBlockNumber.equals(blockNumber))) {
-            return receipt;
-        }
-        return receipt.copyBuilder().blockNumber(blockNumber).build();
-    }
-
-    /**
-     * Utility method that overlays a block number on the receipt of a record if it is not already present, or if it is
-     * present but different from the given block number. This is used to ensure that all records and receipts for a
-     * given transaction ID have the same block number, which is important for answering queries in a consistent way.
-     */
-    private static @NonNull TransactionRecord withBlockNumber(
-            @NonNull final TransactionRecord record, @Nullable final Long blockNumber) {
-        requireNonNull(record);
-        final var receipt = record.receipt();
-        if (receipt == null) {
-            return record;
-        }
-        final var blockNumberedReceipt = withBlockNumber(receipt, blockNumber);
-        if (blockNumberedReceipt == receipt) {
-            return record;
-        }
-        return record.copyBuilder().receipt(blockNumberedReceipt).build();
-    }
 }

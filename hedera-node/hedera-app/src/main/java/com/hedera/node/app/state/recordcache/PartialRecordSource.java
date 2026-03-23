@@ -11,6 +11,7 @@ import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -21,10 +22,17 @@ import java.util.function.Consumer;
  * reconnect or restart.
  */
 public class PartialRecordSource implements RecordSource {
+    @Nullable
+    private final Long blockNumber;
     private final List<TransactionRecord> precomputedRecords;
     private final List<IdentifiedReceipt> identifiedReceipts;
 
     public PartialRecordSource() {
+        this((Long) null);
+    }
+
+    public PartialRecordSource(@Nullable final Long blockNumber) {
+        this.blockNumber = blockNumber;
         this.precomputedRecords = new ArrayList<>();
         this.identifiedReceipts = new ArrayList<>();
     }
@@ -33,19 +41,33 @@ public class PartialRecordSource implements RecordSource {
         this(List.of(precomputedRecord));
     }
 
+    public PartialRecordSource(@NonNull final TransactionRecord precomputedRecord, @Nullable final Long blockNumber) {
+        this(List.of(precomputedRecord), blockNumber);
+    }
+
     public PartialRecordSource(@NonNull final List<TransactionRecord> precomputedRecords) {
+        this(precomputedRecords, RecordSourceBlockNumberUtils.sharedBlockNumberFromRecords(precomputedRecords));
+    }
+
+    public PartialRecordSource(@NonNull final List<TransactionRecord> precomputedRecords, @Nullable final Long blockNumber) {
         requireNonNull(precomputedRecords);
-        this.precomputedRecords = requireNonNull(precomputedRecords);
-        identifiedReceipts = new ArrayList<>();
-        for (final var precomputed : precomputedRecords) {
-            identifiedReceipts.add(
-                    new IdentifiedReceipt(precomputed.transactionIDOrThrow(), precomputed.receiptOrThrow()));
-        }
+        this.blockNumber = blockNumber;
+        this.precomputedRecords = new ArrayList<>(precomputedRecords.size());
+        identifiedReceipts = new ArrayList<>(precomputedRecords.size());
+        precomputedRecords.forEach(this::incorporate);
     }
 
     public void incorporate(@NonNull final TransactionRecord precomputedRecord) {
         requireNonNull(precomputedRecord);
-        precomputedRecords.add(precomputedRecord);
+        final var blockNumberedRecord = RecordSourceBlockNumberUtils.withBlockNumber(precomputedRecord, blockNumber);
+        precomputedRecords.add(blockNumberedRecord);
+        identifiedReceipts.add(
+                new IdentifiedReceipt(blockNumberedRecord.transactionIDOrThrow(), blockNumberedRecord.receiptOrThrow()));
+    }
+
+    @Override
+    public @Nullable Long blockNumber() {
+        return blockNumber;
     }
 
     @Override

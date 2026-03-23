@@ -505,6 +505,21 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public HandleOutput buildHandleOutput(
             @NonNull final Instant consensusTime, @NonNull final ExchangeRateSet exchangeRates) {
+        return buildHandleOutput(consensusTime, exchangeRates, null);
+    }
+
+    /**
+     * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction.
+     *
+     * @param consensusTime consensus time of the transaction
+     * @param exchangeRates the active exchange rates
+     * @param blockNumber the block number for the produced records, if known
+     * @return the source of records and/or blocks for the transaction
+     */
+    public HandleOutput buildHandleOutput(
+            @NonNull final Instant consensusTime,
+            @NonNull final ExchangeRateSet exchangeRates,
+            @Nullable final Long blockNumber) {
         final List<BlockStreamBuilder.Output> outputs = streamMode != RECORDS ? new LinkedList<>() : null;
         final List<SingleTransactionRecord> records = streamMode != BLOCKS ? new ArrayList<>() : null;
         final List<RecordSource.IdentifiedReceipt> receipts = streamMode != BLOCKS ? new ArrayList<>() : null;
@@ -607,9 +622,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
         BlockRecordSource blockRecordSource = null;
         if (streamMode != RECORDS) {
-            blockRecordSource = new BlockRecordSource(outputs);
+            blockRecordSource = new BlockRecordSource(outputs, blockNumber);
         }
-        final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
+        final var recordSource =
+                streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts, blockNumber) : null;
         return new HandleOutput(blockRecordSource, recordSource, lastAssignedConsenusTime);
     }
 

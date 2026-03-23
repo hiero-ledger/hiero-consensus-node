@@ -12,6 +12,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -21,8 +22,27 @@ import java.util.function.Consumer;
  * {@link SingleTransactionRecord} objects are already constructed for streaming.
  */
 public record LegacyListRecordSource(
-        @NonNull List<SingleTransactionRecord> precomputedRecords, @NonNull List<IdentifiedReceipt> identifiedReceipts)
+        @NonNull List<SingleTransactionRecord> precomputedRecords,
+        @NonNull List<IdentifiedReceipt> identifiedReceipts,
+        @Nullable Long blockNumber)
         implements RecordSource {
+
+    public LegacyListRecordSource(
+            @NonNull final List<SingleTransactionRecord> precomputedRecords,
+            @NonNull final List<IdentifiedReceipt> identifiedReceipts) {
+        this(precomputedRecords, identifiedReceipts, RecordSourceBlockNumberUtils.sharedBlockNumber(identifiedReceipts));
+    }
+
+    public LegacyListRecordSource {
+        requireNonNull(precomputedRecords);
+        requireNonNull(identifiedReceipts);
+        precomputedRecords = precomputedRecords.stream()
+                .map(record -> RecordSourceBlockNumberUtils.withBlockNumber(record, blockNumber))
+                .toList();
+        identifiedReceipts = identifiedReceipts.stream()
+                .map(identifiedReceipt -> RecordSourceBlockNumberUtils.withBlockNumber(identifiedReceipt, blockNumber))
+                .toList();
+    }
 
     @Override
     public @NonNull List<SingleTransactionRecord> precomputedRecords() {

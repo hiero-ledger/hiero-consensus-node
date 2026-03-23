@@ -79,7 +79,8 @@ public record HandleOutput(
                     List.of(failInvalidRecord),
                     List.of(new RecordSource.IdentifiedReceipt(
                             failInvalidRecord.transactionRecord().transactionIDOrThrow(),
-                            failInvalidRecord.transactionRecord().receiptOrThrow())));
+                            failInvalidRecord.transactionRecord().receiptOrThrow())),
+                    blockNumber);
         } else {
             recordSource = null;
         }
@@ -91,7 +92,7 @@ public record HandleOutput(
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
             outputs.add(failInvalidBuilder.build(true, null));
-            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
+            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs, blockNumber);
         } else {
             blockRecordSource = null;
         }
@@ -100,8 +101,7 @@ public record HandleOutput(
                 parentTxn.creatorInfo().nodeId(),
                 requireNonNull(parentTxn.txnInfo().transactionID()),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                requireNonNull(cacheableRecordSource),
-                blockNumber);
+                requireNonNull(cacheableRecordSource));
         return new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
     }
 

@@ -11,7 +11,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hederahashgraph.api.proto.java.TransactionReceiptEntries;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 
 /**
@@ -48,14 +47,12 @@ public interface HederaRecordCache extends RecordCache {
      * @param userTxnId the id of the user transaction
      * @param dueDiligenceFailure whether the node failed due diligence
      * @param recordSource the source of records for the transactions
-     * @param blockNumber the block number to associate with the record source, if known
      */
     void addRecordSource(
             long nodeId,
             @NonNull TransactionID userTxnId,
             @NonNull DueDiligenceFailure dueDiligenceFailure,
-            @NonNull RecordSource recordSource,
-            @Nullable Long blockNumber);
+            @NonNull RecordSource recordSource);
 
     /**
      * Checks if the given transaction ID has been seen by this node. If it has not, the result is

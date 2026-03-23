@@ -84,7 +84,7 @@ class BlockRecordSourceTest {
 
     @Test
     void hasDefaultBlockItemTranslator() {
-        assertDoesNotThrow(() -> new BlockRecordSource(List.of()));
+        assertDoesNotThrow(() -> new BlockRecordSource(List.of(), 1L));
     }
 
     @Test
@@ -183,6 +183,6 @@ class BlockRecordSourceTest {
     }
 
     private void subjectWith(@NonNull final List<BlockStreamBuilder.Output> outputs) {
-        subject = new BlockRecordSource(recordTranslator, outputs);
+        subject = new BlockRecordSource(recordTranslator, outputs, 1L);
     }
 }

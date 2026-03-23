@@ -8,6 +8,7 @@ import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.spi.workflows.HandleContext.SavepointStack;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -31,6 +32,13 @@ public interface RecordSource {
             requireNonNull(txnId);
             requireNonNull(receipt);
         }
+    }
+
+    /**
+     * Returns the shared block number for records from this source, if one is known.
+     */
+    default @Nullable Long blockNumber() {
+        return null;
     }
 
     /**
