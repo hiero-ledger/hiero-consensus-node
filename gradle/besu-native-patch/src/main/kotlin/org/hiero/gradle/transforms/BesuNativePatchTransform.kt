@@ -20,6 +20,12 @@ abstract class BesuNativePatchTransform : TransformAction<TransformParameters.No
         // Modified loader, see: https://github.com/hyperledger/besu-native/pull/290
         const val BESU_NATIVE_LIBRARY_LOADER_CLASS =
             "org/hyperledger/besu/nativelib/common/BesuNativeLibraryLoader.class"
+
+        // Log4j2 plugin cache file - should be excluded from besu-util to avoid duplicates
+        // with log4j-core when creating shadow JARs
+        const val LOG4J_PLUGINS_DAT =
+            "META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat"
+
         // See modules in: https://github.com/hyperledger/besu-native
         val BESU_NATIVE_JARS =
             listOf(
@@ -33,6 +39,9 @@ abstract class BesuNativePatchTransform : TransformAction<TransformParameters.No
                 "secp256k1",
                 "secp256r1",
             )
+
+        // JARs that need Log4j2Plugins.dat filtered out to avoid shadow JAR conflicts
+        val BESU_JARS_WITH_LOG4J_FILTER = listOf("besu-util")
     }
 
     @get:InputArtifact
@@ -43,13 +52,16 @@ abstract class BesuNativePatchTransform : TransformAction<TransformParameters.No
         val originalJar = inputArtifact.get().asFile
         if (BESU_NATIVE_JARS.any { originalJar.name.startsWith("$it-") }) {
             val patchedJar = outputs.file("${originalJar.nameWithoutExtension}-besu.jar")
-            patch(originalJar, patchedJar)
+            patch(originalJar, patchedJar, filterLog4jPlugins = false)
+        } else if (BESU_JARS_WITH_LOG4J_FILTER.any { originalJar.name.startsWith("$it-") }) {
+            val patchedJar = outputs.file("${originalJar.nameWithoutExtension}-filtered.jar")
+            patch(originalJar, patchedJar, filterLog4jPlugins = true)
         } else {
             outputs.file(originalJar)
         }
     }
 
-    fun patch(besuJar: File, patchedJar: File) {
+    fun patch(besuJar: File, patchedJar: File, filterLog4jPlugins: Boolean = false) {
         patchedJar.createNewFile()
         JarOutputStream(patchedJar.outputStream()).use { outJar ->
             JarInputStream(besuJar.inputStream()).use { inJar ->
@@ -65,6 +77,12 @@ abstract class BesuNativePatchTransform : TransformAction<TransformParameters.No
                 while (jarEntry != null) {
                     val name = jarEntry.name
                     var content = inJar.readBytes()
+
+                    // Skip Log4j2Plugins.dat if filtering is enabled
+                    if (filterLog4jPlugins && name == LOG4J_PLUGINS_DAT) {
+                        jarEntry = inJar.nextJarEntry
+                        continue
+                    }
 
                     if (name.startsWith("lib/")) {
                         // All native lib files are moved from 'lib' to 'lib-native'
