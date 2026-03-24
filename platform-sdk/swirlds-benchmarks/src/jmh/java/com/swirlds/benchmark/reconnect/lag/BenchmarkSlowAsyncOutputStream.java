@@ -5,7 +5,6 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
-import java.util.function.Supplier;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -25,14 +24,13 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
     public BenchmarkSlowAsyncOutputStream(
             final SerializableDataOutputStream out,
             final StandardWorkGroup workGroup,
-            final Supplier<Boolean> alive,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
             final ReconnectConfig reconnectConfig) {
-        super(out, workGroup, alive, reconnectConfig);
+        super(out, workGroup, reconnectConfig);
 
         // Note that we use randomSeed and -randomSeed for the two fuzzers
         // to ensure that they don't end up returning the exact same

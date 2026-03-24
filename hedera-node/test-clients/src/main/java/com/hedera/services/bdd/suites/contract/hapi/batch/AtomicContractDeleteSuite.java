@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -202,7 +201,6 @@ class AtomicContractDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteWorksWithMutableContract() {
         final var tbdFile = "FTBD";
         final var tbdContract = "CTBD";
@@ -258,7 +256,6 @@ class AtomicContractDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteTransfersToContract() {
         final var suffix = "Receiver";
 

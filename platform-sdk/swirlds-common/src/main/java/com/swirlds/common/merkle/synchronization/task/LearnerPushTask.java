@@ -155,6 +155,7 @@ public class LearnerPushTask {
      */
     private void run() {
         boolean firstLesson = true;
+        boolean receivingLeaves = false;
 
         final Supplier<Lesson> messageFactory = () -> new Lesson(view);
         try {
@@ -181,6 +182,17 @@ public class LearnerPushTask {
                     final List<Hash> queries = lesson.getQueries();
                     handleQueries(view, out, queries, expectedLesson.getOriginalNode(), newChild);
                 }
+                final boolean isLeaf = !view.isInternal(newChild, false);
+                if (isLeaf) {
+                    if (!receivingLeaves) {
+                        // The teacher started sending leaves. No more internals will be sent. No
+                        // more responses from learner are expected. Time to close the async out
+                        out.done();
+                        receivingLeaves = true;
+                    }
+                } else {
+                    assert !receivingLeaves;
+                }
             }
 
             completeListener.run();
@@ -190,6 +202,12 @@ public class LearnerPushTask {
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
             workGroup.handleError(ex);
+        } finally {
+            // In some cases, e.g. empty tree or equivalent trees, the teacher may not send any lessons
+            // with child hashes. In this case, the async out is not closed after the loop. Close it here
+            if (!receivingLeaves) {
+                out.done();
+            }
         }
 
         logger.info(RECONNECT.getMarker(), "Learner thread closed the view");

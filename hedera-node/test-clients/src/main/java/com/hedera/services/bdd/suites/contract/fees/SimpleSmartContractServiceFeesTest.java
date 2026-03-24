@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -36,9 +38,12 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_DELETE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ETHEREUM_CALL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_NEGATIVE_VALUE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -57,11 +62,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class SimpleSmartContractServiceFeesTest {
     static final double EXPECTED_GAS_USED = 0.00184;
+    static final double ABORTED_CONTRACT_CALL_GAS_ONLY_FEE = 21_000 * GAS_FEE_USD;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
@@ -127,6 +132,44 @@ public class SimpleSmartContractServiceFeesTest {
     }
 
     @HapiTest
+    @DisplayName("ContractCall aborted before EVM still charges intrinsic gas under simple fees")
+    final Stream<DynamicTest> failedContractCallBeforeEvmChargesIntrinsicGas() {
+        final var failedCall = "failedNegativeValueContractCall";
+
+        return hapiTest(
+                contractCall(contract.name())
+                        .payingWith(civilian.name())
+                        .gas(100_000L)
+                        .sending(-1L)
+                        .via(failedCall)
+                        .hasKnownStatus(CONTRACT_NEGATIVE_VALUE),
+                getTxnRecord(failedCall)
+                        .hasPriority(recordWith()
+                                .status(CONTRACT_NEGATIVE_VALUE)
+                                .contractCallResult(resultWith().gasUsed(0L))),
+                validateChargedUsd(failedCall, ABORTED_CONTRACT_CALL_GAS_ONLY_FEE, 0.1));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas"})
+    @DisplayName("ContractCall with too much gas fails before EVM but still charges intrinsic gas")
+    final Stream<DynamicTest> failedContractCallWithTooMuchGasStillChargesIntrinsicGas() {
+        final var failedCall = "failedMaxGasLimitContractCall";
+
+        return hapiTest(
+                overriding("contracts.throttle.throttleByGas", "false"),
+                contractCall(contract.name())
+                        .payingWith(GENESIS)
+                        .gas(Long.MAX_VALUE)
+                        .via(failedCall)
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                getTxnRecord(failedCall)
+                        .hasPriority(recordWith()
+                                .status(MAX_GAS_LIMIT_EXCEEDED)
+                                .contractCallResult(resultWith().gasUsed(0L))),
+                validateChargedUsd(failedCall, ABORTED_CONTRACT_CALL_GAS_ONLY_FEE, 0.1));
+    }
+
+    @HapiTest
     @DisplayName("ContractCallLocal query node payment scales with gas")
     final Stream<DynamicTest> contractCallLocalPaymentScalesWithGas() {
         final var lowGasQuery = "contractLocalLowGas";
@@ -182,10 +225,12 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith(relayer.name())
                         .nonce(0)
                         .via("ethCall"),
-                // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account;
+                // extra sig fee accounts for signatures above NODE_INCLUDED_SIGNATURES
+                validateChargedUsdWithin(
+                        "ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                 validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")

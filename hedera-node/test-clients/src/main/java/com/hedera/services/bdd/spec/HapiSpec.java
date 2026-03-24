@@ -1377,6 +1377,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
         Optional.ofNullable(TEST_LIFECYCLE.get())
                 .map(TestLifecycle::getSharedStates)
+                .map(List::copyOf)
                 .ifPresent(spec::setSharedStates);
         spec.throttleResource = THROTTLES_OVERRIDE.get();
         spec.feeResource = FEES_OVERRIDE.get();

@@ -4,7 +4,7 @@
 
 ### Minimum Requirements
 
-- **Adoptium OpenJDK 17**
+- **Adoptium OpenJDK 25**
   - Available from
     [https://adoptium.net/temurin/releases/](https://adoptium.net/temurin/releases/)
 

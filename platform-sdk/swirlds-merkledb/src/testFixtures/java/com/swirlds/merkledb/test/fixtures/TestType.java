@@ -14,7 +14,6 @@ import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbStatistics;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -143,15 +142,15 @@ public enum TestType {
         }
 
         public MerkleDbDataSource createDataSource(
+                final Configuration configuration,
                 final Path dbPath,
                 final String name,
                 final int size,
-                final long hashesRamToDiskThreshold,
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            MerkleDbDataSource dataSource = new MerkleDbDataSource(
-                    dbPath, CONFIGURATION, name, size, hashesRamToDiskThreshold, enableMerging, preferDiskBasedIndexes);
+            MerkleDbDataSource dataSource =
+                    new MerkleDbDataSource(dbPath, configuration, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }
@@ -159,10 +158,6 @@ public enum TestType {
         public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
                 throws IOException {
             return new MerkleDbDataSource(dbPath, CONFIGURATION, name, enableMerging, false);
-        }
-
-        public VirtualHashRecord createVirtualInternalRecord(final int i) {
-            return new VirtualHashRecord(i, MerkleDbTestUtils.hash(i));
         }
 
         @SuppressWarnings("rawtypes")

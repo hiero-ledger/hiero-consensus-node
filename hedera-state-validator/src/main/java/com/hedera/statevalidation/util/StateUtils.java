@@ -195,7 +195,7 @@ public final class StateUtils {
             // The mutable state is already available via the stateLifecycleManager after readState()
             final VirtualMapState state = stateLifecycleManager.getMutableState();
             states.put(key, state);
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key), () -> {
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                 throw new UnsupportedOperationException("No startup networks available");
             }));
             initServiceMigrator(state, platformContext, serviceRegistry);
@@ -273,7 +273,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())

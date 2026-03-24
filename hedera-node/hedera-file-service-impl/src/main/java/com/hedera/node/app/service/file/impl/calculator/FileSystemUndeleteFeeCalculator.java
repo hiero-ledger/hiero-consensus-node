@@ -19,6 +19,8 @@ public class FileSystemUndeleteFeeCalculator implements ServiceFeeCalculator {
             @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
+        // SystemUndelete is a privileged operation; we clear the node and network fee
+        // previously set by SimpleFeeCalculatorImpl, and baseFee is 0 with no extras.
         feeResult.clearFees();
     }
 
