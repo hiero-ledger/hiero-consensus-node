@@ -96,6 +96,12 @@ Options:
                     3 => node1,node2,node3
                     4 => node1,node2,node3,node4
                     If omitted, NODE_ALIASES env var (or default node1,node2,node3,node4) is used.
+
+Environment:
+  BLOCK_NODE_REPO_PATH      Path to hiero-block-node checkout (default: ../hiero-block-node)
+  USE_BLOCK_NODE_JUMPSTART  true|false (default: true)
+  BLOCKS_WRAP_EXTRA_ARGS    Extra args appended to `blocks wrap ...`
+  JUMPSTART_BIN_PATH        Optional explicit jumpstart.bin path (if tool writes elsewhere)
 EOF
       exit 0
       ;;
@@ -167,11 +173,18 @@ ALLOW_GRAFANA_PORT_FORWARD_FAILURE="${ALLOW_GRAFANA_PORT_FORWARD_FAILURE:-true}"
 
 # Downloaded record stream objects from Solo MinIO (Step 5), next to this script.
 RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${SCRIPT_DIR}/recordStreams}"
+WRAPPED_BLOCKS_DIR="${WRAPPED_BLOCKS_DIR:-${SCRIPT_DIR}/wrappedBlocks}"
 MINIO_LOCAL_PORT="${MINIO_LOCAL_PORT:-19000}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 # Optional overrides if auto-discovery fails (service name in MINIO_NAMESPACE).
 MINIO_SERVICE_NAME="${MINIO_SERVICE_NAME:-}"
+
+# Block Node offline wrapping tool configuration (Step 5 jumpstart generation).
+USE_BLOCK_NODE_JUMPSTART="${USE_BLOCK_NODE_JUMPSTART:-true}"
+BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
+BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
+JUMPSTART_BIN_PATH="${JUMPSTART_BIN_PATH:-}"
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -179,10 +192,23 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 FILE_121_JUMPSTART_SCRIPT="${WORK_DIR}/file-121-jumpstart-update.js"
+JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
+BLOCK_NODE_WRAP_LOG="${WORK_DIR}/block-node-wrap.log"
+MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
+WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
+MINIO_DOWNLOAD_LOG="${WORK_DIR}/minio-download.log"
 APP_PROPS_073_EFFECTIVE_FILE="${WORK_DIR}/application-0.73.effective.properties"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
+BLOCK_TIMES_FILE="${WORK_DIR}/block_times.bin"
+DAY_BLOCKS_FILE="${WORK_DIR}/day_blocks.json"
+MIRROR_METADATA_SCRIPT="${WORK_DIR}/generate-mirror-metadata.js"
+WRAP_DAYS_SRC_DIR="${WORK_DIR}/recordDays"
+WRAP_COMPRESSED_DAYS_DIR="${WORK_DIR}/compressedDays"
+ZSTD_WRAPPER_DIR="${WORK_DIR}/zstd-wrapper"
+ZSTD_WRAPPER_SRC="${ZSTD_WRAPPER_DIR}/ZstdCat.java"
+ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
@@ -246,6 +272,78 @@ require_cmd() {
   command -v "${cmd}" >/dev/null 2>&1 || { echo "Required command not found: ${cmd}" >&2; exit 1; }
 }
 
+ensure_zstd_command_for_block_node() {
+  local zstd_jar
+  if command -v zstd >/dev/null 2>&1; then
+    log "Using system zstd: $(command -v zstd)"
+    return 0
+  fi
+
+  require_cmd java
+
+  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)"
+  if [[ -z "${zstd_jar}" || ! -f "${zstd_jar}" ]]; then
+    echo "zstd command not found and zstd-jni jar was not found in ~/.gradle cache." >&2
+    echo "Install zstd (for example: brew install zstd) or run one block-node tools task once to download zstd-jni, then retry." >&2
+    return 1
+  fi
+
+  mkdir -p "${ZSTD_WRAPPER_DIR}"
+  cat > "${ZSTD_WRAPPER_SRC}" <<'EOF'
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import com.github.luben.zstd.ZstdInputStream;
+
+public class ZstdCat {
+  public static void main(String[] args) throws Exception {
+    if (args.length < 1) {
+      System.err.println("Usage: ZstdCat <input.zstd>");
+      System.exit(2);
+    }
+    try (InputStream in = new BufferedInputStream(new FileInputStream(args[0]));
+         ZstdInputStream zin = new ZstdInputStream(in);
+         OutputStream out = new BufferedOutputStream(System.out)) {
+      zin.transferTo(out);
+      out.flush();
+    }
+  }
+}
+EOF
+
+  cat > "${ZSTD_WRAPPER_BIN}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+input=""
+for arg in "$@"; do
+  case "$arg" in
+    --decompress|-d|--stdout|-c) ;;
+    -T*|--threads=*) ;;
+    --) ;;
+    -*) ;;
+    *) input="$arg" ;;
+  esac
+done
+if [[ -z "${input}" ]]; then
+  echo "zstd wrapper error: missing input file argument" >&2
+  exit 2
+fi
+if [[ -z "${ZSTD_JNI_JAR:-}" || -z "${ZSTD_WRAPPER_SRC:-}" ]]; then
+  echo "zstd wrapper error: ZSTD_JNI_JAR or ZSTD_WRAPPER_SRC is not set" >&2
+  exit 2
+fi
+exec java --class-path "${ZSTD_JNI_JAR}" "${ZSTD_WRAPPER_SRC}" "${input}"
+EOF
+  chmod +x "${ZSTD_WRAPPER_BIN}"
+
+  export ZSTD_JNI_JAR="${zstd_jar}"
+  export ZSTD_WRAPPER_SRC
+  export PATH="${ZSTD_WRAPPER_DIR}:${PATH}"
+  log "zstd command not found; using Java zstd wrapper via zstd-jni (${zstd_jar})"
+}
+
 validate_local_build_path() {
   local build_path="$1"
   [[ -d "${build_path}/lib" ]] || { echo "Missing directory: ${build_path}/lib" >&2; return 1; }
@@ -273,6 +371,24 @@ cleanup_stale_port_forwards() {
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/mirror-1-rest .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/kube-prometheus-stack-grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
+}
+
+cleanup_record_stream_files_only() {
+  local removed=0
+  mkdir -p "${RECORD_STREAMS_DIR}"
+  if [[ -d "${RECORD_STREAMS_DIR}" ]]; then
+    removed="$(find "${RECORD_STREAMS_DIR}" \
+      -type f \
+      -path "${RECORD_STREAMS_DIR}/record0.0.*/*" \
+      \( -name "*.rcd" -o -name "*.rcd.gz" -o -name "*.rcd_sig" -o -name "*.rcs_sig" \) \
+      -print | wc -l | tr -d ' ')"
+    find "${RECORD_STREAMS_DIR}" \
+      -type f \
+      -path "${RECORD_STREAMS_DIR}/record0.0.*/*" \
+      \( -name "*.rcd" -o -name "*.rcd.gz" -o -name "*.rcd_sig" -o -name "*.rcs_sig" \) \
+      -delete || true
+  fi
+  log "Cleaned ${removed} record file(s) under ${RECORD_STREAMS_DIR}/record0.0.*"
 }
 
 wait_for_consensus_pods_ready() {
@@ -421,11 +537,22 @@ download_solo_record_streams_via_pod_mc() {
   local names_file="$1"
   local svc="$2"
   local svc_port="$3"
-  local pod endpoint creds_tmp all_objects basename_index creds_file
-  local u p selected_u selected_p fname remote subpath dest
+  local pod endpoint creds_tmp all_objects creds_file
+  local wanted_timestamps selected_objects
+  local u p selected_u selected_p remote subpath dest
   local server_url cfg_full
-  local list_ok=0 list_attempt endpoint_try download_attempt indexed_count
-  local found=0 missing=0
+  local list_ok=0 list_attempt endpoint_try download_attempt
+  local wanted_count selected_count matched_timestamps
+  local found=0 sig_found=0 failed=0
+  local progress_every=200
+
+  : > "${MINIO_DOWNLOAD_LOG}"
+  {
+    echo "# MinIO download log"
+    echo "# started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "# bucket=${MINIO_BUCKET}"
+    echo "# namespace=${MINIO_NAMESPACE}"
+  } >> "${MINIO_DOWNLOAD_LOG}"
 
   pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
     .items[].metadata.name
@@ -472,7 +599,7 @@ download_solo_record_streams_via_pod_mc() {
       while IFS=$'\t' read -r u p; do
         [[ -n "${u}" && -n "${p}" ]] || continue
         if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
-          "mc alias set local '${endpoint}' '${u}' '${p}' >/dev/null 2>&1; mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcd.gz'" \
+          "mc alias set local '${endpoint}' '${u}' '${p}' >/dev/null 2>&1; mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcd*'" \
           >"${all_objects}" 2>/tmp/inpod-mc-list.err; then
           selected_u="${u}"
           selected_p="${p}"
@@ -495,19 +622,63 @@ download_solo_record_streams_via_pod_mc() {
   fi
   log "Falling back to in-pod MinIO client copy from ${pod} via ${endpoint}"
 
-  # Build a stable first-match index so we copy at most one object per mirror filename.
-  basename_index="$(mktemp)"
-  awk -F/ 'NF > 0 { bn = $NF; if (!(bn in seen)) { seen[bn] = 1; print bn "\t" $0 } }' "${all_objects}" > "${basename_index}"
-  indexed_count="$(wc -l < "${basename_index}" | tr -d ' ')"
-  log "Indexed ${indexed_count} MinIO object(s) by basename from recordstreams/"
+  wanted_timestamps="$(mktemp)"
+  selected_objects="$(mktemp)"
+  awk '{
+    f = $0;
+    sub(/^.*\//, "", f);
+    if (match(f, /Z/)) {
+      print substr(f, 1, RSTART);
+    }
+  }' "${names_file}" | sort -u > "${wanted_timestamps}"
+  wanted_count="$(wc -l < "${wanted_timestamps}" | tr -d ' ')"
+  if [[ "${wanted_count}" == "0" ]]; then
+    rm -f "${wanted_timestamps}" "${selected_objects}" "${all_objects}" >/dev/null 2>&1 || true
+    echo "Could not derive wanted timestamps from mirror names file" >&2
+    return 1
+  fi
 
-  while IFS= read -r fname; do
-    [[ -z "${fname}" ]] && continue
-    remote="$(awk -F'\t' -v f="${fname}" '$1 == f { print $2; exit }' "${basename_index}")"
-    if [[ -z "${remote}" ]]; then
-      missing=$((missing + 1))
-      continue
-    fi
+  awk 'NR == FNR { wanted[$1] = 1; next }
+    {
+      bn = $0;
+      sub(/^.*\//, "", bn);
+      if (match(bn, /Z/)) {
+        ts = substr(bn, 1, RSTART);
+        if (wanted[ts]) {
+          print $0;
+        }
+      }
+    }' "${wanted_timestamps}" "${all_objects}" | sort -u > "${selected_objects}"
+
+  selected_count="$(wc -l < "${selected_objects}" | tr -d ' ')"
+  matched_timestamps="$(awk '{
+    bn = $0;
+    sub(/^.*\//, "", bn);
+    if (match(bn, /Z/)) {
+      print substr(bn, 1, RSTART);
+    }
+  }' "${selected_objects}" | sort -u | wc -l | tr -d ' ')"
+  log "Selected ${selected_count} MinIO object(s) across ${matched_timestamps}/${wanted_count} wanted timestamp(s)"
+  {
+    echo "# wanted_timestamps=${wanted_count}"
+    echo "# matched_timestamps=${matched_timestamps}"
+    echo "# selected_objects=${selected_count}"
+    echo "# selected_by_extension"
+    awk '
+      /\.rcd\.gz$/ { c["rcd.gz"]++; next }
+      /\.rcd_sig$/ { c["rcd_sig"]++; next }
+      /\.rcs_sig$/ { c["rcs_sig"]++; next }
+      { c["other"]++ }
+      END {
+        printf("rcd.gz=%d\n", c["rcd.gz"] + 0);
+        printf("rcd_sig=%d\n", c["rcd_sig"] + 0);
+        printf("rcs_sig=%d\n", c["rcs_sig"] + 0);
+        printf("other=%d\n", c["other"] + 0);
+      }' "${selected_objects}"
+  } >> "${MINIO_DOWNLOAD_LOG}"
+
+  while IFS= read -r remote; do
+    [[ -z "${remote}" ]] && continue
 
     subpath="${remote#local/${MINIO_BUCKET}/recordstreams/}"
     if [[ "${subpath}" == "${remote}" ]]; then
@@ -528,17 +699,37 @@ download_solo_record_streams_via_pod_mc() {
     done
     if (( copied == 1 )); then
       found=$((found + 1))
+      echo "OK ${remote} -> ${dest}" >> "${MINIO_DOWNLOAD_LOG}"
+      if [[ "${remote}" == *.rcd_sig || "${remote}" == *.rcs_sig ]]; then
+        sig_found=$((sig_found + 1))
+      fi
+      if (( found % progress_every == 0 )); then
+        log "MinIO download progress: ${found}/${selected_count} object(s) copied"
+      fi
     else
       rm -f "${dest}" >/dev/null 2>&1 || true
-      missing=$((missing + 1))
+      failed=$((failed + 1))
+      echo "FAIL ${remote} -> ${dest}" >> "${MINIO_DOWNLOAD_LOG}"
     fi
-  done < "${names_file}"
+  done < "${selected_objects}"
 
-  rm -f "${basename_index}" >/dev/null 2>&1 || true
+  rm -f "${wanted_timestamps}" >/dev/null 2>&1 || true
+  rm -f "${selected_objects}" >/dev/null 2>&1 || true
   rm -f "${all_objects}" >/dev/null 2>&1 || true
 
-  log "In-pod MinIO fallback finished: copied ${found} file(s); ${missing} name(s) not found"
+  log "In-pod MinIO fallback finished: copied ${found} file(s), including ${sig_found} signature file(s), failed ${failed}"
+  log "Detailed MinIO download log: ${MINIO_DOWNLOAD_LOG}"
+  {
+    echo "# copied=${found}"
+    echo "# copied_signatures=${sig_found}"
+    echo "# failed=${failed}"
+    echo "# finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  } >> "${MINIO_DOWNLOAD_LOG}"
   if (( found == 0 )); then
+    return 1
+  fi
+  if (( sig_found == 0 )); then
+    echo "No signature files were downloaded from MinIO for selected timestamps" >&2
     return 1
   fi
   return 0
@@ -892,12 +1083,12 @@ async function main() {
   const grpcEndpoint = process.env.GRPC_ENDPOINT || "127.0.0.1:50211";
   const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
   const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
-  const blockNum = process.env.MIRROR_BLOCK_NUMBER;
+  const blockNum = process.env.JUMPSTART_BLOCK_NUMBER || process.env.MIRROR_BLOCK_NUMBER;
   if (!operatorPrivateKey) {
     throw new Error("OPERATOR_PRIVATE_KEY is required");
   }
   if (!blockNum || blockNum === "null") {
-    throw new Error("MIRROR_BLOCK_NUMBER is required (latest block from mirror)");
+    throw new Error("JUMPSTART_BLOCK_NUMBER (or MIRROR_BLOCK_NUMBER) is required");
   }
 
   const prevHash =
@@ -978,6 +1169,466 @@ main().catch((err) => {
 EOF
 }
 
+write_jumpstart_parser() {
+  cat > "${JUMPSTART_PARSE_SCRIPT}" <<'EOF'
+const fs = require("fs");
+
+function fail(msg) {
+  console.error(`FAIL: ${msg}`);
+  process.exit(1);
+}
+
+const file = process.argv[2];
+if (!file) fail("Missing jumpstart.bin path argument");
+
+let b;
+try {
+  b = fs.readFileSync(file);
+} catch (e) {
+  fail(`Unable to read jumpstart file '${file}': ${e.message}`);
+}
+
+if (b.length < 68) {
+  fail(`jumpstart.bin too small: ${b.length} bytes (expected at least 68)`);
+}
+
+const blockNum = b.readBigInt64BE(0);
+const prevHash = b.subarray(8, 56).toString("hex");
+const leafCount = b.readBigInt64BE(56);
+const hashCount = b.readInt32BE(64);
+if (hashCount < 0) {
+  fail(`Invalid negative hashCount ${hashCount}`);
+}
+
+const expected = 68 + (hashCount * 48);
+if (b.length !== expected) {
+  fail(`jumpstart.bin size mismatch: got ${b.length}, expected ${expected} (hashCount=${hashCount})`);
+}
+
+const subtreeHashes = [];
+let offset = 68;
+for (let i = 0; i < hashCount; i += 1) {
+  subtreeHashes.push(b.subarray(offset, offset + 48).toString("hex"));
+  offset += 48;
+}
+
+console.log(`JUMPSTART_BLOCK_NUMBER=${blockNum.toString()}`);
+console.log(`JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH=${prevHash}`);
+console.log(`JUMPSTART_STREAMING_HASHER_LEAF_COUNT=${leafCount.toString()}`);
+console.log(`JUMPSTART_STREAMING_HASHER_HASH_COUNT=${hashCount}`);
+console.log(`JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES=${subtreeHashes.join(",")}`);
+EOF
+}
+
+write_mirror_metadata_generator() {
+  cat > "${MIRROR_METADATA_SCRIPT}" <<'EOF'
+const fs = require("fs");
+const path = require("path");
+
+const FIRST_BLOCK_TIME = "2019-09-13T21:53:51.396440Z";
+
+function fail(msg) {
+  console.error(`FAIL: ${msg}`);
+  process.exit(1);
+}
+
+function parseTimestampToEpochNanos(tsLike) {
+  const ts = String(tsLike).replace(/_/g, ":");
+  const m = ts.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?Z$/
+  );
+  if (!m) {
+    throw new Error(`Invalid timestamp format: ${tsLike}`);
+  }
+  const [
+    ,
+    y,
+    mo,
+    d,
+    h,
+    mi,
+    s,
+    fracRaw = "",
+  ] = m;
+  const ms = Date.UTC(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    Number(h),
+    Number(mi),
+    Number(s)
+  );
+  const epochSeconds = BigInt(Math.floor(ms / 1000));
+  const fracNanos = BigInt((fracRaw + "000000000").slice(0, 9));
+  return (epochSeconds * 1_000_000_000n) + fracNanos;
+}
+
+function recordNameToEpochNanos(recordName) {
+  const base = path.basename(String(recordName));
+  const z = base.indexOf("Z");
+  if (z < 0) {
+    throw new Error(`Record file name does not include Z timestamp: ${recordName}`);
+  }
+  const ts = base.slice(0, z + 1);
+  return parseTimestampToEpochNanos(ts);
+}
+
+function resolveNextUrl(base, next) {
+  if (!next) {
+    return "";
+  }
+  if (next.startsWith("http://") || next.startsWith("https://")) {
+    return next;
+  }
+  if (next.startsWith("/")) {
+    return `${base}${next}`;
+  }
+  return `${base}/${next}`;
+}
+
+async function fetchAllBlocksUpTo(mirrorBase, maxBlock) {
+  const blocks = [];
+  let nextUrl = `${mirrorBase}/api/v1/blocks?order=asc&limit=100`;
+  while (nextUrl) {
+    const response = await fetch(nextUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} from ${nextUrl}`);
+    }
+    const body = await response.json();
+    const page = Array.isArray(body.blocks) ? body.blocks : [];
+    if (page.length === 0) {
+      break;
+    }
+
+    for (const b of page) {
+      const n = Number(b.number);
+      if (!Number.isFinite(n)) {
+        continue;
+      }
+      if (n > maxBlock) {
+        return blocks;
+      }
+      blocks.push({
+        number: n,
+        name: b.name || "",
+        hash: String(b.hash || "").replace(/^0x/i, ""),
+      });
+    }
+
+    const lastNumber = Number(page[page.length - 1].number);
+    if (Number.isFinite(lastNumber) && lastNumber >= maxBlock) {
+      break;
+    }
+    nextUrl = resolveNextUrl(mirrorBase, body.links && body.links.next);
+  }
+  return blocks;
+}
+
+function ensureNoBlockGaps(sortedBlocks) {
+  if (sortedBlocks.length < 2) {
+    return;
+  }
+  for (let i = 1; i < sortedBlocks.length; i += 1) {
+    const expected = sortedBlocks[i - 1].number + 1;
+    const actual = sortedBlocks[i].number;
+    if (actual !== expected) {
+      throw new Error(`Gap in mirror blocks: expected ${expected}, got ${actual}`);
+    }
+  }
+}
+
+function dayFromRecordName(recordName) {
+  const base = path.basename(String(recordName));
+  const z = base.indexOf("Z");
+  if (z < 0) {
+    throw new Error(`Record file name does not include Z timestamp: ${recordName}`);
+  }
+  const ts = base.slice(0, z + 1).replace(/_/g, ":");
+  return ts.slice(0, 10);
+}
+
+async function main() {
+  const mirrorBase = String(process.env.MIRROR_REST_URL || "http://127.0.0.1:5551").replace(/\/$/, "");
+  const maxBlockRaw = process.env.MIRROR_BLOCK_NUMBER;
+  const blockTimesFile = process.env.BLOCK_TIMES_FILE;
+  const dayBlocksFile = process.env.DAY_BLOCKS_FILE;
+  if (!maxBlockRaw) fail("MIRROR_BLOCK_NUMBER is required");
+  if (!blockTimesFile) fail("BLOCK_TIMES_FILE is required");
+  if (!dayBlocksFile) fail("DAY_BLOCKS_FILE is required");
+
+  const maxBlock = Number(maxBlockRaw);
+  if (!Number.isInteger(maxBlock) || maxBlock < 0) {
+    fail(`Invalid MIRROR_BLOCK_NUMBER: ${maxBlockRaw}`);
+  }
+
+  const blocks = await fetchAllBlocksUpTo(mirrorBase, maxBlock);
+  if (blocks.length === 0) {
+    fail("Mirror returned no blocks for metadata generation");
+  }
+  blocks.sort((a, b) => a.number - b.number);
+  ensureNoBlockGaps(blocks);
+  const highest = blocks[blocks.length - 1].number;
+  if (highest < maxBlock) {
+    fail(`Mirror highest fetched block ${highest} is below requested ${maxBlock}`);
+  }
+
+  const firstEpochNanos = parseTimestampToEpochNanos(FIRST_BLOCK_TIME);
+  const buf = Buffer.alloc((maxBlock + 1) * 8);
+  const byDay = new Map();
+
+  for (const b of blocks) {
+    const epochNanos = recordNameToEpochNanos(b.name);
+    const blockTime = epochNanos - firstEpochNanos;
+    if (blockTime < 0n) {
+      fail(`Negative block time for block ${b.number} (${b.name})`);
+    }
+    buf.writeBigInt64BE(blockTime, b.number * 8);
+
+    const day = dayFromRecordName(b.name);
+    const [year, month, dayNum] = day.split("-").map(Number);
+    const prev = byDay.get(day);
+    if (!prev) {
+      byDay.set(day, {
+        year,
+        month,
+        day: dayNum,
+        firstBlockNumber: b.number,
+        firstBlockHash: b.hash,
+        lastBlockNumber: b.number,
+        lastBlockHash: b.hash,
+      });
+    } else {
+      prev.lastBlockNumber = b.number;
+      prev.lastBlockHash = b.hash;
+    }
+  }
+
+  fs.mkdirSync(path.dirname(blockTimesFile), { recursive: true });
+  fs.mkdirSync(path.dirname(dayBlocksFile), { recursive: true });
+  fs.writeFileSync(blockTimesFile, buf);
+
+  const dayBlocks = Array.from(byDay.values()).sort((a, b) => {
+    if (a.year !== b.year) return a.year - b.year;
+    if (a.month !== b.month) return a.month - b.month;
+    return a.day - b.day;
+  });
+  fs.writeFileSync(dayBlocksFile, `${JSON.stringify(dayBlocks, null, 2)}\n`);
+
+  console.log(
+    `PASS: generated ${blockTimesFile} (${maxBlock + 1} entries) and ${dayBlocksFile} (${dayBlocks.length} day entries)`
+  );
+}
+
+main().catch((err) => {
+  console.error(`FAIL: ${err.message}`);
+  process.exit(1);
+});
+EOF
+}
+
+generate_block_node_metadata_from_mirror() {
+  local max_block="$1"
+  write_mirror_metadata_generator
+
+  export MIRROR_BLOCK_NUMBER="${max_block}"
+  export BLOCK_TIMES_FILE
+  export DAY_BLOCKS_FILE
+  export MIRROR_REST_URL
+
+  log "Generating block_times.bin and day_blocks.json from local mirror REST (blocks <= ${MIRROR_BLOCK_NUMBER})"
+  if ! node "${MIRROR_METADATA_SCRIPT}" >"${MIRROR_METADATA_LOG}" 2>&1; then
+    echo "Mirror metadata generation failed. Log: ${MIRROR_METADATA_LOG}" >&2
+    tail -n 120 "${MIRROR_METADATA_LOG}" >&2 || true
+    return 1
+  fi
+  tail -n 20 "${MIRROR_METADATA_LOG}" || true
+}
+
+prepare_wrap_day_archives_from_record_streams() {
+  local account_dir account_id src base ts day
+  local out_dir out_file stem stem_no_ext
+  local primary_records=0
+  local other_records=0
+  local sig_files=0
+  local tar_count=0
+
+  rm -rf "${WRAP_DAYS_SRC_DIR}" "${WRAP_COMPRESSED_DAYS_DIR}" >/dev/null 2>&1 || true
+  mkdir -p "${WRAP_DAYS_SRC_DIR}" "${WRAP_COMPRESSED_DAYS_DIR}"
+
+  shopt -s nullglob
+  for account_dir in "${RECORD_STREAMS_DIR}"/record0.0.*; do
+    [[ -d "${account_dir}" ]] || continue
+    account_id="${account_dir##*/record}"
+    for src in "${account_dir}"/*; do
+      [[ -f "${src}" ]] || continue
+      base="$(basename "${src}")"
+      [[ "${base}" == *Z* ]] || continue
+      ts="${base%%Z*}Z"
+      day="${ts%%T*}"
+      out_dir="${WRAP_DAYS_SRC_DIR}/${day}/${ts}"
+      mkdir -p "${out_dir}"
+
+      case "${base}" in
+        *.rcd.gz)
+          stem="${base%.gz}"
+          stem_no_ext="${stem%.rcd}"
+          if [[ "${stem_no_ext}" == "${ts}" && "${account_id}" == "0.0.3" && ! -f "${out_dir}/${ts}.rcd" ]]; then
+            gzip -dc "${src}" > "${out_dir}/${ts}.rcd"
+            primary_records=$((primary_records + 1))
+          else
+            out_file="${out_dir}/${stem_no_ext}_node_${account_id}.rcd"
+            gzip -dc "${src}" > "${out_file}"
+            other_records=$((other_records + 1))
+          fi
+          ;;
+        *.rcd)
+          stem_no_ext="${base%.rcd}"
+          if [[ "${stem_no_ext}" == "${ts}" && "${account_id}" == "0.0.3" && ! -f "${out_dir}/${ts}.rcd" ]]; then
+            cp -f "${src}" "${out_dir}/${ts}.rcd"
+            primary_records=$((primary_records + 1))
+          else
+            cp -f "${src}" "${out_dir}/${stem_no_ext}_node_${account_id}.rcd"
+            other_records=$((other_records + 1))
+          fi
+          ;;
+        *.rcd_sig)
+          stem_no_ext="${base%.rcd_sig}"
+          cp -f "${src}" "${out_dir}/${stem_no_ext}_node_${account_id}.rcd_sig"
+          sig_files=$((sig_files + 1))
+          ;;
+        *.rcs_sig)
+          stem_no_ext="${base%.rcs_sig}"
+          cp -f "${src}" "${out_dir}/${stem_no_ext}_node_${account_id}.rcs_sig"
+          sig_files=$((sig_files + 1))
+          ;;
+      esac
+    done
+  done
+  shopt -u nullglob
+
+  if (( primary_records == 0 )); then
+    echo "No primary record files prepared for wrap input under ${WRAP_DAYS_SRC_DIR}" >&2
+    return 1
+  fi
+  if (( sig_files == 0 )); then
+    echo "No signature files prepared for wrap input under ${WRAP_DAYS_SRC_DIR}" >&2
+    return 1
+  fi
+
+  log "Prepared wrap day source files: primaryRecords=${primary_records}, otherRecords=${other_records}, signatureFiles=${sig_files}"
+  if ! (
+    cd "${BLOCK_NODE_REPO_PATH}" && ./gradlew :tools:run --args="days compress -o ${WRAP_COMPRESSED_DAYS_DIR} ${WRAP_DAYS_SRC_DIR}"
+  ) >"${WRAP_INPUT_PREP_LOG}" 2>&1; then
+    echo "Failed to build .tar.zstd wrap input archives. Log: ${WRAP_INPUT_PREP_LOG}" >&2
+    tail -n 120 "${WRAP_INPUT_PREP_LOG}" >&2 || true
+    return 1
+  fi
+
+  tar_count="$(find "${WRAP_COMPRESSED_DAYS_DIR}" -type f -name '*.tar.zstd' | wc -l | tr -d ' ')"
+  if [[ "${tar_count}" == "0" ]]; then
+    echo "days compress produced no .tar.zstd files under ${WRAP_COMPRESSED_DAYS_DIR}" >&2
+    echo "days compress log: ${WRAP_INPUT_PREP_LOG}" >&2
+    return 1
+  fi
+  log "Prepared ${tar_count} day archive(s) for blocks wrap input at ${WRAP_COMPRESSED_DAYS_DIR}"
+}
+
+run_block_node_wrap_tool() {
+  local records_dir="$1"
+  local wrapped_dir="$2"
+  local wrap_args jumpstart_file
+
+  if [[ "${USE_BLOCK_NODE_JUMPSTART}" != "true" ]]; then
+    log "USE_BLOCK_NODE_JUMPSTART=false; skipping Block Node wrap tool and using configured jumpstart env values"
+    return 0
+  fi
+
+  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
+    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2
+    echo "Set BLOCK_NODE_REPO_PATH to your hiero-block-node checkout." >&2
+    return 1
+  fi
+  if [[ ! -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]]; then
+    echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2
+    return 1
+  fi
+  if [[ ! -d "${records_dir}" ]]; then
+    echo "recordStreams directory not found: ${records_dir}" >&2
+    return 1
+  fi
+  if ! ensure_zstd_command_for_block_node; then
+    echo "Failed to provide a working zstd command for Block Node wrapping." >&2
+    return 1
+  fi
+
+  mkdir -p "${wrapped_dir}"
+  wrap_args="blocks wrap -i ${records_dir} -o ${wrapped_dir} --blocktimes-file ${BLOCK_TIMES_FILE} --day-blocks ${DAY_BLOCKS_FILE}"
+  if [[ -n "${BLOCKS_WRAP_EXTRA_ARGS}" ]]; then
+    wrap_args="${wrap_args} ${BLOCKS_WRAP_EXTRA_ARGS}"
+  fi
+
+  log "Running Block Node offline tool to produce wrapped blocks and jumpstart.bin"
+  log "Block Node repo: ${BLOCK_NODE_REPO_PATH}"
+  log "Wrap args: ${wrap_args}"
+
+  if ! (
+    cd "${BLOCK_NODE_REPO_PATH}" && ./gradlew :tools:run --args="${wrap_args}"
+  ) >"${BLOCK_NODE_WRAP_LOG}" 2>&1; then
+    echo "Block Node wrap command failed. Log: ${BLOCK_NODE_WRAP_LOG}" >&2
+    tail -n 120 "${BLOCK_NODE_WRAP_LOG}" >&2 || true
+    return 1
+  fi
+
+  if [[ -n "${JUMPSTART_BIN_PATH}" ]]; then
+    jumpstart_file="${JUMPSTART_BIN_PATH}"
+  else
+    jumpstart_file="$(find "${wrapped_dir}" -type f -name "jumpstart.bin" | head -n 1)"
+  fi
+  if [[ -z "${jumpstart_file}" || ! -f "${jumpstart_file}" ]]; then
+    echo "jumpstart.bin not found under ${wrapped_dir}. Override with JUMPSTART_BIN_PATH." >&2
+    echo "Block Node log: ${BLOCK_NODE_WRAP_LOG}" >&2
+    return 1
+  fi
+
+  export JUMPSTART_BIN_PATH="${jumpstart_file}"
+  log "Block Node tooling produced jumpstart file: ${JUMPSTART_BIN_PATH}"
+}
+
+load_jumpstart_env_from_bin() {
+  local jumpstart_file="$1"
+  local k v
+
+  [[ -f "${jumpstart_file}" ]] || { echo "jumpstart.bin not found: ${jumpstart_file}" >&2; return 1; }
+  write_jumpstart_parser
+
+  while IFS='=' read -r k v; do
+    case "${k}" in
+      JUMPSTART_BLOCK_NUMBER) JUMPSTART_BLOCK_NUMBER="${v}" ;;
+      JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH) JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH="${v}" ;;
+      JUMPSTART_STREAMING_HASHER_LEAF_COUNT) JUMPSTART_STREAMING_HASHER_LEAF_COUNT="${v}" ;;
+      JUMPSTART_STREAMING_HASHER_HASH_COUNT) JUMPSTART_STREAMING_HASHER_HASH_COUNT="${v}" ;;
+      JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES) JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${v}" ;;
+    esac
+  done < <(node "${JUMPSTART_PARSE_SCRIPT}" "${jumpstart_file}")
+
+  [[ -n "${JUMPSTART_BLOCK_NUMBER}" ]] || { echo "Failed to parse JUMPSTART_BLOCK_NUMBER from ${jumpstart_file}" >&2; return 1; }
+  [[ -n "${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" ]] || { echo "Failed to parse previous hash from ${jumpstart_file}" >&2; return 1; }
+  [[ -n "${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}" ]] || { echo "Failed to parse leaf count from ${jumpstart_file}" >&2; return 1; }
+  [[ -n "${JUMPSTART_STREAMING_HASHER_HASH_COUNT}" ]] || { echo "Failed to parse hash count from ${jumpstart_file}" >&2; return 1; }
+  [[ -n "${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}" || "${JUMPSTART_STREAMING_HASHER_HASH_COUNT}" == "0" ]] || {
+    echo "Failed to parse subtree hashes from ${jumpstart_file}" >&2
+    return 1
+  }
+
+  export JUMPSTART_BLOCK_NUMBER
+  export JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH
+  export JUMPSTART_STREAMING_HASHER_LEAF_COUNT
+  export JUMPSTART_STREAMING_HASHER_HASH_COUNT
+  export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
+
+  log "Loaded jumpstart.bin values: blockNum=${JUMPSTART_BLOCK_NUMBER}, leafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}, hashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
+}
+
 log "Validating prerequisites"
 log "Node deployment plan: ${CONSENSUS_NODE_COUNT} consensus node(s) [${NODE_ALIASES}]"
 require_cmd kind
@@ -987,6 +1638,19 @@ require_cmd npm
 require_cmd node
 require_cmd curl
 require_cmd jq
+require_cmd java
+
+if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
+  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
+    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2
+    echo "Set BLOCK_NODE_REPO_PATH to your hiero-block-node checkout (branch driley/local-wrapped-record-files)." >&2
+    exit 1
+  fi
+  if [[ ! -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]]; then
+    echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2
+    exit 1
+  fi
+fi
 
 if [[ ! -d "${LOCAL_BUILD_PATH}" ]]; then
   echo "Local build path not found: ${LOCAL_BUILD_PATH}" >&2
@@ -1018,6 +1682,9 @@ fi
 log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
 cleanup_stale_port_forwards
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+log "Cleaning local artifacts from previous runs"
+cleanup_record_stream_files_only
+rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
 
 log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -1120,19 +1787,37 @@ export MIRROR_BLOCK_NUMBER
 
 log "Step 5: downloading record stream files from MinIO to ${RECORD_STREAMS_DIR} (blocks <= ${MIRROR_BLOCK_NUMBER})"
 download_solo_minio_record_streams "${MIRROR_BLOCK_NUMBER}" "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
+
+log "Step 5: preparing .tar.zstd day archives from downloaded record streams for blocks wrap input"
+prepare_wrap_day_archives_from_record_streams
+
+log "Step 5: generating block_times.bin and day_blocks.json for local wrap run"
+generate_block_node_metadata_from_mirror "${MIRROR_BLOCK_NUMBER}"
+
+log "Step 5: running Block Node offline wrap tool (records -> wrapped blocks + jumpstart.bin)"
+run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${WRAPPED_BLOCKS_DIR}"
+
+if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
+  log "Step 5: parsing jumpstart.bin and loading blockStream.jumpstart.* values"
+  load_jumpstart_env_from_bin "${JUMPSTART_BIN_PATH}"
+else
+  export JUMPSTART_BLOCK_NUMBER="${MIRROR_BLOCK_NUMBER}"
+  log "Step 5: USE_BLOCK_NODE_JUMPSTART=false, using fallback jumpstart values from env (blockNum=${JUMPSTART_BLOCK_NUMBER})"
+fi
+
+log "Step 5: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${JUMPSTART_BLOCK_NUMBER:-${MIRROR_BLOCK_NUMBER}})"
+node "${FILE_121_JUMPSTART_SCRIPT}"
+
+# Step 5 upgrade path remains WIP; keep disabled until cutover path is validated.
+# log "Step 5: waiting 30s after File 121 update before consensus upgrade"
+# sleep 30
 #
-#log "Step 5: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${MIRROR_BLOCK_NUMBER})"
-#node "${FILE_121_JUMPSTART_SCRIPT}"
-#
-#log "Step 5: waiting 30s after File 121 update before consensus upgrade"
-#sleep 30
-#
-#log "Step 5: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_EFFECTIVE_FILE}"
-#run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
-#  solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-#  --local-build-path "${LOCAL_BUILD_PATH}" \
-#  --application-properties "${APP_PROPS_073_EFFECTIVE_FILE}" \
-#  --quiet-mode --force
+# log "Step 5: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_EFFECTIVE_FILE}"
+# run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
+#   solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+#   --local-build-path "${LOCAL_BUILD_PATH}" \
+#   --application-properties "${APP_PROPS_073_EFFECTIVE_FILE}" \
+#   --quiet-mode --force
 
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
