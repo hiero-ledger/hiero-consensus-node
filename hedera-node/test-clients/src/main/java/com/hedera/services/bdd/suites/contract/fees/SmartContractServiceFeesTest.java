@@ -63,6 +63,8 @@ public class SmartContractServiceFeesTest {
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
+        // SimpleSmartContractServiceFeesTest covers the simple fees
+        lifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "false"));
     }
 
     @HapiTest
@@ -136,6 +138,6 @@ public class SmartContractServiceFeesTest {
                                 .via(contractLocalCall),
                         sleepFor(5),
                         // Expected base fee for ContractCallLocal is 0.0001 USD
-                        validateChargedUsdWithoutGas(contractLocalCall, 0.0001, 1))));
+                        validateChargedUsdWithoutGas(contractLocalCall, 0.000102, 1))));
     }
 }

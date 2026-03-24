@@ -17,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
-import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -82,8 +81,6 @@ public class DefaultHashgraphModule implements HashgraphModule {
         // Force not soldered wires to be built
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
-        EventCounter.registerEventCounterMetrics(metrics);
-
         // Create and bind components
         final ConsensusEngine consensusEngine =
                 new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
@@ -91,11 +88,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         if (pipelineTracker != null) {
             pipelineTracker.registerMetric("consensus");
-            consensusRoundOutputWire.solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
-                    "consensus",
-                    consensusRound.getConsensusEvents().stream()
-                            .map(PlatformEvent::getTimeReceived)
-                            .toList()));
+            consensusRoundOutputWire.solderForMonitoring(
+                    consensusRound -> pipelineTracker.recordEvents("consensus", consensusRound.getConsensusEvents()));
         }
     }
 

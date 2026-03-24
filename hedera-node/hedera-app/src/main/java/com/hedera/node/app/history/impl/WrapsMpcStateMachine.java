@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
+import static com.hedera.hapi.node.state.history.WrapsPhase.POST_AGGREGATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
@@ -16,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
@@ -26,6 +28,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class WrapsMpcStateMachine {
+    public static final Set<WrapsPhase> POST_MPC_PHASES = Set.of(AGGREGATE, POST_AGGREGATION);
+
     @Inject
     public WrapsMpcStateMachine() {
         // Dagger2

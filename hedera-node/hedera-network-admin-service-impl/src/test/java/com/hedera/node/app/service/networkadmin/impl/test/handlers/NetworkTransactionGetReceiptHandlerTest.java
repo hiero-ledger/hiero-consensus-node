@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -206,6 +207,30 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 transactionRecord,
                 List.of(),
                 new SingleTransactionRecord.TransactionOutputs(null));
+    }
+
+    @Test
+    void returnsUnknownStatusForTransactionPendingConsensus() {
+        final var responseHeader =
+                ResponseHeader.newBuilder().nodeTransactionPrecheckCode(OK).build();
+
+        // Create a transaction ID that is known to the dedup cache but has no consensus records
+        final var pendingTxnId = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(2L).build())
+                .transactionValidStart(
+                        Timestamp.newBuilder().seconds(9_999_999L).nanos(0).build())
+                .build();
+        dedupeCache.add(pendingTxnId);
+
+        final var query = createGetTransactionReceiptQuery(pendingTxnId, false, false);
+        when(context.query()).thenReturn(query);
+        when(context.recordCache()).thenReturn(cache);
+
+        final var response = networkTransactionGetReceiptHandler.findResponse(context, responseHeader);
+        final var op = response.transactionGetReceiptOrThrow();
+        assertEquals(OK, op.header().nodeTransactionPrecheckCode());
+        assertNotNull(op.receipt());
+        assertEquals(UNKNOWN, op.receiptOrThrow().status());
     }
 
     @Test

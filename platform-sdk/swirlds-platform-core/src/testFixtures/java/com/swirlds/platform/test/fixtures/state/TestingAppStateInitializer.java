@@ -85,11 +85,11 @@ public final class TestingAppStateInitializer {
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, def);
-                    if (def.singleton() || def.onDisk()) {
+                    if (def.singleton() || def.keyValue()) {
                         state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
-                                "RosterService only expected to use singleton and onDisk virtual map states");
+                                "RosterService only expected to use singleton and keyValue virtual map states");
                     }
                 });
         final var mockMigrationContext = mock(MigrationContext.class);

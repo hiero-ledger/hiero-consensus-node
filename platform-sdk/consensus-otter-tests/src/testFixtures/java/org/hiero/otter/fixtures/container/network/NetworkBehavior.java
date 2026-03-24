@@ -46,9 +46,9 @@ public class NetworkBehavior {
     /**
      * Constructs a new NetworkBehavior instance using the Toxiproxy client.
      *
-     * @param host the host on which the Toxiproxy control server is running
-     * @param controlPort the port on which the Toxiproxy control server is running
-     * @param roster the roster containing the nodes in the network
+     * @param host               the host on which the Toxiproxy control server is running
+     * @param controlPort        the port on which the Toxiproxy control server is running
+     * @param roster             the roster containing the nodes in the network
      * @param toxiproxyIpAddress the IP address of the Toxiproxy container in the Docker network
      */
     public NetworkBehavior(
@@ -96,7 +96,7 @@ public class NetworkBehavior {
     /**
      * Updates the connections in the network based on the provided nodes and connection data.
      *
-     * @param nodes the list of nodes in the network
+     * @param nodes          the list of nodes in the network
      * @param newConnections a map of connections representing the current state of the network
      */
     public void onConnectionsChanged(
@@ -190,10 +190,10 @@ public class NetworkBehavior {
     /**
      * Gets the {@link NetworkEndpoint} of the proxy for a connection between two nodes.
      *
-     * @param sender the node that sends messages
+     * @param sender   the node that sends messages
      * @param receiver the node that receives messages
      * @return the endpoint of the proxy
-     * @throws NullPointerException if either sender or receiver is {@code null}
+     * @throws NullPointerException  if either sender or receiver is {@code null}
      * @throws IllegalStateException if the connection cannot be found
      */
     @NonNull

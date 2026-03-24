@@ -8,7 +8,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
+ * @deprecated intended to be replaced by {@link GeneratorEventGraphSource}
  */
+@Deprecated(forRemoval = true)
 public interface EventEmitter {
 
     /**

@@ -43,12 +43,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.
@@ -88,6 +88,8 @@ public final class ConfigUtils {
 
     public static String JOB_URL = System.getProperty("job.url");
 
+    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "600000");
+
     private static Configuration configuration;
 
     private static void initConfiguration() {
@@ -117,6 +119,8 @@ public final class ConfigUtils {
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
+                .withSource(
+                        new SimpleConfigSource().withValue("virtualMap.fullRehashTimeoutMs", FULL_REHASH_TIMEOUT_MS))
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(KnownBlockValues.class, new KnownBlockValuesConverter())

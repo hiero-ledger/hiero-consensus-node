@@ -2,19 +2,16 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -34,14 +31,21 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -76,7 +80,6 @@ public class IssueRegressionTests {
     private static final String RECEIVER = "receiver";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> allowsCryptoCreatePayerToHaveLessThanTwiceFee() {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_HUNDRED_HBARS),
@@ -97,7 +100,6 @@ public class IssueRegressionTests {
     }
 
     @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
-    @Tag(MATS)
     final Stream<DynamicTest> createDeleteInSameRoundWorks() {
         final var key = "tbdKey";
         AtomicReference<String> nextFileId = new AtomicReference<>();
@@ -120,7 +122,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> recordStorageFeeIncreasesWithNumTransfers() {
         return hapiTest(
                 cryptoCreate("civilian").balance(10 * ONE_HUNDRED_HBARS),
@@ -170,7 +171,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDetected() {
         long initialBalance = 10_000L;
 
@@ -186,7 +186,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDetected() {
         return hapiTest(
                 cryptoCreate("acct2").via("txnId2"),
@@ -200,9 +199,8 @@ public class IssueRegressionTests {
                 getTxnRecord("txnId2").logged());
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Tag(ONLY_SUBPROCESS)
-    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -225,7 +223,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
                 cryptoCreate("acct4").via("txnId4").setNode("3"),
@@ -240,7 +237,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> keepsRecordOfPayerIBE() {
         final var payer = "payer";
         return hapiTest(
@@ -273,7 +269,6 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tbdCanPayForItsOwnDeletion() {
         return hapiTest(
                 cryptoCreate("tbd"),
@@ -282,28 +277,28 @@ public class IssueRegressionTests {
                 getTxnRecord("selfFinanced").logged());
     }
 
-    @HapiTest
-    @Tag(MATS)
+    @LeakyHapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
+        final var legacyDeletePriceUsd = 0.0113804;
+        final var simpleDeletePriceUsd =
+                CRYPTO_DELETE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(PAYER),
                 cryptoCreate(TRANSFER),
                 cryptoCreate("tbd"),
                 cryptoDelete(TRANSFER),
-                balanceSnapshot(SNAPSHOT, PAYER),
                 cryptoDelete("tbd")
                         .via(DELETE_TXN)
                         .payingWith(PAYER)
+                        .signedBy(PAYER, "tbd")
                         .transfer(TRANSFER)
                         .hasKnownStatus(ACCOUNT_DELETED),
                 getTxnRecord(DELETE_TXN).logged(),
-                // since the account is already deleted, we have less signatures to verify
-                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -6872159, 10000)));
+                validateFees(DELETE_TXN, legacyDeletePriceUsd, simpleDeletePriceUsd));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferAccountCannotBeDeletedForContractTarget() {
         return hapiTest(
                 uploadInitCode("CreateTrivial"),
@@ -322,6 +317,23 @@ public class IssueRegressionTests {
                         .via(DELETE_TXN)
                         .transferContract("PayReceivable")
                         .hasKnownStatus(INVALID_CONTRACT_ID));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    final Stream<DynamicTest> canSwitchSimpleFeesFromFalseToTrueWithoutException() {
+        final var payer = "payerForSimpleFeeToggle";
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
+                uploadInitCode("CreateTrivial"),
+                overriding("fees.simpleFeesEnabled", "false"),
+                contractCreate("CreateTrivial").payingWith(payer).via("legacyContractCreate"),
+                overriding("fees.simpleFeesEnabled", "true"),
+                contractCreate("CreateTrivial")
+                        .payingWith(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("simpleContractCreate"),
+                validateChargedUsd("legacyContractCreate", 0.7505),
+                validateChargedUsd("simpleContractCreate", 1.02));
     }
 
     @HapiTest

@@ -65,11 +65,6 @@ public class SyncMetrics {
             .withDescription("Incoming sync requests accepted per second");
     private final CountPerSecond acceptedSyncRequestsPerSec;
 
-    private static final CountPerSecond.Config OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "opportunitiesToInitiateSync_per_sec")
-            .withDescription("Opportunities to initiate an outgoing sync per second");
-    private final CountPerSecond opportunitiesToInitiateSyncPerSec;
-
     private static final CountPerSecond.Config OUTGOING_SYNC_REQUESTS_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "outgoingSyncRequests_per_sec")
             .withDescription("Outgoing sync requests sent per second");
@@ -156,6 +151,19 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because of the fair selector");
     private final CountPerSecond doNotSyncFairSelector;
 
+    private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsSent")
+            .withUnit("hz")
+            .withDescription(
+                    "Number of times per second an event was considered being eligible for being sent over broadcast (once per event, not per peer)");
+    private final CountPerSecond broadcastEventsSentCounter;
+
+    private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsReceived")
+            .withUnit("hz")
+            .withDescription("Number of times per second an event was received by broadcast from the remote nodes");
+    private final CountPerSecond broadcastEventsReceivedCounter;
+
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
             .withDescription("number of rpc thread running in read mode");
@@ -173,6 +181,18 @@ public class SyncMetrics {
             .withDescription("number of syncs running concurrently");
 
     private final RunningAverageMetric tipsPerSync;
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
+            .withDescription("For how many peers broadcast is disabled due to the too large ping");
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToOverload")
+            .withDescription("For how many peers broadcast is disabled due to the output queue being too large");
+
+    private final IntegerGauge broadcastDisabledDueToLag;
+
+    private final IntegerGauge broadcastDisabledDueToOverload;
 
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
@@ -214,7 +234,6 @@ public class SyncMetrics {
 
         incomingSyncRequestsPerSec = new CountPerSecond(metrics, INCOMING_SYNC_REQUESTS_CONFIG);
         acceptedSyncRequestsPerSec = new CountPerSecond(metrics, ACCEPTED_SYNC_REQUESTS_CONFIG);
-        opportunitiesToInitiateSyncPerSec = new CountPerSecond(metrics, OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG);
         outgoingSyncRequestsPerSec = new CountPerSecond(metrics, OUTGOING_SYNC_REQUESTS_CONFIG);
         syncsPerSec = new CountPerSecond(metrics, SYNCS_PER_SECOND_CONFIG);
         syncFilterTime = metrics.getOrCreate(SYNC_FILTER_TIME_CONFIG);
@@ -229,11 +248,15 @@ public class SyncMetrics {
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
         doNotSyncFairSelector = new CountPerSecond(metrics, DO_NOT_SYNC_FAIR_SELECTOR_CONFIG);
+        broadcastEventsSentCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_SENT_COUNTER_CONFIG);
+        broadcastEventsReceivedCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG);
 
         rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
         syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
+        broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
+        broadcastDisabledDueToOverload = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -450,13 +473,6 @@ public class SyncMetrics {
     }
 
     /**
-     * Indicate that there was an opportunity to sync with a peer. The protocol may or may not take the opportunity
-     */
-    public void opportunityToInitiateSync() {
-        opportunitiesToInitiateSyncPerSec.count();
-    }
-
-    /**
      * Indicate that a request to sync has been sent
      */
     public void outgoingSyncRequestSent() {
@@ -540,6 +556,20 @@ public class SyncMetrics {
      */
     public void doNotSyncFairSelector() {
         doNotSyncFairSelector.count();
+    }
+
+    /**
+     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     */
+    public void broadcastEventSent() {
+        broadcastEventsSentCounter.count();
+    }
+
+    /**
+     * Event was received over broadcast from remote nodes (as opposed to receiving events over sync)
+     */
+    public void broadcastEventReceived() {
+        broadcastEventsReceivedCounter.count();
     }
 
     /**
@@ -633,5 +663,23 @@ public class SyncMetrics {
                 new Config(metrics, PLATFORM_CATEGORY, name)
                         .withMaxSizeMetricEnabled(true)
                         .withMinSizeMetricEnabled(true));
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to ping lag between the nodes
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToLag(final boolean disabled) {
+        broadcastDisabledDueToLag.add(disabled ? 1 : -1);
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to rpc queue size for a peer
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToOverload(final boolean disabled) {
+        broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
     }
 }

@@ -77,7 +77,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.config.data.AccountsConfig;
@@ -395,7 +395,7 @@ public class TransactionExecutorsTest {
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
@@ -435,6 +435,7 @@ public class TransactionExecutorsTest {
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
+        entityIdStore.incrementHighestNodeIdAndGet();
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {

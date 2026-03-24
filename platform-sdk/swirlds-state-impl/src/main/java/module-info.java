@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.state.impl {
-    exports com.swirlds.state.merkle.disk;
+    exports com.swirlds.state.merkle.vm;
     exports com.swirlds.state.merkle;
 
     // allow reflective access for tests
-    opens com.swirlds.state.merkle.disk to
+    opens com.swirlds.state.merkle.vm to
             com.hedera.node.app;
 
     requires transitive com.hedera.pbj.runtime;
@@ -14,7 +14,6 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.base.utility;
     requires com.swirlds.common;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;

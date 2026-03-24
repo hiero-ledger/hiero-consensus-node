@@ -58,6 +58,7 @@ module com.hedera.node.app {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
@@ -132,6 +133,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.history.schemas;
+    exports com.hedera.node.app.fees.context;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

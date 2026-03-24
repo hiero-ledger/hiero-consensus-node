@@ -45,4 +45,14 @@ public interface LinkerLogsAndMetrics {
             @NonNull EventImpl candidateParent,
             @NonNull Instant parentTimeCreated,
             @NonNull Instant childTimeCreated);
+
+    /**
+     * This method is called when an event is successfully linked to all of its parents.
+     */
+    void eventLinked();
+
+    /**
+     * This method is called when an event is unlinked from its parents.
+     */
+    void eventUnlinked();
 }

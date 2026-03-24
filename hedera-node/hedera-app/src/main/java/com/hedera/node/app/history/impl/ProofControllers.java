@@ -31,6 +31,7 @@ public class ProofControllers {
     private final ProofKeysAccessor keyAccessor;
     private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
+    private final HistoryProofMetrics historyProofMetrics;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
@@ -50,6 +51,7 @@ public class ProofControllers {
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final HistoryService historyService,
+            @NonNull final HistoryProofMetrics historyProofMetrics,
             @NonNull final WrapsMpcStateMachine machine) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
@@ -57,6 +59,7 @@ public class ProofControllers {
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
+        this.historyProofMetrics = requireNonNull(historyProofMetrics);
         this.machine = requireNonNull(machine);
     }
 
@@ -101,21 +104,22 @@ public class ProofControllers {
      * Returns the in-progress controller for the proof construction with the given ID, if it exists.
      *
      * @param constructionId the ID of the proof construction
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getInProgressById(final long constructionId) {
+    public Optional<ProofController> getInProgressById(final long constructionId, @NonNull final TssConfig tssConfig) {
         return currentConstructionId() == constructionId
-                ? Optional.ofNullable(controller).filter(ProofController::isStillInProgress)
+                ? Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig))
                 : Optional.empty();
     }
 
     /**
      * Returns the in-progress controller for the hinTS construction with the given ID, if it exists.
-     *
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getAnyInProgress() {
-        return Optional.ofNullable(controller).filter(ProofController::isStillInProgress);
+    public Optional<ProofController> getAnyInProgress(@NonNull final TssConfig tssConfig) {
+        return Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig));
     }
 
     /**
@@ -164,6 +168,7 @@ public class ProofControllers {
                     historyLibrary,
                     proverFactory,
                     sourceProof,
+                    historyProofMetrics,
                     tssConfig);
         }
     }

@@ -20,8 +20,8 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -100,11 +100,6 @@ public class BlockStreamManagerWrapper {
                 @Override
                 public void flushPendingBlock(@NonNull PendingProof pendingProof) {
                     original.flushPendingBlock(pendingProof);
-                }
-
-                @Override
-                public void jumpToBlockAfterFreeze(long blockNumber) {
-                    original.jumpToBlockAfterFreeze(blockNumber);
                 }
             };
         };
@@ -214,11 +209,6 @@ public class BlockStreamManagerWrapper {
 
         BenchmarkState(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {
             this.blockStreamInfoRef = blockStreamInfoRef;
-        }
-
-        @Override
-        public @NonNull VirtualMapState copy() {
-            return this; // No-op for benchmark
         }
 
         @Override
@@ -544,7 +534,11 @@ public class BlockStreamManagerWrapper {
     /** WritableStates implementation that also implements CommittableWritableStates */
     private static class CommittableBlockStreamWritableStates implements WritableStates, CommittableWritableStates {
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
+
+        @SuppressWarnings({"FieldCanBeLocal", "unused"})
         private Bytes lastStateReadHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state read simulation
+
+        @SuppressWarnings({"FieldCanBeLocal", "unused"})
         private Bytes lastStateCommitHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state commit simulation
 
         CommittableBlockStreamWritableStates(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {

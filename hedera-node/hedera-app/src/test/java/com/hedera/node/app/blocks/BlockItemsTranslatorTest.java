@@ -195,6 +195,7 @@ class BlockItemsTranslatorTest {
                 "CRYPTO_UPDATE",
                 "FILE_CREATE",
                 "NODE_CREATE",
+                "REGISTERED_NODE_CREATE",
                 "TOKEN_CREATE",
                 "CONSENSUS_CREATE_TOPIC",
                 "SCHEDULE_CREATE",
@@ -731,5 +732,22 @@ class BlockItemsTranslatorTest {
         final var actualRecordWithSeedOutput =
                 BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, seedOutput);
         assertEquals(EXPECTED_BASE_RECORD.copyBuilder().prngBytes(RUNNING_HASH).build(), actualRecordWithSeedOutput);
+    }
+
+    @Test
+    void recordIncludesHighVolumePricingMultiplierFromResult() {
+        final var highVolumeResult = TRANSACTION_RESULT
+                .copyBuilder()
+                .highVolumePricingMultiplier(4000L)
+                .build();
+        final var context = new BaseOpContext(MEMO, RATES, TXN_ID, SignedTransaction.DEFAULT, CRYPTO_TRANSFER, null);
+
+        final var actualRecord = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, highVolumeResult, null);
+        assertEquals(
+                EXPECTED_BASE_RECORD
+                        .copyBuilder()
+                        .highVolumePricingMultiplier(4000L)
+                        .build(),
+                actualRecord);
     }
 }

@@ -56,7 +56,12 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
 
     @Override
     public @Nullable Bytes getLedgerId() {
-        final var maybeLedgerId = requireNonNull(ledgerId.get()).value();
+        final var protoLedgerId = ledgerId.get();
+        if (protoLedgerId == null) {
+            // Very narrow edge case at genesis before handling first round
+            return null;
+        }
+        final var maybeLedgerId = protoLedgerId.value();
         return Bytes.EMPTY.equals(maybeLedgerId) ? null : maybeLedgerId;
     }
 

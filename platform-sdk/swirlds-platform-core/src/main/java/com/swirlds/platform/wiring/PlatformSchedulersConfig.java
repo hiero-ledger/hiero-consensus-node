@@ -18,7 +18,6 @@ import java.time.Duration;
  * @param issDetector                          configuration for the ISS detector scheduler
  * @param issHandler                           configuration for the ISS handler scheduler
  * @param hashLogger                           configuration for the hash logger scheduler
- * @param latestCompleteStateNotifier          configuration for the latest complete state notifier scheduler
  * @param stateHasher                          configuration for the state hasher scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
@@ -69,9 +68,6 @@ public record PlatformSchedulersConfig(
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration hashLogger,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration latestCompleteStateNotifier,
 
         @ConfigProperty(
                 defaultValue =

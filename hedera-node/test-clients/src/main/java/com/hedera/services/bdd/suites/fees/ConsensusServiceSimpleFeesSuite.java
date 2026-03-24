@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -26,12 +25,16 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_FULL_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -39,7 +42,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
-@Tag(MATS)
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
@@ -65,7 +67,10 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-txn");
-                        final var expectedFee = expectedTopicCreateFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicCreateFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -89,7 +94,10 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-admin-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-admin-txn");
-                        final var expectedFee = expectedTopicCreateFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicCreateFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(
                                 spec,
                                 validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
@@ -115,7 +123,10 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-admin-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-admin-txn");
-                        final var expectedFee = expectedTopicCreateFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicCreateFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(
                                 spec,
                                 validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
@@ -141,7 +152,10 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-txn");
-                        final var expectedFee = expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -165,7 +179,10 @@ public class ConsensusServiceSimpleFeesSuite {
                     updateTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("update-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "update-topic-txn");
-                        final var expectedFee = expectedTopicUpdateFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicUpdateFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "update-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -195,7 +212,10 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("update-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "update-topic-txn");
-                        final var expectedFee = expectedTopicUpdateFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicUpdateFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "update-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -233,7 +253,8 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("delete-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "delete-topic-txn");
-                        final var expectedFee = expectedTopicDeleteFullFeeUsd(sigs, signedTxnSize);
+                        final var expectedFee = expectedTopicDeleteFullFeeUsd(
+                                Map.of(SIGNATURES, sigs, PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "delete-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -250,7 +271,7 @@ public class ConsensusServiceSimpleFeesSuite {
                         .payingWith("payer")
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
-                validateChargedUsd("submitTxn", SUBMIT_MESSAGE_BASE_FEE_USD));
+                validateChargedUsd("submitTxn", SUBMIT_MESSAGE_FULL_FEE_USD));
     }
 
     @HapiTest
@@ -279,6 +300,6 @@ public class ConsensusServiceSimpleFeesSuite {
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
                 withOpContext((spec, opLog) -> validateChargedUsd(
-                        "submitTxn", SUBMIT_MESSAGE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, opLog, "submitTxn"))));
+                        "submitTxn", SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, opLog, "submitTxn"))));
     }
 }

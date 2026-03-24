@@ -127,6 +127,7 @@ import "block/stream/output/block_footer.proto";
  *    - `block_header`
  *    - `transaction_result`
  *    - `transaction_output`
+ *    - `record_file`
  * - State Changes
  *    - `state_changes`
  * - Trace Data
@@ -134,10 +135,12 @@ import "block/stream/output/block_footer.proto";
  * - Any subtree (depending on what was filtered).
  *   This item contains it's path in the tree and must be fully parsed.
  *    - `filtered_single_item`
- * - No subtree (and not part of the "proof" merkle tree)
- *    - `block_footer`
- *    - `block_proof`
- *    - `record_file`
+ * - No subtree (not hashed directly into the block merkle tree)
+ *    - `block_footer` — a container for the first three leaves of the block
+ *      root tree (previous block root hash, all block hashes tree root, and
+ *      state root hash); it is not itself a leaf in the tree.
+ *    - `block_proof` — contains the cryptographic proof of the block hash;
+ *      it is not part of the block hash computation.
  */
 message BlockItem {
     // Reserved for future items that require separate handling for block hash purposes.
@@ -226,20 +229,24 @@ message BlockItem {
         /**
          * A record file and associated data.
          * <p>
-         * This MUST contain a single Record file, associated Sidecar files,
-         * and data from related Signature files.
+         * This MUST contain a single Record file and associated Sidecar files.
          * If this item is present, special treatment is
          * REQUIRED for this block.
          * <ul>
-         *   <li>The block SHALL NOT have a `BlockHeader`.</li>
-         *   <li>The block SHALL NOT have a `BlockProof`.</li>
+         *   <li>The block SHALL have a `BlockHeader`.</li>
          *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
-         *   <li>The block SHALL NOT contain any item other than a
-         *       `RecordFileItem`.</li>
+         *   <li>The block MAY contain one or more StateChanges items.</li>
+         *   <li>The block SHALL have a `BlockFooter`.</li>
+         *   <li>The block SHALL have a `SignedRecordFileProof` type
+         *       `BlockProof`.</li>
+         *   <li>The block SHALL NOT contain any content item other than a
+         *       block header, single `RecordFileItem`, optional StateChanges,
+         *       block footer, and one or more block proofs.</li>
          *   <li>The content of the `RecordFileItem` can be validated using
          *       the `SignedRecordFileProof` according to
          *       the process used for Record Files prior to the creation
-         *       of Block Stream.</li>
+         *       of Block Stream.<br/>
+         *       Additional Block Proof types may be available as well.</li>
          * </ul>
          */
         RecordFileItem record_file = 10;

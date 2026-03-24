@@ -127,8 +127,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
         final Set<StateDefinition> definitions = new LinkedHashSet<>();
-        definitions.add(
-                StateDefinition.onDisk(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
+        definitions.add(StateDefinition.keyValue(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF));
 
         final FilesConfig filesConfig = config.getConfigData(FilesConfig.class);
         final LongPair fileNums = filesConfig.softwareUpdateRange();
@@ -745,7 +744,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     /**
      * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
      */
-    private static InputStream loadResourceInPackage(String resourcePath) {
+    public static InputStream loadResourceInPackage(String resourcePath) {
         return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
     }
 

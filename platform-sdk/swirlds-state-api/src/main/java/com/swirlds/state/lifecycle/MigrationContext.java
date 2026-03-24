@@ -59,15 +59,6 @@ public interface MigrationContext<V> {
     Configuration platformConfig();
 
     /**
-     * Copies and releases the underlying on-disk state for the given ID. If this is not called
-     * periodically during a large migration, the underlying {@code VirtualMap} will grow too large
-     * and apply extreme backpressure during transaction handling post-migration.
-     *
-     * @param stateId the ID of the state to copy and release
-     */
-    void copyAndReleaseOnDiskState(int stateId);
-
-    /**
      * Provides the previous version of the schema. This is useful to know if this is genesis restart
      * @return the previous version of the schema. Previous version will be null if this is genesis restart
      */

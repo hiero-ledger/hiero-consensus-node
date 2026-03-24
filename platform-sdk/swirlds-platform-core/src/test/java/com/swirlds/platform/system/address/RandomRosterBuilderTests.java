@@ -18,6 +18,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -52,14 +53,16 @@ class RandomRosterBuilderTests {
         // Only generate small address book (it's expensive to generate signatures)
         final int size = 3;
 
-        final RandomRosterBuilder builderA =
-                RandomRosterBuilder.create(randotron).withSize(size).withRealKeysEnabled(true);
-        final Roster rosterA = builderA.build();
-
-        final RandomRosterBuilder builderB = RandomRosterBuilder.create(randotron.copyAndReset())
+        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron)
                 .withSize(size)
-                .withRealKeysEnabled(true);
-        final Roster rosterB = builderB.build();
+                .withRealKeysEnabled(true)
+                .buildWithKeys();
+        final Roster rosterA = rosterWithKeysA.getRoster();
+
+        final Roster rosterB = RandomRosterBuilder.create(randotron.copyAndReset())
+                .withSize(size)
+                .withRealKeysEnabled(true)
+                .build();
 
         // The address book should be the same (keys should be deterministic)
         assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));
@@ -89,7 +92,7 @@ class RandomRosterBuilderTests {
             final NodeId id = NodeId.of(address.nodeId());
             final PublicKey signaturePublicKey =
                     RosterUtils.fetchGossipCaCertificate(address).getPublicKey();
-            final KeysAndCerts privateKeys = builderA.getPrivateKeys(id);
+            final KeysAndCerts privateKeys = rosterWithKeysA.getKeysAndCerts(id);
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);

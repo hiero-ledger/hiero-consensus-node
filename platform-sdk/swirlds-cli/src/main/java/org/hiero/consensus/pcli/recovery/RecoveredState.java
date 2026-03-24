@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Used during post-consensus event stream recovery. Stores the state after transactions have been applied to it and

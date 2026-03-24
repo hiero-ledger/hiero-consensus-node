@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
@@ -42,8 +43,8 @@ public class RpcPeerProtocolTests {
     private long lastSentSync;
     private Throwable foundException;
     private NodeId alreadyAsked = null;
-    private Connection otherConnection = null;
-    private Connection lastConnection = null;
+    private volatile Connection otherConnection = null;
+    private volatile Connection lastConnection = null;
 
     @Test
     public void testPeerProtocolFrequentDisconnections() throws Throwable {
@@ -63,6 +64,8 @@ public class RpcPeerProtocolTests {
                 TestPlatformContextBuilder.create().build();
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        final BroadcastConfig broadcastConfig =
+                platformContext.getConfiguration().getConfigData(BroadcastConfig.class);
 
         final Time time = Time.getCurrent();
         final SyncPermitProvider permitProvider = new SyncPermitProvider(
@@ -87,6 +90,7 @@ public class RpcPeerProtocolTests {
                     Time.getCurrent(),
                     new SyncMetrics(metrics, Time.getCurrent(), peers),
                     syncConfig,
+                    broadcastConfig,
                     this::handleException);
 
             peerProtocol.setRpcPeerHandler(new GossipRpcReceiverHandler() {
@@ -121,6 +125,11 @@ public class RpcPeerProtocolTests {
                     receivedSyncData = false;
                     receivedTips = false;
                     receivedEvents = false;
+                }
+
+                @Override
+                public void setCommunicationOverloaded(final boolean overloaded) {
+                    // no-op
                 }
 
                 @Override
@@ -173,6 +182,11 @@ public class RpcPeerProtocolTests {
                     }
                     cleanup();
                 }
+
+                @Override
+                public void receiveBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
+                    // no-op
+                }
             });
 
             new Thread(() -> {
@@ -197,6 +211,7 @@ public class RpcPeerProtocolTests {
             Thread.sleep(100);
             if (lastConnection != null) {
                 lastConnection.disconnect();
+                otherConnection.disconnect();
             }
             if (foundException != null) {
                 throw foundException;
@@ -206,6 +221,7 @@ public class RpcPeerProtocolTests {
         running.set(false);
         if (lastConnection != null) {
             lastConnection.disconnect();
+            otherConnection.disconnect();
         }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;
@@ -250,7 +266,6 @@ public class RpcPeerProtocolTests {
         }
         final Connection connection = otherConnection;
         alreadyAsked = null;
-        otherConnection = null;
         return connection;
     }
 }

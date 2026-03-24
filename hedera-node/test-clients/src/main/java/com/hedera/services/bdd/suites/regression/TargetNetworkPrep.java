@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.regression;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -26,7 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hederahashgraph.api.proto.java.Key;
@@ -35,15 +36,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 public class TargetNetworkPrep {
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.feeCollectionAccountEnabled", "nodes.preserveMinNodeRewardBalance"},
             requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
+        final var simpleNetworkAndServiceFee = 75000;
         final var emptyKey =
                 Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
         final var snapshot802 = "802startBalance";
@@ -58,17 +59,29 @@ public class TargetNetworkPrep {
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
-                        .via("transferToStakingReward")
-                        .logged(),
-                sourcing(() -> getTxnRecord("transferToStakingReward").hasHbarAmount(STAKING_REWARD, (long)
-                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
+                        .via("transferToStakingReward"),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return getTxnRecord("transferToStakingReward")
+                                .hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1));
+                    } else {
+                        return getTxnRecord("transferToStakingReward").hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR
+                                + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)));
+                    }
+                }),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
-                        .via("transferToNodeReward")
-                        .logged(),
-                sourcing(() -> getTxnRecord("transferToNodeReward").hasHbarAmount(NODE_REWARD, (long)
-                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
+                        .via("transferToNodeReward"),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return getTxnRecord("transferToNodeReward")
+                                .hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1));
+                    } else {
+                        return getTxnRecord("transferToNodeReward").hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR
+                                + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)));
+                    }
+                }),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -110,10 +123,12 @@ public class TargetNetworkPrep {
                                 .noAllowances()));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.feeCollectionAccountEnabled", "nodes.preserveMinNodeRewardBalance"},
             requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithFeeCollector() {
+        final var simpleCryptoTransferFee = 83333L;
         final var emptyKey =
                 Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
         final var civilian = "civilian";
@@ -126,20 +141,33 @@ public class TargetNetworkPrep {
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
-                        .via("stakingRewardTransfer")
-                        .logged(),
-                sourcing(() -> getTxnRecord("stakingRewardTransfer")
-                        .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
-                        .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee())),
+                        .via("stakingRewardTransfer"),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return getTxnRecord("stakingRewardTransfer")
+                                .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
+                                .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee);
+                    } else {
+                        return getTxnRecord("stakingRewardTransfer")
+                                .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
+                                .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee());
+                    }
+                }),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
-                        .logged()
                         .via("nodeRewardTransfer"),
-                sourcing(() -> getTxnRecord("nodeRewardTransfer")
-                        .logged()
-                        .hasHbarAmount(NODE_REWARD, ONE_HBAR)
-                        .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee())),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return getTxnRecord("nodeRewardTransfer")
+                                .hasHbarAmount(NODE_REWARD, ONE_HBAR)
+                                .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee);
+                    } else {
+                        return getTxnRecord("nodeRewardTransfer")
+                                .hasHbarAmount(NODE_REWARD, ONE_HBAR)
+                                .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee());
+                    }
+                }),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

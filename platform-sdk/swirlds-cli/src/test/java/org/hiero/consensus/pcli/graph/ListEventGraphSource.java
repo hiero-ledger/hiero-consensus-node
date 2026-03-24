@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

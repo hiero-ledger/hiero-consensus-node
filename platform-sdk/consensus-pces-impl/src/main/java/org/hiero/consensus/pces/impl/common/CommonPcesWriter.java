@@ -29,9 +29,10 @@ public class CommonPcesWriter {
     private final PcesFileManager fileManager;
 
     /**
-     * The current file that is being written to.
+     * The current file that is being written to. Volatile so the shutdown hook thread
+     * sees the latest value written by the handle thread.
      */
-    private PcesMutableFile currentMutableFile;
+    private volatile PcesMutableFile currentMutableFile;
 
     /**
      * The current minimum ancient indicator required to be considered non-ancient. Only read and written on the handle
@@ -53,9 +54,9 @@ public class CommonPcesWriter {
     private final int minimumSpan;
 
     /**
-     * The minimum ancient indicator that we are required to keep around. Based on the birth round of an event.
+     * The minimum birth round that we are required to keep around. Based on the birth round of an event.
      */
-    private long minimumAncientIdentifierToStore;
+    private long minimumBirthRoundToStore;
 
     /**
      * A running average of the span utilization in each file. Span utilization is defined as the difference between the
@@ -131,6 +132,22 @@ public class CommonPcesWriter {
         }
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
+
+        Runtime.getRuntime()
+                .addShutdownHook(new Thread(
+                        () -> {
+                            if (currentMutableFile != null) {
+                                try {
+                                    currentMutableFile.sync();
+                                    currentMutableFile.close();
+                                    logger.info("Shutdown hook: synced and closed current PCES file");
+                                } catch (final IOException e) {
+                                    logger.error(
+                                            EXCEPTION.getMarker(), "Shutdown hook: failed to sync/close PCES file", e);
+                                }
+                            }
+                        },
+                        "pces-shutdown-sync"));
     }
 
     /**
@@ -183,12 +200,12 @@ public class CommonPcesWriter {
     }
 
     /**
-     * Set the minimum ancient indicator needed to be kept on disk.
+     * Set the minimum birth round needed to be kept on disk.
      *
-     * @param minimumAncientIdentifierToStore the minimum ancient indicator required to be stored on disk
+     * @param minimumBirthRoundToStore the minimum birth round required to be stored on disk
      */
-    public void setMinimumAncientIdentifierToStore(@NonNull final Long minimumAncientIdentifierToStore) {
-        this.minimumAncientIdentifierToStore = minimumAncientIdentifierToStore;
+    public void setMinimumBirthRoundToStore(@NonNull final Long minimumBirthRoundToStore) {
+        this.minimumBirthRoundToStore = minimumBirthRoundToStore;
         pruneOldFiles();
     }
 
@@ -228,7 +245,7 @@ public class CommonPcesWriter {
         }
 
         try {
-            fileManager.pruneOldFiles(minimumAncientIdentifierToStore);
+            fileManager.pruneOldFiles(minimumBirthRoundToStore);
         } catch (final IOException e) {
             throw new UncheckedIOException("unable to prune old files", e);
         }
@@ -327,6 +344,21 @@ public class CommonPcesWriter {
                 currentMutableFile.close();
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Syncs the current mutable file to disk, ensuring all written data is durable.
+     * This should be called after the wiring pipeline has been flushed, so that no
+     * more writes are in-flight.
+     */
+    public void syncCurrentFile() {
+        if (currentMutableFile != null) {
+            try {
+                currentMutableFile.sync();
+            } catch (final IOException e) {
+                throw new UncheckedIOException("Failed to sync current PCES file", e);
             }
         }
     }

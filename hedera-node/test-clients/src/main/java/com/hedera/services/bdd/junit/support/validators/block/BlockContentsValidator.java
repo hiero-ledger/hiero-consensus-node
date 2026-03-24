@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -62,8 +63,11 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         validateRounds(items.subList(1, items.size() - 1));
 
-        // A block SHALL end with a `block_proof`.
-        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE) {
+        // A block SHALL end with a `block_proof`; skip check for blocks near the end
+        // (pending async proofs at freeze) or incomplete blocks in the middle (can happen
+        // when nodes restart and all nodes wrote the block before the async proof arrived)
+        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE
+                && items.getLast().hasBlockProof()) {
             validateBlockProof(items.getLast());
         }
     }
@@ -98,13 +102,18 @@ public class BlockContentsValidator implements BlockStreamValidator {
             Assertions.fail("Round must start with a round header");
         }
         int currentIndex = startIndex + 1;
+        boolean insideEvent = false;
         boolean hasEventOrStateChange = false;
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
             final var item = items.get(currentIndex);
             final var kind = item.item().kind();
             switch (kind) {
-                case EVENT_HEADER, STATE_CHANGES -> hasEventOrStateChange = true;
+                case EVENT_HEADER -> hasEventOrStateChange = insideEvent = true;
+                case BLOCK_FOOTER -> insideEvent = false;
+                case STATE_CHANGES -> hasEventOrStateChange = true;
+                case SIGNED_TRANSACTION ->
+                    assertTrue(insideEvent, "Signed transaction found outside of event at index " + currentIndex);
                 case RECORD_FILE, FILTERED_SINGLE_ITEM ->
                     Assertions.fail("Unexpected item type " + kind + " at index " + currentIndex);
                 default -> {

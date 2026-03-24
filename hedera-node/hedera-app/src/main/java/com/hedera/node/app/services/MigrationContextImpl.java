@@ -9,8 +9,6 @@ import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.merkle.VirtualMapStateImpl.MerkleWritableStates;
-import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,18 +39,6 @@ public record MigrationContextImpl(
         requireNonNull(newStates);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
-    }
-
-    @Override
-    public void copyAndReleaseOnDiskState(final int stateId) {
-        if (newStates instanceof MerkleWritableStates merkleWritableStates) {
-            merkleWritableStates.copyAndReleaseVirtualMap(stateId);
-        } else if (newStates instanceof FilteredWritableStates filteredWritableStates
-                && filteredWritableStates.getDelegate() instanceof MerkleWritableStates merkleWritableStates) {
-            merkleWritableStates.copyAndReleaseVirtualMap(stateId);
-        } else {
-            throw new UnsupportedOperationException("On-disk state is inaccessible");
-        }
     }
 
     @Override

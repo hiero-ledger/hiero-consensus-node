@@ -15,6 +15,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -337,12 +338,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled to periodically reset the stream
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS), // initial delay
-                        eq(ONCE_PER_DAY_MILLIS), // period
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         final ConnectionState postUpdateState = connection.currentState();
         assertThat(postUpdateState).isEqualTo(ConnectionState.ACTIVE);
@@ -369,12 +365,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled to periodically reset the stream
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS), // initial delay
-                        eq(ONCE_PER_DAY_MILLIS), // period
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         // do a quick sanity check on the state
         final ConnectionState preState = connection.currentState();
@@ -557,12 +548,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled to periodically reset the stream
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS), // initial delay
-                        eq(ONCE_PER_DAY_MILLIS), // period
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(metrics);
@@ -634,12 +620,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(bufferService).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -651,6 +640,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
         when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(12L);
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -683,6 +674,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -693,6 +686,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService).getBlockState(11L);
@@ -971,12 +965,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled to periodically reset the stream
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS), // initial delay
-                        eq(ONCE_PER_DAY_MILLIS), // period
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         connection.close(true);
 
@@ -985,9 +974,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(requestPipeline).onComplete();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -996,12 +987,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled to periodically reset the stream
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS), // initial delay
-                        eq(ONCE_PER_DAY_MILLIS), // period
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         connection.close(true);
 
@@ -1010,9 +996,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     // Tests close operation without calling onComplete on pipeline
@@ -1028,8 +1016,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Should not call onComplete when callOnComplete is false
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(requestPipeline);
     }
 
@@ -1047,9 +1037,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     // Tests exception handling during close operation (should catch and log RuntimeException)
@@ -1110,8 +1102,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(requestPipeline);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -1189,9 +1183,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(requestPipeline).onComplete();
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -1283,9 +1279,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionOnComplete();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -1310,6 +1308,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(101);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
+        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
     }
@@ -1332,8 +1331,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
-        verifyNoMoreInteractions(metrics);
         verifyNoInteractions(connectionManager);
+        verify(metrics).recordActiveConnectionIp(anyLong());
+        verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
     }
 
@@ -1356,7 +1356,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verifyNoInteractions(metrics);
+        verify(metrics).recordActiveConnectionIp(anyLong());
+        verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
     }
 
@@ -1378,10 +1379,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(10);
 
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
@@ -1457,6 +1458,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1476,7 +1478,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
         final BlockState block = new BlockState(10);
         final BlockItem item1 = newBlockHeaderItem(10);
@@ -1487,7 +1489,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem item6 = newBlockTxItem(1_950_000);
         final BlockItem item7 = newBlockTxItem(1_750_000);
         final BlockItem item8 = newBlockTxItem(25);
-        final BlockItem item9 = newBlockTxItem(9_002_875);
+        final BlockItem item9 = newBlockTxItem(37_748_731);
 
         block.addItem(item1);
         block.addItem(item2);
@@ -1520,7 +1522,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         Request 2: item 4
         Request 3: item 5 and 6
         Request 4: item 7 and 8
-        Request 5: EndStream.Error because item 8 was too big
+        Request 5: EndStream.Error because item 9 was too big
          */
 
         assertThat(requestCaptor.getAllValues()).hasSize(5);
@@ -1561,7 +1563,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics, times(6)).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics, times(5)).recordRequestLatency(anyLong());
         verify(requestPipeline).onComplete();
         verify(bufferService, times(6)).getEarliestAvailableBlockNumber();
@@ -1575,6 +1577,21 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testConnectionWorker_reEmitsActiveConnectionIpMetric() throws Exception {
+        openConnectionAndResetMocks();
+        connection.initialize();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.setCachedIpAsInteger(42L);
+
+        doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
+
+        final Object worker = createWorker();
+        invokeDoWork(worker);
+
+        verify(metrics).recordActiveConnectionIp(42L);
     }
 
     // Tests that no response processing occurs when connection is already closed
@@ -1592,7 +1609,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(bufferService);
     }
 
-    // Tests EndOfStream rate limiting - connection closes when limit exceeded
+    // Tests EndOfStream rate limiting - sends EndStream with RESET code and reschedules when limit exceeded
     @Test
     void testOnNext_endOfStream_rateLimitExceeded() {
         openConnectionAndResetMocks();
@@ -1610,8 +1627,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        // Verify EndStream request metrics
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(anyLong());
         verify(connectionManager).recordEndOfStreamAndCheckLimit(eq(nodeConfig), any());
         verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
+        // Verify EndStream request was sent with RESET code
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(requestPipeline).onNext(any(PublishStreamRequest.class));
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1649,17 +1673,129 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
         when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+        when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
+                .thenReturn(false);
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
         verify(metrics).recordLatestBlockBehindPublisher(Long.MAX_VALUE);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
         verify(bufferService).getBlockState(0L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    // Tests BehindPublisher rate limiting - sends EndStream with RESET code and reschedules when limit exceeded
+    @Test
+    void testOnNext_blockNodeBehind_rateLimitExceeded() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+        when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
+                .thenReturn(true);
+        when(connectionManager.getBehindPublisherScheduleDelay()).thenReturn(Duration.ofMinutes(5));
+        // Mock bufferService for EndStream request
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(5L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(15L);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        // Verify EndStream request metrics
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
+        // Verify EndStream request was sent with RESET code
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(requestPipeline).onNext(any(PublishStreamRequest.class));
+        verify(requestPipeline).onComplete();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - first message in new window should be processed
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_firstMessageInWindow() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // First message should NOT be ignored (new window, queue is empty)
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(bufferService).getBlockState(11L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any(Instant.class));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - second message within ignore period should be ignored
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_withinIgnorePeriod() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Second message within ignore period should be ignored
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(true);
+
+        connection.onNext(response);
+
+        // Metrics are recorded before the ignore check in onNext, but handleBlockNodeBehind returns early
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        // Should NOT record or process the message in handleBlockNodeBehind
+        verify(connectionManager, never()).recordBehindPublisherAndCheckLimit(any(), any());
+        verify(bufferService, never()).getBlockState(anyLong());
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    // Tests BehindPublisher ignore period - message after ignore period expires but within same window
+    @Test
+    void testOnNext_blockNodeBehind_ignorePeriod_afterIgnorePeriodExpires() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // After ignore period expires (shouldIgnore returns false), message should be processed
+        when(connectionManager.shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class)))
+                .thenReturn(false);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(bufferService).getBlockState(11L);
+        verify(connectionManager).shouldIgnoreBehindPublisher(eq(nodeConfig), any(Instant.class));
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any(Instant.class));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
     }
 
     // Tests stream failure handling without calling onComplete on the pipeline
@@ -1727,9 +1863,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
     }
 
     // Tests explicit stream termination with proper EndStream request parameters
@@ -1809,26 +1947,17 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         when(mockTask.isDone()).thenReturn(false);
 
         // Configure executor to return our mock task
-        doReturn(mockTask)
-                .when(executorService)
-                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        doReturn(mockTask).when(executorService).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         // First activation - creates initial task
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify first task was scheduled
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         // Reset executor mock but keep the task behavior
         reset(executorService);
-        doReturn(mockTask)
-                .when(executorService)
-                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        doReturn(mockTask).when(executorService).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         // Activate again - this should cancel the existing task and create a new one
         // This covers the lines: if (streamResetTask != null && !streamResetTask.isDone()) {
@@ -1839,12 +1968,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(mockTask).cancel(false);
 
         // Verify a new task was scheduled
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
     }
@@ -1859,26 +1983,17 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         when(mockTask.isDone()).thenReturn(true); // Task is already done
 
         // Configure executor to return our mock task
-        doReturn(mockTask)
-                .when(executorService)
-                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        doReturn(mockTask).when(executorService).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         // First activation - creates initial task
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify first task was scheduled
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         // Reset executor mock but keep the task behavior
         reset(executorService);
-        doReturn(mockTask)
-                .when(executorService)
-                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        doReturn(mockTask).when(executorService).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         // Activate again - this should NOT cancel the existing task since it's already done
         // This covers: if (streamResetTask != null && !streamResetTask.isDone()) - the null check passes but isDone()
@@ -1889,12 +2004,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(mockTask, times(0)).cancel(false); // Should not be called
 
         // Verify a new task was still scheduled
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
     }
@@ -1908,20 +2018,13 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final ScheduledFuture<?> mockTask = mock(ScheduledFuture.class);
 
         // Configure executor to return our mock task
-        doReturn(mockTask)
-                .when(executorService)
-                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        doReturn(mockTask).when(executorService).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         // First, activate the connection to create a stream reset task
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Verify task was scheduled
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        any(Runnable.class),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(Runnable.class), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         // Now change to a non-ACTIVE state to trigger cancelStreamReset()
         // This should cover: if (streamResetTask != null) { streamResetTask.cancel(false); ... }
@@ -1941,12 +2044,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Capture the scheduled runnable
         final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        runnableCaptor.capture(),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(runnableCaptor.capture(), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         reset(connectionManager, bufferService);
 
@@ -1972,12 +2070,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Capture the scheduled runnable
         final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(executorService)
-                .scheduleAtFixedRate(
-                        runnableCaptor.capture(),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(ONCE_PER_DAY_MILLIS),
-                        eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(runnableCaptor.capture(), eq(ONCE_PER_DAY_MILLIS), eq(TimeUnit.MILLISECONDS));
 
         // Change state to CLOSING before executing reset
         connection.updateConnectionState(ConnectionState.CLOSING);
@@ -1991,6 +2084,78 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(requestPipeline);
+    }
+
+    // Stream reset jitter tests
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testScheduleStreamReset_appliesJitter() {
+        // Create a connection with 30m jitter
+        final var jitterConfigProvider = createConfigProvider(
+                createDefaultConfigProvider().withValue("blockNode.streamResetPeriodJitter", "30m"));
+        final var jitterConnection = new BlockNodeStreamingConnection(
+                jitterConfigProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+        jitterConnection.initialize();
+        reset(connectionManager, requestPipeline, bufferService, metrics);
+
+        jitterConnection.updateConnectionState(ConnectionState.ACTIVE);
+
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(executorService).schedule(any(Runnable.class), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+
+        final long delay = delayCaptor.getValue();
+        assertThat(delay)
+                .isGreaterThanOrEqualTo(
+                        ONCE_PER_DAY_MILLIS - Duration.ofMinutes(30).toMillis())
+                .isLessThanOrEqualTo(ONCE_PER_DAY_MILLIS);
+    }
+
+    @Test
+    void testScheduleStreamReset_zeroJitter() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(executorService).schedule(any(Runnable.class), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+
+        assertThat(delayCaptor.getValue()).isEqualTo(ONCE_PER_DAY_MILLIS);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testScheduleStreamReset_jitterExceedsPeriod() {
+        // Create a connection where jitter exceeds the reset period
+        final var jitterConfigProvider = createConfigProvider(
+                createDefaultConfigProvider().withValue("blockNode.streamResetPeriodJitter", "25h"));
+        final var jitterConnection = new BlockNodeStreamingConnection(
+                jitterConfigProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+        jitterConnection.initialize();
+        reset(connectionManager, requestPipeline, bufferService, metrics);
+
+        jitterConnection.updateConnectionState(ConnectionState.ACTIVE);
+
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(executorService).schedule(any(Runnable.class), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+
+        // Should fall back to exact period without jitter
+        assertThat(delayCaptor.getValue()).isEqualTo(ONCE_PER_DAY_MILLIS);
     }
 
     // Pipeline operation timeout tests

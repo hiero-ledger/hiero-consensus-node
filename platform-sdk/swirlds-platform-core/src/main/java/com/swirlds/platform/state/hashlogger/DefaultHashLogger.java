@@ -5,9 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,6 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.MessageFactory;
 import org.apache.logging.log4j.message.ParameterizedMessageFactory;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * A default implementation of a {@link HashLogger}.

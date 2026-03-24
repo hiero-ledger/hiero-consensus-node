@@ -31,6 +31,7 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -255,7 +256,10 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
+        final PlatformEvent platformEvent =
+                new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        platformEvent.setTimeReceived(time.now());
+        return platformEvent;
     }
 
     /**
@@ -318,6 +322,9 @@ public class TipsetEventCreator implements EventCreator {
         if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
+            if (selflessParent == null) {
+                return null;
+            }
             // if we already contain that event, everything is good
             if (!contains(chosenBestParents, selflessParent)) {
                 // otherwise, replace the least important parent with one we have chosen to reduce selfishness
@@ -362,7 +369,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @NonNull PlatformEvent selectParentToReduceSelfishness() {
+    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -453,6 +460,7 @@ public class TipsetEventCreator implements EventCreator {
         final double weightRatio = advancementWeight.advancementWeight()
                 / (double) tipsetWeightCalculator.getMaximumPossibleAdvancementWeight();
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
+        tipsetMetrics.getMopMetric().update(otherParents.length);
 
         childlessOtherEventTracker.registerSelfEventParents(otherParentDescriptors);
 
@@ -545,7 +553,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        allParents.stream().map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(p -> p == selfParent ? p.getTimeCreated() : p.getTimeReceived()),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams

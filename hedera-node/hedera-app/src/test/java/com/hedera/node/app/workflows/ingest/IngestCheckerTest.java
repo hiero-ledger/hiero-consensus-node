@@ -87,6 +87,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -107,7 +108,6 @@ class IngestCheckerTest extends AppTestBase {
     private static final Fees DEFAULT_FEES = new Fees(100L, 20L, 3L);
 
     private final InstantSource instantSource = InstantSource.system();
-    private final int maxBytes = 133120;
 
     @Mock(strictness = LENIENT)
     CurrentPlatformStatus currentPlatformStatus;
@@ -159,7 +159,7 @@ class IngestCheckerTest extends AppTestBase {
         final var app = appBuilder().withSelfNode(selfNodeInfo).build();
         when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
 
-        configuration = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L);
+        configuration = configWithFeatureFlags(false, false);
 
         txBody = TransactionBody.newBuilder()
                 .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
@@ -245,6 +245,18 @@ class IngestCheckerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(WAITING_FOR_LEDGER_ID));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        void answersFreeQueriesIfInControlledState() {
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZING);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZE_COMPLETE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.CHECKING);
+            Assertions.assertThrows(PreCheckException.class, () -> subject.verifyFreeQueryable());
         }
     }
 
@@ -444,7 +456,8 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         @DisplayName("High volume transaction should throw NOT_SUPPORTED when feature is disabled")
         void highVolumeTransactionRejectedWhenFeatureDisabled() throws PreCheckException {
-            // Given a transaction with highVolume=true and the feature disabled (default)
+            // Given a transaction with highVolume=true and both features disabled
+            final var disabledConfig = configWithFeatureFlags(false, false);
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
                     .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
                     .highVolume(true)
@@ -470,7 +483,7 @@ class IngestCheckerTest extends AppTestBase {
 
             // When the transaction is checked, it should be rejected with NOT_SUPPORTED
             assertThatThrownBy(() -> subject.runAllChecks(
-                            state, serializedHighVolumeTx, configuration, new IngestChecker.Result()))
+                            state, serializedHighVolumeTx, disabledConfig, new IngestChecker.Result()))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -480,11 +493,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("High volume transaction should be allowed when feature is enabled")
         void highVolumeTransactionAllowedWhenFeatureEnabled() throws Exception {
             // Given a transaction with highVolume=true and the feature enabled
-            final var enabledConfig = new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("networkAdmin.highVolumeThrottlesEnabled", true)
-                            .getOrCreateConfig(),
-                    1L);
+            final var enabledConfig = configWithFeatureFlags(true, true);
 
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
                     .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
@@ -938,5 +947,15 @@ class IngestCheckerTest extends AppTestBase {
                 List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
                 false,
                 null);
+    }
+
+    private VersionedConfigImpl configWithFeatureFlags(
+            final boolean simpleFeesEnabled, final boolean highVolumeThrottlesEnabled) {
+        return new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("networkAdmin.highVolumeThrottlesEnabled", highVolumeThrottlesEnabled)
+                        .withValue("fees.simpleFeesEnabled", simpleFeesEnabled)
+                        .getOrCreateConfig(),
+                1L);
     }
 }

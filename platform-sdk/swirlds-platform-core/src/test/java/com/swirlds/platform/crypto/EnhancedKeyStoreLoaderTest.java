@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -176,6 +177,7 @@ class EnhancedKeyStoreLoaderTest {
         BootstrapUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
 
         builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
+        builder.withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password");
 
         return builder.build();
     }

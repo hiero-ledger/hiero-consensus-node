@@ -6,9 +6,11 @@ import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import com.hedera.hapi.platform.message.GossipPing;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
@@ -28,7 +30,7 @@ final class RpcPingHandler {
     /**
      * Timestamp for each ping correlation id, so ping time can be measured after reply
      */
-    private final ConcurrentMap<Long, GossipPing> sentPings = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Long> sentPings = new ConcurrentHashMap<>();
 
     /**
      * Network metrics to register data about communication traffic and latencies
@@ -46,6 +48,21 @@ final class RpcPingHandler {
     private final RpcPeerProtocol rpcPeerProtocol;
 
     /**
+     * How often pings should be sent
+     */
+    private final long pingPeriod;
+
+    /**
+     * Increasing counter for ping correlation id
+     */
+    private long pingId = 1;
+
+    /**
+     * Last time ping was sent, to keep track to avoid spamming network with ping requests
+     */
+    private long lastPingInitiationTime;
+
+    /**
      * @param time            the {@link Time} instance for the platformeturns the {@link Time} instance for the
      *                        platform
      * @param networkMetrics  network metrics to register data about communication traffic and latencies
@@ -56,26 +73,17 @@ final class RpcPingHandler {
             final @NonNull Time time,
             final NetworkMetrics networkMetrics,
             final NodeId remotePeerId,
-            final RpcPeerProtocol rpcPeerProtocol) {
+            final RpcPeerProtocol rpcPeerProtocol,
+            final @NonNull Duration pingPeriod) {
         this.time = Objects.requireNonNull(time);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
         this.remotePeerId = Objects.requireNonNull(remotePeerId);
         this.rpcPeerProtocol = Objects.requireNonNull(rpcPeerProtocol);
+        this.pingPeriod = TimeUnit.NANOSECONDS.convert(pingPeriod);
     }
 
-    /**
-     * Increasing counter for ping correlation id
-     */
-    private long pingId = 1;
-
-    /**
-     * Last time ping was sent, to keep track to avoid spamming network with ping requests
-     */
-    private long lastPingTime;
-
-    void handleIncomingPing(final GossipPing ping) {
-        final GossipPing reply = new GossipPing(time.currentTimeMillis(), ping.correlationId());
-        rpcPeerProtocol.sendPingReply(reply);
+    void handleIncomingPing(final long correlationId) {
+        rpcPeerProtocol.sendPingReply(correlationId);
     }
 
     /**
@@ -84,33 +92,36 @@ final class RpcPingHandler {
      * @return ping to be sent or null if not enough time has passed
      */
     GossipPing possiblyInitiatePing() {
-        final long timestamp = time.currentTimeMillis();
-        if ((timestamp - lastPingTime) < 1000) {
+        final long timestamp = time.nanoTime();
+        if ((timestamp - lastPingInitiationTime) < pingPeriod) {
             return null;
         }
-        this.lastPingTime = timestamp;
-        final GossipPing ping = new GossipPing(timestamp, pingId++);
-        sentPings.put(ping.correlationId(), ping);
+        this.lastPingInitiationTime = timestamp;
+        final GossipPing ping = new GossipPing(pingId++);
+        sentPings.put(ping.correlationId(), timestamp);
         return ping;
     }
 
     /**
      * Called when ping reply was received by network layer
      *
-     * @param pingReply reply to our ping
+     * @param correlationId reply to our ping
+     * @return amount of nanoseconds which has passed since we have sent that ping request
      */
-    void handleIncomingPingReply(final GossipPing pingReply) {
-        final GossipPing original = sentPings.remove(pingReply.correlationId());
+    long handleIncomingPingReply(final long correlationId) {
+        final Long original = sentPings.remove(correlationId);
         if (original == null) {
             logger.error(
                     NETWORK.getMarker(),
                     "Received unexpected gossip ping reply from peer {} for correlation id {}",
                     remotePeerId,
-                    pingReply.correlationId());
+                    correlationId);
+            return 0L;
         } else {
-            // don't trust remote timestamp for measuring ping
-            logger.debug(NETWORK.getMarker(), "Ping {}", time.currentTimeMillis() - original.timestamp());
-            networkMetrics.recordPingTime(remotePeerId, (time.currentTimeMillis() - original.timestamp()) * 1_000_000);
+            final long lastPingNanos = (time.nanoTime() - original);
+            logger.debug(NETWORK.getMarker(), "Ping {}", lastPingNanos);
+            networkMetrics.recordPingTime(remotePeerId, lastPingNanos);
+            return lastPingNanos;
         }
     }
 }

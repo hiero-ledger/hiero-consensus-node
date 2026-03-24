@@ -7,7 +7,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -30,13 +30,11 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -50,6 +48,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,6 +58,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -85,6 +85,7 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -229,11 +230,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
-            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    metrics,
-                    timeManager.time(),
-                    virtualMap -> new VirtualMapStateImpl(virtualMap, metrics),
-                    currentConfiguration);
+            final StateLifecycleManager stateLifecycleManager =
+                    new VirtualMapStateLifecycleManager(metrics, timeManager.time(), currentConfiguration);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
@@ -245,12 +243,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> createGenesisState(currentConfiguration, metrics, roster(), version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformContext,
                     stateLifecycleManager);
+
+            if (reservedState.state().get().isGenesisState()) {
+                initGenesisState(reservedState.state().get().getState(), roster(), version, otterApp.allServices());
+            }
 
             final ReservedSignedState initialState = reservedState.state();
             final VirtualMapState state = initialState.get().getState();
@@ -265,6 +266,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             this.executionLayer = new OtterExecutionLayer(
                     new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
+
+            final SimulatedGossip gossip = network.getGossipInstance(selfId);
+            final GossipModule gossipModule = new TurtleGossipModule(gossip);
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
@@ -281,15 +285,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withKeysAndCerts(keysAndCerts)
                     .withExecutionLayer(executionLayer)
                     .withModel(model)
-                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
+                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
+                    .withGossipModule(gossipModule);
 
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-            final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
-
-            platformComponentBuilder.withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 

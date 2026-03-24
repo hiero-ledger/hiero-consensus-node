@@ -8,6 +8,7 @@ module org.hiero.consensus.pces.impl {
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.pcli,
             org.hiero.otter.fixtures,
+            org.hiero.sloth.fixtures,
             org.hiero.consensus.pces.impl.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
@@ -24,6 +25,8 @@ module org.hiero.consensus.pces.impl {
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.state;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

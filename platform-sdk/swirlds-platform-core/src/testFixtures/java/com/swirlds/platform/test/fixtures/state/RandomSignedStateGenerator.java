@@ -20,8 +20,6 @@ import com.swirlds.common.Reservable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -50,6 +48,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
@@ -271,7 +272,7 @@ public class RandomSignedStateGenerator {
 
     /**
      * Set if this state should be deleted on a background thread.
-     * ({@link com.swirlds.platform.state.signed.StateGarbageCollector} must be wired up in order for this to happen)
+     * ({@link StateGarbageCollector} must be wired up in order for this to happen)
      *
      * @param deleteOnBackgroundThread if true, delete on a background thread
      * @return this object

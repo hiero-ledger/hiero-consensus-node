@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
-import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -20,7 +19,6 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -29,6 +27,7 @@ import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
+import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -39,13 +38,15 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -66,6 +67,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private final List<RecordStreamValidator> recordStreamValidators;
+    private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
+            new WrappedRecordHashesByRecordFilesValidator();
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
@@ -77,14 +80,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             //            RedactingEventHashBlockStreamValidator.FACTORY
             );
 
-    private final int historyProofsToWaitFor;
+    private record DataOrException(
+            @Nullable StreamFileAccess.RecordStreamData data,
+            @Nullable Exception e) {}
 
-    @Nullable
-    private final Duration historyProofTimeout;
-
-    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
-        this.historyProofsToWaitFor = historyProofsToWaitFor;
-        this.historyProofTimeout = historyProofTimeout;
+    public StreamValidationOp() {
         this.recordStreamValidators = List.of(
                 new BlockNoValidator(),
                 new TransactionBodyValidator(),
@@ -110,7 +110,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
-                        data -> {
+                        dataOrException -> {
+                            final var data = dataOrException.data();
+                            if (data == null) {
+                                Assertions.fail(
+                                        "Unable to read stream data at " + recordStreamLocationsOf(spec),
+                                        dataOrException.e());
+                            }
                             final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
@@ -122,25 +128,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             }
                             dataRef.set(data);
                         },
-                        () -> Assertions.fail("No record stream data found"));
+                        () -> Assertions.fail(
+                                "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
+
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
-        }
-        if (historyProofsToWaitFor > 0) {
-            requireNonNull(historyProofTimeout);
-            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
-            spec.getNetworkNodes()
-                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
-                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
-                            .join());
-            // If we waited for more than one history proof, do a freeze
-            // upgrade to test adoption of whatever candidate roster
-            // triggered production of the last history proof (the first
-            // one was the "proof" of the genesis address book)
-            if (historyProofsToWaitFor > 1) {
-                allRunFor(spec, upgradeToNextConfigVersion());
-            }
         }
         // Freeze the network
         allRunFor(
@@ -155,7 +148,17 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             // Re-read the record streams since they may have been updated
                             readMaybeRecordStreamDataFor(spec)
                                     .ifPresentOrElse(
-                                            dataRef::set, () -> Assertions.fail("No record stream data found"));
+                                            dataOrException -> {
+                                                final var data = dataOrException.data();
+                                                if (data == null) {
+                                                    Assertions.fail(
+                                                            "Unable to re-read stream data at "
+                                                                    + recordStreamLocationsOf(spec),
+                                                            dataOrException.e());
+                                                }
+                                                dataRef.set(data);
+                                            },
+                                            () -> Assertions.fail("No record stream data found"));
                             final var data = requireNonNull(dataRef.get());
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
@@ -172,60 +175,141 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         () -> Assertions.fail("No block streams found"));
         validateProofs(spec);
 
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+        }
+
         return false;
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        List<Block> blocks = null;
-        final var blockPaths = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
+        final var blockStreamDirs = spec.getNetworkNodes().stream()
+                .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
+                .distinct()
                 .toList();
-        for (final var path : blockPaths) {
-            try {
-                log.info("Trying to read blocks from {}", path);
-                blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
-                log.info("Read {} blocks from {}", blocks.size(), path);
+        // Pick the node directory with the most block files (compare by count first,
+        // then sort only the winner to avoid unnecessary sorting of discarded lists)
+        Path bestDir = null;
+        List<Path> bestPaths = null;
+        for (final var dir : blockStreamDirs) {
+            try (final var stream = Files.walk(dir)) {
+                final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .toList();
+                if (bestPaths == null || paths.size() > bestPaths.size()) {
+                    bestDir = dir;
+                    bestPaths = paths;
+                }
             } catch (Exception ignore) {
-                // We will try to read the next node's streams
-            }
-            if (blocks != null && !blocks.isEmpty()) {
-                break;
+                // We will try the next node's directory
             }
         }
-        return Optional.ofNullable(blocks);
+        if (bestPaths == null || bestPaths.isEmpty()) {
+            return Optional.empty();
+        }
+        bestPaths = bestPaths.stream()
+                .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
+                .toList();
+        // Parse the winner's block files and pair each block with its source path
+        final var otherDirs = new ArrayList<>(blockStreamDirs);
+        otherDirs.remove(bestDir);
+        final var result = new ArrayList<Block>(bestPaths.size());
+        for (final var blockPath : bestPaths) {
+            final var relativePath = bestDir.relativize(blockPath);
+            Block block;
+            try {
+                block = BlockStreamAccess.blockFrom(blockPath);
+            } catch (Exception e) {
+                log.warn("Failed to parse block file {}", blockPath, e);
+                // Try the same file from other node directories to avoid a gap
+                final var fallback = findCompleteBlockIn(otherDirs, relativePath);
+                if (fallback != null) {
+                    result.add(fallback);
+                }
+                continue;
+            }
+            final var items = block.items();
+            if (items.isEmpty() || items.getLast().hasBlockProof()) {
+                result.add(block);
+                continue;
+            }
+            // Incomplete block — try the same relative path under other node directories
+            final var replacement = findCompleteBlockIn(otherDirs, relativePath);
+            result.add(replacement != null ? replacement : block);
+        }
+        return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 
-    private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
-            @NonNull final HapiSpec spec) {
+    /**
+     * Tries to find a complete version of a block file by resolving the same relative path
+     * under each of the given directories. Returns the first block whose last item is a proof.
+     */
+    @Nullable
+    private static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
+        for (final var dir : otherDirs) {
+            final var candidatePath = dir.resolve(relativePath);
+            if (!Files.exists(candidatePath)) {
+                continue;
+            }
+            try {
+                final var block = BlockStreamAccess.blockFrom(candidatePath);
+                final var items = block.items();
+                if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                    return block;
+                }
+            } catch (Exception ignore) {
+                // Try the next directory
+            }
+        }
+        return null;
+    }
+
+    private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
+        Exception lastException = null;
         StreamFileAccess.RecordStreamData data = null;
-        final var streamLocs = spec.getNetworkNodes().stream()
-                .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
-                .map(Path::toAbsolutePath)
-                .map(Object::toString)
-                .toList();
+        final var streamLocs = recordStreamLocationsOf(spec);
         for (final var loc : streamLocs) {
             try {
                 log.info("Trying to read record files from {}", loc);
                 data = STREAM_FILE_ACCESS.readStreamDataFrom(
-                        loc, "sidecar", f -> new File(f).length() > MIN_GZIP_SIZE_IN_BYTES);
+                        loc,
+                        "sidecar",
+                        f -> new File(f).length() > MIN_GZIP_SIZE_IN_BYTES,
+                        // Record stream files are continually created for gossiping partial signatures when hinTS is
+                        // enabled, even without user transactions submitted; so we ignore EOF exceptions here
+                        spec.startupProperties().getBoolean("tss.hintsEnabled"));
                 log.info("Read {} record files from {}", data.records().size(), loc);
-            } catch (Exception ignore) {
-                // We will try to read the next node's streams
+            } catch (Exception e) {
+                lastException = e;
             }
             if (data != null && !data.records().isEmpty()) {
+                lastException = null;
                 break;
             }
         }
-        return Optional.ofNullable(data);
+        return Optional.of(new DataOrException(data, lastException));
+    }
+
+    private static List<String> recordStreamLocationsOf(@NonNull final HapiSpec spec) {
+        return spec.getNetworkNodes().stream()
+                .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
+                .map(Path::toAbsolutePath)
+                .map(Object::toString)
+                .toList();
     }
 
     private static void validateProofs(@NonNull final HapiSpec spec) {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                // Get all marker file numbers
-                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                final var path = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
                 final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
                 final var nodeId = node.getNodeId();

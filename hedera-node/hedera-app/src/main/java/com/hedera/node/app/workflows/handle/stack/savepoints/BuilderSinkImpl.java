@@ -141,6 +141,11 @@ public class BuilderSinkImpl implements BuilderSink {
     }
 
     @Override
+    public int numPreceding() {
+        return precedingBuilders.size();
+    }
+
+    @Override
     public int followingCapacity() {
         return Math.min(maxFollowing - followingBuilders.size(), maxTotal - numBuilders());
     }

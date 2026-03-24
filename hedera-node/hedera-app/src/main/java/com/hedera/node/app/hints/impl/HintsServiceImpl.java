@@ -9,6 +9,7 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -20,6 +21,7 @@ import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -31,7 +33,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,9 +46,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     private final HintsLibrary library;
 
-    @NonNull
-    private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
-
     @Nullable
     private OnHintsFinished cb;
 
@@ -60,19 +58,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this);
     }
 
     @VisibleForTesting
     HintsServiceImpl(@NonNull final HintsServiceComponent component, @NonNull final HintsLibrary library) {
         this.component = requireNonNull(component);
         this.library = requireNonNull(library);
-    }
-
-    @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        requireNonNull(roster);
-        currentRoster.set(roster);
     }
 
     @Override
@@ -134,6 +126,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
         if (hintsStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
+            HintsLibraryBridge.getInstance().resetCache();
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
             component.signingContext().setConstruction(activeConstruction);
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
@@ -165,13 +158,16 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 // No-op
             }
         }
-        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override
     public void executeCrsWork(
-            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            final boolean isActive,
+            @NonNull final NetworkInfo networkInfo) {
         requireNonNull(hintsStore);
+        requireNonNull(networkInfo);
         requireNonNull(now);
         final var controller = component.controllers().getAnyInProgress();
         // On the very first round the hinTS controller won't be available yet
@@ -179,7 +175,14 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             return;
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
-        if (hintsStore.getCrsState().stage() != COMPLETED) {
+        var crsState = hintsStore.getCrsState();
+        if (CRSState.DEFAULT.equals(crsState)) {
+            // Must be a TSS cutover situation with tss.hintsEnabled = true but default state, so init here
+            crsState = initialCrsState((short) HintsService.partySizeForRosterNodeCount(
+                    networkInfo.addressBook().size()));
+            hintsStore.setCrsState(crsState);
+        }
+        if (crsState.stage() != COMPLETED) {
             controller.get().advanceCrsWork(now, hintsStore, isActive);
         }
     }
@@ -203,7 +206,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     @Override
     public boolean doGenesisSetup(
-            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
         writableStates
@@ -212,15 +217,10 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         writableStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
-        final var tssConfig = configuration.getConfigData(TssConfig.class);
         final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
-        if (tssConfig.hintsEnabled()) {
-            final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
-            crsState.put(CRSState.newBuilder()
-                    .stage(GATHERING_CONTRIBUTIONS)
-                    .nextContributingNodeId(0L)
-                    .crs(initialCrs)
-                    .build());
+        if (configuration.getConfigData(TssConfig.class).hintsEnabled()) {
+            final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
+            crsState.put(state);
         } else {
             crsState.put(CRSState.DEFAULT);
         }
@@ -230,5 +230,19 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     @Override
     public void stop() {
         component.controllers().stop();
+    }
+
+    /**
+     * Creates the initial CRS state for the given number of parties.
+     * @param initialCrsParties the number of parties in the initial CRS scheme
+     * @return the initial CRS state
+     */
+    private CRSState initialCrsState(final short initialCrsParties) {
+        final var initialCrs = library.newCrs(initialCrsParties);
+        return CRSState.newBuilder()
+                .stage(GATHERING_CONTRIBUTIONS)
+                .nextContributingNodeId(0L)
+                .crs(initialCrs)
+                .build();
     }
 }

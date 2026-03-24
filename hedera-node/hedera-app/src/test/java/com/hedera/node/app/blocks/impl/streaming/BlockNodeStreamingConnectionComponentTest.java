@@ -312,7 +312,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
         final BlockState block = new BlockState(10);
         doReturn(block).when(bufferService).getBlockState(10);
@@ -335,23 +335,21 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         block.addItem(item4);
         block.closeBlock();
 
-        // Set up latch to wait for END_OF_BLOCK to be recorded
-        final CountDownLatch endOfBlockLatch = new CountDownLatch(1);
+        // Single latch: wait for recordLatestBlockEndOfBlockSent (called in sendBlockEnd after sendRequest returns).
+        // That implies END_OF_BLOCK was already sent. Without this we race and may verify before the metric is
+        // recorded.
+        final CountDownLatch latestBlockEndSentLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
-                    RequestOneOfType type = invocation.getArgument(0);
-                    if (type == RequestOneOfType.END_OF_BLOCK) {
-                        endOfBlockLatch.countDown();
-                    }
+                    latestBlockEndSentLatch.countDown();
                     return null;
                 })
                 .when(metrics)
-                .recordRequestSent(any(RequestOneOfType.class));
+                .recordLatestBlockEndOfBlockSent(anyLong());
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        // Wait for the worker thread to send END_OF_BLOCK
-        assertThat(endOfBlockLatch.await(2, TimeUnit.SECONDS))
-                .as("Worker thread should send END_OF_BLOCK")
+        assertThat(latestBlockEndSentLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should record latest block end-of-block sent")
                 .isTrue();
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
@@ -382,6 +380,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
 
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(connectionManager);
@@ -415,22 +414,22 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
         final BlockState block = new BlockState(10);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         The item is sized such that, given a request padding of 0 and an item padding of 0, during the pending request
         building phase where the size is estimated, the total estimated size will be exactly the hard limit size
-        of 6_292_480. When we try to send the request, we will build the real PublishStreamRequest and validate the
-        actual size. During this phase, the size will exceed the hard limit size (approximately 6_292_490). Since it has
+        of 37_748_736. When we try to send the request, we will build the real PublishStreamRequest and validate the
+        actual size. During this phase, the size will exceed the hard limit size (approximately 37_748_746). Since it has
         exceeded the hard limit, the item will not get sent and the connection will be closed.
          */
-        final BlockItem item = newBlockTxItem(6_292_475);
+        final BlockItem item = newBlockTxItem(37_748_731);
 
         block.addItem(item);
 
-        // Set up latch to wait for connection closure after error
+        // Wait for the close() path to complete; use recordConnectionClosed since it is only called from close().
         final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
                     connectionClosedLatch.countDown();
@@ -459,13 +458,13 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
 
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -505,7 +504,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final BlockNodeConfiguration config = connection.configuration();
         // Sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
         final int numBlocks = 10;
         final List<BlockItem> allItems = new ArrayList<>();
@@ -624,6 +623,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -736,7 +736,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -861,7 +861,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1076,6 +1076,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);

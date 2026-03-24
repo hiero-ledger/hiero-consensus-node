@@ -11,26 +11,21 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -113,25 +108,14 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link TeacherPushVirtualTreeView}.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
      * @param map
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
-     * @param state
-     * 		The state of the virtual tree that we are synchronizing.
-     * @param pipeline
-     * 		The pipeline managing the virtual map.
      */
-    public TeacherPushVirtualTreeView(
-            final ThreadManager threadManager,
-            final ReconnectConfig reconnectConfig,
-            final VirtualMap map,
-            final VirtualMapMetadata state,
-            final VirtualPipeline pipeline) {
+    public TeacherPushVirtualTreeView(final ReconnectConfig reconnectConfig, final VirtualMap map) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(map, state, state);
+        super(map, map.getMetadata(), map.getMetadata());
         this.reconnectConfig = reconnectConfig;
-        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
+        this.records = map.detach();
     }
 
     @Override
@@ -139,18 +123,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream inputStream,
-            final SerializableDataOutputStream outputStream) {
-        final AsyncInputStream<QueryResponse> in =
-                new AsyncInputStream<>(inputStream, workGroup, QueryResponse::new, reconnectConfig);
-        in.start();
-        final AsyncOutputStream<Lesson> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
-        out.start();
-
+            final AsyncInputStream in,
+            final AsyncOutputStream out) {
         final AtomicBoolean senderIsFinished = new AtomicBoolean(false);
-
         final TeacherPushSendTask teacherSendTask =
-                new TeacherPushSendTask(time, reconnectConfig, workGroup, in, out, this, senderIsFinished);
+                new TeacherPushSendTask(time, reconnectConfig, workGroup, out, this, senderIsFinished);
         teacherSendTask.start();
         final TeacherPushReceiveTask teacherReceiveTask =
                 new TeacherPushReceiveTask(workGroup, in, this, senderIsFinished);
@@ -248,9 +225,12 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
                 ? ConcurrentNodeStatusTracker.Status.KNOWN
                 : ConcurrentNodeStatusTracker.Status.NOT_KNOWN;
         nodeStatusTracker.set(node, status);
-        if (node == lastNodeAwaitingReporting) {
-            synchronized (node) {
-                node.notifyAll();
+        if (node.equals(lastNodeAwaitingReporting)) {
+            // Need a local var to make sure lastNodeAwaitingReporting is not changed in
+            // a different thread
+            final Long toNotify = lastNodeAwaitingReporting;
+            synchronized (toNotify) {
+                toNotify.notifyAll();
             }
         }
     }
@@ -280,7 +260,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void serializeLeaf(final SerializableDataOutputStream out, final Long leaf) throws IOException {
         checkValidLeaf(leaf, reconnectState);
-        final VirtualLeafBytes leafRecord = records.findLeafRecord(leaf);
+        final VirtualLeafBytes<?> leafRecord = records.findLeafRecord(leaf);
         assert leafRecord != null : "Unexpected null leaf record at path=" + leaf;
         VirtualReconnectUtils.writeLeafRecord(out, leafRecord);
     }
@@ -302,15 +282,19 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void writeChildHashes(final Long parent, final SerializableDataOutputStream out) throws IOException {
         checkValidInternal(parent, reconnectState);
-        if (parent == ROOT_PATH && reconnectState.getLastLeafPath() == INVALID_PATH) {
+
+        final long firstLeafPath = reconnectState.getFirstLeafPath();
+        final long lastLeafPath = reconnectState.getLastLeafPath();
+
+        if (parent == ROOT_PATH && lastLeafPath == INVALID_PATH) {
             // out.writeSerializableList() writes just a single int if the list is empty
             out.writeInt(0);
             return;
         }
         final int size;
-        if (parent > ROOT_PATH || (parent == ROOT_PATH && reconnectState.getLastLeafPath() > 1)) {
+        if (parent > ROOT_PATH || (parent == ROOT_PATH && lastLeafPath > 1)) {
             size = 2;
-        } else if (parent == ROOT_PATH && reconnectState.getLastLeafPath() == 1) {
+        } else if (parent == ROOT_PATH && lastLeafPath == 1) {
             size = 1;
         } else {
             throw new MerkleSynchronizationException("Unexpected parent " + parent);
@@ -320,24 +304,29 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         out.writeBoolean(true);
 
         final long leftPath = getLeftChildPath(parent);
+
+        final long hashChunkPath = VirtualHashChunk.pathToChunkPath(leftPath, records.getHashChunkHeight());
+        final VirtualHashChunk hashChunk = records.findHashChunk(hashChunkPath);
+        if (hashChunk == null) {
+            throw new MerkleSynchronizationException("Can't find hash chunk for path " + leftPath);
+        }
+
         // Is null? false
         out.writeBoolean(false);
         // Class version is written for the first entry only
         out.writeInt(Hash.CLASS_VERSION);
         // Write hash in SelfSerializable format
-        if (!records.findAndWriteHash(leftPath, out)) {
-            throw new MerkleSynchronizationException("Null hash for path = " + leftPath);
-        }
+        hashChunk.calcHash(leftPath, firstLeafPath, lastLeafPath).serialize(out);
 
         if (size == 2) {
+            // The right path is always in the same chunk as the left path, so calcHash() below
+            // will work as expected
             final long rightPath = getRightChildPath(parent);
             // Is null? false
             out.writeBoolean(false);
             // Class version is not written
             // Write hash in SelfSerializable format
-            if (!records.findAndWriteHash(rightPath, out)) {
-                throw new MerkleSynchronizationException("Null hash for path = " + rightPath);
-            }
+            hashChunk.calcHash(rightPath, firstLeafPath, lastLeafPath).serialize(out);
         }
     }
 
@@ -349,7 +338,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         try {
             records.close();
         } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
+            logger.error(EXCEPTION.getMarker(), "Interrupted while attempting to close data source");
         }
     }
 }

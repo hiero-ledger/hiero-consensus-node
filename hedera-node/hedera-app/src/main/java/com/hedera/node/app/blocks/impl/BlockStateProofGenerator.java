@@ -7,7 +7,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
@@ -109,14 +109,14 @@ public class BlockStateProofGenerator {
             // Convert first four sibling hashes
             final var blockSiblings = Arrays.stream(
                             indirectProofBlocks.get(currentBlockNum).siblingHashes())
-                    .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                    .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                     .toList();
             // Copy into the sibling hashes array
             final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
             for (int j = 0; j < blockSiblings.size(); j++) {
                 final var blockSibling = blockSiblings.get(j);
                 allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                        .isLeft(!blockSibling.isRight())
+                        .isLeft(blockSibling.isLeft())
                         .hash(blockSibling.hash().getBytes())
                         .build();
             }

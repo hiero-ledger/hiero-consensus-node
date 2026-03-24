@@ -9,6 +9,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -47,6 +48,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -138,6 +140,7 @@ public class RecordStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -228,6 +231,8 @@ public class RecordStreamBuilder
      */
     private Long nextHookId;
 
+    private long highVolumePricingMultiplier;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
@@ -295,6 +300,9 @@ public class RecordStreamBuilder
         if (!pendingAirdropRecords.isEmpty()) {
             newPendingAirdropRecords = new ArrayList<>(pendingAirdropRecords);
             newPendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
+        }
+        if (highVolumePricingMultiplier > DEFAULT_HIGH_VOLUME_MULTIPLIER) {
+            transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
         }
 
         final var transactionRecord = transactionRecordBuilder
@@ -970,7 +978,9 @@ public class RecordStreamBuilder
         return exchangeRate;
     }
 
-    /**{@inheritDoc}*/
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public RecordStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -988,7 +998,8 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
-        // No-op
+        this.highVolumePricingMultiplier = highVolumePricingMultiplier;
+        transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
         return this;
     }
 
@@ -1075,6 +1086,13 @@ public class RecordStreamBuilder
     @NonNull
     public RecordStreamBuilder nodeID(long nodeId) {
         transactionReceiptBuilder.nodeId(nodeId);
+        return this;
+    }
+
+    @Override
+    @NonNull
+    public RecordStreamBuilder registeredNodeID(final long registeredNodeID) {
+        transactionReceiptBuilder.registeredNodeId(registeredNodeID);
         return this;
     }
 
@@ -1344,6 +1362,7 @@ public class RecordStreamBuilder
 
     /**
      * Returns the {@link TransactionRecord.Builder} of the record. It can be PRECEDING, CHILD, USER or SCHEDULED.
+     *
      * @return the {@link TransactionRecord.Builder} of the record
      */
     @Override

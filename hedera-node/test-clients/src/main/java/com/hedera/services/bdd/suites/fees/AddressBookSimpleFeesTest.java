@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -11,6 +10,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -22,13 +23,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class AddressBookSimpleFeesTest {
-    // node create is only allowed by fee exempt payers
-    private static final double NODE_UPDATE_BASE_FEE = 0.001;
-    private static final double NODE_DELETE_BASE_FEE = 0.001;
-
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
@@ -55,7 +51,7 @@ public class AddressBookSimpleFeesTest {
                         .description("newDesc")
                         .via("nodeUpdateTxn"),
                 nodeDelete("testNode").payingWith("payer").signedBy("payer").via("nodeDeleteTxn"),
-                validateChargedUsd("nodeUpdateTxn", NODE_UPDATE_BASE_FEE),
-                validateChargedUsd("nodeDeleteTxn", NODE_DELETE_BASE_FEE));
+                validateChargedUsd("nodeUpdateTxn", NODE_UPDATE_BASE_FEE_USD),
+                validateChargedUsd("nodeDeleteTxn", NODE_DELETE_BASE_FEE_USD));
     }
 }

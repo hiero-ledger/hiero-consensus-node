@@ -24,18 +24,27 @@ defaults:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   actions: read
 
 jobs:
-  create-new-release:
-    name: Create New Release
+  create-new-tag:
+    name: Create New Tag
     runs-on: hl-cn-default-lin-md
+    outputs:
+      version: ${{ steps.next-release.outputs.version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Print Input Parameters
+        run: |
+          echo "Input Parameters:"
+          echo "  Build Number: ${{ inputs.build_number }}"
+          echo "  Alpha Release: ${{ inputs.alpha-release }}"
+          echo "  Dry Run Enabled: ${{ inputs.dry-run-enabled }}"
 
       - name: Build Input Validation
         id: validate
@@ -51,7 +60,7 @@ jobs:
           padded_number="$(printf "%05d" "${{ inputs.build_number }}")"
           echo "Padded number is: ${padded_number}"
 
-          # Add "build_" prefix to the padded number
+          # Add "build-" prefix to the padded number
           build_tag="build-${padded_number}"
           echo "Prefixed number is: ${build_tag}"
 
@@ -85,7 +94,6 @@ jobs:
         id: branch
         run: |
           echo "name=ci/release/prep/${{ steps.validate.outputs.build-tag }}" >> ${GITHUB_OUTPUT}
-          echo "The temp branch name is: ${BRANCH_NAME}"
 
       - name: Print Temporary Branch Name
         run: |
@@ -112,6 +120,7 @@ jobs:
         uses: pandaswhocode/setup-git-semver@b820991c162d51f81f309c522b2b595d97d645eb # v1.0.8
 
       - name: Identify Current Version Number
+        id: current-version
         run: |
           echo "Find the current version number"
           current_version="$(git-semver latest)"
@@ -136,8 +145,9 @@ jobs:
             echo "git-semver failed with status ${STATUS}"
             exit "${STATUS}"
           fi
-          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
-          echo "Next release version is: ${OUTPUT}"
+
+          echo "Next release version is: v${OUTPUT}"
+          echo "version=v${OUTPUT}" >> ${GITHUB_OUTPUT}
 
       - name: Calculate and Create Release Branch
         env:
@@ -203,12 +213,12 @@ jobs:
         run: |
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            echo "Dry run enabled, not applying tag v${{ steps.next-release.outputs.version }}"
+            echo "Dry run enabled, not applying tag ${{ steps.next-release.outputs.version }}"
           else
-            git tag --sign --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
-            echo "Applied tag v${{ steps.next-release.outputs.version }}"
+            git tag --sign --annotate "${{ steps.next-release.outputs.version }}" --message "${{ steps.next-release.outputs.version }}"
+            echo "Applied tag ${{ steps.next-release.outputs.version }}"
             current_version="$(git-semver latest)"
-            echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
+            echo "Version Tag Applied: ${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
             echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
           fi
 
@@ -216,33 +226,8 @@ jobs:
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag "v${{ steps.next-release.outputs.version }}"
-          echo "Pushed new release tag v${{ steps.next-release.outputs.version }} to remote"
-
-      - name: Create Release Notes with Markdown
-        id: release
-        run: |
-          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
-          echo "Now we cat the log:"
-          cat RELEASE.md
-
-      - name: Publish Release Notes
-        uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
-        # Skip step if not alpha release or not dry run
-        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
-        with:
-          name: v${{ steps.next-release.outputs.version }}
-          tag_name: v${{ steps.next-release.outputs.version }}
-          prerelease: ${{ inputs.alpha-release == 'true' }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          body_path: "RELEASE.md"
-
-      - name: Clean Up Release Notes
-        run: |
-          echo "Removing the release notes file RELEASE.md"
-          rm RELEASE.md
-          echo "Successfully removed the release notes file RELEASE.md"
+          git push origin "${{ steps.next-release.outputs.version }}"
+          echo "Pushed new release tag ${{ steps.next-release.outputs.version }} to remote"
 
       - name: Clean Up git-semver
         run: |
@@ -283,3 +268,28 @@ jobs:
             git push -d origin "${{ steps.branch.outputs.name }}"
             echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
           fi
+
+      - name: Print Output Parameters for Create Github Release Job
+        if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
+        run: |
+          echo "Output Parameters for Create GitHub Release Job:"
+          echo "  Ref: ${{ steps.next-release.outputs.version }}"
+          echo "  Release Version: ${{ steps.next-release.outputs.version }}"
+          echo "  Create Release Notes: true"
+          echo "  Create Release: true"
+          echo "  Dry Run: ${{ inputs.dry-run-enabled }}"
+
+  create-github-release:
+    name: Create GitHub Release
+    if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true && github.event.repository.private == false }}
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    needs:
+      - create-new-tag
+    with:
+      ref: ${{ needs.create-new-tag.outputs.version }}
+      release-version: ${{ needs.create-new-tag.outputs.version }}
+      create-release-notes: true
+      create-release: true
+      dry-run: ${{ inputs.dry-run-enabled }}
+    secrets:
+      gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
