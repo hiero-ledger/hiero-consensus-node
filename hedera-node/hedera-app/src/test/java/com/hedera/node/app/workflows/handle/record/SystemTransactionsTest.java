@@ -846,7 +846,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
         given(blockRecordManager.blockNo()).willReturn(123L);
 
         final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
