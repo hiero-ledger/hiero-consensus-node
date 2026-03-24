@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -8,6 +9,7 @@ import static java.util.Collections.emptyList;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -248,6 +250,22 @@ public class StreamBuilderTest {
                         false,
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, contractBytecode)));
         assertEquals(expectedTransactionSidecarRecords, singleTransactionRecord.transactionSidecarRecords());
+    }
+
+    @Test
+    void protoConversionLeavesReceiptBlockNumberUnsetWhenBuilderDidNotSetIt() {
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
+        builder.signedTx(SignedTransaction.DEFAULT)
+                .status(ResponseCodeEnum.SUCCESS)
+                .exchangeRate(exchangeRate)
+                .accountID(accountID);
+
+        final var record = builder.build().transactionRecord();
+
+        assertNull(record.receiptOrThrow().blockNumber());
+        assertFalse(pbjToProto(record, TransactionRecord.class, com.hederahashgraph.api.proto.java.TransactionRecord.class)
+                .getReceipt()
+                .hasBlockNumber());
     }
 
     private void assertTransactionReceiptProps(TransactionReceipt receipt, List<Long> serialNumbers) {

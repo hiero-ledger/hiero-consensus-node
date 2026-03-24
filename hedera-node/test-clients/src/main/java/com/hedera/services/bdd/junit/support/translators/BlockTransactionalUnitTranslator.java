@@ -74,6 +74,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.impl.AtomicBatchTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
@@ -104,6 +105,7 @@ import com.hedera.services.bdd.junit.support.translators.impl.TopicCreateTransla
 import com.hedera.services.bdd.junit.support.translators.impl.UtilPrngTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedList;
@@ -223,6 +225,18 @@ public class BlockTransactionalUnitTranslator {
      * @return the translated records
      */
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
+        return translate(unit, null);
+    }
+
+    /**
+     * Translates the given {@link BlockTransactionalUnit} into a list of {@link SingleTransactionRecord}s.
+     *
+     * @param unit the unit to translate
+     * @param blockNumber the enclosing block number, if known
+     * @return the translated records
+     */
+    public List<SingleTransactionRecord> translate(
+            @NonNull final BlockTransactionalUnit unit, @Nullable final Long blockNumber) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
         final List<ScopedTraceData> followingTraces =
@@ -261,12 +275,33 @@ public class BlockTransactionalUnitTranslator {
                             followingTraces,
                             executingHookId,
                             hookMetadata);
-                    translatedRecords.add(translation);
+                    translatedRecords.add(withBlockNumber(translation, blockNumber));
                 }
             }
         }
         baseTranslator.finishLastUnit();
         baseTranslator.updateNoncesAfter(unit);
         return translatedRecords;
+    }
+
+    private static @NonNull SingleTransactionRecord withBlockNumber(
+            @NonNull final SingleTransactionRecord record, @Nullable final Long blockNumber) {
+        requireNonNull(record);
+        if (blockNumber == null) {
+            return record;
+        }
+        final TransactionRecord transactionRecord = record.transactionRecord();
+        final var receipt = transactionRecord.receipt();
+        if (receipt == null || blockNumber.equals(receipt.blockNumber())) {
+            return record;
+        }
+        return new SingleTransactionRecord(
+                record.transaction(),
+                transactionRecord
+                        .copyBuilder()
+                        .receipt(receipt.copyBuilder().blockNumber(blockNumber).build())
+                        .build(),
+                record.transactionSidecarRecords(),
+                record.transactionOutputs());
     }
 }

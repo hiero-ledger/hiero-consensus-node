@@ -165,10 +165,13 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var numStateChanges = new AtomicInteger();
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
         final var roleFreeRecords = blocks.stream()
-                .flatMap(block ->
-                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
-                .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
-                .flatMap(unit -> rfTranslator.translate(unit).stream())
+                .flatMap(block -> {
+                    final var blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
+                    return roleFreeSplit.split(block).stream()
+                            .map(BlockTransactionalUnit::withBatchTransactionParts)
+                            .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
+                            .flatMap(unit -> rfTranslator.translate(unit, blockNumber).stream());
+                })
                 .toList();
         final var actualEntries = roleFreeRecords.stream().map(this::asEntry).toList();
         final var roleFreeDiff = new RcDiff(

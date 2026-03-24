@@ -33,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockRecordSourceTest {
+    private static final long BLOCK_NUMBER = 1L;
     private static final TransactionRecord FIRST_RECORD = TransactionRecord.newBuilder()
             .receipt(TransactionReceipt.newBuilder()
                     .status(SCHEDULE_ALREADY_DELETED)
@@ -40,11 +41,15 @@ class BlockRecordSourceTest {
             .transactionID(TransactionID.newBuilder().nonce(1).build())
             .memo("FIRST")
             .build();
+    private static final TransactionRecord FIRST_BLOCK_NUMBERED_RECORD =
+            RecordSourceBlockNumberUtils.withBlockNumber(FIRST_RECORD, BLOCK_NUMBER);
     private static final TransactionRecord SECOND_RECORD = TransactionRecord.newBuilder()
             .receipt(TransactionReceipt.newBuilder().status(SUCCESS).build())
             .transactionID(TransactionID.newBuilder().nonce(2).build())
             .memo("SECOND")
             .build();
+    private static final TransactionRecord SECOND_BLOCK_NUMBERED_RECORD =
+            RecordSourceBlockNumberUtils.withBlockNumber(SECOND_RECORD, BLOCK_NUMBER);
     private static final AccountID ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1L).build();
     private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
@@ -103,8 +108,8 @@ class BlockRecordSourceTest {
 
         subject.forEachTxnRecord(recordAction);
 
-        verify(recordAction).accept(FIRST_RECORD);
-        verify(recordAction).accept(SECOND_RECORD);
+        verify(recordAction).accept(FIRST_BLOCK_NUMBERED_RECORD);
+        verify(recordAction).accept(SECOND_BLOCK_NUMBERED_RECORD);
 
         assertDoesNotThrow(() -> subject.forEachTxnRecord(recordAction));
     }
@@ -128,9 +133,11 @@ class BlockRecordSourceTest {
         assertThat(subject.identifiedReceipts())
                 .containsExactly(
                         new RecordSource.IdentifiedReceipt(
-                                FIRST_RECORD.transactionIDOrThrow(), FIRST_RECORD.receiptOrThrow()),
+                                FIRST_RECORD.transactionIDOrThrow(),
+                                FIRST_BLOCK_NUMBERED_RECORD.receiptOrThrow()),
                         new RecordSource.IdentifiedReceipt(
-                                SECOND_RECORD.transactionIDOrThrow(), SECOND_RECORD.receiptOrThrow()));
+                                SECOND_RECORD.transactionIDOrThrow(),
+                                SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow()));
 
         assertDoesNotThrow(() -> subject.identifiedReceipts());
     }
@@ -151,8 +158,10 @@ class BlockRecordSourceTest {
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext)));
 
-        assertThat(subject.receiptOf(FIRST_RECORD.transactionIDOrThrow())).isEqualTo(FIRST_RECORD.receiptOrThrow());
-        assertThat(subject.receiptOf(SECOND_RECORD.transactionIDOrThrow())).isEqualTo(SECOND_RECORD.receiptOrThrow());
+        assertThat(subject.receiptOf(FIRST_RECORD.transactionIDOrThrow()))
+                .isEqualTo(FIRST_BLOCK_NUMBERED_RECORD.receiptOrThrow());
+        assertThat(subject.receiptOf(SECOND_RECORD.transactionIDOrThrow()))
+                .isEqualTo(SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> subject.receiptOf(TransactionID.newBuilder().nonce(3).build()));
@@ -175,7 +184,8 @@ class BlockRecordSourceTest {
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext)));
 
         assertThat(subject.childReceiptsOf(TransactionID.DEFAULT))
-                .containsExactly(FIRST_RECORD.receiptOrThrow(), SECOND_RECORD.receiptOrThrow());
+                .containsExactly(
+                        FIRST_BLOCK_NUMBERED_RECORD.receiptOrThrow(), SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow());
         assertThat(subject.childReceiptsOf(TransactionID.newBuilder()
                         .accountID(AccountID.newBuilder().accountNum(2L).build())
                         .build()))
@@ -183,6 +193,6 @@ class BlockRecordSourceTest {
     }
 
     private void subjectWith(@NonNull final List<BlockStreamBuilder.Output> outputs) {
-        subject = new BlockRecordSource(recordTranslator, outputs, 1L);
+        subject = new BlockRecordSource(recordTranslator, outputs, BLOCK_NUMBER);
     }
 }
