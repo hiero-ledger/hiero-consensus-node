@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.intake.impl.validation;
+package org.hiero.consensus.event.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -19,10 +15,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -35,32 +28,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 /**
- * Tests for {@link DefaultInternalEventValidator}
+ * Tests for {@link DefaultEventFieldValidator}
  */
-class InternalEventValidatorTests {
+class DefaultEventFieldValidatorTests {
 
     private static final TransactionLimits TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
 
-    private AtomicLong exitedIntakePipelineCount;
     private Random random;
-    private InternalEventValidator validator;
+    private DefaultEventFieldValidator validator;
 
     @BeforeEach
     void setup() {
         random = getRandomPrintSeed();
 
-        exitedIntakePipelineCount = new AtomicLong(0);
-        final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        doAnswer(invocation -> {
-                    exitedIntakePipelineCount.incrementAndGet();
-                    return null;
-                })
-                .when(intakeEventCounter)
-                .eventExitedIntakePipeline(any());
-
-        validator = new DefaultInternalEventValidator(
-                new DefaultEventFieldValidator(new NoOpMetrics(), new FakeTime(), TRANSACTION_LIMITS),
-                intakeEventCounter);
+        validator = new DefaultEventFieldValidator(new NoOpMetrics(), new FakeTime(), TRANSACTION_LIMITS);
     }
 
     @Test
@@ -83,8 +64,7 @@ class InternalEventValidatorTests {
                 .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(noEventCore);
-        assertNull(validator.validateEvent(platformEvent));
-        assertEquals(1, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(platformEvent));
 
         final GossipEvent noTimeCreated = GossipEvent.newBuilder()
                 .eventCore(EventCore.newBuilder().timeCreated((Timestamp) null).build())
@@ -92,8 +72,7 @@ class InternalEventValidatorTests {
                 .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(noTimeCreated);
-        assertNull(validator.validateEvent(platformEvent));
-        assertEquals(2, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(platformEvent));
 
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
@@ -102,8 +81,7 @@ class InternalEventValidatorTests {
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullTransaction);
 
-        assertNull(validator.validateEvent(platformEvent));
-        assertEquals(3, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(platformEvent));
 
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
@@ -114,8 +92,7 @@ class InternalEventValidatorTests {
                 .parents(parents)
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
-        assertNull(validator.validateEvent(platformEvent));
-        assertEquals(4, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(platformEvent));
     }
 
     @Test
@@ -140,8 +117,7 @@ class InternalEventValidatorTests {
                         .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
-        assertNull(validator.validateEvent(platformEvent));
-        assertEquals(1, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(platformEvent));
     }
 
     @Test
@@ -154,9 +130,7 @@ class InternalEventValidatorTests {
                 .setSystemTransactionCount(0)
                 .build();
 
-        assertNull(validator.validateEvent(event));
-
-        assertEquals(1, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(event));
     }
 
     @Test
@@ -168,8 +142,7 @@ class InternalEventValidatorTests {
                 .setOtherParent(parent)
                 .build();
 
-        assertNull(validator.validateEvent(invalidEvent));
-        assertEquals(1, exitedIntakePipelineCount.get());
+        assertFalse(validator.isValid(invalidEvent));
     }
 
     @Test
@@ -192,44 +165,42 @@ class InternalEventValidatorTests {
                 .setBirthRound(5)
                 .build();
 
-        assertNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertFalse(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent1)
                 .setOtherParent(otherParent1)
                 .setBirthRound(6)
                 .build()));
-        assertNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertFalse(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent2)
                 .setOtherParent(otherParent2)
                 .setBirthRound(6)
                 .build()));
-        assertNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertFalse(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent1)
                 .setOtherParent(otherParent1)
                 .setBirthRound(4)
                 .build()));
-        assertNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertFalse(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent2)
                 .setOtherParent(otherParent2)
                 .setBirthRound(4)
                 .build()));
-        assertNotNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertTrue(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent1)
                 .setOtherParent(otherParent1)
                 .setBirthRound(7)
                 .build()));
-        assertNotNull(validator.validateEvent(new TestingEventBuilder(random)
+        assertTrue(validator.isValid(new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(selfParent2)
                 .setOtherParent(otherParent2)
                 .setBirthRound(7)
                 .build()));
-
-        assertEquals(4, exitedIntakePipelineCount.get());
     }
 
     @Test
@@ -253,10 +224,8 @@ class InternalEventValidatorTests {
                 .setOtherParent(null)
                 .build();
 
-        assertEquals(normalEvent, validator.validateEvent(normalEvent));
-        assertEquals(missingSelfParent, validator.validateEvent(missingSelfParent));
-        assertEquals(missingOtherParent, validator.validateEvent(missingOtherParent));
-
-        assertEquals(0, exitedIntakePipelineCount.get());
+        assertTrue(validator.isValid(normalEvent));
+        assertTrue(validator.isValid(missingSelfParent));
+        assertTrue(validator.isValid(missingOtherParent));
     }
 }
