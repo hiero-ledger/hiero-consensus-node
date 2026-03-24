@@ -134,7 +134,6 @@ class JumpstartFileSuite implements LifecycleTest {
                                 .exposingMatchGroupTo(1, liveBlockNum)
                                 .exposingMatchGroupTo(2, liveWrappedHash)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                // verifyLiveWrappedHash replays node0's .rcd files by design.
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())));
     }
 }

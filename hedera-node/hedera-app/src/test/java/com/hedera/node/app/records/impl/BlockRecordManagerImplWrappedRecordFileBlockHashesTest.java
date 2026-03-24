@@ -978,6 +978,316 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
+    void freezeBlockQueuesWrappedHashesWhileVotingPending() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .build();
+
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT,
+                null)) {
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        }
+
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertTrue(requireNonNull(blockInfo).migrationWrappedHashes().size() > 0);
+        // Voting is still pending, so finalized wrapped-hash state should not be persisted yet.
+        assertEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
+    }
+
+    @Test
+    void freezeBlockToDiskReturnsWhenDiskFlagDisabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                .build();
+
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT,
+                null)) {
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+        }
+
+        verify(diskWriter, never()).appendAsync(any());
+    }
+
+    @Test
+    void freezeBlockToDiskAppendsWhenDiskFlagEnabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT,
+                null)) {
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+        }
+
+        verify(diskWriter).appendAsync(any());
+    }
+
+    @Test
+    void syncFinalizedMigrationHashesSeedsFreezePersistenceWhenLiveWriteEnabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .build();
+
+        final var initialTs = new Timestamp(100, 0);
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(5)
+                                .firstConsTimeOfLastBlock(new Timestamp(98, 0))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .consTimeOfLastHandledTxn(initialTs)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(initialTs)
+                                .lastUsedConsTime(initialTs)
+                                .lastIntervalProcessTime(initialTs)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var syncedPrevHash = Bytes.wrap(new byte[] {
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+        });
+        final var syncedIntermediate = List.of(Bytes.wrap(new byte[48]));
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RESTART,
+                null)) {
+            mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
+            // Freeze persistence should use the synced in-memory wrapped hash state.
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        }
+
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertEquals(syncedPrevHash, requireNonNull(blockInfo).previousWrappedRecordBlockRootHash());
+        assertEquals(syncedIntermediate, blockInfo.wrappedIntermediatePreviousBlockRootHashes());
+        assertEquals(1, blockInfo.wrappedIntermediateBlockRootsLeafCount());
+    }
+
+    @Test
+    void syncFinalizedMigrationHashesIsNoopWhenLiveWriteDisabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", false)
+                .build();
+
+        final var initialTs = new Timestamp(100, 0);
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(5)
+                                .firstConsTimeOfLastBlock(new Timestamp(98, 0))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .consTimeOfLastHandledTxn(initialTs)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(initialTs)
+                                .lastUsedConsTime(initialTs)
+                                .lastIntervalProcessTime(initialTs)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var syncedPrevHash = Bytes.wrap(new byte[] {
+            9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+            9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+        });
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RESTART,
+                null)) {
+            mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[48])), 1);
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        }
+
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertEquals(Bytes.EMPTY, requireNonNull(blockInfo).previousWrappedRecordBlockRootHash());
+        assertEquals(List.of(), blockInfo.wrappedIntermediatePreviousBlockRootHashes());
+        assertEquals(0, blockInfo.wrappedIntermediateBlockRootsLeafCount());
+    }
+
+    @Test
     void restartFirstBoundaryPreservesRestoredHasherState() throws Exception {
         final var app = appBuilder()
                 .withService(new BlockRecordService())

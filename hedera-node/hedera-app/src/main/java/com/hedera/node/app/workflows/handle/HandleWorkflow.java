@@ -632,12 +632,8 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        }
-        if (streamMode != BLOCKS && startsNewRecordFile) {
-            if (blockRecordManager.startUserTransaction(consensusNow, state)) {
-                // startTrackingNewBlock
-                //
-            }
+        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+            blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
