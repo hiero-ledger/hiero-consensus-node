@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
-import com.hedera.node.app.service.contract.impl.test.TestByteUtils;
-import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
+import com.hedera.node.app.service.contract.impl.test.TestingByteUtils;
+import com.hedera.node.app.service.contract.impl.test.TestingTransactionUtils;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -63,7 +63,7 @@ class HederaGasCalculatorImplTest {
     @Test
     void transactionGasRequirements() {
         final var payloadLength = 2048;
-        final var randomPayload = TestByteUtils.randomBytes(payloadLength);
+        final var randomPayload = TestingByteUtils.randomBytes(payloadLength);
         final var zeros = IntStream.range(0, randomPayload.length)
                 .filter(idx -> randomPayload[idx] == 0)
                 .count();
@@ -84,7 +84,7 @@ class HederaGasCalculatorImplTest {
     @Test
     void transactionGasRequirementsContractCreate() {
         final var payloadLength = 2048;
-        final var randomPayload = TestByteUtils.randomBytes(payloadLength);
+        final var randomPayload = TestingByteUtils.randomBytes(payloadLength);
         final var zeros = IntStream.range(0, randomPayload.length)
                 .filter(idx -> randomPayload[idx] == 0)
                 .count();
@@ -131,10 +131,10 @@ class HederaGasCalculatorImplTest {
                         .map(Integer::parseInt)
                         .toList();
         final var codeDelegationsCount = Integer.parseInt(codeDelegationsCountString);
-        final var codeDelegations = TestTransactionUtils.generateAuthList(codeDelegationsCount);
+        final var codeDelegations = TestingTransactionUtils.generateAuthList(codeDelegationsCount);
         // when
         final var gasRequirements = subject.transactionGasRequirements(
-                Bytes.EMPTY, false, TestTransactionUtils.generateAccessList(keysCount), codeDelegations);
+                Bytes.EMPTY, false, TestingTransactionUtils.generateAccessList(keysCount), codeDelegations);
         // then
         // intrinsicGas calculation with accessList from https://eips.ethereum.org/EIPS/eip-2930
         assertEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());

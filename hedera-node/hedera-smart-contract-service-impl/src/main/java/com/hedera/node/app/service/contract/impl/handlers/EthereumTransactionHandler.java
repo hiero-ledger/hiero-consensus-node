@@ -154,7 +154,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     private static List<CodeDelegation> parseInnerCodeDelegations(final EthTxData ethTxData) throws PreCheckException {
         try {
             final var codeDelegations = ethTxData.extractCodeDelegations();
-            validateTruePreCheck(codeDelegations != null && !codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
+            validateTruePreCheck(!codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
             return codeDelegations;
         } catch (final IllegalArgumentException e) {
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
