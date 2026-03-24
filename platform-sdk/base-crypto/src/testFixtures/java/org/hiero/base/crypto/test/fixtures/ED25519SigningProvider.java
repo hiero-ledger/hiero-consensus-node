@@ -3,30 +3,28 @@ package org.hiero.base.crypto.test.fixtures;
 
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.goterl.lazysodium.LazySodiumJava;
-import com.goterl.lazysodium.SodiumJava;
-import com.goterl.lazysodium.interfaces.Sign;
 import java.security.SignatureException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.engine.LibSodiumEd25519;
 
 public class ED25519SigningProvider implements SigningProvider {
     /**
      * the length of signature in bytes
      */
-    public static final int SIGNATURE_LENGTH = Sign.BYTES;
+    public static final int SIGNATURE_LENGTH = LibSodiumEd25519.SIGNATURE_BYTES;
 
     /**
      * the length of the public key in bytes
      */
-    public static final int PUBLIC_KEY_LENGTH = Sign.PUBLICKEYBYTES;
+    public static final int PUBLIC_KEY_LENGTH = LibSodiumEd25519.PUBLIC_KEY_BYTES;
 
     /**
      * the length of the private key in bytes
      */
-    public static final int PRIVATE_KEY_LENGTH = Sign.SECRETKEYBYTES;
+    public static final int PRIVATE_KEY_LENGTH = LibSodiumEd25519.SECRET_KEY_BYTES;
 
     /**
      * use this for all logging, as controlled by the optional data/log4j2.xml file
@@ -51,7 +49,7 @@ public class ED25519SigningProvider implements SigningProvider {
     /**
      * the native NaCl signing interface
      */
-    private Sign.Native signer;
+    private LibSodiumEd25519 signer;
 
     /**
      * indicates whether there is an available algorithm implementation & keypair
@@ -96,8 +94,7 @@ public class ED25519SigningProvider implements SigningProvider {
      * Initializes the {@link #signer} instance and creates the public/private keys.
      */
     private void tryAcquireSignature() {
-        final SodiumJava sodium = new SodiumJava();
-        signer = new LazySodiumJava(sodium);
+        signer = LibSodiumEd25519.INSTANCE;
 
         publicKey = new byte[PUBLIC_KEY_LENGTH];
         privateKey = new byte[PRIVATE_KEY_LENGTH];

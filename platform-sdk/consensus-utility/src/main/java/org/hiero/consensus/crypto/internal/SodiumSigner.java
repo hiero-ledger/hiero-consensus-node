@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
-import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.base.crypto.engine.LibSodiumEd25519;
 
 /**
  * A {@link BytesSigner} implementation that uses libsodium to sign data using the Ed25519 algorithm.
@@ -31,7 +31,7 @@ public class SodiumSigner implements BytesSigner {
 
     @Override
     public @NonNull Bytes sign(@NonNull final Bytes data) {
-        final byte[] signature = new byte[Sign.BYTES];
+        final byte[] signature = new byte[LibSodiumEd25519.SIGNATURE_BYTES];
         final boolean signed =
                 SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(), sodiumSecretKey);
         if (!signed) {
