@@ -77,6 +77,8 @@ jobs:
             RESOLVED_REF="main"
           fi
           echo "workflow-ref=${RESOLVED_REF_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "Workflow REF is ${RESOLVED_REF_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          exit
 
       - name: Trigger ZXF Deploy Production Release
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
