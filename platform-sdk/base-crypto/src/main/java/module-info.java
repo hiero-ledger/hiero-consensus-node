@@ -10,7 +10,8 @@ module org.hiero.base.crypto {
     exports org.hiero.base.crypto.engine to
             com.swirlds.common,
             com.swirlds.common.test.fixtures,
-            org.hiero.base.crypto.test.fixtures;
+            org.hiero.base.crypto.test.fixtures,
+            org.hiero.consensus.utility;
 
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
@@ -25,7 +26,6 @@ module org.hiero.base.crypto {
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive com.goterl.lazysodium;
     requires com.swirlds.base;
     requires com.sun.jna;
     requires org.apache.logging.log4j;

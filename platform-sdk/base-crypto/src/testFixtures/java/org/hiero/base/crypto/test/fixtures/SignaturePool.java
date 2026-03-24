@@ -3,9 +3,6 @@ package org.hiero.base.crypto.test.fixtures;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.goterl.lazysodium.LazySodiumJava;
-import com.goterl.lazysodium.SodiumJava;
-import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.SignatureException;
 import java.util.ArrayList;
@@ -18,6 +15,7 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.crypto.engine.LibSodiumEd25519;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with Ed25519 signatures.
@@ -27,17 +25,17 @@ public class SignaturePool {
     /**
      * the length of signature in bytes
      */
-    static final int SIGNATURE_LENGTH = Sign.BYTES;
+    static final int SIGNATURE_LENGTH = LibSodiumEd25519.SIGNATURE_BYTES;
 
     /**
      * the length of the public key in bytes
      */
-    static final int PUBLIC_KEY_LENGTH = Sign.PUBLICKEYBYTES;
+    static final int PUBLIC_KEY_LENGTH = LibSodiumEd25519.PUBLIC_KEY_BYTES;
 
     /**
      * the length of the private key in bytes
      */
-    static final int PRIVATE_KEY_LENGTH = Sign.SECRETKEYBYTES;
+    static final int PRIVATE_KEY_LENGTH = LibSodiumEd25519.SECRET_KEY_BYTES;
 
     /**
      * the length of the signature and the public key combined
@@ -94,7 +92,7 @@ public class SignaturePool {
     /**
      * the native NaCl signing interface
      */
-    private Sign.Native signer;
+    private LibSodiumEd25519 signer;
 
     private AtomicInteger readPosition;
 
@@ -188,8 +186,7 @@ public class SignaturePool {
      * 		the pre-allocated buffer of at least {@link #transactionSize} long, if {@link #signed} is true then
      * 		length must be at least ({@link #transactionSize} + {@link #SIG_KEY_LENGTH}) long
      * @throws SignatureException
-     * 		if {@link Sign.Native#cryptoSignDetached(byte[], byte[], long, byte[])}
-     * 		returns a failure code
+     * 		if signing returns a failure code
      */
     private void sign(final byte[] buffer) {
 
@@ -233,8 +230,7 @@ public class SignaturePool {
      */
     private void tryAcquireSignature() {
         try {
-            final SodiumJava sodium = new SodiumJava();
-            signer = new LazySodiumJava(sodium);
+            signer = LibSodiumEd25519.INSTANCE;
 
             publicKey = new byte[PUBLIC_KEY_LENGTH];
             privateKey = new byte[PRIVATE_KEY_LENGTH];
