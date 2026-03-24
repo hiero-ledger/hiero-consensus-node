@@ -12,7 +12,6 @@ import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,14 +27,31 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
 
     private final HapiSpec spec;
     private final Set<String> allIds;
-    private final Set<String> unseenIds;
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
     private final boolean withLogging = true;
     private final boolean viewAll;
 
+    /**
+     * Cached flag that becomes true once every expected ID has at least one
+     * collected item in the {@link #items} map, so we avoid re-evaluating
+     * {@code allIds.stream().allMatch(items::containsKey)} on every stream item.
+     */
+    private boolean allIdsHaveItems = false;
+
+    /**
+     * The total number of collected entries the last time validation was
+     * attempted.  Re-validation is skipped unless new items have arrived,
+     * avoiding repeated validator + exception overhead on every stream item.
+     */
+    private int itemCountAtLastValidation = -1;
+
+    /**
+     * The most recent validation error, kept so that {@link #toString()} can
+     * include it in timeout messages for better diagnostics.
+     */
     @Nullable
-    private String lastSeenId = null;
+    private AssertionError lastValidationError = null;
 
     private final SkipSynthItems skipSynthItems;
 
@@ -52,18 +68,20 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         this.spec = requireNonNull(spec);
         this.validator = validator;
         this.skipSynthItems = requireNonNull(skipSynthItems);
-        unseenIds = new HashSet<>() {
-            {
-                addAll(List.of(specTxnIds));
-            }
-        };
-        allIds = Set.copyOf(unseenIds);
-        viewAll = unseenIds.contains(ALL_TX_IDS);
+        allIds = Set.copyOf(List.of(specTxnIds));
+        viewAll = allIds.contains(ALL_TX_IDS);
     }
 
     @Override
     public String toString() {
-        return "VisibleItemsAssertion{" + "unseenIds=" + unseenIds + ", seenIds=" + items.keySet() + '}';
+        final var sb = new StringBuilder("VisibleItemsAssertion{seenIds=")
+                .append(items.keySet())
+                .append(", allIds=")
+                .append(allIds);
+        if (lastValidationError != null) {
+            sb.append(", lastError=").append(lastValidationError.getMessage());
+        }
+        return sb.append('}').toString();
     }
 
     @Override
@@ -85,30 +103,24 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                                             txnId, item.getRecord().getTransactionID()))
                                     .isPresent())
                             .findFirst()
-                            .ifPresentOrElse(
-                                    seenId -> {
-                                        final var entry = RecordStreamEntry.from(item);
-                                        final var isSynthItem = isSynthItem(entry);
-                                        if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
-                                            if (withLogging) {
-                                                log.info(
-                                                        "Saw {} as {}",
-                                                        seenId,
-                                                        item.getRecord().getTransactionID());
-                                            }
-                                            items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                                    .entries()
-                                                    .add(entry);
-                                            if (!seenId.equals(lastSeenId)) {
-                                                maybeFinishLastSeen();
-                                            }
-                                            lastSeenId = seenId;
-                                        } else {
-                                            items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                                    .trackSkippedSynthItem();
-                                        }
-                                    },
-                                    this::maybeFinishLastSeen);
+                            .ifPresent(seenId -> {
+                                final var entry = RecordStreamEntry.from(item);
+                                final var isSynthItem = isSynthItem(entry);
+                                if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
+                                    if (withLogging) {
+                                        log.info(
+                                                "Saw {} as {}",
+                                                seenId,
+                                                item.getRecord().getTransactionID());
+                                    }
+                                    items.computeIfAbsent(seenId, ignore -> newVisibleItems())
+                                            .entries()
+                                            .add(entry);
+                                } else {
+                                    items.computeIfAbsent(seenId, ignore -> newVisibleItems())
+                                            .trackSkippedSynthItem();
+                                }
+                            });
         }
         return true;
     }
@@ -119,18 +131,36 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
             validator.assertValid(spec, items);
             return false;
         }
-        if (unseenIds.isEmpty()) {
-            validator.assertValid(spec, items);
-            return true;
+        // Only attempt validation once every ID has at least one collected item;
+        // use try/catch so that if items are still arriving (e.g. a preceding child
+        // and its parent were split across record-stream files), we keep waiting
+        // instead of failing immediately on incomplete data.
+        if (!allIdsHaveItems) {
+            allIdsHaveItems = allIds.stream().allMatch(items::containsKey);
+        }
+        if (allIdsHaveItems) {
+            // Only re-run the validator when new items have arrived since the
+            // last failed attempt, to avoid repeated exception/log overhead on
+            // every stream item while waiting for late-arriving records.
+            final var currentItemCount =
+                    items.values().stream().mapToInt(v -> v.entries().size()).sum();
+            if (currentItemCount == itemCountAtLastValidation) {
+                return false;
+            }
+            try {
+                validator.assertValid(spec, items);
+                lastValidationError = null;
+                return true;
+            } catch (final AssertionError e) {
+                itemCountAtLastValidation = currentItemCount;
+                lastValidationError = e;
+                if (withLogging) {
+                    log.info("Validation not yet passing (items may still be arriving): {}", e.getMessage());
+                }
+                return false;
+            }
         }
         return false;
-    }
-
-    private void maybeFinishLastSeen() {
-        if (lastSeenId != null) {
-            unseenIds.remove(lastSeenId);
-            lastSeenId = null;
-        }
     }
 
     private static boolean isSynthItem(@NonNull final RecordStreamEntry entry) {
