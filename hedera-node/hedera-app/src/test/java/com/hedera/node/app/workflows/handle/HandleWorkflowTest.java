@@ -63,6 +63,8 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -516,18 +518,77 @@ class HandleWorkflowTest {
         assertEquals(notInBlockDescriptor, notInBlockRef.eventDescriptorOrThrow());
     }
 
+    @Test
+    void freezeRoundCallsWriteFreezeBlockWrappedRecordFileBlockHashesToStateWhenLiveWriteEnabled() {
+        final var freezeEvent = mock(ConsensusEvent.class);
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(freezeEvent.getCreatorId()).willReturn(creatorId);
+        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+        givenFreezeRoundPlatformState();
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+    }
+
+    @Test
+    void freezeRoundCallsWriteFreezeBlockWrappedRecordFileBlockHashesToDiskWhenDiskWriteEnabled() {
+        final var freezeEvent = mock(ConsensusEvent.class);
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(freezeEvent.getCreatorId()).willReturn(creatorId);
+        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+        givenFreezeRoundPlatformState();
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "false",
+                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+    }
+
     private void givenSubjectWith(
             @NonNull final StreamMode mode,
             @NonNull BlockStreamWriterMode streamWriterMode,
             @NonNull final List<StateChanges.Builder> migrationStateChanges) {
+        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, Map.of());
+    }
+
+    private void givenSubjectWith(
+            @NonNull final StreamMode mode,
+            @NonNull final BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges,
+            @NonNull final Map<String, String> configOverrides) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
                 .withValue("blockStream.writerMode", "" + streamWriterMode)
                 .withValue("tss.hintsEnabled", "false")
-                .withValue("tss.historyEnabled", "false")
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
+                .withValue("tss.historyEnabled", "false");
+        configOverrides.forEach(config::withValue);
+        final var hederaConfig = config.getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(hederaConfig, 1L));
+        given(round.getConsensusTimestamp()).willReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -561,6 +622,27 @@ class HandleWorkflowTest {
                 Map.of(),
                 quiescenceController,
                 nodeFeeManager);
+    }
+
+    private void givenFreezeRoundPlatformState() {
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableSingletonState<PlatformState> readableSingletonState = mock(ReadableSingletonState.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<PlatformState> writableSingletonState = mock(WritableSingletonState.class);
+        final var freezeState = PlatformState.newBuilder()
+                .creationSoftwareVersion(SemanticVersion.newBuilder().minor(1).build())
+                .freezeTime(new Timestamp(NOW.getEpochSecond() - 1, NOW.getNano()))
+                .build();
+
+        given(state.getReadableStates(NAME)).willReturn(readableStates);
+        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn((ReadableSingletonState) readableSingletonState);
+        given(readableSingletonState.get()).willReturn(freezeState);
+
+        given(state.getWritableStates(NAME)).willReturn(writableStates);
+        given(writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn((WritableSingletonState) writableSingletonState);
+        given(writableSingletonState.get()).willReturn(freezeState);
     }
 
     @Test

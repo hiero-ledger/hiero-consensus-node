@@ -63,8 +63,11 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         validateRounds(items.subList(1, items.size() - 1));
 
-        // A block SHALL end with a `block_proof`.
-        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE) {
+        // A block SHALL end with a `block_proof`; skip check for blocks near the end
+        // (pending async proofs at freeze) or incomplete blocks in the middle (can happen
+        // when nodes restart and all nodes wrote the block before the async proof arrived)
+        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE
+                && items.getLast().hasBlockProof()) {
             validateBlockProof(items.getLast());
         }
     }
