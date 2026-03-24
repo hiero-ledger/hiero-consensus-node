@@ -14,6 +14,7 @@ description = "Consensus Performance Framework"
 testFixturesModuleInfo {
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
@@ -100,11 +101,14 @@ tasks.named<Test>("testPerformance") {
         this.filter.includeTestsMatching(filter)
     }
 
-    // Forward sloth.* system properties from the Gradle JVM to the test JVM.
+    // Forward sloth.* project properties from the Gradle command line to the test JVM.
     // Allows overriding BenchmarkParameters from the command line, e.g.:
-    //   ./gradlew :consensus-sloth:testPerformance -Dsloth.tps=100 -Dsloth.benchmarkTime=60s
+    //   ./gradlew :consensus-sloth:testPerformance -Psloth.tps=100 -Psloth.benchmarkTime=60s
     // sloth.env is excluded here as it is already set by the test suite configuration above.
-    System.getProperties()
-        .filterKeys { it.toString().startsWith("sloth.") && it.toString() != "sloth.env" }
-        .forEach { (key, value) -> systemProperty(key.toString(), value.toString()) }
+    // Note: project properties (-P) are used instead of system properties (-D) because -D flags
+    // are set on the Gradle client JVM and are not reliably forwarded to the daemon's
+    // System.getProperties().
+    project.properties
+        .filterKeys { it.startsWith("sloth.") && it != "sloth.env" }
+        .forEach { (key, value) -> systemProperty(key, value.toString()) }
 }
