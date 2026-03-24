@@ -58,7 +58,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.longListChunkSize(),
                 defaultConfig.longListReservedBufferSize(),
                 defaultConfig.compactionThreads(),
-                defaultConfig.garbageThreshold(),
+                defaultConfig.gcRateThreshold(),
                 defaultConfig.maxCompactionDataPerLevelInKB(),
                 defaultConfig.maxCompactionLevel(),
                 defaultConfig.iteratorInputBufferBytes(),
@@ -100,7 +100,7 @@ class MerkleDbCompactionCoordinatorTest {
         when(scanner.scan()).thenAnswer(invocation -> {
             scanStarted.countDown();
             releaseScan.await(5, TimeUnit.SECONDS);
-            return Map.of();
+            return ScanResult.EMPTY;
         });
 
         coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
@@ -173,6 +173,7 @@ class MerkleDbCompactionCoordinatorTest {
             return true;
         });
         when(taskCompactor1.getDataFileCollection()).thenReturn(fileCollection);
+
         final DataFileCompactor taskCompactor2 = mock(DataFileCompactor.class);
         when(taskCompactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
             synchronized (compactedTargetLevels) {

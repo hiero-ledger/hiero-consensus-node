@@ -25,6 +25,9 @@ class GarbageScannerTest {
         final DataFileReader file2 = mockFileReader(2, 0, 10);
         final DataFileReader file3 = mockFileReader(3, 1, 10);
 
+        // file1: 3 alive, 7 dead → live/dead = 0.43
+        // file2: 2 alive, 8 dead → live/dead = 0.25
+        // file3: 1 alive, 9 dead → live/dead = 0.11
         final Map<Long, Long> indexEntries = new LinkedHashMap<>();
         indexEntries.put(0L, dataLocation(1, 1));
         indexEntries.put(1L, dataLocation(2, 1));
@@ -33,6 +36,7 @@ class GarbageScannerTest {
         indexEntries.put(4L, dataLocation(1, 2));
         indexEntries.put(5L, dataLocation(1, 3));
 
+        // gcRateThreshold=1.0 → all three files have live/dead < 1.0, so all selected
         final GarbageScanner task = createTask(indexWithEntries(indexEntries), List.of(file1, file2, file3));
 
         final GarbageScanner.ScanResult result = task.scan();
@@ -45,6 +49,7 @@ class GarbageScannerTest {
 
     @Test
     void scanWithEmptyIndexReportsNoAliveItems() {
+        // All items dead → live/dead = 0.0 → always selected
         final DataFileReader file1 = mockFileReader(1, 0, 5);
         final DataFileReader file2 = mockFileReader(2, 1, 9);
 
@@ -60,6 +65,8 @@ class GarbageScannerTest {
 
     @Test
     void scanAllIndexEntriesPointToSingleFile() {
+        // file2: 8 alive out of 8 total → 0 dead → live/dead = MAX_VALUE → not selected
+        // file1, file3: 0 alive out of 8 → live/dead = 0.0 → selected
         final DataFileReader file1 = mockFileReader(1, 0, 8);
         final DataFileReader file2 = mockFileReader(2, 0, 8);
         final DataFileReader file3 = mockFileReader(3, 0, 8);
@@ -81,7 +88,8 @@ class GarbageScannerTest {
     private static GarbageScanner createTask(final LongList index, final List<DataFileReader> files) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        return new GarbageScanner(index, fileCollection, "test-store", config(0.5, 0, 5));
+        // gcRateThreshold=1.0 → selects files with live/dead < 1.0 (i.e. more dead than alive)
+        return new GarbageScanner(index, fileCollection, "test-store", config(1.0, 0, 5));
     }
 
     private static LongList indexWithEntries(final Map<Long, Long> indexEntries) {
@@ -103,7 +111,7 @@ class GarbageScannerTest {
     }
 
     private static MerkleDbConfig config(
-            final double garbageThreshold, final long maxCompactionDataPerLevelInKB, final int maxCompactionLevel) {
+            final double gcRateThreshold, final long maxCompactionDataPerLevelInKB, final int maxCompactionLevel) {
         return new MerkleDbConfig(
                 DEFAULT_CONFIG.initialCapacity(),
                 DEFAULT_CONFIG.maxNumOfKeys(),
@@ -114,7 +122,7 @@ class GarbageScannerTest {
                 DEFAULT_CONFIG.longListChunkSize(),
                 DEFAULT_CONFIG.longListReservedBufferSize(),
                 DEFAULT_CONFIG.compactionThreads(),
-                garbageThreshold,
+                gcRateThreshold,
                 maxCompactionDataPerLevelInKB,
                 maxCompactionLevel,
                 DEFAULT_CONFIG.iteratorInputBufferBytes(),
