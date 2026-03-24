@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -57,6 +58,10 @@ class ReconnectHashListenerTest {
     @DisplayName("Valid configurations create an instance")
     void goodLeafPaths() {
         final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
+        final VirtualDataSource dataSource = mock(VirtualDataSource.class);
+        when(flusher.getDataSource()).thenReturn(dataSource);
+        when(dataSource.getHashChunkHeight()).thenReturn(6);
+
         try {
             new ReconnectHashListener(flusher);
         } catch (Exception e) {
@@ -128,6 +133,7 @@ class ReconnectHashListenerTest {
             assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
             expected++;
         }
+        hasher.shutdown();
     }
 
     private VirtualLeafBytes leaf(long path) {

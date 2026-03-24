@@ -34,6 +34,8 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,20 @@ import org.junit.jupiter.params.provider.ValueSource;
 @SuppressWarnings("rawtypes")
 class VirtualHasherTest extends VirtualHasherTestBase {
 
+    private VirtualHasher hasher;
+
+    @BeforeEach
+    void setup() {
+        hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (hasher != null) {
+            hasher.shutdown();
+        }
+    }
+
     /**
      * If chunk preloader is null, an NPE will be raised.
      */
@@ -55,7 +71,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Null preloader produces NPE")
     void nullPreloaderProducesNPE() {
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final List<VirtualLeafBytes> leaves = new ArrayList<>();
         assertThrows(
                 NullPointerException.class,
@@ -71,7 +86,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Null stream produces NPE")
     void nullStreamProducesNPE() {
         final TestDataSource ds = new TestDataSource(1, 2, CHUNK_HEIGHT);
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         assertThrows(
                 NullPointerException.class,
                 () -> hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, null, 1, 2, null),
@@ -87,7 +101,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection", "RedundantOperationOnEmptyContainer"})
     void emptyStreamProducesNull() {
         final TestDataSource ds = new TestDataSource(1, 2, CHUNK_HEIGHT);
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final List<VirtualLeafBytes> leaves = new ArrayList<>();
         assertNull(
                 hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, leaves.iterator(), 1, 2, null),
@@ -102,7 +115,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Invalid leaf paths")
     void invalidLeafPaths() {
         final TestDataSource ds = new TestDataSource(Path.INVALID_PATH, Path.INVALID_PATH, CHUNK_HEIGHT);
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final List<VirtualLeafBytes> emptyLeaves = new ArrayList<>();
         // Empty dirty leaves stream -> null hash
         assertNull(
@@ -168,7 +180,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
             throws Exception {
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
         final HashingListener listener = new HashingListener();
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final Hash expected = hashTree(ds);
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyPaths.stream());
         final Hash rootHash =
@@ -342,7 +353,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final Hash expected = hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
@@ -377,7 +387,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final long firstLeafPath = 801;
         final long lastLeafPath = firstLeafPath * 2;
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         final Hash expected = hashTree(ds);
         final List<Long> dirtyLeafPaths =
                 LongStream.range(firstLeafPath, lastLeafPath + 1).boxed().toList();
@@ -451,7 +460,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Verify the hasher does not ask for internal records it will recreate")
     void hasherDoesNotAskForInternalsItWillRecreate() {
         final HashingListener listener = new HashingListener();
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
 
         // We will simulate growing the tree from 53 leaves to 106 leaves (doubling the size) and providing
         // all new leaves. This will guarantee that some internal nodes live at the paths that leaves used
