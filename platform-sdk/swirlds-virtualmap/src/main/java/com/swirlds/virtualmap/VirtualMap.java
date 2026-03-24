@@ -69,6 +69,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1220,7 +1221,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
             final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-            final VirtualNodeCache cacheSnapshot = cache.snapshot(false);
+            final VirtualNodeCache cacheSnapshot = cache.snapshot(null);
             final int hashChunkHeight = dataSource.getHashChunkHeight();
             return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
         });
@@ -1301,8 +1302,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // The old map's cache is going to become immutable, but that's OK, because the old map
             // will NEVER be updated again.
             assert originalMap.isHashed() : "The system should have made sure this was hashed by this point!";
-            final VirtualNodeCache snapshotCache = originalMap.cache.snapshot(true);
-            flush(snapshotCache, originalMap.metadata, this.dataSource);
+            final ExecutorService snapshotCleaningPool = VirtualNodeCache.createCleaningPool(virtualMapConfig);
+            try {
+                final VirtualNodeCache snapshotCache = originalMap.cache.snapshot(snapshotCleaningPool);
+                flush(snapshotCache, originalMap.metadata, this.dataSource);
+            } finally {
+                snapshotCleaningPool.shutdown();
+            }
 
             final int hashChunkHeight = dataSource.getHashChunkHeight();
             reconnectCache = new VirtualNodeCache(
@@ -1613,9 +1619,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
         final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
+        final ExecutorService snapshotCleaningPool = VirtualNodeCache.createCleaningPool(virtualMapConfig);
         final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
-            cacheSnapshot.setValue(cache.snapshot(true));
+            cacheSnapshot.setValue(cache.snapshot(snapshotCleaningPool));
             // And make a data source snapshot. The snapshot is not loaded here, though, it is
             // done below
             return dataSourceSnapshot();
@@ -1636,6 +1643,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
         } finally {
             cacheSnapshot.getValue().shutdown();
+            assert snapshotCleaningPool.isShutdown()
+                    : "snapshot cleaning pool should be shut down by the cache snapshot";
             // Delete the snapshot directory
             FileUtils.deleteDirectory(snapshotPath);
             // And delete the data source copy directory

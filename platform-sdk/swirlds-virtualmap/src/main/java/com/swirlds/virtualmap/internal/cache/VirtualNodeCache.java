@@ -316,21 +316,7 @@ public final class VirtualNodeCache implements FastCopyable {
         if (Boolean.getBoolean("syncCleaningPool")) {
             cleaningPool = Runnable::run;
         } else {
-            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
-                    virtualMapConfig.getNumCleanerThreads(),
-                    virtualMapConfig.getNumCleanerThreads(),
-                    60L,
-                    TimeUnit.SECONDS,
-                    new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration(getStaticThreadManager())
-                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                            .setComponent("virtual-map")
-                            .setThreadName("cache-cleaner")
-                            .setExceptionHandler((t, ex) -> logger.error(
-                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
-                            .buildFactory());
-            pool.allowCoreThreadTimeOut(true);
-            cleaningPool = pool;
+            cleaningPool = createCleaningPool(virtualMapConfig);
         }
     }
 
@@ -823,6 +809,7 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     private Stream<VirtualLeafBytes> dirtyLeaves(
             final long firstLeafPath, final long lastLeafPath, final boolean dedupe) {
+        assert cleaningPool != null : "Cleaning pool must be set";
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
@@ -966,26 +953,19 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Creates a new immutable instance of a {@link VirtualNodeCache}
-     * with {@code pathToDirtyHashIndex}, {@code pathToDirtyLeafIndex}, and
-     * {@code keyToDirtyLeafIndex}, containing only elements not marked for deletion,
-     * and only the latest mutation with version less than or equal to the current
-     * version is added to the maps.
+     * Creates a new immutable snapshot of this cache.
      *
-     * @param needsCleaningPool if true, the snapshot inherits this cache's cleaning pool
-     *                          for use by {@link #deletedLeaves()} and {@link #purge}.
-     *                          If false, the snapshot has no cleaning pool — calling methods
-     *                          that require one will trigger an assertion error.
+     * @param cleaningPool the executor for parallel cleanup operations such as
+     *                     {@link #deletedLeaves()} and {@link #dirtyLeavesForFlush}.
+     *                     Pass a non-null executor if the snapshot will be flushed.
+     *                     Pass null if the snapshot is used for lookups only — calling
+     *                     methods that require an executor will trigger an assertion error.
      * @return snapshot of the current {@link VirtualNodeCache}
      */
-    public VirtualNodeCache snapshot(final boolean needsCleaningPool) {
+    public VirtualNodeCache snapshot(final @Nullable Executor cleaningPool) {
         synchronized (lastReleased) {
             final VirtualNodeCache newSnapshot = new VirtualNodeCache(
-                    virtualMapConfig,
-                    hashChunkHeight,
-                    hashChunkLoader,
-                    fastCopyVersion.get(),
-                    needsCleaningPool ? cleaningPool : null);
+                    virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
             setMapSnapshotAndArray(
                     this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
             setMapSnapshotAndArray(
@@ -1407,6 +1387,31 @@ public final class VirtualNodeCache implements FastCopyable {
         void setFiltered() {
             setFlag(FLAG_BIT_FILTERED, true);
         }
+    }
+
+    /**
+     * Creates a new cleaning thread pool with the configured number of threads.
+     * The caller owns the returned pool and is responsible for shutting it down.
+     *
+     * @param virtualMapConfig the configuration to read thread count from
+     * @return a new {@link ExecutorService} for cleaning operations
+     */
+    public static ExecutorService createCleaningPool(final @NonNull VirtualMapConfig virtualMapConfig) {
+        final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                virtualMapConfig.getNumCleanerThreads(),
+                virtualMapConfig.getNumCleanerThreads(),
+                60L,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                new ThreadConfiguration(getStaticThreadManager())
+                        .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
+                        .setComponent("virtual-map")
+                        .setThreadName("cache-cleaner")
+                        .setExceptionHandler(
+                                (t, ex) -> logger.error(EXCEPTION.getMarker(), "Failed to clean snapshot cache", ex))
+                        .buildFactory());
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     /**
