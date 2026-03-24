@@ -75,7 +75,7 @@ jobs:
             echo "::warning::Reference ${RESOLVED_REF} not found in remote. Defaulting to 'main'."
             RESOLVED_REF="main"
           fi
-          echo "workflow-ref=${RESOLVED_REF_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger ZXF Deploy Production Release
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
