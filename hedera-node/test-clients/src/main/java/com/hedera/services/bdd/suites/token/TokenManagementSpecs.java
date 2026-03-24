@@ -798,6 +798,18 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> SupplyMgmtMintFailureVariant() {
+        return defaultHapiSpec("SupplyMgmtMintFailureVariant")
+                .given(newKeyNamed(SUPPLY_KEY))
+                .when(tokenCreate(SUPPLE)
+                        .supplyKey(SUPPLY_KEY)
+                        .decimals(16)
+                        .initialSupply(Long.MAX_VALUE)
+                        .hasKnownStatus(SUCCESS))
+                .then(mintToken(SUPPLE, 1).hasKnownStatus(INVALID_TOKEN_MINT_AMOUNT));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> requireCorrectSupplyKeys() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
