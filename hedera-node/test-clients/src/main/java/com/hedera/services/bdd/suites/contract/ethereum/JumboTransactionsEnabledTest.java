@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -23,16 +24,21 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
@@ -42,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -56,6 +63,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -419,6 +427,20 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                     "Balance should decrease after failed jumbo transaction"))));
         }
 
+        @LeakyHapiTest
+        @DisplayName("Non-jumbo transaction bigger than 6kb should fail")
+        // JUMBO_N_07
+        public Stream<DynamicTest> nonJumboTransactionBiggerThan6kb() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                    cryptoCreate(RECEIVER),
+                    cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, ONE_HUNDRED_HBARS))
+                            .memo(StringUtils.repeat("a", 6145))
+                            .payingWith(PAYER)
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
+                            .orUnavailableStatus());
+        }
+
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Three jumbo transactions one after the other")
         // JUMBO_N_08
@@ -488,6 +510,55 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(1L),
                     jumboEthCall(new byte[txnSize]).hasPrecheck(INSUFFICIENT_PAYER_BALANCE)));
+        }
+
+        @DisplayName("Jumbo transaction gets bytes throttled at ingest")
+        @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
+        public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
+            final var payloadSize = 127 * 1024;
+            final var bytesPerSec = 130 * 1024;
+            final var payload = new byte[payloadSize];
+            return hapiTest(
+                    overriding("jumboTransactions.maxBytesPerSec", String.valueOf(bytesPerSec)),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                    jumboEthCall(payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
+                            .noLogging(),
+                    // Wait for the bytes throttle bucked to be emptied
+                    sleepFor(1_000),
+                    jumboEthCall(payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
+                            .noLogging()
+                            .deferStatusResolution(),
+                    jumboEthCall(payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
+                            .noLogging()
+                            .hasPrecheck(BUSY));
+        }
+
+        @DisplayName("Privileged account is exempt from bytes throttles")
+        @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
+        public Stream<DynamicTest> privilegedAccountIsExemptFromThrottles() {
+            final var payloadSize = 127 * 1024;
+            final var bytesPerSec = 60 * 1024;
+            final var payload = new byte[payloadSize];
+            final var initialNonce = new AtomicLong(0);
+            return hapiTest(
+                    overriding("jumboTransactions.maxBytesPerSec", String.valueOf(bytesPerSec)),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                    withOpContext((spec, op) -> allRunFor(
+                            spec,
+                            getAccountInfo(DEFAULT_PAYER).exposingEthereumNonceTo(initialNonce::set),
+                            ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                                    .nonce(initialNonce.get())
+                                    .markAsJumboTxn()
+                                    .gasLimit(1_000_000L)
+                                    .noLogging())));
         }
 
         @HapiTest

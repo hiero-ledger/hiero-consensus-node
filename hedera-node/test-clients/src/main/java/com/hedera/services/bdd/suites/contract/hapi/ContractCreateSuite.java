@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
+import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -29,18 +30,27 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitEthereumTransaction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationMaxAssociations;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationViaCallMaxAssociations;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.contractListWithPropertiesInheritedFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
@@ -53,6 +63,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -72,6 +83,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -82,6 +94,7 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
@@ -89,6 +102,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.utils.Signing;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -119,7 +134,7 @@ public class ContractCreateSuite {
 
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
-    private static final String PAYER = "payer";
+    private static final String PAYER = "contractCreatePayer";
 
     private static final Logger log = LogManager.getLogger(ContractCreateSuite.class);
 
@@ -130,6 +145,8 @@ public class ContractCreateSuite {
             "f8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222";
     private static final String EXPECTED_DEPLOYER_ADDRESS = "4e59b44847b379578588920ca78fbf26c0b4956c";
     private static final String DEPLOYER = "DeployerContract";
+    private static final String FUNGIBLE_TOKEN = "fungible";
+    private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
     final Stream<DynamicTest> createDeterministicDeployer() {
@@ -279,6 +296,113 @@ public class ContractCreateSuite {
                         .logged());
     }
 
+    @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations"})
+    final Stream<DynamicTest> contractCreationsHaveValidAssociations() {
+        final var initCreateContract = "ParentChildTransfer";
+        final var slotUserContract = "SlotUser";
+        final var multiPurpose = "Multipurpose";
+        final var createContract = "CreateTrivial";
+        return hapiTest(
+                overriding("ledger.maxAutoAssociations", "5000"),
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .initialSupply(1000)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(initCreateContract, createContract, multiPurpose, slotUserContract),
+                contractCreate(initCreateContract)
+                        .refusingEthConversion()
+                        .via("constructorWithoutExplicitAssociations")
+                        .hasKnownStatus(SUCCESS),
+                cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, initCreateContract))
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                contractCreate(createContract)
+                        .refusingEthConversion()
+                        .maxAutomaticTokenAssociations(0)
+                        .hasKnownStatus(SUCCESS),
+                contractCreate(multiPurpose)
+                        .refusingEthConversion()
+                        .maxAutomaticTokenAssociations(3)
+                        .hasKnownStatus(SUCCESS),
+                contractCreate(slotUserContract)
+                        .refusingEthConversion()
+                        .via("constructorCreate")
+                        .maxAutomaticTokenAssociations(5)
+                        .hasKnownStatus(SUCCESS),
+                contractCall(createContract, "create")
+                        .via("createViaCall")
+                        .gas(400_000L)
+                        .hasKnownStatus(SUCCESS),
+                ethereumCall(createContract, "create")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .via("ethereumCreate")
+                        .nonce(0)
+                        .maxFeePerGas(50L)
+                        .maxPriorityGas(2L)
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(SUCCESS),
+                getContractInfo(initCreateContract)
+                        .has(contractWith().maxAutoAssociations(0))
+                        .logged(),
+                getContractInfo(multiPurpose)
+                        .has(contractWith().maxAutoAssociations(3))
+                        .logged(),
+                getContractInfo(slotUserContract)
+                        .has(contractWith().maxAutoAssociations(5))
+                        .logged(),
+                assertCreationMaxAssociations("constructorWithoutExplicitAssociations", 1, 0),
+                assertCreationMaxAssociations("constructorCreate", 1, 5),
+                assertCreationViaCallMaxAssociations("createViaCall", 0, 0),
+                assertCreationViaCallMaxAssociations("ethereumCreate", 0, 0));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    final Stream<DynamicTest> childCreationsHaveExpectedKeysWithOmittedAdminKey() {
+        final AtomicLong firstStickId = new AtomicLong();
+        final AtomicLong secondStickId = new AtomicLong();
+        final AtomicLong thirdStickId = new AtomicLong();
+        final var txn = "creation";
+        final var contract = "Fuse";
+
+        return hapiTest(
+                overriding("contracts.evm.version", "v0.46"),
+                uploadInitCode(contract),
+                contractCreate(contract).omitAdminKey().gas(600_000).via(txn),
+                withOpContext((spec, opLog) -> {
+                    final var op = getTxnRecord(txn);
+                    allRunFor(spec, op);
+                    final var record = op.getResponseRecord();
+                    final var creationResult = record.getContractCreateResult();
+                    final var createdIds = creationResult.getCreatedContractIDsList();
+                    assertEquals(4, createdIds.size(), "Expected four creations but got " + createdIds);
+                    firstStickId.set(createdIds.get(1).getContractNum());
+                    secondStickId.set(createdIds.get(2).getContractNum());
+                    thirdStickId.set(createdIds.get(3).getContractNum());
+                }),
+                sourcing(() -> getContractInfo(String.valueOf(firstStickId.get()))
+                        .has(contractWith().immutableContractKey(String.valueOf(firstStickId.get())))
+                        .logged()),
+                sourcing(() -> getContractInfo(String.valueOf(secondStickId.get()))
+                        .has(contractWith().immutableContractKey(String.valueOf(secondStickId.get())))
+                        .logged()),
+                sourcing(() ->
+                        getContractInfo(String.valueOf(thirdStickId.get())).logged()),
+                contractCall(contract, "light").via("lightTxn"),
+                sourcing(() -> getContractInfo(String.valueOf(firstStickId.get()))
+                        .has(contractWith().isDeleted())),
+                sourcing(() -> getContractInfo(String.valueOf(secondStickId.get()))
+                        .has(contractWith().isDeleted())),
+                sourcing(() -> getContractInfo(String.valueOf(thirdStickId.get()))
+                        .has(contractWith().isDeleted())));
+    }
+
     @HapiTest
     final Stream<DynamicTest> createEmptyConstructor() {
         return hapiTest(uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT), contractCreate(EMPTY_CONSTRUCTOR_CONTRACT));
@@ -425,6 +549,57 @@ public class ContractCreateSuite {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).balance(1L).hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
+        final var justSendContract = "JustSend";
+        final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
+
+        final var beneficiary = "civilian";
+        final var totalToSend = 1_000L;
+        final var origKey = threshOf(1, SIMPLE, CONTRACT);
+        final var revisedKey = threshOf(1, SIMPLE, DELEGATE_CONTRACT);
+        final var newKey = "delegateContractKey";
+
+        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
+        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
+
+        return hapiTest(
+                uploadInitCode(justSendContract, sendInternalAndDelegateContract),
+                // refuse eth conversion because we can't delegate call contract by contract num
+                // when it has EVM address alias (isNotPriority check fails)
+                contractCreate(justSendContract)
+                        .gas(300_000L)
+                        .exposingContractIdTo(justSendContractId::set)
+                        .refusingEthConversion(),
+                contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
+                cryptoCreate(beneficiary)
+                        .balance(0L)
+                        .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
+                        .receiverSigRequired(true)
+                        .exposingCreatedIdTo(beneficiaryAccountId::set),
+                /* Without delegateContractId permissions, the second send via delegate call will
+                 * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
+                 * call doesn't fail because exceptional halts in "raw calls" don't automatically
+                 * propagate up the stack like a Solidity revert does.) */
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
+                getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
+                /* But now we update the beneficiary to have a delegateContractId */
+                newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
+                cryptoUpdate(beneficiary).key(newKey),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
+                getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 
     @HapiTest

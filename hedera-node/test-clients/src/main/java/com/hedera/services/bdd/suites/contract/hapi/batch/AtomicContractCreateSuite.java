@@ -128,7 +128,7 @@ class AtomicContractCreateSuite {
 
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
-    private static final String PAYER = "payer";
+    private static final String PAYER = "atomicContractCreatePayer";
 
     private static final Logger log = LogManager.getLogger(AtomicContractCreateSuite.class);
 
