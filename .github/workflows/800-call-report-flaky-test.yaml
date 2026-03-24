@@ -62,6 +62,9 @@ jobs:
           pattern: "*Test*Report*"
           path: test-reports/
 
+      - name: Install xmlstarlet
+        run: sudo apt-get install -y xmlstarlet=1.6.1*
+
       - name: Collect Flaky Tests
         id: collect-flaky-tests
         if: ${{ steps.download-test-reports.outcome == 'success' }}
