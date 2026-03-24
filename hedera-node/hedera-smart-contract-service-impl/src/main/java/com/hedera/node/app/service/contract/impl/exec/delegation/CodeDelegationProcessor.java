@@ -43,7 +43,7 @@ public record CodeDelegationProcessor(long chainId) {
     private static final BigInteger HALF_CURVE_ORDER =
             new BigInteger("7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0", 16);
 
-    private static final int MAX_Y_PARITY = 2 ^ 8;
+    private static final int MAX_Y_PARITY = 256;
 
     /**
      * The size of the delegated code.

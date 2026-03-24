@@ -2,35 +2,26 @@
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS_BYTE_ARRAY;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.useAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWithPreHook;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -50,9 +41,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractLoginfo;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -62,11 +51,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -75,12 +62,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Tests")
 @HapiTestLifecycle
-public class CodeDelegationTests {
-    public static final Address HTS_HOOKS_CONTRACT_ADDRESS = Address.wrap("0x000000000000000000000000000000000000016D");
-
-    private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
-
-    private final AtomicInteger accountIdCounter = new AtomicInteger(0);
+public class CodeDelegationTests extends CodeDelegationTestBase {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -94,7 +76,7 @@ public class CodeDelegationTests {
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             /* Create a delegation target contract and an EOA delegating to it. */
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
 
@@ -141,7 +123,7 @@ public class CodeDelegationTests {
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             /* Create a delegation target contract and an EOA delegating to it. */
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
 
@@ -162,7 +144,7 @@ public class CodeDelegationTests {
 
             // Verify that the event originates from the EOA
             assertEquals(
-                    delegatingEoa.accountId.getAccountNum(),
+                    delegatingEoa.accountId().getAccountNum(),
                     logInfo.get().getContractID().getContractNum());
 
             // And verify the remaining fields of the event
@@ -206,7 +188,7 @@ public class CodeDelegationTests {
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             /* Create a delegation target contract and an EOA delegating to it. */
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
 
@@ -222,7 +204,7 @@ public class CodeDelegationTests {
                             .exposingAddressTo(tokenAddress::set));
 
             final var tokenReceiver = createEvmAccountWithKey(spec);
-            allRunFor(spec, cryptoUpdate(tokenReceiver.name).maxAutomaticAssociations(100));
+            allRunFor(spec, cryptoUpdate(tokenReceiver.name()).maxAutomaticAssociations(100));
 
             final var innerTransferCallData = encodeHtsTransfer(tokenReceiver.evmAddress(), BigInteger.valueOf(200L));
 
@@ -266,7 +248,7 @@ public class CodeDelegationTests {
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             /* Create a delegation target contract and an EOA delegating to it. */
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
 
@@ -314,9 +296,9 @@ public class CodeDelegationTests {
     }
 
     @HapiTest
-    /// This scenario is equivalent to chaining delegations (since token account delegates to the HTS
-    /// System Contract), so we expect the second delegation code to be treated literally and fail
-    /// due to trying to execute an invalid op code.
+    /* This scenario is equivalent to chaining delegations (since token account delegates to the HTS
+    System Contract), so we expect the second delegation code to be treated literally and fail
+    due to trying to execute an invalid op code. */
     final Stream<DynamicTest> testDelegationToHtsTokenReverts() {
         return hapiTest(withOpContext((spec, opLog) -> {
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -343,7 +325,7 @@ public class CodeDelegationTests {
 
             // Let's encode a valid HTS call (token transfer) and verify that it doesn't trigger any action.
             final var wouldBeTokenReceiver = createEvmAccountWithKey(spec);
-            allRunFor(spec, cryptoUpdate(wouldBeTokenReceiver.name).maxAutomaticAssociations(100));
+            allRunFor(spec, cryptoUpdate(wouldBeTokenReceiver.name()).maxAutomaticAssociations(100));
 
             final var callData = encodeHtsTransfer(wouldBeTokenReceiver.evmAddress(), BigInteger.valueOf(200L));
 
@@ -462,7 +444,7 @@ public class CodeDelegationTests {
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
 
@@ -478,7 +460,7 @@ public class CodeDelegationTests {
                     cryptoTransfer((unused, builder) -> {
                                 final var registry = spec.registry();
                                 final var hookData = TupleType.parse("(address,bytes)")
-                                        .encode(Tuple.of(delegatingEoa.evmAddress, Hex.decode("cafebabe")));
+                                        .encode(Tuple.of(delegatingEoa.evmAddress(), Hex.decode("cafebabe")));
                                 final var hookCall = HookCall.newBuilder()
                                         .hookId(hookId)
                                         .evmHookCall(EvmHookCall.newBuilder()
@@ -556,7 +538,7 @@ public class CodeDelegationTests {
             final var owner = createFundedEvmAccountWithKey(spec, ONE_HBAR);
             final var receiver = createFundedEvmAccountWithKey(spec, ONE_HBAR);
 
-            createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
 
             allRunFor(
                     spec,
@@ -565,7 +547,7 @@ public class CodeDelegationTests {
                     cryptoTransfer((unused, builder) -> {
                                 final var registry = spec.registry();
                                 final var hookData = TupleType.parse("(address,bytes)")
-                                        .encode(Tuple.of(delegatingEoa.evmAddress, Hex.decode("cafebabe")));
+                                        .encode(Tuple.of(delegatingEoa.evmAddress(), Hex.decode("cafebabe")));
                                 final var hookCall = HookCall.newBuilder()
                                         .hookId(hookId)
                                         .evmHookCall(EvmHookCall.newBuilder()
@@ -612,7 +594,7 @@ public class CodeDelegationTests {
     final Stream<DynamicTest> testCrossAPIDelegationNativeToType4() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // Create delegation target and account
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
@@ -624,7 +606,7 @@ public class CodeDelegationTests {
 
                     // Now proceed to clear delegation with type 4 eth transaction
                     sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
-                            .signingWith(delegatingEoa.keyName)
+                            .signingWith(delegatingEoa.keyName())
                             .payingWith(RELAYER)
                             .type(EthTransactionType.EIP7702)
                             .gasLimit(50_000L)
@@ -638,7 +620,7 @@ public class CodeDelegationTests {
     final Stream<DynamicTest> testCrossAPIDelegationType4ToNative() {
         return hapiTest(withOpContext(((spec, assertLog) -> {
             // Create delegation target and account
-            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             final AtomicReference<Long> preEthereumNonce = new AtomicReference<>();
@@ -671,86 +653,5 @@ public class CodeDelegationTests {
                     // Verify that the delegation was cleared from the account
                     getAccountInfo(delegatingEoa.name()).hasNoDelegation());
         })));
-    }
-
-    private record EvmAccount(
-            String keyName, String name, AccountID accountId, Address evmAddress, Address longZeroEvmAddress) {
-        String evmAddressHex() {
-            return toChecksumAddress(evmAddress.value()).replace("0x", "");
-        }
-
-        byte[] evmAddressBytes() {
-            return CommonUtils.unhex(evmAddressHex());
-        }
-    }
-
-    private record EvmContract(String name, Address address) {
-        String evmAddressHex() {
-            return toChecksumAddress(address.value()).replace("0x", "");
-        }
-
-        ByteString evmAddressPbjBytes() {
-            return ByteString.fromHex(evmAddressHex());
-        }
-
-        byte[] evmAddressBytes() {
-            return CommonUtils.unhex(evmAddressHex());
-        }
-    }
-
-    private EvmAccount createEvmAccountWithKey(HapiSpec spec) {
-        final var id = accountIdCounter.getAndIncrement();
-        final var name = "ACCOUNT_" + id;
-        final var keyName = "ACCOUNT_KEY_" + id;
-        final AtomicReference<Address> keyAliasEvmAddress = new AtomicReference<>();
-        final AtomicReference<AccountID> accountId = new AtomicReference<>();
-        final AtomicReference<Address> longZeroEvmAddress = new AtomicReference<>();
-        allRunFor(spec, newKeyNamed(keyName).shape(SECP_256K1_SHAPE));
-        final var key = spec.registry().getKey(keyName);
-        final var keyEvmAddress = ByteString.copyFrom(
-                recoverAddressFromPubKey(key.getECDSASecp256K1().toByteArray()));
-        allRunFor(
-                spec,
-                cryptoCreate(name)
-                        .key(keyName)
-                        .alias(keyEvmAddress)
-                        .exposingCreatedIdTo(accountId::set)
-                        .exposingEvmAddressTo(longZeroEvmAddress::set),
-                useAddressOfKey(keyName, keyAliasEvmAddress::set));
-        return new EvmAccount(keyName, name, accountId.get(), keyAliasEvmAddress.get(), longZeroEvmAddress.get());
-    }
-
-    private EvmAccount createFundedEvmAccountWithKey(HapiSpec spec, long hbarAmount) {
-        final var account = createEvmAccountWithKey(spec);
-        allRunFor(spec, cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, account.name, hbarAmount)));
-        return account;
-    }
-
-    private EvmContract createEvmContract(HapiSpec spec, String name) {
-        final AtomicReference<Address> evmAddress = new AtomicReference<>();
-        allRunFor(
-                spec,
-                uploadInitCode(CODE_DELEGATION_CONTRACT),
-                contractCreate(CODE_DELEGATION_CONTRACT)
-                        .exposingAddressTo(evmAddress::set)
-                        .gas(2_000_000L));
-        return new EvmContract(name, evmAddress.get());
-    }
-
-    private void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, EvmContract target) {
-        nativeSetCodeDelegation(spec, account, target.evmAddressPbjBytes());
-    }
-
-    private void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, ByteString targetAddress) {
-        allRunFor(
-                spec,
-                cryptoUpdate(account.name()).delegationAddress(targetAddress),
-                getAccountInfo(account.name()).has(accountWith().delegationAddress(targetAddress)));
-    }
-
-    private static byte[] encodeHtsTransfer(Address receiver, BigInteger amount) {
-        return new Function("transfer(address,uint256)")
-                .encodeCall(Tuple.of(receiver, amount))
-                .array();
     }
 }
