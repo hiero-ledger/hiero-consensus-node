@@ -23,7 +23,7 @@ public interface HistoryLibrary {
     /**
      * The empty public key to use when a node fails to publish its proof key within the grace period.
      */
-    Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
+    Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[192]);
 
     /**
      * An address book for use in the history library.

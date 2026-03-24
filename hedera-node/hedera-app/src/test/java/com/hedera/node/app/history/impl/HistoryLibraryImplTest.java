@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -119,6 +121,35 @@ class HistoryLibraryImplTest {
     void newSchnorrKeyPairReturnsNonNull() {
         final var keys = subject.newSchnorrKeyPair();
         assertNotNull(keys);
+    }
+
+    @Test
+    void hashAddressBookThrowsNullPointerExceptionForNullAddressBook() {
+        assertThrows(NullPointerException.class, () -> subject.hashAddressBook(null));
+    }
+
+    @Test
+    void hashAddressBookThrowsDetailedIllegalArgumentExceptionWhenWrapsReturnsNull() {
+        final var addressBook = new HistoryLibrary.AddressBook(
+                new long[] {1L, -2L}, new byte[][] {new byte[191], null}, new long[] {7L});
+
+        final var exception = assertThrows(IllegalArgumentException.class, () -> subject.hashAddressBook(addressBook));
+        final var message = exception.getMessage();
+
+        assertNotNull(message);
+        assertTrue(message.contains("WRAPS.hashAddressBook() returned null."));
+        assertTrue(message.contains("schnorrPublicKeys.length=2"));
+        assertTrue(message.contains("weights.length=2"));
+        assertTrue(message.contains("nodeIds.length=1"));
+        assertTrue(message.contains("schnorrPublicKeys.length==weights.length=true"));
+        assertTrue(message.contains("schnorrPublicKeys.length==nodeIds.length=false"));
+        assertTrue(message.contains("validateWeightsSum=false"));
+        assertTrue(message.contains("negativeWeights=[#1=-2]"));
+        assertTrue(message.contains("sumOverflowed=false"));
+        assertTrue(message.contains("validateSchnorrPublicKeys=false"));
+        assertTrue(message.contains("#0(nonNull=true, length=191, length==192=false)"));
+        assertTrue(message.contains("#1(nonNull=false, length=null, length==192=false)"));
+        assertTrue(message.contains("bridgePrechecksPassed=false"));
     }
 
     @Test
