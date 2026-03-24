@@ -17,7 +17,6 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.junit.jupiter.api.Test;
 
 /**
  * The simplest sanity test for the Otter framework.

@@ -80,12 +80,8 @@ jobs:
     name: Report Flaky Tests
     needs:
       - mats-tests
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/report-flaky-tests.yaml
-    permissions:
-      issues: write
-      contents: read
-      pull-requests: write
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
     with:
       workflow-context: main-scheduled
     secrets:

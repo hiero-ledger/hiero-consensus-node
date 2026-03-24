@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Report Flaky Tests"
+name: "800: [CALL] Report Flaky Tests"
 on:
   workflow_call:
     inputs:
@@ -30,13 +30,14 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  group: report-flaky-tests
+  cancel-in-progress: false
+
 jobs:
   report:
     name: Report Flaky Tests
     runs-on: hl-cn-default-lin-sm
-    concurrency:
-      group: report-flaky-tests
-      cancel-in-progress: false
     outputs:
       flaky-count: ${{ steps.set-outputs.outputs.flaky-count }}
       flaky-tests-json: ${{ steps.set-outputs.outputs.flaky-tests-json }}
