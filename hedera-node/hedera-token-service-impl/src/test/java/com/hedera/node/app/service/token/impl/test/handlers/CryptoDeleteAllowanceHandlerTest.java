@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_ALLOWANCES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -22,6 +23,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoDeleteAllowanceHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
@@ -34,6 +36,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,6 +81,24 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         basicMetaAssertions(context, 1);
         assertEquals(key, context.payerKey());
         assertThat(context.requiredNonPayerKeys()).containsExactlyInAnyOrder(ownerKey);
+    }
+
+    @Test
+    void preHandleFailsIfOwnerDoesNotExist() {
+        final var nonExistentOwnerId = idFactory.newAccountId(999999);
+        final var nftAllowance = NftRemoveAllowance.newBuilder()
+                .owner(nonExistentOwnerId)
+                .tokenId(nonFungibleTokenId)
+                .serialNumbers(List.of(1L, 2L))
+                .build();
+        final var txn = txnWithAllowance(payerId, nftAllowance);
+        final var preHandleContext = mock(PreHandleContext.class);
+        given(preHandleContext.body()).willReturn(txn);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
     }
 
     @Test
