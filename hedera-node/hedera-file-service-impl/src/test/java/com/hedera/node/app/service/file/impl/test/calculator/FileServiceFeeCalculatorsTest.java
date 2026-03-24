@@ -318,6 +318,28 @@ class FileServiceFeeCalculatorsTest {
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(2347L);
     }
 
+    @Test
+    void testGetContentQueryCalculatorWithNonExistentFile() {
+        final var mockQueryContext = mock(QueryContext.class);
+        final var mockFileStore = mock(ReadableFileStoreImpl.class);
+        when(mockFileStore.getFileLeaf(FileID.DEFAULT)).thenReturn(null);
+        when(mockQueryContext.createStore(ReadableFileStore.class)).thenReturn(mockFileStore);
+
+        final var query = Query.newBuilder()
+                .fileGetContents(
+                        FileGetContentsQuery.newBuilder().fileID(FileID.DEFAULT).build())
+                .build();
+        final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
+        final var feeResult = new FeeResult();
+
+        fileGetContentsFeeCalculator.accumulateNodePayment(
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(7L);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -329,7 +351,8 @@ class FileServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.STATE_BYTES, 10))
+                        makeExtraDef(Extra.STATE_BYTES, 10),
+                        makeExtraDef(Extra.PROCESSING_BYTES, 10))
                 .services(makeService(
                         "ScheduleService",
                         makeServiceFee(
@@ -350,7 +373,9 @@ class FileServiceFeeCalculatorsTest {
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
                         makeServiceFee(
-                                HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.STATE_BYTES, 1000)),
+                                HederaFunctionality.FILE_GET_CONTENTS,
+                                7,
+                                makeExtraIncluded(Extra.PROCESSING_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
                         makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();
