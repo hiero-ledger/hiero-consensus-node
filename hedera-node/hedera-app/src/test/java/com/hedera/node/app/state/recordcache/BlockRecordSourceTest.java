@@ -133,11 +133,9 @@ class BlockRecordSourceTest {
         assertThat(subject.identifiedReceipts())
                 .containsExactly(
                         new RecordSource.IdentifiedReceipt(
-                                FIRST_RECORD.transactionIDOrThrow(),
-                                FIRST_BLOCK_NUMBERED_RECORD.receiptOrThrow()),
+                                FIRST_RECORD.transactionIDOrThrow(), FIRST_BLOCK_NUMBERED_RECORD.receiptOrThrow()),
                         new RecordSource.IdentifiedReceipt(
-                                SECOND_RECORD.transactionIDOrThrow(),
-                                SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow()));
+                                SECOND_RECORD.transactionIDOrThrow(), SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow()));
 
         assertDoesNotThrow(() -> subject.identifiedReceipts());
     }

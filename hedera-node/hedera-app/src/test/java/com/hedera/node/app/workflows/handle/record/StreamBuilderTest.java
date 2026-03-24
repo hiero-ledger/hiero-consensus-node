@@ -263,9 +263,10 @@ public class StreamBuilderTest {
         final var record = builder.build().transactionRecord();
 
         assertNull(record.receiptOrThrow().blockNumber());
-        assertFalse(pbjToProto(record, TransactionRecord.class, com.hederahashgraph.api.proto.java.TransactionRecord.class)
-                .getReceipt()
-                .hasBlockNumber());
+        assertFalse(
+                pbjToProto(record, TransactionRecord.class, com.hederahashgraph.api.proto.java.TransactionRecord.class)
+                        .getReceipt()
+                        .hasBlockNumber());
     }
 
     private void assertTransactionReceiptProps(TransactionReceipt receipt, List<Long> serialNumbers) {
