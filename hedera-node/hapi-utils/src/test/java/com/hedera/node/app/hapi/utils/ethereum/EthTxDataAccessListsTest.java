@@ -114,7 +114,7 @@ class EthTxDataAccessListsTest {
 
     @MethodSource("provideTransactionsWithCorrectAccessList")
     @ParameterizedTest(name = "Transaction {0}")
-    void accessListDecoding(RawTransactionHolder raw) {
+    void accessListDecoding(final RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);

@@ -49,15 +49,13 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
-import com.hedera.node.app.service.contract.impl.test.TestingTransactionUtils;
+import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
@@ -251,21 +249,21 @@ class FrameBuilderTest {
 
     @ParameterizedTest
     @CsvSource({
-            // accessList
-            "0,                     0",
-            "1;0,                   0",
-            "2;1,                   0",
-            "2;1;0,                 0",
-            "3;2;10;15;7;0;1,       0",
-            // codeDelegations
-            ",                      0",
-            ",                      1",
-            ",                      2",
-            ",                      10",
-            // accessList + codeDelegations
-            "0,                     1",
-            "1;0,                   2",
-            "2;1;0,                 3",
+        // accessList
+        "0,                     0",
+        "1;0,                   0",
+        "2;1,                   0",
+        "2;1;0,                 0",
+        "3;2;10;15;7;0;1,       0",
+        // codeDelegations
+        ",                      0",
+        ",                      1",
+        ",                      2",
+        ",                      10",
+        // accessList + codeDelegations
+        "0,                     1",
+        "1;0,                   2",
+        "2;1;0,                 3",
     })
     void constructsExpectedFrameWithAccessListAndCodeDelegations(
             final String keysCountString, final String codeDelegationsCount) {
@@ -273,10 +271,10 @@ class FrameBuilderTest {
         final var keysCount = keysCountString == null
                 ? List.<Integer>of()
                 : Arrays.stream(keysCountString.split(";"))
-                .map(Integer::parseInt)
-                .toList();
-        final var accessLists = TestingTransactionUtils.generateAccessList(keysCount);
-        final var codeDelegations = TestingTransactionUtils.generateAuthList(Integer.parseInt(codeDelegationsCount));
+                        .map(Integer::parseInt)
+                        .toList();
+        final var accessLists = TestTransactionUtils.generateAccessList(keysCount);
+        final var codeDelegations = TestTransactionUtils.generateAuthList(Integer.parseInt(codeDelegationsCount));
         final var authorities = codeDelegations.stream()
                 .map(EthTxSigs::extractAuthoritySignature)
                 .filter(Optional::isPresent)

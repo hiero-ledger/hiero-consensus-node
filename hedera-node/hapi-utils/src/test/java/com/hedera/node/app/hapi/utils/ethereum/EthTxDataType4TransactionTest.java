@@ -96,7 +96,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void returnsEmptyWhenAuthorizationTopLevelNotList() {
-        final byte[] auth = new byte[] {0x01};
+        final byte[] auth = {0x01};
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x01),
@@ -148,7 +148,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void extractCodeDelegationsThrowsWhenTopLevelListSizeNotSix() {
-        final byte[] auth = new byte[] {(byte) 0xC1, (byte) 0xC0};
+        final byte[] auth = {(byte) 0xC1, (byte) 0xC0};
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x1A),
@@ -211,14 +211,14 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void extractCodeDelegationsWithValidAuthorizationListYieldsOneDelegation() {
-        byte[] chainId = new byte[] {0x01};
-        byte[] address = repeat((byte) 0x11, 20);
-        int nonce = 5;
-        int yParity = 1;
-        byte[] r = repeat((byte) 0x22, 32);
-        byte[] s = repeat((byte) 0x33, 32);
+        final byte[] chainId = new byte[] {0x01};
+        final byte[] address = repeat((byte) 0x11, 20);
+        final int nonce = 5;
+        final int yParity = 1;
+        final byte[] r = repeat((byte) 0x22, 32);
+        final byte[] s = repeat((byte) 0x33, 32);
 
-        byte[] authorizationList = rlpList(
+        final byte[] authorizationList = rlpList(
                 rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
 
         final byte[] raw = buildType4Raw(

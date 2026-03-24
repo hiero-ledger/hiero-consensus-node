@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.hyperledger.besu.datatypes.Address;
@@ -22,7 +21,7 @@ public record CodeDelegationResult(
     }
 
     public static CodeDelegationResult empty() {
-        return new CodeDelegationResult(0, 0, 0, new HashMap<>(), List.of());
+        return new CodeDelegationResult(0, 0, 0, Map.of(), List.of());
     }
 
     public int ignoredCodeDelegations() {

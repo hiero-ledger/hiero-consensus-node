@@ -4,9 +4,9 @@ package com.hedera.node.app.service.contract.impl.test;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.tuweni.bytes.Bytes32;
 
-public final class TestingByteUtils {
+public final class TestByteUtils {
 
-    private TestingByteUtils() {}
+    private TestByteUtils() {}
 
     private static final ThreadLocalRandom RANDOM = ThreadLocalRandom.current();
 
@@ -17,7 +17,7 @@ public final class TestingByteUtils {
      * @return random byte array
      */
     public static byte[] randomBytes(final int length) {
-        byte[] bytes = new byte[length];
+        final byte[] bytes = new byte[length];
         RANDOM.nextBytes(bytes);
         return bytes;
     }

@@ -4,16 +4,13 @@ package com.hedera.node.app.service.contract.impl.test;
 import com.hedera.node.app.hapi.utils.ethereum.AccessList;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public final class TestingTransactionUtils {
+public final class TestTransactionUtils {
 
-    private TestingTransactionUtils() {
-    }
+    private TestTransactionUtils() {}
 
     /**
      * Generate configurable AccessList for tests. @see <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a>
@@ -26,9 +23,9 @@ public final class TestingTransactionUtils {
         final List<AccessList> accessLists = new ArrayList<>();
         for (final Integer count : keysCount) {
             accessLists.add(new AccessList(
-                    TestingByteUtils.randomAddressBytes(),
+                    TestByteUtils.randomAddressBytes(),
                     IntStream.range(0, count)
-                            .mapToObj(e -> TestingByteUtils.randomKeyBytes32())
+                            .mapToObj(e -> TestByteUtils.randomKeyBytes32())
                             .toList()));
         }
         return accessLists;
@@ -41,15 +38,15 @@ public final class TestingTransactionUtils {
      * @return CodeDelegations
      */
     @NonNull
-    public static List<CodeDelegation> generateAuthList(int codeDelegationsCount) {
+    public static List<CodeDelegation> generateAuthList(final int codeDelegationsCount) {
         return IntStream.range(0, codeDelegationsCount)
                 .mapToObj(e -> new CodeDelegation(
-                        TestingByteUtils.randomBytes(2),
-                        TestingByteUtils.randomAddressBytes(),
+                        TestByteUtils.randomBytes(2),
+                        TestByteUtils.randomAddressBytes(),
                         0,
                         1,
-                        TestingByteUtils.randomBytes(32),
-                        TestingByteUtils.randomBytes(32)))
+                        TestByteUtils.randomBytes(32),
+                        TestByteUtils.randomBytes(32)))
                 .toList();
     }
 }
