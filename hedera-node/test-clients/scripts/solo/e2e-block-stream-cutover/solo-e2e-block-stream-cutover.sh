@@ -72,6 +72,41 @@
 set -eo pipefail
 set +m
 
+NODE_COUNT_PARAM=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--nodes)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for $1 (expected 3 or 4)" >&2
+        exit 1
+      fi
+      NODE_COUNT_PARAM="$2"
+      shift 2
+      ;;
+    --nodes=*)
+      NODE_COUNT_PARAM="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: solo-e2e-block-stream-cutover.sh [--nodes 3|4]
+
+Options:
+  -n, --nodes 3|4   Number of consensus nodes to deploy.
+                    3 => node1,node2,node3
+                    4 => node1,node2,node3,node4
+                    If omitted, NODE_ALIASES env var (or default node1,node2,node3,node4) is used.
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      echo "Use --help for usage." >&2
+      exit 1
+      ;;
+  esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
@@ -79,7 +114,18 @@ export SOLO_CLUSTER_NAME="solo"
 export SOLO_NAMESPACE="solo"
 export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
 export SOLO_DEPLOYMENT="solo-deployment"
-NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3}"
+if [[ -n "${NODE_COUNT_PARAM}" ]]; then
+  case "${NODE_COUNT_PARAM}" in
+    3) NODE_ALIASES="node1,node2,node3" ;;
+    4) NODE_ALIASES="node1,node2,node3,node4" ;;
+    *)
+      echo "Invalid --nodes value: ${NODE_COUNT_PARAM} (expected 3 or 4)" >&2
+      exit 1
+      ;;
+  esac
+else
+  NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
+fi
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
@@ -91,21 +137,33 @@ UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
 # Used with --local-build-path for Solo chart/metadata; jar/image comes from LOCAL_BUILD_PATH.
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
 
+# SHA-384 hashes are 48 bytes => 96 hex chars.
+SHA384_ZERO_HEX="$(printf '0%.0s' {1..96})"
+SHA384_ONE_HEX="$(printf '1%.0s' {1..96})"
+
 # Placeholders for File 121 jumpstart-related network properties (until real jumpstart.bin tooling fills these).
-JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH="${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH:-0000000000000000000000000000000000000000000000000000000000000000}"
+JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH="${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH:-${SHA384_ZERO_HEX}}"
 JUMPSTART_STREAMING_HASHER_LEAF_COUNT="${JUMPSTART_STREAMING_HASHER_LEAF_COUNT:-1}"
 JUMPSTART_STREAMING_HASHER_HASH_COUNT="${JUMPSTART_STREAMING_HASHER_HASH_COUNT:-1}"
 # Comma-separated dummy subtree hashes (placeholder until real jumpstart tooling).
-JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES:-1111111111111111111111111111111111111111111111111111111111111111}"
+JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES:-${SHA384_ONE_HEX}}"
 export JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH
 export JUMPSTART_STREAMING_HASHER_LEAF_COUNT
 export JUMPSTART_STREAMING_HASHER_HASH_COUNT
 export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
 
+# Keep 0.73 feature flags conservative by default. Turning these on too early can crash startup
+# during migration (e.g. null active construction in history/hints state).
+ENABLE_073_HINTS="${ENABLE_073_HINTS:-false}"
+ENABLE_073_HISTORY="${ENABLE_073_HISTORY:-false}"
+ENABLE_073_WRAPS="${ENABLE_073_WRAPS:-false}"
+
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
 GRAFANA_LOCAL_PORT="${GRAFANA_LOCAL_PORT:-3000}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
+# If true, script continues when Grafana forwarding cannot be established.
+ALLOW_GRAFANA_PORT_FORWARD_FAILURE="${ALLOW_GRAFANA_PORT_FORWARD_FAILURE:-true}"
 
 # Downloaded record stream objects from Solo MinIO (Step 5), next to this script.
 RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${SCRIPT_DIR}/recordStreams}"
@@ -121,6 +179,7 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 FILE_121_JUMPSTART_SCRIPT="${WORK_DIR}/file-121-jumpstart-update.js"
+APP_PROPS_073_EFFECTIVE_FILE="${WORK_DIR}/application-0.73.effective.properties"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
@@ -207,6 +266,13 @@ wait_for_http_ok() {
   done
   echo "Timed out waiting for HTTP endpoint: ${url}" >&2
   return 1
+}
+
+cleanup_stale_port_forwards() {
+  log "Stopping stale port-forwards from previous runs (if any)"
+  pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/mirror-1-rest .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/kube-prometheus-stack-grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
 }
 
 wait_for_consensus_pods_ready() {
@@ -355,10 +421,10 @@ download_solo_record_streams_via_pod_mc() {
   local names_file="$1"
   local svc="$2"
   local svc_port="$3"
-  local pod endpoint creds_tmp all_objects match_file creds_file
+  local pod endpoint creds_tmp all_objects basename_index creds_file
   local u p selected_u selected_p fname remote subpath dest
   local server_url cfg_full
-  local list_ok=0 list_attempt endpoint_try cred_pair
+  local list_ok=0 list_attempt endpoint_try download_attempt indexed_count
   local found=0 missing=0
 
   pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
@@ -406,7 +472,7 @@ download_solo_record_streams_via_pod_mc() {
       while IFS=$'\t' read -r u p; do
         [[ -n "${u}" && -n "${p}" ]] || continue
         if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
-          "mc alias set local '${endpoint}' '${u}' '${p}' >/dev/null 2>&1; mc find local/${MINIO_BUCKET} --name '*.rcd.gz'" \
+          "mc alias set local '${endpoint}' '${u}' '${p}' >/dev/null 2>&1; mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcd.gz'" \
           >"${all_objects}" 2>/tmp/inpod-mc-list.err; then
           selected_u="${u}"
           selected_p="${p}"
@@ -429,34 +495,46 @@ download_solo_record_streams_via_pod_mc() {
   fi
   log "Falling back to in-pod MinIO client copy from ${pod} via ${endpoint}"
 
+  # Build a stable first-match index so we copy at most one object per mirror filename.
+  basename_index="$(mktemp)"
+  awk -F/ 'NF > 0 { bn = $NF; if (!(bn in seen)) { seen[bn] = 1; print bn "\t" $0 } }' "${all_objects}" > "${basename_index}"
+  indexed_count="$(wc -l < "${basename_index}" | tr -d ' ')"
+  log "Indexed ${indexed_count} MinIO object(s) by basename from recordstreams/"
+
   while IFS= read -r fname; do
     [[ -z "${fname}" ]] && continue
-    local matched=0
-    match_file="$(mktemp)"
-    rg -F "/${fname}" "${all_objects}" >"${match_file}" 2>/dev/null || true
-    while IFS= read -r remote; do
-      [[ -z "${remote}" ]] && continue
-      subpath="${remote#local/${MINIO_BUCKET}/recordstreams/}"
-      if [[ "${subpath}" == "${remote}" ]]; then
-        subpath="$(basename "${remote}")"
-      fi
-      dest="${RECORD_STREAMS_DIR}/${subpath}"
-      mkdir -p "$(dirname "${dest}")"
+    remote="$(awk -F'\t' -v f="${fname}" '$1 == f { print $2; exit }' "${basename_index}")"
+    if [[ -z "${remote}" ]]; then
+      missing=$((missing + 1))
+      continue
+    fi
+
+    subpath="${remote#local/${MINIO_BUCKET}/recordstreams/}"
+    if [[ "${subpath}" == "${remote}" ]]; then
+      subpath="$(basename "${remote}")"
+    fi
+    dest="${RECORD_STREAMS_DIR}/${subpath}"
+    mkdir -p "$(dirname "${dest}")"
+
+    local copied=0
+    for download_attempt in 1 2 3; do
       if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
         "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" \
         >"${dest}" 2>/dev/null; then
-        matched=1
-        found=$((found + 1))
-      else
-        rm -f "${dest}" >/dev/null 2>&1 || true
+        copied=1
+        break
       fi
-    done < "${match_file}"
-    rm -f "${match_file}" >/dev/null 2>&1 || true
-    if (( matched == 0 )); then
+      sleep 1
+    done
+    if (( copied == 1 )); then
+      found=$((found + 1))
+    else
+      rm -f "${dest}" >/dev/null 2>&1 || true
       missing=$((missing + 1))
     fi
   done < "${names_file}"
 
+  rm -f "${basename_index}" >/dev/null 2>&1 || true
   rm -f "${all_objects}" >/dev/null 2>&1 || true
 
   log "In-pod MinIO fallback finished: copied ${found} file(s); ${missing} name(s) not found"
@@ -501,7 +579,14 @@ collect_record_filenames_up_to_block() {
     if [[ "${count}" == "0" || "${count}" == "null" ]]; then
       break
     fi
-    echo "${j}" | jq -r --argjson max "${max_block}" '.blocks[] | select(.number <= $max) | .name' >>"${out_file}"
+    echo "${j}" | jq -r --argjson max "${max_block}" '
+      .blocks[]
+      | select(.number <= $max)
+      | (.name // empty)
+      | split("/")
+      | last
+      | select(length > 0)
+    ' >>"${out_file}"
     last_num="$(echo "${j}" | jq -r '.blocks[-1].number')"
     if [[ "${last_num}" == "null" ]]; then
       break
@@ -554,6 +639,50 @@ download_solo_minio_record_streams() {
     return 1
   fi
   rm -f "${names_file}"
+}
+
+prepare_073_application_properties() {
+  cp "${APP_PROPS_073_FILE}" "${APP_PROPS_073_EFFECTIVE_FILE}"
+  {
+    echo ""
+    echo "# Runtime overrides written by solo-e2e-block-stream-cutover.sh"
+    echo "tss.hintsEnabled=${ENABLE_073_HINTS}"
+    echo "tss.historyEnabled=${ENABLE_073_HISTORY}"
+    echo "tss.wrapsEnabled=${ENABLE_073_WRAPS}"
+  } >> "${APP_PROPS_073_EFFECTIVE_FILE}"
+  log "Prepared effective 0.73 application.properties at ${APP_PROPS_073_EFFECTIVE_FILE}"
+  log "0.73 feature flags: hints=${ENABLE_073_HINTS}, history=${ENABLE_073_HISTORY}, wraps=${ENABLE_073_WRAPS}"
+}
+
+collect_consensus_diagnostics() {
+  local node
+  local pattern="FATAL|Critical failure|NullPointerException|Exception|ERROR|is ACTIVE|is STARTING|FAILED"
+
+  log "Collecting consensus diagnostics from namespace ${SOLO_NAMESPACE}"
+  kubectl -n "${SOLO_NAMESPACE}" get pods -o wide || true
+  kubectl -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp | tail -n 60 || true
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    log "Diagnostic scan for network-${node}-0"
+    kubectl -n "${SOLO_NAMESPACE}" logs "network-${node}-0" -c root-container --tail=1400 2>/dev/null \
+      | rg -n "${pattern}" | tail -n 40 || true
+  done
+}
+
+run_with_consensus_diagnostics() {
+  local label="$1"
+  local ec
+  shift
+  if "$@"; then
+    return 0
+  else
+    ec=$?
+  fi
+
+  log "FAILED: ${label} (exit=${ec})"
+  collect_consensus_diagnostics || true
+  return "${ec}"
 }
 
 start_grafana_port_forward() {
@@ -741,6 +870,8 @@ const {
 } = require("@hashgraph/sdk");
 const { proto } = require("@hashgraph/proto");
 
+const SHA384_HEX_RE = /^[0-9a-fA-F]{96}$/;
+
 function merge121Contents(existingBytes, overrides) {
   const list =
     existingBytes.length > 0
@@ -771,19 +902,52 @@ async function main() {
 
   const prevHash =
     process.env.JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH || "";
-  const leafCount = process.env.JUMPSTART_STREAMING_HASHER_LEAF_COUNT ?? "1";
-  const hashCount = process.env.JUMPSTART_STREAMING_HASHER_HASH_COUNT ?? "1";
-  const subtreeHashes =
+  const leafCountRaw = process.env.JUMPSTART_STREAMING_HASHER_LEAF_COUNT ?? "1";
+  const hashCountRaw = process.env.JUMPSTART_STREAMING_HASHER_HASH_COUNT ?? "1";
+  const subtreeHashesRaw =
     process.env.JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES ??
-    "1111111111111111111111111111111111111111111111111111111111111111";
+    "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
+
+  if (!SHA384_HEX_RE.test(prevHash)) {
+    throw new Error(
+      "JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH must be exactly 96 hex chars (SHA-384)"
+    );
+  }
+  const leafCount = Number(leafCountRaw);
+  const hashCount = Number(hashCountRaw);
+  if (!Number.isInteger(leafCount) || leafCount < 0) {
+    throw new Error("JUMPSTART_STREAMING_HASHER_LEAF_COUNT must be a non-negative integer");
+  }
+  if (!Number.isInteger(hashCount) || hashCount < 0) {
+    throw new Error("JUMPSTART_STREAMING_HASHER_HASH_COUNT must be a non-negative integer");
+  }
+
+  const subtreeHashes = String(subtreeHashesRaw)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (subtreeHashes.length !== hashCount) {
+    throw new Error(
+      `JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES count (${subtreeHashes.length}) must match hash count (${hashCount})`
+    );
+  }
+  for (const h of subtreeHashes) {
+    if (!SHA384_HEX_RE.test(h)) {
+      throw new Error("Each subtree hash must be exactly 96 hex chars (SHA-384)");
+    }
+  }
 
   const overrides = {
     "blockStream.jumpstart.blockNum": String(blockNum),
     "blockStream.jumpstart.previousWrappedRecordBlockHash": prevHash,
-    "blockStream.jumpstart.streamingHasherLeafCount": String(leafCount),
-    "blockStream.jumpstart.streamingHasherHashCount": String(hashCount),
-    "blockStream.jumpstart.streamingHasherSubtreeHashes": subtreeHashes,
+    "blockStream.jumpstart.streamingHasherLeafCount": String(leafCountRaw),
+    "blockStream.jumpstart.streamingHasherHashCount": String(hashCountRaw),
+    "blockStream.jumpstart.streamingHasherSubtreeHashes": subtreeHashes.join(","),
   };
+
+  console.log(
+    `[jumpstart] blockNum=${blockNum}, leafCount=${leafCountRaw}, hashCount=${hashCountRaw}, prevHashLen=${prevHash.length}, subtreeCount=${subtreeHashes.length}`
+  );
 
   const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
   client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
@@ -815,6 +979,7 @@ EOF
 }
 
 log "Validating prerequisites"
+log "Node deployment plan: ${CONSENSUS_NODE_COUNT} consensus node(s) [${NODE_ALIASES}]"
 require_cmd kind
 require_cmd kubectl
 require_cmd solo
@@ -851,6 +1016,7 @@ if ! validate_local_build_path "${LOCAL_BUILD_PATH}"; then
 fi
 
 log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
+cleanup_stale_port_forwards
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
 
 log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
@@ -863,7 +1029,13 @@ solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/d
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
-start_grafana_port_forward
+if ! start_grafana_port_forward; then
+  if [[ "${ALLOW_GRAFANA_PORT_FORWARD_FAILURE}" == "true" ]]; then
+    log "WARNING: Grafana port-forward could not be established; continuing without Grafana tunnel"
+  else
+    exit 1
+  fi
+fi
 
 announce_step "1" "Deploy baseline network and verify pre-upgrade transaction flow"
 log "Deploying consensus network at ${INITIAL_RELEASE_TAG} with 0.71 application.properties"
@@ -892,6 +1064,7 @@ wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/node
 log "Preparing JS SDK scenario runner"
 write_sdk_verifier
 write_file121_jumpstart_update
+prepare_073_application_properties
 cd "${WORK_DIR}"
 npm init -y >/dev/null 2>&1
 npm install --no-fund --no-audit @hashgraph/sdk @hashgraph/proto >/dev/null 2>&1
@@ -909,7 +1082,8 @@ sleep 120
 
 announce_step "2" "Upgrade consensus network to ${UPGRADE_072_RELEASE_TAG}"
 log "Step 2: Upgrade CN network to 0.72 (target ${UPGRADE_072_RELEASE_TAG})"
-solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
+run_with_consensus_diagnostics "solo 0.72 network upgrade" \
+  solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
 
 announce_step "3" "Wait for upgraded nodes and refresh service port-forwards"
 log "Step 3: apply ${UPGRADE_072_RELEASE_TAG} application.properties overrides for cutover flow"
@@ -946,18 +1120,19 @@ export MIRROR_BLOCK_NUMBER
 
 log "Step 5: downloading record stream files from MinIO to ${RECORD_STREAMS_DIR} (blocks <= ${MIRROR_BLOCK_NUMBER})"
 download_solo_minio_record_streams "${MIRROR_BLOCK_NUMBER}" "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
-
-log "Step 5: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${MIRROR_BLOCK_NUMBER})"
-node "${FILE_121_JUMPSTART_SCRIPT}"
-
-log "Step 5: waiting 30s after File 121 update before consensus upgrade"
-sleep 30
-
-log "Step 5: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_FILE}"
-solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-  --local-build-path "${LOCAL_BUILD_PATH}" \
-  --application-properties "${APP_PROPS_073_FILE}" \
-  --quiet-mode --force
+#
+#log "Step 5: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${MIRROR_BLOCK_NUMBER})"
+#node "${FILE_121_JUMPSTART_SCRIPT}"
+#
+#log "Step 5: waiting 30s after File 121 update before consensus upgrade"
+#sleep 30
+#
+#log "Step 5: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_EFFECTIVE_FILE}"
+#run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
+#  solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+#  --local-build-path "${LOCAL_BUILD_PATH}" \
+#  --application-properties "${APP_PROPS_073_EFFECTIVE_FILE}" \
+#  --quiet-mode --force
 
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
