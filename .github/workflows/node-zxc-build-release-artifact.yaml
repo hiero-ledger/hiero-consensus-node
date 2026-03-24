@@ -54,7 +54,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25.0.2"
+        default: "25"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -451,10 +451,10 @@ jobs:
         uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
         with:
-          version: v0.16.2
-          driver-opts: network=host
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]

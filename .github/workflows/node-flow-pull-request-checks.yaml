@@ -6,6 +6,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - labeled
 
 defaults:
   run:
@@ -24,22 +25,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-change-type:
+    name: Detect Change Type
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      docs-only: ${{ steps.classify.outputs.docs-only }}
+      enable-tests: ${{ steps.classify.outputs.enable-tests }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: "0"
+
+      - name: Classify Changed Files
+        id: classify
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const script = require('.github/workflows/support/scripts/classify-changed-files.js');
+            await script({github, context, core})
+
   mats-pr-checks:
     name: MATS
+    needs:
+      - detect-change-type
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-dependency-check: "true"
       enable-spotless-check: "true"
-      enable-snyk-scan: "true"
-      enable-unit-tests: "true"
-      enable-integration-tests: "true"
-      enable-hapi-tests: "true"
-      enable-hapi-tests-crypto: "true"
-      enable-otter-tests: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
-      java-version: "25.0.2"
+      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
+      enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-token: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:
@@ -50,10 +82,37 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
+  ci-complete:
+    name: CI Complete
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - detect-change-type
+      - mats-pr-checks
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Evaluate Results
+        run: |
+          echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
+          echo "MATS result: ${{ needs.mats-pr-checks.result }}"
+
+          if [[ "${{ needs.mats-pr-checks.result }}" == "success" ]]; then
+            echo "All required checks passed."
+            exit 0
+          else
+            echo "MATS checks did not succeed (result: ${{ needs.mats-pr-checks.result }})."
+            exit 1
+          fi
+
   report-summary:
     name: Report PR Check Summary
     runs-on: hl-cn-default-lin-sm
     needs:
+      - detect-change-type
       - mats-pr-checks
     if: ${{ !cancelled() && always() }}
     steps:
@@ -79,6 +138,10 @@ jobs:
           {
             echo "## PR Check Summary"
             echo ""
+            if [[ "${{ needs.detect-change-type.outputs.docs-only }}" == "true" ]]; then
+              echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, dependency, and Snyk checks were skipped. Build and Spotless still ran."
+              echo ""
+            fi
             echo "------------------------------------"
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"

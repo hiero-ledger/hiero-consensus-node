@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(WrappedRecordFileBlockHashesDiskWriter.class);
 
-    private static final String DEFAULT_FILE_NAME = "wrapped-record-hashes.pb";
+    public static final String DEFAULT_FILE_NAME = "wrapped-record-hashes.pb";
 
     /**
      * Field number for {@code WrappedRecordFileBlockHashesLog.entries}.
@@ -145,6 +145,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                         executor)
                 .exceptionally(ex -> {
                     // Swallow to keep the chain alive; errors are logged in-task.
+                    logger.info(
+                            "Error in wrapped record-file block hashes append task; skipping. Error: {}",
+                            ex.getMessage());
                     return null;
                 }));
     }

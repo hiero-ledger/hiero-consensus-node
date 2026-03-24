@@ -1935,4 +1935,44 @@ enum ResponseCodeEnum {
      * The number of hook invocations exceeds the maximum allowed per transaction.
      */
     TOO_MANY_HOOK_INVOCATIONS = 528;
+
+    /**
+     * A registered node ID is invalid or does not exist.
+     */
+    INVALID_REGISTERED_NODE_ID = 529;
+
+    /**
+     * A registered service endpoint is invalid.<br/>
+     * The port is out of range, or the address field is not set.
+     */
+    INVALID_REGISTERED_ENDPOINT = 530;
+
+    /**
+     * The number of registered service endpoints exceeds the configured limit.
+     */
+    REGISTERED_ENDPOINTS_EXCEEDED_LIMIT = 531;
+
+    /**
+     * A registered service endpoint has an invalid address.<br/>
+     * The IP address length is not 4 (IPv4) or 16 (IPv6), or the
+     * domain name is not a valid ASCII FQDN.
+     */
+    INVALID_REGISTERED_ENDPOINT_ADDRESS = 532;
+
+    /**
+     * A registered service endpoint does not specify an endpoint type.<br/>
+     * Exactly one of block_node, mirror_node, or rpc_relay MUST be set.
+     */
+    INVALID_REGISTERED_ENDPOINT_TYPE = 533;
+
+    /**
+     * A registered node cannot be deleted because it is still associated
+     * with a consensus node via their associated registered node list.
+     */
+    REGISTERED_NODE_STILL_ASSOCIATED = 534;
+
+    /**
+     * The number of associated registered nodes exceeds the maximum allowed limit.
+     */
+    MAX_REGISTERED_NODES_EXCEEDED = 535;
 }

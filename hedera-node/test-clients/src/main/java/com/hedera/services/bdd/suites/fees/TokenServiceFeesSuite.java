@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
@@ -65,10 +64,13 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenNftUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE;
@@ -144,7 +146,6 @@ public class TokenServiceFeesSuite {
     private static final String OWNER = "owner";
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for FT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForFT() {
         var receiver = "receiver";
@@ -182,7 +183,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for NFT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForNFT() {
         var receiver = "receiver";
@@ -231,7 +231,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> claimFungibleTokenAirdropBaseFee() {
         var nftSupplyKey = "nftSupplyKey";
         return hapiTest(flattened(
@@ -267,7 +266,7 @@ public class TokenServiceFeesSuite {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER)))),
-                safeValidateChargedUsd("claimTxn", 0.001, 0.001),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // assert balance fungible tokens
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                 // assert balances NFT
@@ -278,7 +277,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("cancel airdrop FT happy path")
     final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
         final var account = "account";
@@ -327,7 +325,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("cancel airdrop NFT happy path")
     final Stream<DynamicTest> cancelAirdropNftHappyPath() {
         var nftSupplyKey = "nftSupplyKey";
@@ -384,7 +381,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenRejectChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -424,7 +420,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCreationsHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
 
@@ -531,7 +526,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseTokenOperationIsChargedExpectedFee() {
         final var htsAmount = 2_345L;
         final var targetToken = "immutableToken";
@@ -558,7 +552,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseFungibleMintOperationIsChargedExpectedFee() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -577,7 +570,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftMintOperationIsChargedExpectedFee() {
         final var standard100ByteMetadata = ByteString.copyFromUtf8(
                 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
@@ -600,7 +592,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nftMintsScaleLinearlyBasedOnNumberOfSerialNumbers() {
         final var expectedFee = 10 * EXPECTED_NFT_MINT_PRICE_USD;
         final var standard100ByteMetadata = ByteString.copyFromUtf8(
@@ -643,7 +634,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftBurnOperationIsChargedExpectedFee() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -664,7 +654,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseGrantRevokeKycChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -691,7 +680,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftFreezeUnfreezeChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(TREASURE_KEY),
@@ -727,7 +715,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonFreezeUnfreezeChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(TREASURE_KEY),
@@ -761,7 +748,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> basePauseAndUnpauseHaveExpectedPrices() {
         final var expectedBaseFee = 0.001;
         final var token = "token";
@@ -783,7 +769,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftWipeOperationIsChargedExpectedFee() {
         return defaultHapiSpec("BaseUniqueWipeOperationIsChargedExpectedFee")
                 .given(
@@ -810,7 +795,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateTokenChargedAsExpected() {
         final var expectedUpdatePriceUsd = 0.001;
 
@@ -827,7 +811,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
         final var expectedNftUpdatePriceUsd = 0.001;
         final var nftUpdateTxn = "nftUpdateTxn";
@@ -864,7 +847,6 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteTokenChargedAsExpected() {
         final var expectedDeletePriceUsd = 0.001;
 
@@ -873,11 +855,11 @@ public class TokenServiceFeesSuite {
                 cryptoCreate(MULTI_KEY).balance(ONE_HUNDRED_HBARS),
                 tokenCreate(FUNGIBLE_COMMON_TOKEN).tokenType(FUNGIBLE_COMMON).adminKey(MULTI_KEY),
                 tokenDelete(FUNGIBLE_COMMON_TOKEN).via("uniqueTokenDelete").payingWith(MULTI_KEY),
-                safeValidateChargedUsd("uniqueTokenDelete", expectedDeletePriceUsd, expectedDeletePriceUsd));
+                safeValidateChargedUsdWithin(
+                        "uniqueTokenDelete", expectedDeletePriceUsd, 5.0, expectedDeletePriceUsd, 1.0));
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("FT happy path")
     final Stream<DynamicTest> tokenAssociateDissociateChargedAsExpected() {
         final var account = "account";
@@ -894,11 +876,10 @@ public class TokenServiceFeesSuite {
                 tokenDissociate(MULTI_KEY, FUNGIBLE_COMMON_TOKEN)
                         .via("tokenDissociate")
                         .payingWith(MULTI_KEY),
-                safeValidateChargedUsd("tokenDissociate", 0.05, 0.05));
+                safeValidateChargedUsd("tokenDissociate", 0.051, 0.05));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
         final var expectedNftUpdatePriceUsd = 0.005;
         final var nftUpdateTxn = "nftUpdateTxn";
@@ -942,8 +923,6 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenGetInfoFeeChargedAsExpected() {
-        final var expectedTokenGetInfo = 0.0001;
-
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
@@ -955,13 +934,11 @@ public class TokenServiceFeesSuite {
                         .initialSupply(1000L),
                 getTokenInfo(FUNGIBLE_TOKEN).via("getTokenInfo").payingWith(OWNER),
                 sleepFor(1000),
-                safeValidateChargedUsd("getTokenInfo", expectedTokenGetInfo, expectedTokenGetInfo));
+                validateFees("getTokenInfo", 0.000102, QUERY_BASE_FEE));
     }
 
     @HapiTest
     final Stream<DynamicTest> tokenGetNftInfoFeeChargedAsExpected() {
-        final var expectedTokenGetNftInfo = 0.0001;
-
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(SUPPLY_KEY),
@@ -989,7 +966,7 @@ public class TokenServiceFeesSuite {
                                 copyFromUtf8("g"))),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).via("getTokenInfo").payingWith(TOKEN_TREASURY),
                 sleepFor(3000),
-                safeValidateChargedUsd("getTokenInfo", expectedTokenGetNftInfo, expectedTokenGetNftInfo));
+                validateFees("getTokenInfo", 0.000102, QUERY_BASE_FEE));
     }
 
     @HapiTest

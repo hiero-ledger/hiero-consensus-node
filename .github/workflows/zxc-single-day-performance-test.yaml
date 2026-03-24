@@ -83,7 +83,6 @@ env:
   BlockNode_version: 0.19.1
   NUM_OF_BLOCK_NODES: 7
 
-
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
@@ -183,6 +182,11 @@ jobs:
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Setup Helm
+        shell: bash
+        run: |
+          sudo ln -s /home/runner/_work/_tool/helm/4.1.1/x64/linux-amd64/helm /usr/bin/helm
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -737,6 +741,20 @@ jobs:
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
             cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
+
+      - name: JDK25 for SwirldsMerkleDB test
+        if: false
+        run: |
+          set +x
+          set +e
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "\
+          rm -rf /opt/java/openjdk; \
+          apt install -y wget apt-transport-https gpg; \
+          wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
+          echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
+          apt update; \
+          apt install -y temurin-25-jdk"
 
       - name: Distribution of K8S nodes, SysAdmin Grafana
         run: |
