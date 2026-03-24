@@ -66,7 +66,7 @@ jobs:
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
-      nlg-time: "780"
+      nlg-time: "720"
       add-app-props: ""
       add-settings: ""
       reconnect-uptime: "600"
