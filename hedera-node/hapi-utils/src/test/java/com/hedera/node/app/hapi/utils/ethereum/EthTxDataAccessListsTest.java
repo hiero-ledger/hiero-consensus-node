@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class EthTxDataAccessListsTest {
 
     // EIP2930
-    private static byte[] buildDefaultType1RawTransaction(byte[] accessList) {
+    private static byte[] buildDefaultType1RawTransaction(final byte[] accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x01),
                 List.of(
@@ -38,7 +38,7 @@ class EthTxDataAccessListsTest {
     }
 
     // EIP1559
-    private static byte[] buildDefaultType2RawTransaction(byte[] accessList) {
+    private static byte[] buildDefaultType2RawTransaction(final byte[] accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x02),
                 List.of(
@@ -57,7 +57,7 @@ class EthTxDataAccessListsTest {
     }
 
     // EIP7702
-    private static byte[] buildDefaultType4RawTransaction(byte[] accessList) {
+    private static byte[] buildDefaultType4RawTransaction(final byte[] accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x04),
                 List.of(
@@ -78,7 +78,7 @@ class EthTxDataAccessListsTest {
 
     private record RawTransactionHolder(EthTxData.EthTransactionType type, byte[] data) {
 
-        public static RawTransactionHolder of(EthTxData.EthTransactionType type, byte[] accessList) {
+        public static RawTransactionHolder of(final EthTxData.EthTransactionType type, final byte[] accessList) {
             return new RawTransactionHolder(
                     type,
                     switch (type) {
@@ -101,7 +101,7 @@ class EthTxDataAccessListsTest {
         final byte[] addr2 = fillBytes(20, 0x20);
         final byte[] key1 = fillBytes(32, 0x30);
         final byte[] key2 = fillBytes(32, 0x40);
-        final Object[] accessList = new Object[] {
+        final Object[] accessList = {
             new Object[] {addr1, new Object[] {key1, key2}},
             new Object[] {addr2, new Object[] {}}
         };
@@ -137,7 +137,7 @@ class EthTxDataAccessListsTest {
     }
 
     private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListIsNotList() {
-        final byte[] accessListIsNotAList = new byte[] {0x01};
+        final byte[] accessListIsNotAList = {0x01};
         return Stream.of(
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListIsNotAList),
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListIsNotAList),
@@ -146,7 +146,7 @@ class EthTxDataAccessListsTest {
 
     @MethodSource("provideTransactionsWhereAccessListIsNotList")
     @ParameterizedTest(name = "Transaction.AccessListIsNotAList {0}")
-    void throwsWhenAccessListIsNotAList(RawTransactionHolder raw) {
+    void throwsWhenAccessListIsNotAList(final RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
@@ -156,8 +156,7 @@ class EthTxDataAccessListsTest {
     }
 
     private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListHasWrongItems() {
-        final Object[] accessList =
-                new Object[] {new Object[] {new byte[] {0x01}, new byte[] {0x01}, new byte[] {0x01}}};
+        final Object[] accessList = {new Object[] {new byte[] {0x01}, new byte[] {0x01}, new byte[] {0x01}}};
         final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
@@ -178,7 +177,7 @@ class EthTxDataAccessListsTest {
 
     private static Stream<RawTransactionHolder> provideTransactionsWhereStorageKeyIsNotList() {
         final byte[] addr1 = fillBytes(20, 0x10);
-        final Object[] accessList = new Object[] {new Object[] {addr1, new byte[] {0x01}}};
+        final Object[] accessList = {new Object[] {addr1, new byte[] {0x01}}};
         final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
@@ -188,7 +187,7 @@ class EthTxDataAccessListsTest {
 
     @MethodSource("provideTransactionsWhereStorageKeyIsNotList")
     @ParameterizedTest(name = "Transaction.StorageKeyIsNotAList {0}")
-    void throwsWhenStorageKeyIsNotAList(RawTransactionHolder raw) {
+    void throwsWhenStorageKeyIsNotAList(final RawTransactionHolder raw) {
         // When:
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);

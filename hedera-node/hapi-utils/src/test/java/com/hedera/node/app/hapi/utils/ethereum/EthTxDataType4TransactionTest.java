@@ -20,7 +20,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void testType4TransactionEncoding() {
-        final byte[] chainId = new byte[] {0x01, 0x2A};
+        final byte[] chainId = {0x01, 0x2A};
         final int nonce = 7;
         final byte[] maxPriorityGas = fillBytes(3, 0x11);
         final byte[] maxGas = fillBytes(3, 0x21);
@@ -203,7 +203,7 @@ class EthTxDataType4TransactionTest {
         });
     }
 
-    private static Object alRrpEntry(Object[] alRlp, int index) {
+    private static Object alRrpEntry(final Object[] alRlp, final int index) {
         final Object entry = alRlp[index];
         assertInstanceOf(Object[].class, entry, "access list entry must be a list");
         return entry;
@@ -211,7 +211,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void extractCodeDelegationsWithValidAuthorizationListYieldsOneDelegation() {
-        final byte[] chainId = new byte[] {0x01};
+        final byte[] chainId = {0x01};
         final byte[] address = repeat((byte) 0x11, 20);
         final int nonce = 5;
         final int yParity = 1;
@@ -244,7 +244,7 @@ class EthTxDataType4TransactionTest {
         assertNotNull(delegations);
         assertEquals(1, delegations.size());
 
-        CodeDelegation cd = delegations.getFirst();
+        final CodeDelegation cd = delegations.getFirst();
         assertArrayEquals(chainId, cd.chainId());
         assertArrayEquals(address, cd.address());
         assertEquals(nonce, cd.nonce());
@@ -255,7 +255,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void populateEip7702EthTxDataReturnsNullWhenItemIsNotList() {
-        byte[] chainId = new byte[] {0x01};
+        byte[] chainId = {0x01};
         final var raw = RLPEncoder.sequence(Integers.toBytes(4), chainId);
 
         final EthTxData tx = EthTxData.populateEthTxData(raw);
@@ -265,7 +265,7 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void populateEip7702EthTxDataReturnsNullWhenWrongNumberOfItemsInList() {
-        byte[] chainId = new byte[] {0x01};
+        byte[] chainId = {0x01};
         final var raw = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {chainId});
 
         final EthTxData tx = EthTxData.populateEthTxData(raw);
