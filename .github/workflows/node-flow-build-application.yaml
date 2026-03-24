@@ -72,15 +72,15 @@ jobs:
         id: resolve-ref
         run: |
           RESOLVED_REF=${{ github.ref_name }}
-          
+
           if ! git ls-remote --exit-code origin "${RESOLVED_REF}" &>/dev/null; then
             echo "::warning::Reference ${RESOLVED_REF} not found in remote. Defaulting to 'main'."
             RESOLVED_REF="main"
           fi
-          
+
           echo "Using workflow reference: ${RESOLVED_REF}"
           echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
-          
+
           gh run cancel ${{ github.run_id }}
 
       - name: Trigger ZXF Deploy Production Release
