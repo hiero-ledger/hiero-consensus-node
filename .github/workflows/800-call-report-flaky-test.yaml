@@ -97,77 +97,15 @@ jobs:
 
       - name: Post PR Comment
         if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 && inputs.workflow-context != 'main-scheduled' }}
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
+        env:
+          WORKFLOW_CONTEXT: ${{ inputs.workflow-context }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         with:
           github-token: ${{ secrets.access-token }}
           script: |
-            const fs = require('fs');
-            const flakyIssues = JSON.parse(fs.readFileSync('flaky-issues.json', 'utf8'));
-            if (flakyIssues.length === 0) return;
-
-            // Determine PR number
-            let prNumber = null;
-            const workflowContext = '${{ inputs.workflow-context }}';
-
-            if (workflowContext === 'pr-checks') {
-              prNumber = context.payload.pull_request?.number;
-            } else if (workflowContext === 'dry-run') {
-              const branch = '${{ github.head_ref || github.ref_name }}';
-              try {
-                const { data: prs } = await github.rest.pulls.list({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  head: `${context.repo.owner}:${branch}`,
-                  state: 'open',
-                  per_page: 1,
-                });
-                if (prs.length > 0) {
-                  prNumber = prs[0].number;
-                }
-              } catch (e) {
-                core.notice(`Could not detect PR for branch ${branch}: ${e.message}`);
-              }
-            }
-
-            if (!prNumber) {
-              core.notice('No PR found for this run — skipping PR comment.');
-              return;
-            }
-
-            const hasNew = flakyIssues.some(t => t.is_new);
-            const marker = '<!-- flaky-test-report -->';
-
-            let body = marker + '\n';
-            if (hasNew) {
-              body += '## ⚠️ New Flaky Test(s) Detected — Action Required\n\n';
-              body += 'New flaky tests were detected in this run. **New tickets have been created and require your attention — please investigate whether the flakiness was introduced by changes in this PR.**\n\n';
-            } else {
-              body += '## Flaky Test(s) Detected\n\n';
-              body += 'One or more flaky tests were detected in this run. These tests have been reported before.\n\n';
-            }
-
-            body += '| Test | Ticket |\n';
-            body += '|------|--------|\n';
-            for (const test of flakyIssues) {
-              const testName = `\`${test.class}#${test.method}\``;
-              if (hasNew) {
-                const status = test.is_new ? '🆕 New' : '🔁 Existing';
-                body += `| ${testName} | #${test.issue_number} (${status}) |\n`;
-              } else {
-                body += `| ${testName} | #${test.issue_number} |\n`;
-              }
-            }
-
-            if (hasNew) {
-              body += '\nPlease review the linked tickets and determine if any of the new issues were caused by your changes.\n';
-            }
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: body,
-            });
+            const script = require('.github/workflows/support/scripts/post-flaky-pr-comment.js');
+            await script({ github, context, core });
 
       - name: Write Step Summary
         if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
