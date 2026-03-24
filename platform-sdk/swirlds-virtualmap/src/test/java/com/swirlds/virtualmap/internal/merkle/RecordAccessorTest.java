@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.merkle;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -253,8 +254,7 @@ public class RecordAccessorTest {
 
     @Test
     @DisplayName("close() shuts down the cache's cleaning pool")
-    void closeShutsCacheCleaningPool() throws IOException, NoSuchFieldException, IllegalAccessException {
-        // Save and clear the system property so a real thread pool is created
+    void closeShutsCacheCleaningPool() throws Exception {
         final String original = System.getProperty("syncCleaningPool");
         try {
             System.clearProperty("syncCleaningPool");
@@ -266,29 +266,32 @@ public class RecordAccessorTest {
             final InMemoryDataSource ds = new InMemoryDataSource("closeShutsCacheCleaningPool");
             final int hashChunkHeight = ds.getHashChunkHeight();
 
-            // Create a cache with a real thread pool (not syncCleaningPool).
-            // We intentionally use the primary constructor here, NOT a snapshot,
-            // to get a cache backed by a real ThreadPoolExecutor. This simulates
-            // a scenario where RecordAccessor receives a cache with a real pool.
+            // Create a cache with a real thread pool, then take a snapshot(true)
+            // to get a snapshot that shares the parent's pool.
             final VirtualNodeCache realPoolCache =
                     new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
+            realPoolCache.putLeaf(leaf(1));
+            realPoolCache.copy();
 
-            // VirtualNodeCache.cleaningPool is private and the class is final,
-            // so we use reflection to verify the pool state.
+            final VirtualNodeCache snapshot = realPoolCache.snapshot(true);
+
+            // Use reflection to access the private cleaningPool field
             final Field cleaningPoolField = VirtualNodeCache.class.getDeclaredField("cleaningPool");
             cleaningPoolField.setAccessible(true);
-            final Executor pool = (Executor) cleaningPoolField.get(realPoolCache);
+            final Executor pool = (Executor) cleaningPoolField.get(snapshot);
+
             assertInstanceOf(
-                    ThreadPoolExecutor.class, pool, "Without syncCleaningPool, should have a real ThreadPoolExecutor");
+                    ThreadPoolExecutor.class,
+                    pool,
+                    "snapshot(true) from a real-pool cache should have a real ThreadPoolExecutor");
             final ExecutorService executorService = (ExecutorService) pool;
 
             assertFalse(executorService.isShutdown(), "Pool should not be shut down yet");
 
-            // Wrap it in a RecordAccessor and close
-            final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, realPoolCache, ds);
+            // Wrap in RecordAccessor and close
+            final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, snapshot, ds);
             accessor.close();
 
-            // After close(), both the data source and the cache's pool should be shut down
             assertTrue(ds.isClosed(), "Data source should be closed after RecordAccessor.close()");
             assertTrue(
                     executorService.isShutdown(),
@@ -300,6 +303,30 @@ public class RecordAccessorTest {
                 System.clearProperty("syncCleaningPool");
             }
         }
+    }
+
+    @Test
+    @DisplayName("close() is safe when cache has no cleaning pool")
+    void closeIsSafeWithNullCleaningPool() {
+        final VirtualMapMetadata state = new VirtualMapMetadata();
+        state.setLastLeafPath(2);
+        state.setFirstLeafPath(1);
+
+        final InMemoryDataSource ds = new InMemoryDataSource("closeNullPool");
+        final int hashChunkHeight = ds.getHashChunkHeight();
+
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
+        cache.putLeaf(leaf(1));
+        cache.copy();
+
+        // snapshot(false) — null cleaning pool
+        final VirtualNodeCache snapshot = cache.snapshot(false);
+
+        final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, snapshot, ds);
+        assertDoesNotThrow(accessor::close, "close() should not throw when cache has a null cleaning pool");
+        assertTrue(ds.isClosed(), "Data source should be closed");
+
+        cache.shutdown();
     }
 
     private static final class BreakableDataSource implements VirtualDataSource {

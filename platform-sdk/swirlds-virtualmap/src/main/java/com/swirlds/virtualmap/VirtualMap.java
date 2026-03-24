@@ -1220,7 +1220,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
             final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-            final VirtualNodeCache cacheSnapshot = cache.snapshot();
+            final VirtualNodeCache cacheSnapshot = cache.snapshot(false);
             final int hashChunkHeight = dataSource.getHashChunkHeight();
             return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
         });
@@ -1301,7 +1301,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // The old map's cache is going to become immutable, but that's OK, because the old map
             // will NEVER be updated again.
             assert originalMap.isHashed() : "The system should have made sure this was hashed by this point!";
-            final VirtualNodeCache snapshotCache = originalMap.cache.snapshot();
+            final VirtualNodeCache snapshotCache = originalMap.cache.snapshot(true);
             flush(snapshotCache, originalMap.metadata, this.dataSource);
 
             final int hashChunkHeight = dataSource.getHashChunkHeight();
@@ -1615,7 +1615,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
         final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
-            cacheSnapshot.setValue(cache.snapshot());
+            cacheSnapshot.setValue(cache.snapshot(true));
             // And make a data source snapshot. The snapshot is not loaded here, though, it is
             // done below
             return dataSourceSnapshot();
