@@ -95,7 +95,19 @@ import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.*;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.SchedulingConfig;
+import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -428,10 +440,7 @@ public class SystemTransactions {
      * @param now the current time
      * @param state the state to set up
      */
-    public void doPostUpgradeSetup(
-            @NonNull final Instant now,
-            @NonNull final State state,
-            @NonNull final StateChangeStreaming stateChangeStreaming) {
+    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var config = configProvider.getConfiguration();

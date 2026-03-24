@@ -617,7 +617,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         private BlockRecordManagerImpl createGenesisManager(App theApp, State state) {
             return createManager(
-                    theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.RESTART);
+                    theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.GENESIS);
         }
 
         private BlockRecordManagerImpl createManager(

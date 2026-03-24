@@ -300,11 +300,6 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
-        try {
-            systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
-        } catch (Exception e) {
-            logger.error("Failed to submit startup migration root-hash vote", e);
-        }
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS ->
@@ -321,6 +316,12 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -589,7 +590,7 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
-            systemTransactions.doPostUpgradeSetup(consensusNow, state, this::doStreamingAllChanges);
+            systemTransactions.doPostUpgradeSetup(consensusNow, state);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }

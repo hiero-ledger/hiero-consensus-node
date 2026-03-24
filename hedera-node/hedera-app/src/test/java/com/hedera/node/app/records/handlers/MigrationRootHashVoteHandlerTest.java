@@ -118,7 +118,7 @@ class MigrationRootHashVoteHandlerTest {
                         .build()));
         given(store.wrappedHashesInOrder()).willReturn(List.of(queuedHashes));
 
-        assertDoesNotThrow(() -> subject.handle(context));
+        subject.handle(context);
 
         verify(store).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
@@ -146,7 +146,7 @@ class MigrationRootHashVoteHandlerTest {
     }
 
     @Test
-    void handleIsNoopWhenThresholdNotReached() {
+    void handleDoesntFinalizeVoteWhenThresholdNotReached() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
                 .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
@@ -198,6 +198,87 @@ class MigrationRootHashVoteHandlerTest {
 
         assertDoesNotThrow(() -> subject.handle(context));
 
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopWhenActiveRosterHasNoEntries() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var emptyActiveRoster = new Roster(List.of());
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(emptyActiveRoster);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).votes();
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopWhenNodeWeightIsNonPositive() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var activeRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(NODE_ID).weight(0L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(1L).build()));
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(activeRoster);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).votes();
+        verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
+    }
+
+    @Test
+    void handleIsNoopWhenTotalWeightIsNonPositive() {
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .wrappedIntermediateBlockRootsLeafCount(0)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().migrationRootHashVote(vote).build();
+        final var activeRoster = new Roster(
+                List.of(RosterEntry.newBuilder().nodeId(NODE_ID).weight(-1L).build()));
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.body()).willReturn(body);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(storeFactory.writableStore(WritableBlockRecordStore.class)).willReturn(store);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(store.isVotingComplete()).willReturn(false);
+        given(store.putVoteIfAbsent(NODE_ID, vote)).willReturn(true);
+        given(rosterStore.getActiveRoster()).willReturn(activeRoster);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(store, never()).votes();
         verify(store, never()).applyFinalizedValuesAndMarkComplete(any(), any(), anyLong());
     }
 

@@ -263,6 +263,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull final State state) {
         if (!writeWrappedRecordFileBlockHashesToDisk()) {
@@ -577,7 +580,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
     }
 
-    public void beginTrackingNewBlock(@NonNull final Bytes startRunningHash) {
+    private void beginTrackingNewBlock(@NonNull final Bytes startRunningHash) {
         this.currentBlockStartRunningHash = requireNonNull(startRunningHash);
         this.currentBlockRecordStreamItems.clear();
         this.currentBlockSidecarRecords.clear();
@@ -964,34 +967,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 "Synced in-memory wrapped hash state from finalized vote: prevHash={}, leafCount={}",
                 prevWrappedRecordBlockRootHash.toHex(),
                 leafCount);
-    }
-
-    private void refreshWrappedHashStateFromBlockInfoIfVotingComplete(@NonNull final State state) {
-        if (!liveWritePrevWrappedRecordHashes()) {
-            return;
-        }
-        final var votingComplete = migrationRootHashVotingComplete(state);
-        if (!votingComplete) {
-            wrappedHashStateSyncedFromFinalizedVote = false;
-            return;
-        }
-        if (wrappedHashStateSyncedFromFinalizedVote) {
-            return;
-        }
-        final var blockInfo = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get());
-        final var intermediateHashes = blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
-                .map(Bytes::toByteArray)
-                .toList();
-        prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(), intermediateHashes, blockInfo.wrappedIntermediateBlockRootsLeafCount());
-        previousWrappedRecordBlockRootHash = blockInfo.previousWrappedRecordBlockRootHash();
-        wrappedHashStateSyncedFromFinalizedVote = true;
-        logger.info(
-                "Synchronized in-memory wrapped hash state from finalized BlockInfo: prevHash={}, leafCount={}",
-                previousWrappedRecordBlockRootHash,
-                blockInfo.wrappedIntermediateBlockRootsLeafCount());
     }
 
     private boolean writeWrappedRecordFileBlockHashesToDisk() {

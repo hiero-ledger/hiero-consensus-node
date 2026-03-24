@@ -90,7 +90,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 .findFirst()
                 .orElse(0L);
         if (nodeWeight <= 0) {
-            log.info(
+            log.error(
                     "Ignoring migration root hash vote from node{} because it has non-positive weight in the active roster",
                     nodeId);
             return;
@@ -99,7 +99,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 .mapToLong(RosterEntry::weight)
                 .sum();
         if (totalWeight <= 0) {
-            log.info(
+            log.error(
                     "Ignoring migration root hash vote from node{} because total weight of the active roster is non-positive",
                     nodeId);
             return;
@@ -122,6 +122,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 nodeWeight,
                 tallyWeight,
                 totalWeight);
+        // Network consensus requires at least (totalWeight / 3) + 1
         if (tallyWeight * 3 <= totalWeight) {
             return;
         }

@@ -172,5 +172,21 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      */
     void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state);
 
+    /**
+     * Persists wrapped record-file block hash inputs for the current in-progress block to the on-disk wrapped-hashes
+     * file when {@link com.hedera.node.config.data.BlockRecordStreamConfig#writeWrappedRecordFileBlockHashesToDisk()
+     * writeWrappedRecordFileBlockHashesToDisk} is enabled.
+     *
+     * <p>This freeze hook treats the open record block as if it were about to close: it snapshots the block number
+     * ({@code lastBlockNumber + 1}), the block's first consensus time, the record stream running hash at end of the
+     * round, and the in-memory record stream items and sidecars accumulated for that block, then appends that payload
+     * asynchronously for downstream wrapped-hash computation.
+     *
+     * <p>Called from the handle workflow at the end of a freeze round (after user transactions for the round have been
+     * streamed). If the disk feature flag is off, this method returns immediately without I/O.
+     *
+     * @param state the mutable state at the end of the freeze round (mirrors
+     *              {@link #writeFreezeBlockWrappedRecordFileBlockHashesToState(State)}; the implementation may not read it)
+     */
     void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull State state);
 }

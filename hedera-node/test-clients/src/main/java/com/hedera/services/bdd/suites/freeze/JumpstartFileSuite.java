@@ -128,7 +128,7 @@ class JumpstartFileSuite implements LifecycleTest {
                                 "hedera.recordStream.computeHashesFromWrappedRecordBlocks", "false",
                                 "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true"),
                         assertHgcaaLogContainsPattern(
-                                        NodeSelector.byNodeId(0),
+                                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                         "Persisted live wrapped record block root hash \\(as of block (\\d+)\\): (\\S+)",
                                         Duration.ofSeconds(1))
                                 .exposingMatchGroupTo(1, liveBlockNum)
