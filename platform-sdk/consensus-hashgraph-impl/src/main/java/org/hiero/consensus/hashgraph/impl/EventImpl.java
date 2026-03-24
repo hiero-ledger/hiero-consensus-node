@@ -11,6 +11,7 @@ import org.hiero.base.Clearable;
 import org.hiero.consensus.hashgraph.impl.consensus.CandidateWitness;
 import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
 import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
+import org.hiero.consensus.hashgraph.impl.metrics.Indexer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -76,6 +77,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
+
+    private long index = Indexer.NO_INDEX;
 
     /**
      * Constructor
@@ -517,6 +520,14 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     public void setDeGen(final int deGen) {
         this.deGen = deGen;
+    }
+
+    public long getIndex() {
+        return index;
+    }
+
+    public void setIndex(final long index) {
+        this.index = index;
     }
 
     //

@@ -33,7 +33,7 @@ public interface ConsensusMetrics {
     /**
      * Update a statistics accumulator a round has reached consensus.
      */
-    void consensusReachedOnRound();
+    void consensusReachedOnRound(final long round);
 
     /**
      * Update a statistics accumulator when an event reaches consensus
@@ -68,20 +68,6 @@ public interface ConsensusMetrics {
      * in the parent round created that it strongly sees.
      */
     void roundIncrementedByStronglySeen();
-
-    /**
-     * Returns the average difference in creation time and consensus time for self events.
-     *
-     * @return the weighted mean
-     */
-    double getAvgSelfCreatedTimestamp();
-
-    /**
-     * Returns the average difference in creation time and consensus time for other events.
-     *
-     * @return weighted mean
-     */
-    double getAvgOtherReceivedTimestamp();
 
     /**
      * Report the weight of the judges when a round comes to consensus.
