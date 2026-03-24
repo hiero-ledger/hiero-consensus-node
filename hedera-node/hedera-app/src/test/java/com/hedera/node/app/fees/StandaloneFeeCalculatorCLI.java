@@ -91,9 +91,10 @@ public class StandaloneFeeCalculatorCLI {
             return;
         }
         final var result = calc.calculateIntrinsic(txn);
-        System.out.println(result);
+//        System.out.println(result);
         json.startRecord();
         json.key("name", body.data().kind().name());
+        json.startObject("transactionId");
         final var txnId = item.getRecord().getTransactionID();
         json.key("accountNum",txnId.getAccountID().getAccountNum());
         json.key("realmNum",txnId.getAccountID().getRealmNum());
@@ -101,6 +102,7 @@ public class StandaloneFeeCalculatorCLI {
         json.key("seconds",txnId.getTransactionValidStart().getSeconds());
         json.key("nanos", txnId.getTransactionValidStart().getNanos());
         json.key("nonce", txnId.getNonce());
+        json.endObject();
         json.startObject("simpleFee");
         json.key("totalFee",result.totalTinycents());
         json.key("serviceBaseFee",result.getServiceBaseFeeTinycents());

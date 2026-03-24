@@ -51,6 +51,7 @@ class JSONFormatter {
             writer.append(", ");
         }
         writer.append(String.format("\"%s\" : %s ", name, "" + value));
+        this.start = false;
     }
 
     public void key(String name, double value) throws IOException {
@@ -58,6 +59,7 @@ class JSONFormatter {
             writer.append(", ");
         }
         writer.append(String.format("\"%s\" : %.5f", name, value));
+        this.start = false;
     }
 
     public void key(String name, List<Map<String, Object>> value) throws IOException {
