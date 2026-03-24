@@ -321,13 +321,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     private VirtualMapMetadata reconnectState;
 
-    private VirtualNodeCache reconnectCache;
-
-    /**
-     * The {@link RecordAccessor} for the state, cache, and data source needed during reconnect.
-     */
-    private RecordAccessor reconnectRecords;
-
     /**
      * During reconnect as a learner, this is the root node in the old learner merkle tree.
      */
@@ -423,8 +416,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         reconnectHashingFuture = null;
         reconnectHashingStarted = null;
         reconnectIterator = null;
-        reconnectCache = null;
-        reconnectRecords = null;
         pipeline = source.pipeline;
         flushCandidateThreshold.set(source.flushCandidateThreshold.get());
         statistics = source.statistics;
@@ -1211,6 +1202,19 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     }
 
     /**
+     * @return copy of underlying datasource with cache copy flushed into it, and running compaction
+     */
+    public VirtualDataSource detachAsDataSourceCopy() {
+        return pipeline.pausePipelineAndRun("detach", () -> {
+            final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
+            VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
+
+            flush(cache.snapshot(), metadata, dataSourceCopy);
+            return dataSourceCopy;
+        });
+    }
+
+    /**
      * Prepares a read-only copy so that it may be used even when removed from the pipeline.
      * Can be called only on immutable hashed copy.
      *
@@ -1287,31 +1291,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // Start with empty state, it will be updated from the teacher during reconnect
         reconnectState = new VirtualMapMetadata();
-        reconnectRecords = originalMap.pipeline.pausePipelineAndRun("copy", () -> {
-            // shutdown background compaction on original data source as it is no longer needed to be running as all
-            // data
-            // in that data source is only there as a starting point for reconnect now. So compacting it further is not
-            // helpful and will just burn resources.
-            originalMap.dataSource.stopAndDisableBackgroundCompaction();
-
-            // Take a snapshot, and use the snapshot database as my data source
-            final Path snapshotPath = dataSourceBuilder.snapshot(null, originalMap.dataSource);
-            this.dataSource = dataSourceBuilder.build(originalMap.getLabel(), snapshotPath, true, false);
-
-            // The old map's cache is going to become immutable, but that's OK, because the old map
-            // will NEVER be updated again.
-            assert originalMap.isHashed() : "The system should have made sure this was hashed by this point!";
-            final VirtualNodeCache snapshotCache = originalMap.cache.snapshot();
-            flush(snapshotCache, originalMap.metadata, this.dataSource);
-
-            final int hashChunkHeight = dataSource.getHashChunkHeight();
-            reconnectCache = new VirtualNodeCache(
-                    virtualMapConfig,
-                    hashChunkHeight,
-                    dataSource::loadHashChunk,
-                    originalMap.cache.getFastCopyVersion());
-            return new RecordAccessor(reconnectState, hashChunkHeight, reconnectCache, dataSource);
-        });
+        this.dataSource = originalMap.detachAsDataSourceCopy();
 
         // Set up the VirtualHasher which we will use during reconnect.
         // Initial timeout is intentionally very long, timeout is reduced once we receive the first leaf in the tree.
@@ -1448,7 +1428,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
                         dataSource.getHashChunkHeight(),
-                        reconnectCache::preloadHashChunk,
+                        hashListener,
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,

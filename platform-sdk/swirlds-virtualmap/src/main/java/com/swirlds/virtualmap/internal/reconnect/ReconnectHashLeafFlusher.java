@@ -193,4 +193,8 @@ public class ReconnectHashLeafFlusher {
             flushInProgress.set(false);
         }
     }
+
+    public VirtualDataSource getDataSource() {
+        return dataSource;
+    }
 }

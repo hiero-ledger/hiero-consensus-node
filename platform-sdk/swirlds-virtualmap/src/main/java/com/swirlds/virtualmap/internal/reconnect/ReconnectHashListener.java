@@ -7,10 +7,15 @@ import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongFunction;
 
 /**
- * A {@link VirtualHashListener} implementation used by the learner during reconnect. During reconnect,
- * the dirty leaves are sent from the teacher to the learner. Then the learner sends the leaves to a
+ * A {@link VirtualHashListener} and {@link LongFunction<VirtualHashChunk>} (as chunk preloaded) implementation used by the learner during reconnect.
+ * During reconnect, the dirty leaves are sent from the teacher to the learner. Then the learner sends the leaves to a
  * {@link com.swirlds.virtualmap.internal.hash.VirtualHasher} to rehash the whole tree received from
  * the teacher. The hasher notifies this listener, which flushes the hashes to disk using {@link
  * ReconnectHashLeafFlusher} mechanism, which completely bypasses the {@link
@@ -20,9 +25,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * large to fit in memory.
  *
  */
-public class ReconnectHashListener implements VirtualHashListener {
+public class ReconnectHashListener implements VirtualHashListener, LongFunction<VirtualHashChunk> {
 
+    private final Map<Long, VirtualHashChunk> hashChunkMap = new ConcurrentHashMap<>();
     private final ReconnectHashLeafFlusher flusher;
+    private final int hashChunkHeight;
 
     /**
      * Create a new {@link ReconnectHashListener}.
@@ -31,6 +38,7 @@ public class ReconnectHashListener implements VirtualHashListener {
      */
     public ReconnectHashListener(@NonNull final ReconnectHashLeafFlusher flusher) {
         this.flusher = requireNonNull(flusher);
+        hashChunkHeight = flusher.getDataSource().getHashChunkHeight();
     }
 
     /**
@@ -47,6 +55,7 @@ public class ReconnectHashListener implements VirtualHashListener {
     @Override
     public void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {
         flusher.updateHashChunk(chunk);
+        hashChunkMap.remove(chunk.getChunkId());
     }
 
     /**
@@ -63,5 +72,24 @@ public class ReconnectHashListener implements VirtualHashListener {
     @Override
     public void onHashingCompleted() {
         flusher.finish();
+    }
+
+    @Override
+    public VirtualHashChunk apply(long path) {
+        final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
+
+        return hashChunkMap.computeIfAbsent(hashChunkId, id -> {
+            VirtualHashChunk chunk;
+            try {
+                chunk = flusher.getDataSource().loadHashChunk(id);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (chunk == null) {
+                final long hashChunkPath = VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
+                chunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
+            }
+            return chunk;
+        });
     }
 }
