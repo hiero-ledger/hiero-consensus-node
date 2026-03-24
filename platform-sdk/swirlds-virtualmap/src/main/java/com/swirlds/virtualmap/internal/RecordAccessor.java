@@ -60,6 +60,10 @@ public final class RecordAccessor {
     }
 
     public Hash rootHash() {
+        final long size = state.getSize();
+        if (size == 0) {
+            return null;
+        }
         VirtualHashChunk rootChunk = cache.lookupHashChunkById(0);
         if (rootChunk == null) {
             try {
@@ -69,12 +73,7 @@ public final class RecordAccessor {
             }
         }
         assert rootChunk != null;
-        final long size = state.getSize();
-        if (size >= 1) {
-            return rootChunk.chunkRootHash(state.getFirstLeafPath(), state.getLastLeafPath());
-        } else {
-            return null;
-        }
+        return rootChunk.chunkRootHash(state.getFirstLeafPath(), state.getLastLeafPath());
     }
 
     /**

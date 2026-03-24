@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.ex
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
+import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
@@ -830,6 +831,7 @@ public class UtilVerbs {
         return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), timeout, ACTIVE), doingContextual(spec -> {
             if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.refreshClients();
+                subProcessNetwork.awaitLedgerId(LEDGER_ID_TIMEOUT);
             }
         }));
     }
@@ -1159,13 +1161,7 @@ public class UtilVerbs {
         return new CustomSpecAssert(custom);
     }
 
-    private static final ByteString MAINNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x00});
-    private static final ByteString TESTNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x01});
-    private static final ByteString PREVIEWNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x02});
-    private static final ByteString DEVNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x03});
-
-    private static final Set<ByteString> RECOGNIZED_LEDGER_IDS =
-            Set.of(MAINNET_LEDGER_ID, TESTNET_LEDGER_ID, PREVIEWNET_LEDGER_ID, DEVNET_LEDGER_ID);
+    private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
      * Returns an operation that uses a {@link com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo} query
@@ -1176,13 +1172,7 @@ public class UtilVerbs {
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerId -> {
-            if (!RECOGNIZED_LEDGER_IDS.contains(ledgerId)) {
-                Assertions.fail(
-                        "Target network is claiming unrecognized ledger id " + CommonUtils.hex(ledgerId.toByteArray()));
-            }
-            ledgerIdConsumer.accept(ledgerId);
-        });
+        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
     }
 
     /**
@@ -1200,6 +1190,105 @@ public class UtilVerbs {
         final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
         return blockingOrder(
                 exposeTargetLedgerIdTo(targetLedgerId::set), sourcing(() -> opFn.apply(targetLedgerId.get())));
+    }
+
+    /**
+     * Returns an operation that waits for a node's application log to report an externalized ledger id, converts the
+     * logged hex value to a {@link ByteString}, and passes it to the given callback.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param ledgerIdConsumer the callback to pass the externalized ledger id to
+     * @return the operation exposing the externalized ledger id to the callback
+     */
+    public static HapiSpecOperation exposeExternalizedLedgerIdFromHgcaaLogTo(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource,
+            @NonNull final Consumer<ByteString> ledgerIdConsumer) {
+        return exposeExternalizedLedgerIdFromHgcaaLogTo(
+                selector, timeout, pollInterval, ignore -> opSource.get(), ledgerIdConsumer);
+    }
+
+    /**
+     * Returns an operation that waits for a node's application log to report an externalized ledger id, converts the
+     * logged hex value to a {@link ByteString}, and passes it to the given callback.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param ledgerIdConsumer the callback to pass the externalized ledger id to
+     * @return the operation exposing the externalized ledger id to the callback
+     */
+    public static HapiSpecOperation exposeExternalizedLedgerIdFromHgcaaLogTo(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource,
+            @NonNull final Consumer<ByteString> ledgerIdConsumer) {
+        final AtomicReference<String> externalizedLedgerIdHex = new AtomicReference<>();
+        return blockingOrder(
+                untilHgcaaLogContainsPattern(
+                                selector, EXTERNALIZED_LEDGER_ID_LOG_PATTERN, timeout, pollInterval, opSource)
+                        .exposingMatchGroupTo(1, externalizedLedgerIdHex),
+                doAdhoc(() -> ledgerIdConsumer.accept(
+                        ByteString.copyFrom(CommonUtils.unhex(requireNonNull(externalizedLedgerIdHex.get()))))));
+    }
+
+    /**
+     * A convenience operation that accepts a factory mapping the externalized ledger id found in an hgcaa log into a
+     * {@link HapiSpecOperation}; and then,
+     * <ol>
+     *     <Li>Looks up the externalized ledger id via {@link #exposeExternalizedLedgerIdFromHgcaaLogTo(NodeSelector, Duration, Duration, Supplier, Consumer)}; and,</Li>
+     *     <Li>Calls the given factory with this id, and runs the resulting {@link HapiSpecOperation}.</Li>
+     * </ol>
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param opFn the factory mapping the externalized ledger id into a {@link HapiSpecOperation}
+     * @return the operation that looks up the externalized ledger id and runs the resulting {@link HapiSpecOperation}
+     */
+    public static HapiSpecOperation withExternalizedLedgerIdFromHgcaaLog(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource,
+            @NonNull final Function<ByteString, HapiSpecOperation> opFn) {
+        return withExternalizedLedgerIdFromHgcaaLog(selector, timeout, pollInterval, ignore -> opSource.get(), opFn);
+    }
+
+    /**
+     * A convenience operation that accepts a factory mapping the externalized ledger id found in an hgcaa log into a
+     * {@link HapiSpecOperation}; and then,
+     * <ol>
+     *     <Li>Looks up the externalized ledger id via {@link #exposeExternalizedLedgerIdFromHgcaaLogTo(NodeSelector, Duration, Duration, Function, Consumer)}; and,</Li>
+     *     <Li>Calls the given factory with this id, and runs the resulting {@link HapiSpecOperation}.</Li>
+     * </ol>
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param opFn the factory mapping the externalized ledger id into a {@link HapiSpecOperation}
+     * @return the operation that looks up the externalized ledger id and runs the resulting {@link HapiSpecOperation}
+     */
+    public static HapiSpecOperation withExternalizedLedgerIdFromHgcaaLog(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource,
+            @NonNull final Function<ByteString, HapiSpecOperation> opFn) {
+        final AtomicReference<ByteString> externalizedLedgerId = new AtomicReference<>();
+        return blockingOrder(
+                exposeExternalizedLedgerIdFromHgcaaLogTo(
+                        selector, timeout, pollInterval, opSource, externalizedLedgerId::set),
+                sourcing(() -> opFn.apply(requireNonNull(externalizedLedgerId.get()))));
     }
 
     public static BalanceSnapshot balanceSnapshot(String name, String forAccount) {

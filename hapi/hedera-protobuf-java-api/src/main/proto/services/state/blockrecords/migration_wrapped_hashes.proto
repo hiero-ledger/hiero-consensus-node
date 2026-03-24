@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.blockrecords;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Values needed to replay wrapped record hash progression while voting is in progress.
+ */
+message MigrationWrappedHashes {
+  /**
+   * The block number these wrapped hashes belong to.
+   */
+  uint64 block_number = 1;
+
+  /**
+   * The wrapped-record consensus timestamp hash for a block.
+   */
+  bytes consensus_timestamp_hash = 2;
+
+  /**
+   * The wrapped-record output items tree root hash for a block.
+   */
+  bytes output_items_tree_root_hash = 3;
+}

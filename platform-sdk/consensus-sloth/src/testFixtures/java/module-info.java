@@ -14,6 +14,7 @@ module org.hiero.sloth.fixtures {
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
@@ -31,7 +32,6 @@ module org.hiero.sloth.fixtures {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
-    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;

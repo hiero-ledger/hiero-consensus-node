@@ -79,8 +79,7 @@ public class WrappedRecordBlockHashMigration {
     }
 
     private static final String RESUME_MESSAGE =
-            "Resuming calculation of wrapped record file hashes until next attempt, but this node "
-                    + "will likely experience an ISS";
+            "Resuming calculation of wrapped record file hashes until next attempt";
 
     /**
      * Executes the wrapped record block hash migration if enabled.
@@ -166,7 +165,7 @@ public class WrappedRecordBlockHashMigration {
             log.error("Recent wrapped record hashes file not found at {}. {}", recentHashesPath, RESUME_MESSAGE);
             return null;
         }
-        log.fatal("Found recent wrapped record hashes file at {}", recentHashesPath);
+        log.info("Found recent wrapped record hashes file at {}", recentHashesPath);
         return recentHashesPath;
     }
 
@@ -255,7 +254,7 @@ public class WrappedRecordBlockHashMigration {
         long expectedBlockNum = jumpstartBlockNum + 1;
         for (final var record : neededRecentWrappedRecords) {
             if (record.blockNumber() != expectedBlockNum) {
-                log.error(
+                log.info(
                         "Non-consecutive block numbers in needed wrapped records: expected block {} but found {}. {}",
                         expectedBlockNum,
                         record.blockNumber(),
