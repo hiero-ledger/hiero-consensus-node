@@ -51,7 +51,6 @@ import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
-import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
@@ -327,8 +326,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private VirtualMap originalMap;
 
     private ReconnectHashLeafFlusher reconnectFlusher;
-
-    private ReconnectNodeRemover nodeRemover;
 
     private final long fastCopyVersion;
 
@@ -1334,7 +1331,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final VirtualMapMetadata originalState = originalMap.getMetadata();
         reconnectFlusher =
                 new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
-        nodeRemover = new ReconnectNodeRemover(
+        final ReconnectNodeRemover nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),
                 originalState.getLastLeafPath(),
@@ -1343,42 +1340,36 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             case VirtualMapReconnectMode.PUSH ->
                 new LearnerPushVirtualTreeView(
                         this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
-                final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
-                yield new LearnerPullVirtualTreeView(
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
+                new LearnerPullVirtualTreeView(
                         reconnectConfig,
                         this,
                         originalMap.records,
                         originalState,
                         reconnectState,
                         nodeRemover,
-                        topToBottom,
+                        new TopToBottomTraversalOrder(),
                         mapStats);
-            }
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> {
-                final NodeTraversalOrder twoPhasePessimistic = new TwoPhasePessimisticTraversalOrder();
-                yield new LearnerPullVirtualTreeView(
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
+                new LearnerPullVirtualTreeView(
                         reconnectConfig,
                         this,
                         originalMap.records,
                         originalState,
                         reconnectState,
                         nodeRemover,
-                        twoPhasePessimistic,
+                        new TwoPhasePessimisticTraversalOrder(),
                         mapStats);
-            }
-            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> {
-                final NodeTraversalOrder parallelSync = new ParallelSyncTraversalOrder();
-                yield new LearnerPullVirtualTreeView(
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
+                new LearnerPullVirtualTreeView(
                         reconnectConfig,
                         this,
                         originalMap.records,
                         originalState,
                         reconnectState,
                         nodeRemover,
-                        parallelSync,
+                        new ParallelSyncTraversalOrder(),
                         mapStats);
-            }
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
@@ -1459,7 +1450,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 logger.warn(RECONNECT.getMarker(), "virtual map hashing thread was never started");
             }
             logger.info(RECONNECT.getMarker(), "call postInit()");
-            nodeRemover = null;
             originalMap = null;
             metadata = new VirtualMapMetadata(reconnectState.getSize());
             postInit();
