@@ -93,8 +93,15 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     private final AtomicBoolean open = new AtomicBoolean(true);
     /** The path to the file on disk */
     private final Path path;
-    /** The metadata for this file read from the footer */
-    private AtomicReference<DataFileMetadata> metadataRef = new AtomicReference<>();
+    /**
+     * The metadata for this file. This is an {@link AtomicReference} because metadata is updated
+     * after construction — {@link DataFileCollection#endWriting()} propagates the final
+     * {@code itemsCount} from the writer, and {@link #setCompactionLevel(int)} swaps the metadata
+     * with a new compaction level. These updates happen on the flush or compaction thread while
+     * scanner and compaction threads may concurrently read the metadata. The atomic reference
+     * ensures cross-thread visibility without explicit synchronization.
+     */
+    private final AtomicReference<DataFileMetadata> metadataRef = new AtomicReference<>();
     /** A flag for if the underlying file is fully written and ready to be compacted. */
     private final AtomicBoolean fileCompleted = new AtomicBoolean(false);
 
