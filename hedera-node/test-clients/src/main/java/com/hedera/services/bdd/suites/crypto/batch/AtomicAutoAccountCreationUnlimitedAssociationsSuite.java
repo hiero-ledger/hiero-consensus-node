@@ -50,6 +50,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
@@ -74,6 +75,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of AutoAccountCreationUnlimitedAssociationsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 @HapiTestLifecycle
 class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     public static final String TRUE = "true";
