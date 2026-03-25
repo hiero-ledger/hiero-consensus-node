@@ -607,6 +607,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
                                     .lastIntervalProcessTime(EPOCH)
+                                    .votingComplete(true)
                                     .build())
                     .commit();
             liveApp.stateMutator(PlatformStateService.NAME)
@@ -771,9 +772,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
             }
-            // Live mode computes hashes in-memory via recordWrappedBlockHashes —
-            // the disk writer is never used (live mode takes precedence)
-            verify(diskWriter, org.mockito.Mockito.never()).appendAsync(notNull());
+            // Live mode no longer suppresses disk writing when that feature is enabled.
+            verify(diskWriter, atLeastOnce()).appendAsync(notNull());
         }
 
         @Test
@@ -807,6 +807,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
                                     .lastIntervalProcessTime(EPOCH)
+                                    .votingComplete(true)
                                     .build())
                     .commit();
             liveOnlyApp
@@ -816,7 +817,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
             final var state = liveOnlyApp.workingStateAccessor().getState();
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-            try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.GENESIS)) {
+            try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.RESTART)) {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
 
@@ -843,7 +844,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
                 // Call freeze with state — computes wrapped hash for the in-progress block 1
                 // and persists the updated BlockInfo to state (leaf count → 2).
-                manager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                manager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
 
                 final var blockInfoAfterFreeze = readBlockInfo(state);
                 // Freeze persisted the updated wrapped hash state
@@ -863,31 +864,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                         .isEqualTo(3);
                 // Root hash should have changed from the pre-freeze state
                 assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashBefore);
-            }
-        }
-
-        @Test
-        void freezeWithNullStateDoesNotPersistBlockInfo() {
-            final var state = liveApp.workingStateAccessor().getState();
-            try (final var manager = createGenesisManager(liveApp, state)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
-
-                final var blockInfoBefore = readBlockInfo(state);
-                assertThat(blockInfoBefore.wrappedIntermediateBlockRootsLeafCount())
-                        .isEqualTo(1);
-
-                // Call freeze with null state (as Hedera.FREEZE_COMPLETE does) — the internal
-                // hasher is updated but BlockInfo in state should NOT change.
-                manager.writeFreezeBlockWrappedRecordFileBlockHashes(null);
-
-                final var blockInfoAfter = readBlockInfo(state);
-                assertThat(blockInfoAfter.wrappedIntermediateBlockRootsLeafCount())
-                        .as("Leaf count should not change when state is null")
-                        .isEqualTo(1);
-                assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash())
-                        .as("Root hash should not change when state is null")
-                        .isEqualTo(blockInfoBefore.previousWrappedRecordBlockRootHash());
             }
         }
 
