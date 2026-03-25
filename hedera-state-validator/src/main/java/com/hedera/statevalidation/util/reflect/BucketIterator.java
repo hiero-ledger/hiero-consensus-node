@@ -15,8 +15,7 @@ public final class BucketIterator {
     private final Iterator<ParsedBucket.BucketEntry> iterator;
 
     public BucketIterator(@NonNull final ParsedBucket bucket) {
-        final Iterator<ParsedBucket.BucketEntry> it = bucket.getEntries().iterator();
-        iterator = it;
+        iterator = bucket.getEntries().iterator();
     }
 
     public boolean hasNext() {

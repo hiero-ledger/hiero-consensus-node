@@ -155,6 +155,9 @@ public final class ParsedBucket extends Bucket {
         entries.forEach(consumer);
     }
 
+    /**
+    * Returns an unmodifiable view of the entries in this bucket.
+    */
     @NonNull
     public List<BucketEntry> getEntries() {
         return Collections.unmodifiableList(entries);
