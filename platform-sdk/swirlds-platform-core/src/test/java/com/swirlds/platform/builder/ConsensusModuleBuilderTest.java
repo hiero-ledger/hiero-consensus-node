@@ -39,13 +39,7 @@ import org.mockito.MockedStatic;
  */
 class ConsensusModuleBuilderTest {
 
-    private static final Configuration DEFAULT_CONFIG = new TestConfigBuilder()
-            .withValue("modules.eventIntake", "")
-            .withValue("modules.pces", "")
-            .withValue("modules.eventCreation", "")
-            .withValue("modules.hashgraph", "")
-            .withValue("modules.reconnect", "")
-            .getOrCreateConfig();
+    private static final Configuration DEFAULT_CONFIG = new TestConfigBuilder().getOrCreateConfig();
     /** Prefix for all module selection config properties. */
     private static final String MODULE_SUFFIX = "Module";
 
