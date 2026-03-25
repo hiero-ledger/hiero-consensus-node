@@ -323,7 +323,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                     newKeyNamed(PAYER_KEY).shape(keyShape),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                     tokenDissociate(ACCOUNT, TOKEN1)
                             .payingWith(ACCOUNT)
                             .sigControl(forKey(PAYER_KEY, validSig))
@@ -351,7 +351,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                     newKeyNamed(PAYER_KEY).shape(largeKeyShape),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                     tokenDissociate(ACCOUNT, TOKEN1)
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
@@ -387,7 +387,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                     newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                     tokenDissociate(ACCOUNT, TOKEN1)
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
@@ -816,7 +816,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         tokenDissociate(ACCOUNT, TOKEN1)
                                 .payingWith(ACCOUNT)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
@@ -841,7 +841,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, keyShape.signedWith(sigs(ON, ON, sigs(ON, ON)))))
                                 .balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         tokenDissociate(ACCOUNT, TOKEN1)
                                 .payingWith(ACCOUNT)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
@@ -885,7 +885,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         tokenDissociate(ACCOUNT, TOKEN1)
                                 .payingWith(ACCOUNT)
                                 .sigControl(forKey(PAYER_KEY, validSig))
@@ -909,7 +909,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         usableTxnIdNamed(expiredTxnId)
                                 .modifyValidStart(oneHourPast)
                                 .payerId(ACCOUNT),
@@ -936,7 +936,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         usableTxnIdNamed(futureTxnId)
                                 .modifyValidStart(oneHourFuture)
                                 .payerId(ACCOUNT),
@@ -961,7 +961,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         tokenDissociate(ACCOUNT, TOKEN1)
                                 .payingWith(ACCOUNT)
                                 .sigControl(forKey(PAYER_KEY, validSig))
@@ -1111,13 +1111,12 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
-                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4")),
                         tokenDissociate(ACCOUNT, TOKEN1)
                                 .payingWith(ACCOUNT)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .signedBy(ACCOUNT)
-                                .fee(ONE_HUNDRED_HBARS)
                                 .setNode("0.0.4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
