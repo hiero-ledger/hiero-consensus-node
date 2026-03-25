@@ -110,7 +110,6 @@ public final class VirtualNodeCache implements FastCopyable {
 
     /**
      * Thread pool used to asynchronously clean up the indexes on cache release.
-     * May be null for snapshot caches that are used for lookups only.
      */
     private final Executor cleaningPool;
 
@@ -815,7 +814,6 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     private Stream<VirtualLeafBytes> dirtyLeaves(
             final long firstLeafPath, final long lastLeafPath, final boolean dedupe) {
-        assert cleaningPool != null : "Cleaning pool must be set";
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
@@ -846,7 +844,6 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		if called on a cache that still allows dirty leaves to be added
      */
     public Stream<VirtualLeafBytes> deletedLeaves() {
-        assert cleaningPool != null : "deletedLeaves() called on a snapshot with no cleaning pool";
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
@@ -1210,7 +1207,6 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		The value type referenced by the mutation list
      */
     private <K, V> void purge(final ConcurrentArray<Mutation<K, V>> array, final Map<K, Mutation<K, V>> index) {
-        assert cleaningPool != null : "purge() called on a snapshot with no cleaning pool";
         array.parallelTraverse(cleaningPool, (i, element) -> {
             // If a cache copy is released after flush, some mutations may be already marked as
             // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
