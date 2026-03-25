@@ -80,6 +80,7 @@ tasks.withType<Test>().configureEach {
         "--add-reads=org.testcontainers=org.apache.commons.compress",
         "--add-reads=org.testcontainers=org.apache.commons.io",
         "--add-reads=org.testcontainers=org.apache.commons.codec",
+        "--enable-native-access=org.hiero.base.crypto",
     )
 }
 

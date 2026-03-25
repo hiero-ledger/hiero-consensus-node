@@ -8,6 +8,9 @@ plugins {
 
 description = "Base Crypto"
 
+// Panama FFM in LibSodiumEd25519 requires native access for SymbolLookup.libraryLookup
+tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=org.hiero.base.crypto") }
+
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
