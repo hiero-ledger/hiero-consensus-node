@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
+import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Collections;
@@ -10,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -21,6 +26,14 @@ import org.hiero.consensus.model.node.NodeId;
  * caller to only pass non-ancient events and to prune old events when necessary.
  */
 public class ChildlessEventTracker {
+    private static final Logger logger = LogManager.getLogger(ChildlessEventTracker.class);
+
+    /**
+     * Rate-limit nGen discard logging: log at most once every N occurrences.
+     */
+    private static final long NGEN_DISCARD_LOG_INTERVAL = 1000;
+
+    private final AtomicLong ngenDiscardCount = new AtomicLong(0);
 
     /**
      * A map of events created by our peers that have no known children. These events are eligible to be
@@ -49,6 +62,20 @@ public class ChildlessEventTracker {
         if (existingEvent != null) {
             if (existingEvent.getNGen() >= event.getNGen()) {
                 // Only add a new event if it has the highest ngen of all events observed so far.
+                final long count = ngenDiscardCount.incrementAndGet();
+                if (count == 1 || count % NGEN_DISCARD_LOG_INTERVAL == 0) {
+                    logger.info(
+                            PLATFORM_STATUS.getMarker(),
+                            "Discarding event {} from creator {} with nGen={}"
+                                    + " because existing tracked event has nGen={} (delta={})"
+                                    + " [occurrence #{}]",
+                            event.getDescriptor().hash().toHex(8),
+                            event.getCreatorId(),
+                            event.getNGen(),
+                            existingEvent.getNGen(),
+                            existingEvent.getNGen() - event.getNGen(),
+                            count);
+                }
                 return;
             } else {
                 // Remove the existing event if it has a lower ngen than the new event.

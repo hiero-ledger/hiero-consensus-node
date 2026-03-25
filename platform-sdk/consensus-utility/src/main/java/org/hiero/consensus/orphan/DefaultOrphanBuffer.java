@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.orphan;
 
+import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicLong;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -25,6 +30,15 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
  * topological order.
  */
 public class DefaultOrphanBuffer implements OrphanBuffer {
+    private static final Logger logger = LogManager.getLogger(DefaultOrphanBuffer.class);
+
+    /**
+     * Rate-limit nGen reset logging: log at most once every N occurrences per creator.
+     */
+    private static final long NGEN_RESET_LOG_INTERVAL = 1000;
+
+    private final AtomicLong ngenResetCount = new AtomicLong(0);
+
     /**
      * Initial capacity of {@link #eventsWithParents} and {@link #missingParentMap}.
      */
@@ -212,6 +226,21 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
             assignNGen(nonOrphan, eventsWithParents);
+
+            if (nonOrphan.getNGen() == FIRST_GENERATION && !nonOrphan.getAllParents().isEmpty()) {
+                final long count = ngenResetCount.incrementAndGet();
+                if (count == 1 || count % NGEN_RESET_LOG_INTERVAL == 0) {
+                    logger.info(
+                            PLATFORM_STATUS.getMarker(),
+                            "Event {} from creator {} assigned nGen=1"
+                                    + " (all {} parents are ancient/missing in eventsWithParents)"
+                                    + " [occurrence #{}]",
+                            nonOrphan.getDescriptor().hash().toHex(8),
+                            nonOrphan.getCreatorId(),
+                            nonOrphan.getAllParents().size(),
+                            count);
+                }
+            }
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore
