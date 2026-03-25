@@ -118,7 +118,6 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
 
     private final Sequencer sequencer = new Sequencer();
 
-
     /**
      * Constructor of {@code ConsensusMetricsImpl}
      *
@@ -236,14 +235,11 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
     @Override
     public void consensusReached(final EventImpl event) {
         final EventImpl lastEventAdded = sequencer.getLastEventAdded();
-        if(lastEventAdded != null) {
+        if (lastEventAdded != null) {
             // this should never be null
             // but if there is a bug, its better to not have metrics than to throw an NPE
-            numEventsAddedUntilConsensus.update(
-                    lastEventAdded.getSequence() - event.getSequence());
-            graphDepthUntilConsensus.update(
-                    lastEventAdded.getDeGen() - event.getDeGen()
-            );
+            numEventsAddedUntilConsensus.update(lastEventAdded.getSequence() - event.getSequence());
+            graphDepthUntilConsensus.update(lastEventAdded.getDeGen() - event.getDeGen());
         }
         // Keep a running average of how many seconds from when I first know of an event
         // until it achieves consensus. Actually, keep two such averages: one for events I

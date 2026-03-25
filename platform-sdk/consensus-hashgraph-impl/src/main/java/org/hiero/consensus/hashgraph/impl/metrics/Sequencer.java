@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.metrics;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,7 +24,7 @@ public class Sequencer {
      *
      * @param event the event to assign a sequence number to
      */
-    public void assignSequenceNumber(@NonNull final EventImpl event){
+    public void assignSequenceNumber(@NonNull final EventImpl event) {
         event.setSequence(nextIndex);
         nextIndex++;
         lastEventAdded = event;
