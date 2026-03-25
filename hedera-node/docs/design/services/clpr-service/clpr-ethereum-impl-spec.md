@@ -80,11 +80,11 @@ Access control uses OpenZeppelin's `AccessControl` with the following roles:
 | Role                  | Grantable By         | Purpose                                                      |
 |-----------------------|----------------------|--------------------------------------------------------------|
 | `DEFAULT_ADMIN_ROLE`  | Governance multisig  | Grant/revoke other roles. Should be behind a timelock.       |
-| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `severConnection`, `pauseConnection`, `resumeConnection`, `redactMessage` |
+| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `closeConnection`, `pauseConnection`, `resumeConnection`, `redactMessage` |
 | `UPGRADER_ROLE`       | `DEFAULT_ADMIN_ROLE` | Reserved for future use if upgrade logic moves on-chain.     |
 
-All permissionless functions (connection registration, endpoint registration, message sending, bundle submission,
-misbehavior reporting) require no role -- only that the caller satisfies the function's specific preconditions.
+All permissionless functions (connection registration, endpoint registration, message sending, bundle submission)
+require no role -- only that the caller satisfies the function's specific preconditions.
 
 ---
 
@@ -120,7 +120,7 @@ interface IClprService {
     // =========================================================================
 
     /// @notice Set or update this ledger's local CLPR configuration.
-    /// @dev Stores the new configuration and increments the global config version counter.
+    /// @dev Stores the new configuration.
     ///      ConfigUpdate Control Messages are lazily enqueued on each Connection at its
     ///      next interaction (submitBundle or sendMessage). O(1) gas cost regardless of
     ///      the number of active Connections.
@@ -139,8 +139,6 @@ interface IClprService {
     /// @notice Register a new Connection to a peer ledger. Permissionless.
     /// @dev The caller must provide a valid ECDSA_secp256k1 signature proving
     ///      control of the connectionId keypair.
-    ///      msg.value is held as an anti-griefing deposit for the Connection's lifetime.
-    ///      Returned to msg.sender on sever. Must meet MIN_CONNECTION_DEPOSIT.
     ///
     ///      The uncompressed public key (64 bytes, x||y without 0x04 prefix) is required
     ///      because ecrecover returns a 20-byte address, which cannot be compared to the
@@ -152,7 +150,7 @@ interface IClprService {
     ///        Signed payload: keccak256(abi.encodePacked(connectionId, verifierContract,
     ///        address(this), block.chainid)).
     /// @param verifierContract Address of the locally deployed verifier contract.
-    ///        The contract's EXTCODEHASH must match an entry in the local ApprovedVerifiers.
+    ///        The verifier is immutable — it cannot be changed after registration.
     /// @param seedEndpoints ABI-encoded array of ClprEndpoint structs.
     function registerConnection(
         bytes32 connectionId,
@@ -160,38 +158,19 @@ interface IClprService {
         bytes calldata ecdsaSignature,
         address verifierContract,
         bytes calldata seedEndpoints
-    ) external payable;
-
-    /// @notice Update the verifier contract on an existing Connection. Permissionless.
-    /// @dev The new verifier contract's EXTCODEHASH must match an entry in the local ApprovedVerifiers.
-    /// @param connectionId The Connection ID.
-    /// @param verifierContract Address of the new verifier contract.
-    function updateConnectionVerifier(
-        bytes32 connectionId,
-        address verifierContract
     ) external;
 
     /// @notice Recover a Connection's peer endpoint roster from a state proof. Permissionless.
     /// @param connectionId The Connection ID.
     /// @param proofBytes Proof bytes passed to the verifier's verifyEndpoints().
-    function recoverEndpointRoster(
+    function updateEndpointRoster(
         bytes32 connectionId,
         bytes calldata proofBytes
     ) external;
 
-    /// @notice Sever (permanently close) a Connection. ADMIN_ROLE only.
-    /// @dev Returns the anti-griefing deposit to the original registrant
-    ///      (connection.registrant) via ETH transfer.
-    ///
-    ///      The `severConnection` function MUST follow checks-effects-interactions ordering:
-    ///      1. **Checks**: Verify caller has ADMIN_ROLE, Connection exists and is not already SEVERED.
-    ///      2. **Effects**: Set Connection status to SEVERED, clear queue state, record the deposit
-    ///         amount and registrant address in local variables.
-    ///      3. **Interactions**: Transfer the deposit to the registrant via `call{value: deposit}("")`.
-    ///         The reentrancy guard provides additional protection, but CEI ordering is the primary
-    ///         defense.
+    /// @notice Close (permanently close) a Connection. ADMIN_ROLE only.
     /// @param connectionId The Connection ID.
-    function severConnection(bytes32 connectionId) external;
+    function closeConnection(bytes32 connectionId) external;
 
     /// @notice Pause a Connection (temporarily halt outbound processing). ADMIN_ROLE only.
     /// @param connectionId The Connection ID.
@@ -201,10 +180,10 @@ interface IClprService {
     /// @param connectionId The Connection ID.
     function resumeConnection(bytes32 connectionId) external;
 
-    /// @notice Query a Connection's current state.
-    /// @param connectionId The Connection ID.
-    /// @return connection ABI-encoded Connection struct.
-    function getConnection(bytes32 connectionId) external view returns (bytes memory connection);
+    // NOTE: getConnection is not exposed on-chain. Connection state is available
+    // via off-chain indexers (e.g., The Graph subgraph or equivalent) that read
+    // from contract events and storage. This avoids gas costs for a purely
+    // informational query that is better served off-chain.
 
     /// @notice Query a Connection's current outbound queue depth.
     /// @param connectionId The Connection ID.
@@ -323,17 +302,6 @@ interface IClprService {
     /// @param connectionId The Connection ID.
     function deregisterEndpoint(bytes32 connectionId) external;
 
-    // =========================================================================
-    // Misbehavior Reporting (Spec section 6.6)
-    // =========================================================================
-
-    /// @notice Submit a misbehavior report against a remote endpoint. Permissionless.
-    /// @param connectionId The Connection ID.
-    /// @param report ABI-encoded ClprMisbehaviorReport.
-    function reportMisbehavior(
-        bytes32 connectionId,
-        bytes calldata report
-    ) external;
 }
 ```
 
@@ -444,13 +412,6 @@ event ConnectionStatusChanged(
     uint8 newStatus
 );
 
-/// @notice Emitted when a Connection's verifier is updated.
-event ConnectionVerifierUpdated(
-    bytes32 indexed connectionId,
-    address previousVerifier,
-    address newVerifier
-);
-
 /// @notice Emitted when a Connector is registered on a Connection.
 event ConnectorRegistered(
     bytes32 indexed connectionId,
@@ -543,13 +504,6 @@ event ConnectorSlashed(
     string reason
 );
 
-/// @notice Emitted when a misbehavior report is processed.
-event MisbehaviorReported(
-    bytes32 indexed connectionId,
-    bytes offendingEndpoint,
-    uint8 evidenceType
-);
-
 /// @notice Emitted when the peer endpoint roster is recovered.
 event EndpointRosterRecovered(
     bytes32 indexed connectionId,
@@ -582,8 +536,6 @@ event ResponseDeliveryFailed(
 ///      logical group in a deterministic, collision-resistant slot range.
 
 // --- Constants ---
-uint256 constant MIN_CONNECTION_DEPOSIT = 0.1 ether; // Anti-griefing deposit for Connection registration
-
 // --- Global Configuration ---
 // Slot 0: master enable flag
 bool public clprEnabled;
@@ -591,15 +543,8 @@ bool public clprEnabled;
 // Slot 1: pointer to ABI-encoded ClprLedgerConfiguration (stored as bytes in a separate mapping)
 bytes internal _ledgerConfiguration;
 
-// Slot 2: global config version counter (incremented by setLedgerConfiguration)
-uint256 public globalConfigVersion;
-
-// --- Approved Verifiers ---
-// Slot N-1: mapping from EXTCODEHASH to approval status.
-// Managed by ADMIN_ROLE. A verifier contract's code hash must be present
-// in this mapping for registerConnection and updateConnectionVerifier to accept it.
-// See cross-platform spec §8.8 (ApprovedVerifiers).
-mapping(bytes32 => bool) internal _approvedVerifiers;
+// Slot 2: block timestamp of the last setLedgerConfiguration call (serves as version marker)
+uint256 public configTimestamp;
 
 // --- Connections ---
 // Slot N: mapping from connectionId to Connection struct
@@ -642,13 +587,13 @@ struct Connection {
     uint64 peerConfigTimestampSeconds; // timestamp.seconds of last known peer config
     uint32 peerConfigTimestampNanos;   // timestamp.nanos
 
-    // --- Verifier (slot 5) ---
+    // --- Verifier (immutable after registration, slot 5) ---
     address verifierContract;          // 20 bytes
     // verifierFingerprint stored separately (32 bytes, does not pack well)
-    bytes32 verifierFingerprint;       // EXTCODEHASH matched against local ApprovedVerifiers at registration (slot 6)
+    bytes32 verifierFingerprint;       // EXTCODEHASH at registration time (informational, slot 6)
 
     // --- Status (slot 7, packed with queue metadata) ---
-    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=PAUSED, 3=SEVERED, 4=HALTED
+    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=PAUSED, 3=CLOSED, 4=HALTED
 
     // --- Outbound Queue Metadata (slots 7-9) ---
     uint64 nextMessageId;              // next sequence number for outgoing messages
@@ -675,11 +620,8 @@ struct Connection {
     uint64 nextResponseExpectedId;     // ID of the next Data Message expecting a response
 
     // --- Lazy Config Propagation ---
-    uint64 localConfigVersion;         // Last global config version propagated on this Connection
+    uint256 lastConfigTimestamp;        // Block timestamp of the last configuration propagated on this Connection
 
-    // --- Registration Deposit ---
-    address registrant;                // Address that registered this Connection (receives deposit back on sever)
-    uint256 deposit;                   // Anti-griefing deposit held for the Connection's lifetime (wei)
 }
 ```
 
@@ -766,8 +708,8 @@ Ethereum endpoints require TWO distinct key types:
    `keccak256(connection_id || proof_bytes)`), and (b) Ethereum transaction signing (`msg.sender`).
    On Ethereum, the `ClprEndpoint.ecdsa_signing_key` is typically the same key as the endpoint
    operator's EOA key, since both use secp256k1. Registered on-chain via
-   `ClprEndpoint.ecdsa_signing_key`. Used for endpoint attribution, misbehavior evidence
-   verification (via ecrecover at ~3K gas), `registerEndpoint`, `deregisterEndpoint`, and other
+   `ClprEndpoint.ecdsa_signing_key`. Used for endpoint attribution, local misbehavior detection
+   (via ecrecover at ~3K gas), `registerEndpoint`, `deregisterEndpoint`, and other
    on-chain operations.
 
 The RSA key and ECDSA key serve different layers. The RSA key secures the transport (mTLS); the
@@ -815,21 +757,20 @@ deregisterEndpoint(connectionId)
 |-----------------------|-------------------|--------------------------------------------------------------|
 | `MIN_ENDPOINT_BOND`   | 1 ETH             | Must make Sybil attacks economically infeasible (Spec 8.4).  |
 | `BOND_LOCKUP_PERIOD`  | 7 days (in blocks) | Prevents register-submit-deregister attacks.                 |
-| `SLASH_PERCENTAGE`     | 100%              | Full bond forfeiture for proven misbehavior.                  |
+| `SLASH_PERCENTAGE`     | 100%              | Full bond forfeiture for proven local misbehavior.            |
 
 The `BOND_LOCKUP_PERIOD` is enforced during deregistration: an endpoint cannot deregister until
 `block.number >= registeredAt + BOND_LOCKUP_BLOCKS`. This prevents an attacker from registering, submitting a
-malicious bundle, and immediately deregistering before the misbehavior is reported.
+malicious bundle, and immediately deregistering before detection.
 
 ## 4.5 Bond Slashing
 
-When misbehavior is proven (via `reportMisbehavior` or duplicate submission detection during `submitBundle`):
+When local misbehavior is detected (e.g., duplicate submission detection during `submitBundle`):
 
 ```
-  1. Verify the misbehavior evidence (see section 9 for security model).
+  1. Verify the misbehavior evidence locally.
   2. Set _endpointBonds[connectionId][offender].active = false.
-  3. Transfer slash proceeds:
-     - EXCESS_FREQUENCY: full bond to the protocol treasury.
+  3. Transfer slash proceeds to the protocol treasury.
   4. Emit EndpointSlashed(connectionId, offender, amount, reason).
 ```
 
@@ -886,10 +827,10 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   // --- Step 5a: Lazy Config Propagation ---
   // Placed after ack update to ensure the ConfigUpdate appears at the correct
   // position in the outbound message stream.
-  16a. If connection.localConfigVersion < globalConfigVersion:
+  16a. If connection.lastConfigTimestamp < configTimestamp:
        - Enqueue a ConfigUpdate Control Message containing the current _ledgerConfiguration
          in the Connection's outbound queue.
-       - Set connection.localConfigVersion = globalConfigVersion.
+       - Set connection.lastConfigTimestamp = configTimestamp.
 
   // --- Step 6: Message Dispatch (see section 8 for details) ---
   17. For each message in order:
@@ -998,10 +939,10 @@ targeting pre-EIP-2537 networks MUST use a ZK-wrapped proof that compresses the 
 1,500,000+ gas. The implementation SHOULD use a ZK-wrapped proof that compresses the BLS verification until
 EIP-2537 is activated on mainnet.
 
-## 6.3 EXTCODEHASH Fingerprint Verification
+## 6.3 EXTCODEHASH Fingerprint Recording
 
-The verifier's legitimacy is checked during `registerConnection` and `updateConnectionVerifier` by comparing
-`EXTCODEHASH(verifierContract)` against the **local** ledger's `ApprovedVerifiers` mapping (see section 3.1).
+During `registerConnection`, the verifier contract's `EXTCODEHASH` is computed and stored on the Connection as
+`verifierFingerprint` (informational). The verifier is immutable — it cannot be changed after registration.
 This is a single opcode costing 2,600 gas (cold) or 100 gas (warm).
 
 ```solidity
@@ -1009,14 +950,13 @@ bytes32 codeHash;
 assembly {
     codeHash := extcodehash(verifierContract)
 }
-require(_approvedVerifiers[codeHash], "Verifier not approved");
+// Store as informational fingerprint on the Connection
 ```
 
 **Proxy considerations.** When a verifier is behind an EIP-1967 proxy, `EXTCODEHASH` returns the hash of the
-proxy's bytecode, not the implementation. The `ApprovedVerifiers` entry MUST contain the proxy's code hash.
-Changing the proxy's implementation does not change `EXTCODEHASH`, so upgrades to the underlying logic do not
-require re-registration. This is by design (Spec section 8.8) and acceptable only if the proxy's upgrade
-authority is controlled by the source ledger's CLPR Service admin.
+proxy's bytecode, not the implementation. If the proxy's implementation is upgraded, the verification logic
+changes without CLPR's knowledge. The protocol is agnostic to this. Applications should evaluate who controls
+the proxy's upgrade authority when deciding whether to trust a Connection (see cross-platform spec §8.8).
 
 ---
 
@@ -1165,10 +1105,10 @@ modifier nonReentrant() {
 }
 ```
 
-Applied to: `setLedgerConfiguration`, `registerConnection`, `updateConnectionVerifier`,
-`recoverEndpointRoster`, `severConnection`, `pauseConnection`, `resumeConnection`, `registerConnector`,
+Applied to: `setLedgerConfiguration`, `registerConnection`,
+`updateEndpointRoster`, `closeConnection`, `pauseConnection`, `resumeConnection`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
-`redactMessage`, `registerEndpoint`, `deregisterEndpoint`, `reportMisbehavior`.
+`redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
 
 This means application callbacks (from `submitBundle` dispatching messages) CANNOT call back into any
 ClprService function. If an application attempts this, the transaction reverts for that message, and an
@@ -1196,9 +1136,9 @@ upgradeability, a HALTED Connection would be permanently unusable, requiring a c
 registration and loss of all in-flight messages.
 
 > **Cross-platform deviation note:** This HALTED -> ACTIVE recovery path is a platform-specific extension
-> of the cross-platform state machine, which only defines HALTED -> SEVERED. Ethereum's upgradeability via
+> of the cross-platform state machine, which only defines HALTED -> CLOSED. Ethereum's upgradeability via
 > EIP-1967 proxy enables this additional recovery option. Implementations on other platforms that lack
-> upgradeability MUST follow the cross-platform spec's HALTED -> SEVERED path.
+> upgradeability MUST follow the cross-platform spec's HALTED -> CLOSED path.
 
 ---
 
@@ -1241,14 +1181,12 @@ protected by the reentrancy guard, so they cannot be called in the same transact
 
 | Operation                      | Estimated Gas     | Who Pays                              | Notes                                         |
 |--------------------------------|-------------------|---------------------------------------|-----------------------------------------------|
-| `registerConnection`           | 150,000 - 250,000 | Caller (permissionless)              | Also requires MIN_CONNECTION_DEPOSIT in ETH. No ZK proof; EXTCODEHASH check only. |
-| `updateConnectionVerifier`     | 50,000 - 100,000  | Caller (permissionless)              | EXTCODEHASH check against local ApprovedVerifiers |
+| `registerConnection`           | 150,000 - 250,000 | Caller (permissionless)              | No ZK proof; EXTCODEHASH recorded for informational purposes. |
 | `registerConnector`            | 150,000           | Connector admin                       |                                               |
 | `registerEndpoint`             | 80,000            | Endpoint operator                     |                                               |
 | `sendMessage` (enqueue)        | 80,000 - 175,000  | Message sender                        | +~25K if lazy ConfigUpdate is enqueued        |
 | `submitBundle` (10 messages)   | 2,000,000 - 25,000,000 | Endpoint (reimbursed by Connectors) | +~25K if lazy ConfigUpdate is enqueued        |
 | `redactMessage`                | 30,000            | CLPR admin                            |                                               |
-| `reportMisbehavior`            | 200,000 - 500,000 | Reporter (compensated by slash)       |                                               |
 
 ## 10.2 Fee Model
 
@@ -1327,8 +1265,8 @@ Applications can learn about responses via two mechanisms:
    message ID. The event includes the status, allowing the application to react off-chain.
 2. **Callback-based:** Implement `IClprApplication.onClprResponse()`. The ClprService calls this during
    `submitBundle` processing. This is synchronous and on-chain but costs gas (paid by the endpoint/Connector).
-3. **Pull-based:** Call `getConnection(connectionId)` to check `receivedMessageId` and determine whether
-   specific messages have been processed. Less efficient but requires no subscription infrastructure.
+3. **Pull-based:** Query Connection state via an off-chain indexer to check `receivedMessageId` and determine
+   whether specific messages have been processed. Less efficient but requires no subscription infrastructure.
 
 ---
 
@@ -1343,7 +1281,7 @@ Ethereum-specific choices made.
 minimum amounts, and slashing conditions."
 
 **Ethereum decision:** Fixed minimum bond in ETH (`MIN_ENDPOINT_BOND`), with a lockup period
-(`BOND_LOCKUP_PERIOD`) and full forfeiture on proven misbehavior. Bonds are held by the ClprService
+(`BOND_LOCKUP_PERIOD`) and full forfeiture on proven local misbehavior. Bonds are held by the ClprService
 contract. No bond delegation or liquid staking is supported in the initial implementation.
 
 ## 12.2 Slashing Schedule
@@ -1426,13 +1364,13 @@ encoding is used only for the wire format between endpoints (off-chain). The ver
 for translating proof bytes (which may contain protobuf-encoded data) into ABI-encoded Solidity structs.
 This avoids the need for a protobuf decoder in Solidity, which would be gas-expensive.
 
-## 12.8 Misbehavior Frequency Measurement
+## 12.8 Frequency Measurement for Local Detection
 
 **Spec gap:** Spec section 1.6 states frequency MUST be measured in sync rounds or blocks, not wall-clock time.
 
-**Ethereum decision:** Frequency is measured in Ethereum block numbers. `EXCESS_FREQUENCY` is defined as more
+**Ethereum decision:** Frequency is measured in Ethereum block numbers. Excess frequency is defined as more
 than `maxSyncsPerSec * 12` bundle submissions per block (12-second block time, rounded). A tolerance of +1
-bundle per boundary block is applied.
+bundle per boundary block is applied. Detection and enforcement are local — see spec §1.6.
 
 ---
 
@@ -1453,20 +1391,16 @@ The following contradictions existed in earlier revisions and have been correcte
    **Fixed:** The ordering check now occurs BEFORE delivery. On mismatch, the Connection is HALTED and no
    callback is made.
 
-3. **Missing anti-griefing deposit on registerConnection.** The cross-platform spec requires an anti-griefing
-   deposit for Connection registration. The original spec omitted this. **Fixed:** `registerConnection` is
-   now `payable` with a `MIN_CONNECTION_DEPOSIT` requirement; deposit is returned on `severConnection`.
-
-4. **Missing `clprEnabled` check in submitBundle.** The original `submitBundle` flow did not verify the
+3. **Missing `clprEnabled` check in submitBundle.** The original `submitBundle` flow did not verify the
    global enable flag. **Fixed:** `require(clprEnabled)` is now step 0a.
 
-5. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
+4. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
    calls MUST return an error." All state-modifying non-admin functions MUST check `require(clprEnabled)` as
-   their first step. This includes: `registerConnection`, `registerConnector`, `updateConnectionVerifier`,
-   `recoverEndpointRoster`, `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
-   `registerEndpoint`, `deregisterEndpoint`, `reportMisbehavior`, `redactMessage`, and `sendMessage`.
-   Read-only query functions (`getLedgerConfiguration`, `getConnectionState`) are exempt. Admin operations
-   (`severConnection`, `pauseConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
+   their first step. This includes: `registerConnection`, `registerConnector`,
+   `updateEndpointRoster`, `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
+   `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
+   Read-only query functions (`getLedgerConfiguration`, `getQueueDepth`, `getConnector`) are exempt. Admin operations
+   (`closeConnection`, `pauseConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
    `clprEnabled` check because the admin must be able to manage the system even when disabled.
 
 All remaining platform-specific decisions fill explicit gaps designated for platform resolution.
@@ -1557,10 +1491,10 @@ progress by reverting on every response.
 (enqueuing ConfigUpdate on every active Connection during `setLedgerConfiguration`) would be an O(N)
 operation that could exceed the block gas limit with hundreds of Connections.
 
-**Resolution:** `setLedgerConfiguration` is O(1). It stores the new configuration and increments
-`globalConfigVersion`. ConfigUpdate Control Messages are lazily enqueued on each Connection at its
-next interaction (`submitBundle` or `sendMessage`): if `connection.localConfigVersion < globalConfigVersion`,
-a ConfigUpdate is enqueued and `localConfigVersion` is updated. This amortizes the enqueue cost across
+**Resolution:** `setLedgerConfiguration` is O(1). It stores the new configuration and records
+`configTimestamp` (the current `block.timestamp`). ConfigUpdate Control Messages are lazily enqueued on each Connection at its
+next interaction (`submitBundle` or `sendMessage`): if `connection.lastConfigTimestamp < configTimestamp`,
+a ConfigUpdate is enqueued and `lastConfigTimestamp` is updated. This amortizes the enqueue cost across
 subsequent interactions rather than concentrating it in a single transaction. No `connectionIds` batching
 parameter is needed.
 

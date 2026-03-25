@@ -104,6 +104,43 @@ response to the source application, and the entire message flow has completed.
 Subsequent sections will dive into the details of how this is accomplished, including implementation notes for Hiero and
 Ethereum networks, and security measures to prevent various attacks and misuses of CLPR.
 
+## 2.3 Trust Model
+
+An application using CLPR implicitly trusts a chain of components. Understanding this chain is essential for evaluating
+whether a particular Connection is safe to use.
+
+**The trust chain.** When an application on Ledger A sends a message through CLPR to an application on Ledger B, it
+trusts:
+
+1. **Its own ledger's consensus** — that Ledger A correctly orders and finalizes its transactions.
+2. **The local CLPR Service** — that the CLPR Service implementation on Ledger A is correct and faithfully executes the
+   protocol (enqueuing messages, processing bundles, enforcing ordering).
+3. **The Connection and its verifier** — that the verifier contract on the Connection correctly validates proofs from
+   Ledger B. A buggy or compromised verifier could accept fabricated proofs, causing the local ledger to process
+   messages that Ledger B never sent.
+4. **The remote ledger's consensus and CLPR Service** — that Ledger B correctly orders its transactions and that its
+   CLPR Service faithfully executes the protocol.
+5. **The remote application** — that the application on Ledger B behaves as expected when it receives the message and
+   generates a response.
+
+Most commonly, the same team deploys the application on both ledgers, so trust in the remote application is inherent.
+When communicating with a third-party remote application, the usual smart contract audit and trust considerations apply.
+
+**Permissionless connections.** Connection creation is permissionless — anyone can deploy a verifier contract and
+register a Connection. This means a Connection's trustworthiness depends entirely on the verifier contract it uses.
+Applications (or their users) must independently verify that the Connection they use is backed by a verifier that
+correctly validates proofs from the intended peer ledger. A connection existing on a ledger does not mean the peer is
+legitimate or the verifier is honest.
+
+**Connectors.** Connectors are economic actors that front payment for message execution on the destination ledger. An
+application chooses which Connector to use. A malicious Connector cannot forge or tamper with messages — the protocol's
+state proofs prevent this — but it could refuse to pay, causing messages to fail on the destination. Applications should
+choose Connectors with adequate funding and a track record of reliability.
+
+**Endpoint availability.** The protocol's state proofs ensure that even with dishonest endpoints, no fabricated
+messages can be accepted — but *availability* depends on at least one honest endpoint per side relaying bundles. If all
+endpoints on one side are compromised, messages will be delayed or stalled but never forged.
+
 ---
 
 # 3. Architecture
@@ -112,8 +149,8 @@ CLPR is organized into four distinct layers:
 
 | **Layer**                   | **Responsibility**                                                                                                  | **Key Abstractions**                                                     | **Capability**                                                                                                                     |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| **Network Layer**           | Physical data transport between ledger endpoints; handshaking, trust updates, throttle negotiation                  | Connection, endpoint, verifier contracts, gRPC channels, encoding format | Two ledgers can connect. Misbehaving nodes are punishable.                                                                         |
-| **Messaging Layer**         | Ordered, reliable, state-proven message queuing and delivery between ledgers                                        | Message queues, bundles, running hashes, state proofs for messages       | Two ledgers can pass messages between each other. Additional misbehavior detection unlocked.                                       |
+| **Network Layer**           | Physical data transport between ledger endpoints; handshaking, trust updates, throttle negotiation                  | Connection, endpoint, verifier contracts, gRPC channels, encoding format | Two ledgers can connect. Misbehaving endpoints are locally detectable and punishable.                                              |
+| **Messaging Layer**         | Ordered, reliable, state-proven message queuing and delivery between ledgers                                        | Message queues, bundles, running hashes, state proofs for messages       | Two ledgers can pass messages between each other.                                                                                  |
 | **Payment & Routing Layer** | Connector authorization and payment, message dispatch to applications, response generation, and penalty enforcement | Connector contracts, application interfaces, slashing mechanisms         | Messages are validated against Connectors, Connectors reimburse nodes, and misbehaving Connectors are punishable.                  |
 | **Application Layer**       | User-facing distributed applications built on CLPR                                                                  | Cross-ledger smart contract calls, asset management, atomic swaps        | Applications can send messages between each other across ledgers by specifying the destination ledger, application, and connector. |
 
@@ -134,8 +171,8 @@ identify themselves ([§3.1.1](#311-ledger-identity-and-configuration)), how the
 ([§3.1.2](#312-endpoint-roster)), how connections are formed and maintained
 ([§3.1.3](#313-establishing-and-updating-connections)), how endpoints communicate
 ([§3.1.4](#314-endpoint-communication-protocol)), how verifier contracts provide the underlying trust mechanism
-([§3.1.5](#315-verifier-contracts)), and network-level misbehavior detection and reporting mechanisms that protect the
-protocol ([§3.1.6](#316-misbehavior-detection-and-reporting)).
+([§3.1.5](#315-verifier-contracts)), and local misbehavior detection mechanisms that protect the
+protocol ([§3.1.6](#316-misbehavior-detection)).
 
 ### 3.1.0 The CLPR Service
 
@@ -148,8 +185,8 @@ software; on Ethereum it is a smart contract deployed on-chain.
 
 **State owned by the CLPR Service:**
 
-- **Local configuration** — The configuration describing this ledger: its `ChainID`, approved verifier
-  contracts, and throttle parameters. There is exactly one local configuration per CLPR Service instance.
+- **Local configuration** — The configuration describing this ledger: its `ChainID` and throttle parameters.
+  There is exactly one local configuration per CLPR Service instance.
 - **Connections** — Each Connection is keyed by its **Connection ID** (see
   [§3.1.3](#313-establishing-and-updating-connections) for how this ID is derived). Multiple Connections may target the
   same peer CLPR Service instance — for example, with different verifiers operating at different commitment levels. Each
@@ -173,7 +210,7 @@ application dispatch, connector charging, endpoint reimbursement, misbehavior en
 ### 3.1.1 Ledger Identity and Configuration
 
 Each ledger participating in CLPR maintains a **configuration** describing its identity and communication parameters.
-The primary fields in the configuration are: `ChainID`, `ApprovedVerifiers`, `Timestamp`, and `Throttles`. The endpoint
+The primary fields in the configuration are: `ChainID`, `Timestamp`, and `Throttles`. The endpoint
 roster is maintained separately and is not part of the configuration — see [§3.1.2](#312-endpoint-roster).
 
 The *local configuration* describes *this* ledger.
@@ -213,60 +250,6 @@ namespace; uniqueness within the deployment is the operator's responsibility.
 > creation is permissionless (see [§3.1.3](#313-establishing-and-updating-connections)), applications that use CLPR
 > **must** independently verify that they are interacting with the correct connection for their intended peer ledger.
 > A connection existing on a ledger does not mean the peer is legitimate.
-
----
-
-**ApprovedVerifiers**
-
-`ApprovedVerifiers` is a map from a **verifier type label** to an **implementation fingerprint** (code hash). It
-declares which verifier implementations the local admin trusts to run on THIS chain for verifying proofs from ANY peer.
-
-> ‼️ **Trust model.** Connecting to a peer ledger via CLPR means trusting:
-> - The **local admin** to approve good verifiers in `ApprovedVerifiers`.
-> - The **peer ledger's consensus mechanism** and proof system.
-> - The **verifier implementation** to correctly verify the peer's proofs.
->
-> A compromised local admin could approve a rogue verifier that returns fabricated data, compromising all Connections
-> that use it. A compromised peer does not directly affect the local `ApprovedVerifiers` — but if the peer's proof
-> system is broken, the verifier will accept invalid proofs regardless of whether it was honestly implemented.
-> On Hedera, the CLPR Service admin is the governing council, providing very strong assurances of security. On
-> Ethereum, it is whoever controls the CLPR Service contract (which in any secure deployment should use multisig
-> governance). On a private HashSphere, it is whoever deployed the network. **The admin is responsible for auditing
-> verifier implementations before approving their fingerprints.**
-
-The verifier type label is a human-readable identifier describing what the verifier does — e.g.,
-`EthereumSyncCommittee-v1` identifies a verifier that validates Ethereum sync committee proofs, and `HieroTSS-v1`
-identifies a verifier that validates Hiero TSS proofs. The label has no protocol-level semantics; the implementation
-fingerprint is what matters. Labels should be unique within a given ledger configuration.
-
-The implementation fingerprint is chain-agnostic in concept but chain-specific in its mechanism. On EVM chains it is the
-`EXTCODEHASH` of the deployed verifier contract. On Hiero it is a hash representing the system contract verifier. The
-CLPR protocol requires only that the receiving ledger can verify "the deployed verifier's code matches an approved
-fingerprint" — the specific mechanism is a per-platform implementation detail.
-
-For example, Hedera's configuration might contain:
-
-```
-ApprovedVerifiers {
-  "EthereumSyncCommittee-v1": 0xA1B2C3...   // verifies Ethereum sync committee proofs
-  "HieroTSS-v1":             0xD4E5F6...   // verifies Hiero TSS proofs (for HashSphere connections)
-}
-```
-
-Each entry represents a verifier *implementation* that the local admin trusts to run on this chain. When a connection
-is registered, the CLPR Service checks `EXTCODEHASH(verifier_address)` (or platform equivalent) against its own
-`ApprovedVerifiers`. If the fingerprint matches an approved entry, the verifier is accepted.
-
-Verifier discovery is an off-chain concern. The source ledger's ecosystem publishes verifier implementations (source
-code, audits, deployment artifacts); the local admin evaluates them, and if satisfied, adds the code hash to
-`ApprovedVerifiers`. This separation means adding a new peer ledger type requires no protocol changes — only a new
-verifier implementation and a local admin decision.
-
-> 💡 **Private networks.** A HashSphere can connect permissionlessly to any ledger whose admin has approved the
-> relevant verifier type. For example, if Hedera's governing council has approved `HieroTSS-v1`, anyone can deploy
-> that verifier on Hedera and register a connection to any Hiero-based network — including a private HashSphere —
-> without council involvement. For the reverse direction (the HashSphere verifying Hedera proofs), the HashSphere
-> admin must approve a suitable Hedera verifier in its own `ApprovedVerifiers`.
 
 ---
 
@@ -319,10 +302,7 @@ of ~10% to account for timing variance) is individually at fault.
 
 **Enforcement.** Each local endpoint independently tracks inbound sync frequency per remote endpoint. When
 a specific peer endpoint exceeds its fair share, the local endpoint **shuns** it — refusing further syncs
-from that endpoint and reports to the local CLPR Service of this behavior. If multiple local endpoints independently
-observe the same peer endpoint exceeding its fair share, the local CLPR Service submits a `MisbehaviorReport` to the
-remote ledger ([§3.1.6](#316-misbehavior-detection-and-reporting)). The remote ledger verifies the evidence and MAY
-slash and remove the offending endpoint. Only the misbehaving endpoint is penalized; the Connection and all other peer
+from that endpoint. Only the misbehaving peer endpoint is shunned; the Connection and all other peer
 endpoints are unaffected.
 
 **Motivation.** Beyond abuse prevention, this limit reduces wasteful duplication. On Ethereum, for example,
@@ -339,7 +319,7 @@ and therefore avoid submitting a duplicate.
 **Protocol strictness.** All limits in the configuration are published so that both sides know the rules. A peer that
 exceeds any published limit — whether on payload size, bundle size, sync payload size, or sync frequency — is
 committing a measurable, attributable violation. The receiving side MUST reject the offending submission and MAY count
-repeated violations toward misbehavior thresholds ([§3.1.6](#316-misbehavior-detection-and-reporting)). A peer should
+repeated violations toward local misbehavior thresholds ([§3.1.6](#316-misbehavior-detection)). A peer should
 never be penalized for reasons it cannot determine from the published configuration. Conversely, any submission that
 does not conform to the protocol specification (unknown fields, malformed metadata, unexpected message types) MUST be
 rejected outright. The CLPR protocol is strict: implementations MUST NOT silently ignore unrecognized data.
@@ -361,14 +341,14 @@ An endpoint has:
 
 **Bootstrap.** Seed endpoints are not part of `registerConnection` itself — they are supplied via a separate call after
 the connection is established. A private ledger may choose to omit supplying any seed endpoints entirely, since
-endpoints can be learned later via `recoverEndpointRoster` or through the normal sync channel.
+endpoints can be learned later via `updateEndpointRoster` or through the normal sync channel.
 
 **Ongoing updates.** After bootstrap, changes to the peer endpoint roster are propagated via Control Messages in the
 message queue (see [§3.2.2](#322-message-storage) for the Control Message types and ordering guarantees). Each receiving
 ledger's CLPR Service is responsible for applying these updates to its local copy of the peer roster.
 
 **Recovery.** If the automatic sync channel breaks down — for example, because a ledger has completely rotated its
-endpoint set and none of the new endpoints are known to the peer — any user may submit a `recoverEndpointRoster` call
+endpoint set and none of the new endpoints are known to the peer — any user may submit a `updateEndpointRoster` call
 directly to the CLPR Service API. This call requires a proof, which the Connection's verifier contract validates via
 `verifyEndpoints` ([§3.1.5](#315-verifier-contracts)), returning the peer's current endpoint list. The CLPR Service
 replaces the stale peer roster with the verified endpoints. No live sync is required, and any user may submit the call.
@@ -378,7 +358,7 @@ replaces the stale peer roster with the verified endpoints. No live sync is requ
 > 💡 **Hiero:** Every consensus node is automatically a CLPR endpoint. When CLPR is first enabled, the node software
 > reads the active roster and registers all nodes as local endpoints. From that point forward, any roster change — a
 > node joining, leaving, or upgrading — automatically updates the local endpoint set. No manual management is required.
-> On Hiero, misbehavior penalties ([§3.1.6](#316-misbehavior-detection-and-reporting)) are enforced through the node's
+> On Hiero, misbehavior penalties ([§3.1.6](#316-misbehavior-detection)) are enforced through the node's
 > existing account — a misbehaving endpoint node's account can be slashed, or the node can be removed from the active
 > roster by governance action. No separate CLPR-specific bond is required because Hedera consensus nodes are
 > permissioned, but this may change in the future, especially for Hiero nodes.
@@ -400,10 +380,8 @@ replaces the stale peer roster with the verified endpoints. No live sync is requ
 ### 3.1.3 Establishing and Updating Connections
 
 Connection creation is **permissionless**. Anyone can register a new connection by deploying a verifier contract
-whose code hash matches one of the local `ApprovedVerifiers`. No admin approval is required beyond the prior inclusion
-of the verifier type in `ApprovedVerifiers`. The local admin retains the power to **pause or close** any connection at
-any time (see below). The connection deployer must bond a significant amount of native currency (e.g., ETH) at the time
-of connection creation, which is subject to slashing for misbehavior.
+and specifying it at registration time. The verifier is fixed for the lifetime of the connection and cannot be changed.
+The CLPR Service admin retains the power to **pause or close** any connection at any time (see below).
 
 ```mermaid
 sequenceDiagram
@@ -411,14 +389,11 @@ sequenceDiagram
     participant VA as Verifier (deployed on Ledger B)
     participant LB as Ledger B (CLPR Service)
 
-    Note over User,LB: Preconditions:
-    Note over User,LB: 1. Ledger B's ApprovedVerifiers contains a fingerprint matching this verifier's code
-    Note over User,LB: 2. User has deployed the verifier contract on Ledger B
+    Note over User,LB: Precondition: User has deployed the verifier contract on Ledger B
 
-    User->>LB: registerConnection(connection_id, ecdsa_sig, verifier_address, admin)
+    User->>LB: registerConnection(connection_id, ecdsa_sig, verifier_address)
     LB->>LB: verify ecdsa_sig (caller controls connection_id)
-    LB->>LB: check: EXTCODEHASH(verifier_address) ∈ local ApprovedVerifiers?
-    LB->>LB: ✓ create Connection in REGISTERED state (store verifier, admin)
+    LB->>LB: ✓ create Connection in REGISTERED state (store verifier)
 
     Note over User,LB: Connection exists but is not yet operational
 
@@ -443,15 +418,11 @@ Ethereum has the `ecrecover` precompile, Solana has the secp256k1 program, and H
 
 1. The **Connection ID** and an **ECDSA_secp256k1 signature** over the registration data, proving the
    caller controls the identity keypair.
-2. The address of a **verifier contract** already deployed on the local ledger.
-3. The **admin authority** for this Connection — an account, contract, or multisig that will have the
-   power to pause, resume, and close the Connection. This is distinct from the ECDSA keypair, which
-   has no further role after registration.
+2. The address of a **verifier contract** already deployed on the local ledger. The verifier is fixed for the
+   lifetime of the Connection and cannot be changed.
 
-The CLPR Service verifies the ECDSA signature (confirming the caller controls the Connection ID), then checks
-`EXTCODEHASH(verifier_address)` (or platform equivalent) against the local `ApprovedVerifiers`. If the fingerprint
-matches an approved entry, the connection is created: the connection ID is recorded, the verifier contract address and
-fingerprint are recorded, and the admin authority is stored.
+The CLPR Service verifies the ECDSA signature (confirming the caller controls the Connection ID), records the
+Connection ID, and stores the verifier contract address and its code fingerprint.
 
 **Peer configuration.** After registration, the Connection is in the `REGISTERED` state — it
 exists but is not yet operational. Before syncing can begin, the peer's configuration (ChainID,
@@ -475,17 +446,19 @@ roster, and Connector set. See [§3.4](#34-application-layer) for application-la
   verified. No messages can be enqueued and no syncs occur. The Connection transitions to
   `ACTIVE` when a valid peer configuration is submitted via `setPeerConfig`.
 - **ACTIVE** — Normal operation. Messages are enqueued, syncs occur, bundles are processed.
-- **PAUSED** — Temporarily halted. No new outbound messages are accepted, and syncs are suspended.
-  Existing queue state is preserved. This state is for investigation — the admin can inspect the
-  Connection and decide whether to resume (return to ACTIVE) or close (move to CLOSING).
-- **CLOSING** — Irreversible wind-down. No new outbound messages are accepted. A
-  `ConnectionClosing` Control Message is enqueued on the Connection's outbound queue and delivered
-  to the peer via the normal sync mechanism. When the remote CLPR Service processes this Control
-  Message, it automatically transitions its own side of the Connection to CLOSING as well. During
-  the grace period, **syncs continue in both directions**: outbound messages already in the queue
-  (including the `ConnectionClosing`) are still transmitted, and inbound bundles are still
-  processed — so responses to already-sent messages can flow back. The grace period is bounded by
-  a configurable timeout which does not have to be the same on both ledgers, but SHOULD be generous.
+- **PAUSED** — Temporarily halted by the CLPR Service admin. No new outbound messages are accepted,
+  and syncs are suspended. Existing queue state is preserved. This state is for investigation — the
+  admin can inspect the Connection and decide whether to resume (return to ACTIVE) or close (move to
+  CLOSING).
+- **CLOSING** — Irreversible wind-down initiated by the CLPR Service admin. No new outbound
+  messages are accepted. A `ConnectionClosing` Control Message is enqueued on the Connection's
+  outbound queue and delivered to the peer via the normal sync mechanism. When the remote CLPR
+  Service processes this Control Message, it automatically transitions its own side of the
+  Connection to CLOSING as well. During the grace period, **syncs continue in both directions**:
+  outbound messages already in the queue (including the `ConnectionClosing`) are still transmitted,
+  and inbound bundles are still processed — so responses to already-sent messages can flow back. The
+  grace period is bounded by a configurable timeout which does not have to be the same on both
+  ledgers, but SHOULD be generous.
 - **CLOSED** — The grace period timeout has expired. All remaining enqueued outbound messages
   receive a synthetic `UNRESOLVED` response delivered to local applications — meaning "this message
   may or may not have been processed on the remote side; the outcome is unknown." Endpoints stop
@@ -495,22 +468,18 @@ roster, and Connector set. See [§3.4](#34-application-layer) for application-la
 **State transitions:**
 
 - REGISTERED → ACTIVE (`setPeerConfig` succeeds)
-- REGISTERED → CLOSING (admin decides to shut down before activation)
-- ACTIVE → PAUSED (admin action, or automatic on protocol violation — see
+- REGISTERED → CLOSING (CLPR Service admin decides to shut down before activation)
+- ACTIVE → PAUSED (CLPR Service admin action, or automatic on protocol violation — see
   [§3.2.7](#327-response-ordering-and-correlation))
-- PAUSED → ACTIVE (resume — issue resolved)
-- PAUSED → CLOSING (decided to shut down)
-- ACTIVE → CLOSING (skip pause, go straight to wind-down)
+- PAUSED → ACTIVE (CLPR Service admin resumes — issue resolved)
+- PAUSED → CLOSING (CLPR Service admin decides to shut down)
+- ACTIVE → CLOSING (CLPR Service admin skips pause, goes straight to wind-down)
 - CLOSING → CLOSED (grace period timeout expires)
 
-**Who can pause and close.** Both the **Connection admin** and the **CLPR Service admin** (governing
-council on Hiero, contract governance on Ethereum) can pause or close any Connection. The Connection
-admin is a separate authority specified at registration time — it can be an account, a smart
-contract, a multisig, or any on-ledger entity. It is distinct from the ECDSA keypair used for
-registration; that keypair's sole purpose is coordinating cross-ledger registration and it has no
-further protocol role. The Connection admin acts for operational reasons (winding down a Connection
-they no longer wish to operate). The Service admin acts as a higher authority — for emergencies
-such as a compromised peer, a buggy verifier, or abuse.
+**Who can pause and close.** Only the **CLPR Service admin** (governing council on Hiero, contract
+governance on Ethereum) can pause or close any Connection. Connections have no per-connection admin
+authority — the registrant has no special privileges after creation. The ECDSA keypair used for
+registration exists solely to coordinate cross-ledger registration and has no further protocol role.
 
 > ‼️ **`UNRESOLVED` is an honest status.** Applications MUST treat `UNRESOLVED` as "unknown outcome
 > on the remote side" and design recovery paths for it. For example, a token bridge that escrowed
@@ -521,39 +490,15 @@ such as a compromised peer, a buggy verifier, or abuse.
 > situation as a remote ledger dying unexpectedly — the protocol cannot resolve what it cannot
 > reach.
 
-**Verifier migration.** For a given Connection, there is exactly one active verifier — the one deployed on the local
-platform. Proof-format upgrades follow a **deploy-readers-before-writers** discipline so that no Connection experiences
-an outage window:
+**Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. If the source
+ledger upgrades its proof format, a new Connection must be registered with a new verifier. This simplifies the trust
+model: applications can evaluate a Connection's verifier once and know it will not change underneath them.
 
-1. **Source ledger** publishes the specification for its new proof format along with reference verifier
-   implementations. It continues producing **old-format proofs** throughout this step.
-2. **Each receiving ledger's admin** evaluates the new verifier — which MUST accept **both** old and new proof
-   formats — and adds its fingerprint to local `ApprovedVerifiers`.
-3. **Anyone** on each receiving ledger deploys the new verifier and calls `updateConnectionVerifier` on affected
-   Connections. The CLPR Service checks the new verifier's code hash against local `ApprovedVerifiers` and switches.
-   Because the new verifier accepts both formats, Connections continue to work with the old proofs still being
-   produced by the source.
-4. **Source ledger** switches to the new proof format. All receiving ledgers that have already migrated their
-   verifiers continue operating without interruption. Receiving ledgers that have not yet migrated will lose
-   connectivity until they complete steps 2–3; the source ledger's migration timeline should allow sufficient lead
-   time to minimize this risk.
+> 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The CLPR Service admin
+> (governing council) can pause or close Connections via HAPI transactions.
 
-The migration pace is controlled locally by each receiving ledger's admin. The source ledger coordinates by providing
-adequate lead time and maintaining old-format proofs until a target migration date.
-
-Any user can update the verifier on an existing Connection by deploying the new verifier code locally and calling
-`updateConnectionVerifier`. The CLPR Service checks the new verifier's code hash against the local `ApprovedVerifiers`.
-If the fingerprint matches an approved entry, the verifier is replaced.
-
-This allows verifier upgrades without re-establishing the Connection and without admin involvement on the destination
-(beyond the prior inclusion of the new verifier in `ApprovedVerifiers`).
-
-> 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. Both the Connection admin
-> and the CLPR Service admin (governing council) can pause or close Connections via HAPI transactions.
-
-> 💡 **Ethereum:** Connection creation is a non-privileged call on the CLPR Service contract. Both the
-> Connection admin and the CLPR Service admin (contract governance) can pause or close Connections via
-> contract functions.
+> 💡 **Ethereum:** Connection creation is a non-privileged call on the CLPR Service contract. The
+> CLPR Service admin (contract governance) can pause or close Connections via contract functions.
 
 ### 3.1.4 Endpoint Communication Protocol
 
@@ -657,12 +602,12 @@ native callback (on Hiero) that implements the following methods:
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
   verification is appropriate for the source ledger, and returns a verified configuration. Used during `setPeerConfig`
   to establish the peer's configuration ([§3.1.3](#313-establishing-and-updating-connections)), and during endpoint
-  roster recovery to re-verify the peer's configuration from a state proof.
+  roster update to re-verify the peer's configuration from a state proof.
 - **`verifyBundle(bytes) → (ClprQueueMetadata, ClprMessagePayload[])`** — Accepts opaque proof bytes, performs
   verification, and returns verified queue metadata and messages. Used during bundle processing
   ([§3.2.4](#324-bundle-verification)).
 - **`verifyEndpoints(bytes) → ClprEndpoint[]`** — Accepts opaque proof bytes, performs verification, and returns a
-  verified list of endpoints for a specific Connection on the source ledger. Used during endpoint roster recovery
+  verified list of endpoints for a specific Connection on the source ledger. Used during endpoint roster update
   ([§3.1.2](#312-endpoint-roster)) when the sync channel is broken and the peer's endpoint set must be re-bootstrapped
   from a state proof.
 - **`verifyMetadata(bytes) → ClprQueueMetadata`** — Accepts opaque metadata proof bytes, performs cryptographic
@@ -679,14 +624,15 @@ system. CLPR does not constrain or even inspect the proof format — it only req
 verified data.
 
 **Trust model.** CLPR trusts the verifier contract's output — if the verifier lies, the Connection is compromised.
-The verifier's legitimacy is established at connection creation by checking its code hash against the local
-`ApprovedVerifiers` ([§3.1.3](#313-establishing-and-updating-connections)). CLPR independently verifies running hash
-chain integrity, message ID sequencing, and response ordering ([§3.2.4](#324-bundle-verification)) — these checks catch
-verifier bugs but not a compromised verifier, which would return fabricated data with matching hashes.
+The verifier is specified by the connection registrant at creation time and is fixed for the Connection's lifetime
+(see [§2.3](#23-trust-model) and [§3.1.3](#313-establishing-and-updating-connections)). Applications must independently
+evaluate the verifier contract before using a Connection. CLPR independently verifies running hash chain integrity,
+message ID sequencing, and response ordering ([§3.2.4](#324-bundle-verification)) — these checks catch verifier bugs
+but not a compromised verifier, which would return fabricated data with matching hashes.
 
 **Finality and reorg risk.** For ledgers without instant finality (e.g., Ethereum), the commitment level at which the
 verifier accepts proofs determines the reorg risk. A verifier that accepts proofs at `latest` commitment level is
-vulnerable to chain reorganizations: a message may be processed on the destination and then the source block is
+vulnerable to chain reorganizations: a message may be processed on the destination, and then the source block is
 reverted, producing a "phantom message" that never actually existed on the source. For token bridges, this enables
 double-spending. The commitment level is a property of the verifier implementation — CLPR does not enforce or inspect
 it. Source ledger admins choosing which verifier to endorse, and applications choosing which Connections to use, must
@@ -696,11 +642,11 @@ Hiero) do not have this concern — finality is instant and reorgs are not possi
 
 **Adding new chains.** Adding CLPR support for a new ledger does not require changes to the CLPR protocol or to existing
 implementations on other ledgers. It requires: (1) deploying a CLPR Service on the new ledger, (2) building a verifier
-contract that can verify that ledger's proofs, (3) publishing the verifier implementation for peer ledger admins to
-evaluate, and (4) anyone deploying the verifier on a target peer ledger and registering a Connection (the local admin
-must have already approved the verifier code hash in local `ApprovedVerifiers`). The source ledger's ecosystem is
-responsible for building and maintaining its verifier contracts — including proof generation, trust anchor tracking
-(e.g., validator set rotation, committee changes), and any internal state the verifier needs to maintain.
+contract that can verify that ledger's proofs, (3) publishing the verifier implementation for peer ledger users to
+evaluate, and (4) anyone deploying the verifier on a target peer ledger and registering a Connection. The source
+ledger's ecosystem is responsible for building and maintaining its verifier contracts — including proof generation,
+trust anchor tracking (e.g., validator set rotation, committee changes), and any internal state the verifier needs to
+maintain.
 
 **Verifier contract examples.** The following are illustrative examples of verifier contracts that might be deployed for
 different ledger pairs. Each is a separate implementation; CLPR treats them identically.
@@ -717,84 +663,46 @@ different ledger pairs. Each is a separate implementation; CLPR treats them iden
   the verifier contract only needs to check the proof. This is the natural choice when the receiving ledger cannot
   natively verify the source ledger's consensus mechanism.
 
-> ‼️ **Upgradeable verifier contracts.** Verifier contracts may be deployed behind upgradeable proxies (e.g., EIP-1967)
-> to allow the source ledger to upgrade verification logic without requiring every Connection to run
-`updateConnectionVerifier`.
+> ‼️ **Upgradeable verifier contracts.** Although the verifier address is fixed at connection creation, the verifier
+> contract itself may be deployed behind an upgradeable proxy (e.g., EIP-1967). If the verifier is a proxy, the
+> underlying implementation can change without CLPR's knowledge — the proxy address remains the same while the logic
+> behind it is replaced. The CLPR protocol is agnostic to this — upgradeable verifiers are perfectly valid.
 >
-> When proxies are used, the implementation fingerprint in `ApprovedVerifiers` is the proxy's code hash (since that is
-> what `EXTCODEHASH` returns), and the proxy owner can change the underlying implementation. This is acceptable
-**only if** the proxy's upgrade authority is controlled by the source ledger's CLPR Service admin (or equivalent
-> governance). The verifier contract is an extension of the source ledger's CLPR Service running on a foreign chain —
-> its
-> upgrade authority must be the same trust boundary. A verifier whose upgrade key is controlled by a third party is a
-> critical vulnerability: that third party could silently replace the verification logic, and the source ledger would
-> have
-> no recourse.
+> However, applications evaluating a Connection should verify whether the verifier is a proxy and, if so, who
+> controls the upgrade authority. A verifier whose upgrade key is controlled by an untrusted party means the
+> verification logic could be silently replaced at any time. This is an application-level trust decision, not a
+> protocol constraint.
 
 > 💡 **Note:** Chain-specific verifier specifications (e.g., how to construct a Hiero TSS verifier for Ethereum, or how
 > to build a ZK prover wrapping Ethereum sync committee consensus) are out of scope for this document. Each is a
-> separate
-> specification maintained by the relevant chain's ecosystem or by the team implementing CLPR support for that chain.
+> separate specification maintained by the relevant chain's ecosystem or by the team implementing CLPR support for that
+> chain.
 
 ---
 
-### 3.1.6 Misbehavior Detection and Reporting
+### 3.1.6 Misbehavior Detection
 
-Every bundle exchange is doubly attributable. The bundle payload is signed by the **remote peer endpoint** that
-originated it, and the transaction submitting it to the local ledger is signed by the **local endpoint** that received
-and forwarded it. This two-signature property allows the receiving ledger to unambiguously attribute misbehavior to
-either a local or remote endpoint, and to produce cryptographically self-proving evidence that the remote ledger can
-verify independently. The metadata exchange ([§3.1.4](#314-endpoint-communication-protocol)) is verified off-chain by
-endpoints and is not submitted as a transaction — attributability applies only to the bundle exchange.
+Misbehavior detection and enforcement are **strictly local** — each ledger detects and responds to misbehavior it
+observes on its own chain. There is no cross-ledger misbehavior reporting protocol.
 
 **Remote endpoint: excess sync frequency** — Each peer endpoint's fair share of the Connection's
 `MaxSyncsPerSec` budget is `MaxSyncsPerSec / num_peer_endpoints`. If distinct payloads signed by the same
-remote endpoint arrive more frequently than its fair share (with ~10% tolerance), the remote endpoint is
-exceeding its allocation.
+remote endpoint arrive more frequently than its fair share (with ~10% tolerance), the receiving ledger
+endpoints **shun** the offending endpoint — refusing further syncs from it.
 
-**Local endpoint: duplicate submission** —If the same payload is submitted more than once by the same local endpoint,
+**Local endpoint: duplicate submission** — If the same payload is submitted more than once by the same local endpoint,
 that local endpoint is misbehaving. Deduplication before submission is a local obligation; no honest local endpoint
-should submit the same payload twice.
+should submit the same payload twice. The local ledger handles this internally — slashing and removing the offending
+endpoint from its own roster.
 
-| Observation                                             | Culprit              |
-|---------------------------------------------------------|----------------------|
-| Same remote endpoint signature, excess frequency        | Remote peer endpoint |
-| Same payload, same local endpoint, submitted repeatedly | Local endpoint       |
-
-When a remote endpoint is identified as the culprit, the local ledger MAY assemble the evidence into a
-`MisbehaviorReport` and submit it as a transaction to the remote ledger.
-
-```mermaid
-MisbehaviorReport {
-  offendingEndpoint:  PublicKey       // the remote endpoint being reported
-  evidenceType:       EvidenceType    // ExcessFrequency
-  payloads:           SignedPayload[] // the signed payloads constituting the evidence
-  reporterChainID:    ChainID         // the reporting ledger
-}
-```
-
-The signed payloads are self-proving: the remote ledger can verify the offending endpoint's signature on each payload
-without trusting the reporter. No honest remote endpoint can produce two validly-signed conflicting or duplicate
-payloads, so a valid `MisbehaviorReport` is conclusive by itself.
-
-Upon receiving and verifying a `MisbehaviorReport`, the remote ledger SHOULD:
-
-1. Verify the authenticity of the report
-2. Confirm the evidence meets the threshold for the reported `evidenceType`.
-3. Slash and remove the offending endpoint from its active roster.
-4. Issue an updated roster notifying affected peer ledgers that the endpoint has been removed.
-
-The remote ledger is under no obligation to act on an unverifiable or malformed report, and reporters that submit
-frivolous or fabricated reports MAY themselves be subject to penalties (such as the connection being terminated with the
-remote ledger).
+| Observation                                             | Culprit              | Response                           |
+|---------------------------------------------------------|----------------------|------------------------------------|
+| Same remote endpoint signature, excess frequency        | Remote peer endpoint | Shun the offending peer endpoint   |
+| Same payload, same local endpoint, submitted repeatedly | Local endpoint       | Slash and remove local endpoint    |
 
 Misbehavior involving sync frequency MUST be measured in **sync rounds or blocks**, not wall-clock time. Block
 timestamps are subject to bounded manipulation by validators and are unsuitable as the sole basis for a slashing
 decision. A tolerance band SHOULD be applied when evaluating frequency violations near round boundaries.
-
-If a local endpoint is identified as the culprit, the local ledger handles the matter
-internally — slashing and removing the offending endpoint from its own roster. No `MisbehaviorReport` to the remote
-ledger is warranted, since the fault is local.
 
 ---
 
@@ -967,10 +875,9 @@ queue metadata and messages. If the verifier contract rejects the proof (reverts
 verification), the entire bundle is rejected. A legitimate endpoint would never produce a bad proof, so this is also a
 signal that the submitting endpoint may be misbehaving. The submitting node will have paid the transaction cost and will
 not be reimbursed. Repeated invalid proof submissions from the same endpoint constitute provable
-misbehavior ([§3.1.6](#316-misbehavior-detection-and-reporting))
-and _may_ lead to bond slashing and removal from the endpoint roster. On EVM chains, verifier contracts SHOULD fail fast
-on obviously malformed inputs (e.g., wrong proof length) before performing expensive cryptographic operations to bound
-the computational cost of invalid submissions.
+misbehavior ([§3.1.6](#316-misbehavior-detection)) and _may_ lead to bond slashing and removal from the endpoint roster.
+On EVM chains, verifier contracts SHOULD fail fast on obviously malformed inputs (e.g., wrong proof length) before
+performing expensive cryptographic operations to bound the computational cost of invalid submissions.
 
 Next, the CLPR Service **enforces monotonic message ordering** — the primary replay defense. Every message in the
 bundle MUST have an ID strictly greater than the Connection's current `received_message_id`, and message IDs within the
@@ -1342,12 +1249,12 @@ should be used as the basis for integration and fault-tolerance testing.
 
 | #   | Scenario                                                                                                                                    | Sync channel         | Recovery path                                                                                                                                                                                                                                                                | Status                                           |
 |-----|---------------------------------------------------------------------------------------------------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
-| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Any user submits `recoverEndpointRoster` ([§3.1.2](#312-endpoint-roster)) with proof bytes. The Connection's verifier validates via `verifyEndpoints` ([§3.1.5](#315-verifier-contracts)) and returns the peer's current endpoints. Syncs resume.                            | **Works.**                                       |
-| R2  | **Planned verifier migration (sync channel working).** Source ledger upgrades proof format while syncs are active.                          | Working              | Deploy-readers-before-writers ([§3.1.3](#313-establishing-and-updating-connections)): source publishes new format and dual-format verifiers; each receiving admin approves and deploys; anyone calls `updateConnectionVerifier`. Source switches to new format only after peers have migrated. No outage if migration order is followed. | **Works.**                                       |
-| R3  | **Endpoints rotated, verifier changed, proof format unchanged.** Sync channel broken, but old verifier can still read new proofs.           | Broken               | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume. `updateConnectionVerifier` local check works because proof format is compatible.                                                                                                           | **Works.**                                       |
-| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, old verifier cannot read new proofs, ConfigUpdate cannot be delivered. | Broken               | Local admin approves the new verifier in `ApprovedVerifiers`. Anyone deploys the new verifier locally and calls `updateConnectionVerifier` (local code hash check). Then endpoint recovery (R1) using the new verifier's `verifyEndpoints`. Queue state is preserved.         | **Works.**                                       |
-| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | Admin pauses the Connection. If the verifier is simply buggy (not malicious), a new verifier can be deployed and `updateConnectionVerifier` called, then resume. If compromised, close the Connection — in-flight messages receive `UNRESOLVED`.                              | **Works** (`UNRESOLVED` for in-flight messages). |
-| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically paused ([§3.2.7](#327-response-ordering-and-correlation)). Admin coordinates with peer to fix the bug, then closes and re-registers. In-flight messages receive `UNRESOLVED`; applications reconcile out-of-band.                                | **Works** (`UNRESOLVED` for in-flight messages). |
+| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Any user submits `updateEndpointRoster` ([§3.1.2](#312-endpoint-roster)) with proof bytes. The Connection's verifier validates via `verifyEndpoints` ([§3.1.5](#315-verifier-contracts)) and returns the peer's current endpoints. Syncs resume.                            | **Works.**                                       |
+| R2  | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                             | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin. | **Works** (requires new Connection).             |
+| R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                            | **Works.**                                       |
+| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint recovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                      | **Works** (requires new Connection).             |
+| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin pauses the Connection. Since the verifier is immutable, the Connection must be closed — in-flight messages receive `UNRESOLVED`. A new Connection with a correct verifier can be registered.                                                               | **Works** (`UNRESOLVED` for in-flight messages). |
+| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically paused ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers. In-flight messages receive `UNRESOLVED`; applications reconcile out-of-band.                   | **Works** (`UNRESOLVED` for in-flight messages). |
 | R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                                                               | **Works.**                                       |
 | R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                                                                   | **Works.**                                       |
 | R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user.                                                                                                                                                                                                  | **Works.**                                       |
