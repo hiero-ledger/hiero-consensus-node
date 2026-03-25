@@ -33,6 +33,24 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private final boolean viewAll;
 
     /**
+     * Upper bound on {@link #pendingItems} size.  One record-stream file typically
+     * holds tens of items; 500 covers several files and is more than enough for the
+     * brief window before all {@code .via()} IDs are registered.
+     */
+    private static final int MAX_PENDING_ITEMS = 500;
+
+    /**
+     * Items that did not match any registered spec ID when first seen.  These are
+     * retried on each subsequent {@link #isApplicableTo} call because the spec
+     * registry may not yet have had the transaction ID registered at the time the
+     * record-stream file was processed (the monitor thread can read a flushed file
+     * before the main test thread finishes the {@code .via()} registration).
+     * Capped at {@link #MAX_PENDING_ITEMS} to bound memory; oldest items are
+     * dropped on overflow.
+     */
+    private final List<RecordStreamItem> pendingItems = new ArrayList<>();
+
+    /**
      * Cached flag that becomes true once every expected ID has at least one
      * collected item in the {@link #items} map, so we avoid re-evaluating
      * {@code allIds.stream().allMatch(items::containsKey)} on every stream item.
@@ -77,7 +95,9 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         final var sb = new StringBuilder("VisibleItemsAssertion{seenIds=")
                 .append(items.keySet())
                 .append(", allIds=")
-                .append(allIds);
+                .append(allIds)
+                .append(", pending=")
+                .append(pendingItems.size());
         if (lastValidationError != null) {
             sb.append(", lastError=").append(lastValidationError.getMessage());
         }
@@ -95,32 +115,23 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                         .add(entry);
             }
         } else {
-            new ArrayList<>(allIds)
-                    .stream()
-                            .filter(id -> spec.registry()
-                                    .getMaybeTxnId(id)
-                                    .filter(txnId -> baseFieldsMatch(
-                                            txnId, item.getRecord().getTransactionID()))
-                                    .isPresent())
-                            .findFirst()
-                            .ifPresent(seenId -> {
-                                final var entry = RecordStreamEntry.from(item);
-                                final var isSynthItem = isSynthItem(entry);
-                                if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
-                                    if (withLogging) {
-                                        log.info(
-                                                "Saw {} as {}",
-                                                seenId,
-                                                item.getRecord().getTransactionID());
-                                    }
-                                    items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                            .entries()
-                                            .add(entry);
-                                } else {
-                                    items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                            .trackSkippedSynthItem();
-                                }
-                            });
+            // Re-check any previously unmatched items against the registry, since
+            // transaction IDs may have been registered after those items were first seen.
+            if (!pendingItems.isEmpty() && !allIdsHaveItems) {
+                final var it = pendingItems.iterator();
+                while (it.hasNext()) {
+                    if (tryMatch(it.next())) {
+                        it.remove();
+                    }
+                }
+            }
+            // Now try to match the current item.
+            if (!tryMatch(item)) {
+                if (pendingItems.size() >= MAX_PENDING_ITEMS) {
+                    pendingItems.removeFirst();
+                }
+                pendingItems.add(item);
+            }
         }
         return true;
     }
@@ -161,6 +172,44 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
             }
         }
         return false;
+    }
+
+    /**
+     * Attempts to match a stream item against the registered spec IDs.
+     *
+     * @return {@code true} if the item matched a registered ID (or can be discarded),
+     *         {@code false} if no ID is registered yet for this item and it should be retried later
+     */
+    private boolean tryMatch(@NonNull final RecordStreamItem item) {
+        // Count how many IDs are currently resolvable in the registry; if none
+        // of the expected IDs are registered yet there is nothing to match against.
+        final var matched = new ArrayList<>(allIds)
+                .stream()
+                        .filter(id -> spec.registry()
+                                .getMaybeTxnId(id)
+                                .filter(txnId ->
+                                        baseFieldsMatch(txnId, item.getRecord().getTransactionID()))
+                                .isPresent())
+                        .findFirst();
+        if (matched.isPresent()) {
+            final var seenId = matched.get();
+            final var entry = RecordStreamEntry.from(item);
+            final var isSynthItem = isSynthItem(entry);
+            if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
+                if (withLogging) {
+                    log.info("Saw {} as {}", seenId, item.getRecord().getTransactionID());
+                }
+                items.computeIfAbsent(seenId, ignore -> newVisibleItems())
+                        .entries()
+                        .add(entry);
+            } else {
+                items.computeIfAbsent(seenId, ignore -> newVisibleItems()).trackSkippedSynthItem();
+            }
+            return true;
+        }
+        // If all IDs are resolvable (registered) and none matched, the item is
+        // genuinely unrelated — no need to buffer it for retry.
+        return allIds.stream().allMatch(id -> spec.registry().getMaybeTxnId(id).isPresent());
     }
 
     private static boolean isSynthItem(@NonNull final RecordStreamEntry entry) {
