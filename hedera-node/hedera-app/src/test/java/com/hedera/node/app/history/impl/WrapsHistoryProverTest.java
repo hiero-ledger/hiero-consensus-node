@@ -216,6 +216,33 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void advanceDoesNotCachePartialWrapsStateIfHashingThrows() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.hashAddressBook(any())).willThrow(new IllegalArgumentException("boom"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.advance(EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID));
+
+        assertNull(getField("targetAddressBook"));
+        assertNull(getField("wrapsMessage"));
+        assertNull(getField("targetAddressBookHash"));
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void advancePublishesR3WhenEligible() {
         subject = new WrapsHistoryProver(
                 SELF_ID,

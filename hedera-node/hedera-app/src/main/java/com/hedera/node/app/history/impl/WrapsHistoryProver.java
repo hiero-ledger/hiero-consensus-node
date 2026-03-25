@@ -251,11 +251,16 @@ public class WrapsHistoryProver implements HistoryProver {
                     + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
-                targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                // Avoid caching a partial derived state if one of these computations throws.
+                final var computedTargetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
                         .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
                         .toByteArray());
-                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
-                targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
+                final var computedWrapsMessage =
+                        historyLibrary.computeWrapsMessage(computedTargetAddressBook, targetMetadata.toByteArray());
+                final var computedTargetAddressBookHash = historyLibrary.hashAddressBook(computedTargetAddressBook);
+                targetAddressBook = computedTargetAddressBook;
+                wrapsMessage = computedWrapsMessage;
+                targetAddressBookHash = computedTargetAddressBookHash;
             }
             final var effectivePhase = construction.hasTargetProof() ? POST_AGGREGATION : state.phase();
             publishIfNeeded(
