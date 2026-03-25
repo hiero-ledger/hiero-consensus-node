@@ -75,6 +75,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -181,8 +182,7 @@ public class HandleWorkflow {
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
-    @Nullable
-    private TssReconcileFailureFingerprint lastTssReconcileFailureFingerprint;
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -1207,29 +1207,14 @@ public class HandleWorkflow {
     }
 
     private void logTssReconcileFailure(@NonNull final Exception e) {
-        requireNonNull(e);
-        final var fingerprint = tssReconcileFailureFingerprintOf(e);
-        if (fingerprint.equals(lastTssReconcileFailureFingerprint)) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
             return;
         }
-        lastTssReconcileFailureFingerprint = fingerprint;
         logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
     }
 
     private void resetTssReconcileFailureSuppression() {
-        lastTssReconcileFailureFingerprint = null;
-    }
-
-    private static TssReconcileFailureFingerprint tssReconcileFailureFingerprintOf(@NonNull final Throwable t) {
-        requireNonNull(t);
-        final var stackTrace = t.getStackTrace();
-        final StackTraceElement topFrame = stackTrace.length > 0 ? stackTrace[0] : null;
-        final var cause = t.getCause();
-        return new TssReconcileFailureFingerprint(
-                t.getClass().getName(),
-                t.getMessage(),
-                topFrame,
-                cause == null ? null : tssReconcileFailureFingerprintOf(cause));
+        tssReconcileFailureLogging.reset();
     }
 
     /**
@@ -1243,15 +1228,5 @@ public class HandleWorkflow {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
-    }
-
-    private record TssReconcileFailureFingerprint(
-            @NonNull String exceptionType,
-            @Nullable String message,
-            @Nullable StackTraceElement topFrame,
-            @Nullable TssReconcileFailureFingerprint cause) {
-        private TssReconcileFailureFingerprint {
-            requireNonNull(exceptionType);
-        }
     }
 }
