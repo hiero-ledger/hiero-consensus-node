@@ -149,8 +149,8 @@ public class RecordCacheImpl implements HederaRecordCache {
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
      * @param recordSources The sources of records for the relevant base {@link TransactionID}
      */
-    private record HistorySource(
-            @NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources) implements ReceiptSource {
+    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
+            implements ReceiptSource {
         public HistorySource() {
             this(new HashSet<>(), new ArrayList<>());
         }
@@ -279,9 +279,9 @@ public class RecordCacheImpl implements HederaRecordCache {
                 if (historySource.recordSources().isEmpty()) {
                     historySource.recordSources().add(new PartialRecordSource(null));
                 }
+                // Since these are partial records, we don't add block number to them
                 ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
-                payerTxnIds
-                        .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
+                payerTxnIds.computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
                         .add(txnId);
             }
         }
@@ -301,8 +301,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         for (final var identifiedReceipt : recordSource.identifiedReceipts()) {
             final var txnId = identifiedReceipt.txnId();
             final var status = identifiedReceipt.receipt().status();
-            transactionReceipts.add(new TransactionReceiptEntry(
-                    nodeId, txnId, status, identifiedReceipt.receipt().blockNumber()));
+            transactionReceipts.add(new TransactionReceiptEntry(nodeId, txnId, status));
             final var baseTxnId =
                     txnId.nonce() == 0 ? txnId : txnId.copyBuilder().nonce(0).build();
             final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
@@ -532,10 +531,8 @@ public class RecordCacheImpl implements HederaRecordCache {
 
     private static TransactionRecord asTxnRecord(final TransactionReceiptEntry receipt) {
         return TransactionRecord.newBuilder()
-                .receipt(TransactionReceipt.newBuilder()
-                        .status(receipt.status())
-                        .blockNumber(receipt.blockNumber())
-                        .build())
+                .receipt(
+                        TransactionReceipt.newBuilder().status(receipt.status()).build())
                 .transactionID(receipt.transactionId())
                 .build();
     }

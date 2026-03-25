@@ -82,12 +82,12 @@ class BlockStreamBuilderOutputTest {
 
     @Test
     void translatesNoOutputsToRecordAsExpected() {
-        given(translator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null, 1L))
+        given(translator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
                 .willReturn(TransactionRecord.DEFAULT);
 
         final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext);
 
-        assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator, 1L));
+        assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator));
     }
 
     @Test
@@ -96,27 +96,26 @@ class BlockStreamBuilderOutputTest {
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
                         null,
-                        1L,
-                        FIRST_OUTPUT.transactionOutputOrThrow(),
+                FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionRecord.DEFAULT);
 
         final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext);
 
-        assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator, 1L));
+        assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator));
     }
 
     @Test
     void translatesNoOutputsToReceiptAsExpected() {
         given(translationContext.txnId()).willReturn(TXN_ID);
-        given(translator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), 1L))
+        given(translator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
                 .willReturn(TransactionReceipt.DEFAULT);
 
         final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext);
 
         assertEquals(
                 new RecordSource.IdentifiedReceipt(TXN_ID, TransactionReceipt.DEFAULT),
-                subject.toIdentifiedReceipt(translator, 1L));
+                subject.toIdentifiedReceipt(translator));
     }
 
     @Test
@@ -125,8 +124,7 @@ class BlockStreamBuilderOutputTest {
         given(translator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                        1L,
-                        FIRST_OUTPUT.transactionOutputOrThrow(),
+                FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionReceipt.DEFAULT);
 

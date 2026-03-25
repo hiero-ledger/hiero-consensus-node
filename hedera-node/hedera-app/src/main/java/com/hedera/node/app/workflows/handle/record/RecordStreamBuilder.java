@@ -233,9 +233,6 @@ public class RecordStreamBuilder
 
     private long highVolumePricingMultiplier;
 
-    @Nullable
-    private Long blockNumber;
-
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
@@ -261,9 +258,6 @@ public class RecordStreamBuilder
         // This should be changed after differential testing
         if (exchangeRate != null && exchangeRate.hasCurrentRate() && exchangeRate.hasNextRate()) {
             builder.exchangeRate(exchangeRate);
-        }
-        if (blockNumber != null) {
-            builder.blockNumber(blockNumber);
         }
         final var transactionReceipt = builder.build();
 
@@ -1012,7 +1006,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
-        this.blockNumber = blockNumber;
+        // No op for stream mode records
         return this;
     }
 

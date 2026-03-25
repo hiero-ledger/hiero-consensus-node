@@ -235,7 +235,7 @@ public interface StreamBuilder {
     StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier);
 
     /**
-     * Sets the block number for this transaction.
+     * Sets the block number for this transaction. This is only set for transaction receipts when stream mode is BLOCKS
      * @param blockNumber the block number
      * @return this builder
      */
