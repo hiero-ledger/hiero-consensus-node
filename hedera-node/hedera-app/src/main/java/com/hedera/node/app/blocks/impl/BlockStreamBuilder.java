@@ -82,6 +82,7 @@ import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -163,6 +164,7 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -217,6 +219,10 @@ public class BlockStreamBuilder
      * The id of a node created by the transaction.
      */
     private long nodeId;
+    /**
+     * The id of a registered node created by the transaction.
+     */
+    private long registeredNodeId;
     /**
      * The id of a file created by the transaction.
      */
@@ -1246,6 +1252,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @Override
+    @NonNull
+    public BlockStreamBuilder registeredNodeID(final long registeredNodeID) {
+        this.registeredNodeId = registeredNodeID;
+        return this;
+    }
+
     @NonNull
     public BlockStreamBuilder newTotalSupply(final long newTotalSupply) {
         this.newTotalSupply = newTotalSupply;
@@ -1420,6 +1433,7 @@ public class BlockStreamBuilder
         tokenId = null;
         topicId = null;
         nodeId = 0L;
+        registeredNodeId = 0L;
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
             scheduleId = null;
             scheduledTransactionId = null;
@@ -1580,6 +1594,15 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         nodeId,
+                        serializedSignedTx);
+            case REGISTERED_NODE_CREATE ->
+                new NodeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        registeredNodeId,
                         serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(

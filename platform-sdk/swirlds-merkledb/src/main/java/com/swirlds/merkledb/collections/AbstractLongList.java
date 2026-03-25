@@ -601,7 +601,7 @@ public abstract class AbstractLongList<C> implements LongList {
 
     /** {@inheritDoc} */
     @Override
-    public final void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
+    public void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
         if ((newMinValidIndex < -1) || (newMinValidIndex > newMaxValidIndex)) {
             throw new IndexOutOfBoundsException(INVALID_RANGE_MSG.formatted(newMinValidIndex, newMaxValidIndex));
         }

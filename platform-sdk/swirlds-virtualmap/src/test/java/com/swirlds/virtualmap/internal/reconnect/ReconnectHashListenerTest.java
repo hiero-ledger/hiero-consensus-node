@@ -81,7 +81,7 @@ class ReconnectHashListenerTest {
         final int first = size - 1;
         final int last = 2 * size - 2;
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
-        final VirtualHasher hasher = new VirtualHasher();
+        final VirtualHasher hasher = new VirtualHasher(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
             final long chunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
@@ -93,8 +93,7 @@ class ReconnectHashListenerTest {
                 LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
                 first,
                 last,
-                listener,
-                CONFIGURATION.getConfigData(VirtualMapConfig.class));
+                listener);
 
         // Now validate that everything showed up the data source in ordered chunks
         final TreeSet<VirtualHashChunk> allFlushedChunks =

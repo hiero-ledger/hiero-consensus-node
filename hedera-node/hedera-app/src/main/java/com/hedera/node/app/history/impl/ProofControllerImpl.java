@@ -42,8 +42,6 @@ import org.apache.logging.log4j.Logger;
 public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
 
-    public static final String PROOF_COMPLETE_MSG = "History proof constructed";
-
     private final long selfId;
 
     private final Executor executor;
@@ -351,8 +349,7 @@ public class ProofControllerImpl implements ProofController {
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
         log.info(
-                "{} (#{}, WRAPS-extensible? {})",
-                PROOF_COMPLETE_MSG,
+                "History proof constructed (#{}, WRAPS-extensible? {})",
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());

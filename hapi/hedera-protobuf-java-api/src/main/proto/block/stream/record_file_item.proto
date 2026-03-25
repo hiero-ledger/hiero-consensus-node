@@ -37,6 +37,9 @@ import "services/transaction_contents.proto";
  * historical and current data; eliminating the need to search two sources for
  * block and block chain data.<br/>
  *
+ * RecordFileItem is hashed as part of the output items tree and its contents
+ * can be independently validated with the `SignedRecordFileProof` block proof.
+ *
  * There are 3 versions of the binary file format that record files were
  * produced in: v2, v5 and v6. Version 6 was protobuf already in the format of
  * `proto.RecordStreamFile`. Version 5 was almost identical in content but a
@@ -86,14 +89,22 @@ import "services/transaction_contents.proto";
  * }</pre></code>
  *
  * Any block containing this item requires special handling.
- * - The block SHALL have a `BlockHeader`.
- *    - Some fields in the `BlockHeader` may be interpreted differently, and
- *      may depend on when the original record file was created.
- * - The block SHALL contain _exactly one_ `RecordFileItem`.
- * - The block SHALL have a `BlockFooter`.
- * - The block SHALL have a `SignedRecordFileProof` type `BlockProof`.
- * - The block SHALL NOT contain any content item other than a block header,
- *   single `RecordFileItem`, block footer and one or more block proofs.
+ * <ul>
+ *   <li>The block SHALL have a `BlockHeader`.</li>
+ *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
+ *   <li>The block MAY contain one or more StateChanges items.</li>
+ *   <li>The block SHALL have a `BlockFooter`.</li>
+ *   <li>The block SHALL have a `SignedRecordFileProof` type
+ *       `BlockProof`.</li>
+ *   <li>The block SHALL NOT contain any content item other than a
+ *       block header, single `RecordFileItem`, optional StateChanges,
+ *       block footer, and one or more block proofs.</li>
+ *   <li>The content of the `RecordFileItem` can be validated using
+ *       the `SignedRecordFileProof` according to
+ *       the process used for Record Files prior to the creation
+ *       of Block Stream.<br/>
+ *       Additional Block Proof types may be available as well.</li>
+ * </ul>
  */
 message RecordFileItem {
     /**
@@ -119,14 +130,24 @@ message RecordFileItem {
 
     /**
      * Amendments to the record file data.<br/>
-     * Over the years there were various bugs that caused data to be missed,
-     * incorrect or added erroneously.  Amendments are used to fix those
-     * mistakes with the aim that all data in the block stream is correct and
-     * complete. This field carries the record items that amend the original
-     * record file contents. Each item may contain a Transaction and/or
-     * TransactionRecord that are intended to replace the original data. They
-     * can be matched by the transaction ID. If you want the original raw data
-     * then you can ignore the contents of this field.
+     * Over the years there were various bugs that caused data to be missed or
+     * recorded incorrectly. Amendments are used to fix those mistakes with the
+     * aim that all data in the block stream is correct and complete.<br/>
+     * Each amendment serves one of two purposes:
+     * <ul>
+     *   <li><b>Addition</b> — a `Transaction` + `TransactionRecord` pair that
+     *       was missing from the original record file entirely (errata); the
+     *       pair is inserted into `record_file_contents.record_stream_items`
+     *       at the position implied by its consensus timestamp.</li>
+     *   <li><b>Replacement Record</b> — a corrected `TransactionRecord` for a
+     *       `Transaction` that already exists in the record file; the existing
+     *       entry is replaced with the amended one.</li>
+     * </ul>
+     * In both cases, amendments are merged into
+     * `record_file_contents.record_stream_items` by matching on transaction
+     * ID: insert the item if no matching transaction ID is found, or replace
+     * the existing item if one is found.<br/>
+     * If you want the original raw data, you can ignore this field.
      */
     repeated proto.RecordStreamItem amendments = 4;
 }

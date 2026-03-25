@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,9 +33,11 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
@@ -575,6 +578,172 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsWhenAssociatedRegisteredNodeMissing() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(999L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+        given(registeredNodeStore.get(999L)).willReturn(null);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleCreatesNodeWithAssociatedRegisteredNodes() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(10L, 20L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+        given(registeredNodeStore.get(10L)).willReturn(RegisteredNode.DEFAULT);
+        given(registeredNodeStore.get(20L)).willReturn(RegisteredNode.DEFAULT);
+
+        // newNodeId() will generate the next ID based on the current highest node ID in state
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
+
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var createdNode = writableStore.get(expectedNodeId);
+        assertNotNull(createdNode);
+        assertThat(createdNode.associatedRegisteredNode()).containsExactly(10L, 20L);
+    }
+
+    @Test
+    void handleFailsWhenTooManyAssociatedRegisteredNodes() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(
+                        1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenNegativeAssociatedRegisteredNodeId() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(-1L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleSucceedsWithExactlyMaxAssociatedRegisteredNodes() throws CertificateEncodingException {
+        final var ids =
+                List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L);
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(ids)
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+        for (final var id : ids) {
+            given(registeredNodeStore.get(id)).willReturn(RegisteredNode.DEFAULT);
+        }
+
+        // newNodeId() will generate the next ID based on the current highest node ID in state
+        final long expectedNodeId = writableStore.peekAtNextNodeId();
+
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var createdNode = writableStore.get(expectedNodeId);
+        assertNotNull(createdNode);
+        assertThat(createdNode.associatedRegisteredNode()).hasSize(20);
+    }
+
+    @Test
     void createWithRelatedAccountFail() throws CertificateEncodingException {
         txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         rebuildState(1);
@@ -699,6 +868,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class))
+                .willReturn(mock(ReadableRegisteredNodeStore.class));
 
         given(handleContext.attributeValidator()).willReturn(validator);
         final var stack = mock(HandleContext.SavepointStack.class);
@@ -713,6 +884,112 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         assertEquals(WELL_KNOWN_NODE_ID, createdNode.nodeId());
         assertEquals("System node", createdNode.description());
         verify(recordBuilder).nodeID(WELL_KNOWN_NODE_ID);
+    }
+
+    @Test
+    void handleRemovesPreviousAccountRelationForSystemTxnWithExistingNode() throws CertificateEncodingException {
+        rebuildState(1);
+
+        final var systemAccountId = AccountID.newBuilder().accountNum(99L).build();
+        txn = new NodeCreateBuilder()
+                .withAccountId(systemAccountId)
+                .withDescription("System node")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withAdminKey(key)
+                .build(payerId);
+
+        final var dispatchMetadata = new HandleContext.DispatchMetadata(
+                HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, WELL_KNOWN_NODE_ID);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 100)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.maxNumber", 1)
+                .getOrCreateConfig();
+
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+
+        final var systemAccount = mock(Account.class);
+        given(accountStore.getAccountById(systemAccountId)).willReturn(systemAccount);
+        given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
+
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class))
+                .willReturn(mock(ReadableRegisteredNodeStore.class));
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        assertNull(writableAccountNodeRelStore.get(accountId));
+        assertEquals(WELL_KNOWN_NODE_ID, writableAccountNodeRelStore.get(systemAccountId));
+    }
+
+    @Test
+    void handleFailsForSystemTxnWithRegisteredNodeCollision() throws CertificateEncodingException {
+        // Set up state with 0 nodes — the explicit ID does NOT exist as a consensus node
+        rebuildState(0);
+
+        final var systemAccountId = AccountID.newBuilder().accountNum(99L).build();
+        final long collidingId = 42L;
+
+        txn = new NodeCreateBuilder()
+                .withAccountId(systemAccountId)
+                .withDescription("System node")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withAdminKey(key)
+                .build(payerId);
+
+        // Create dispatch metadata with an explicit ID that collides with a registered node
+        final var dispatchMetadata = new HandleContext.DispatchMetadata(
+                HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, collidingId);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 100)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.maxNumber", 100)
+                .getOrCreateConfig();
+
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+
+        final var systemAccount = mock(Account.class);
+        given(accountStore.getAccountById(systemAccountId)).willReturn(systemAccount);
+        given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
+
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
+        // Mock a registered node store that returns a node at the colliding ID
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(registeredNodeStore.get(collidingId)).willReturn(mock(RegisteredNode.class));
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
     }
 
     @Test
@@ -769,6 +1046,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .willReturn(OK);
         given(accountStore.getAccountById(accountId)).willReturn(account);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class))
+                .willReturn(mock(ReadableRegisteredNodeStore.class));
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
@@ -780,6 +1059,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         private List<ServiceEndpoint> gossipEndpoint = null;
 
         private List<ServiceEndpoint> serviceEndpoint = null;
+        private List<Long> associatedRegisteredNode = null;
 
         private ServiceEndpoint grpcWebProxyEndpoint = null;
 
@@ -806,6 +1086,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             }
             if (serviceEndpoint != null) {
                 txnBody.serviceEndpoint(serviceEndpoint);
+            }
+            if (associatedRegisteredNode != null) {
+                txnBody.associatedRegisteredNode(associatedRegisteredNode);
             }
             if (grpcWebProxyEndpoint != null) {
                 txnBody.grpcProxyEndpoint(grpcWebProxyEndpoint);
@@ -844,6 +1127,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withServiceEndpoint(final List<ServiceEndpoint> serviceEndpoint) {
             this.serviceEndpoint = serviceEndpoint;
+            return this;
+        }
+
+        public NodeCreateBuilder withAssociatedRegisteredNode(final List<Long> associatedRegisteredNode) {
+            this.associatedRegisteredNode = associatedRegisteredNode;
             return this;
         }
 

@@ -27,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -52,7 +54,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -68,6 +72,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -91,6 +96,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -179,6 +185,9 @@ public class SystemTransactions {
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
+    private final MigrationRootHashSubmissions migrationRootHashSubmissions;
+    private boolean startupMigrationVoteSubmissionRequested = false;
+    private boolean startupMigrationJumpstartArchiveHandled = false;
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
@@ -209,7 +218,8 @@ public class SystemTransactions {
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
-            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
+            @NonNull final MigrationRootHashSubmissions migrationRootHashSubmissions) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -230,6 +240,7 @@ public class SystemTransactions {
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
         this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
+        this.migrationRootHashSubmissions = requireNonNull(migrationRootHashSubmissions);
     }
 
     /**
@@ -261,6 +272,7 @@ public class SystemTransactions {
                     writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
             platformStateSingleton.put(platformStateSingleton.get());
         });
+        final int networkSize = networkInfo.addressBook().size();
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             if (PlatformStateService.NAME.equals(service.getServiceName())) {
@@ -269,7 +281,7 @@ public class SystemTransactions {
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
             stateChangeStreaming.doStreamingChanges(
-                    writableStates, null, () -> service.doGenesisSetup(writableStates, config));
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
         }
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
@@ -497,51 +509,123 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Apply effects of the jumpstart file migration (if any)
-        final var migration = wrappedRecordBlockHashMigration.result();
-        if (migration != null) {
-            // Check if the block info in state matches the migration result; if not, overwrite
-            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
-            final var blockInfoState = writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-            final var blockInfo = blockInfoState.get();
-            boolean changed = false;
-            final var builder = blockInfo.copyBuilder();
-            if (!migration
-                    .previousWrappedRecordBlockRootHash()
-                    .equals(blockInfo.previousWrappedRecordBlockRootHash())) {
-                builder.previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash());
-                changed = true;
-            }
-            if (!migration
-                    .wrappedIntermediatePreviousBlockRootHashes()
-                    .equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
-                builder.wrappedIntermediatePreviousBlockRootHashes(
-                        migration.wrappedIntermediatePreviousBlockRootHashes());
-                changed = true;
-            }
-            if (migration.wrappedIntermediateBlockRootsLeafCount()
-                    != blockInfo.wrappedIntermediateBlockRootsLeafCount()) {
-                builder.wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount());
-                changed = true;
-            }
-            if (changed) {
-                blockInfoState.put(builder.build());
-                ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-                log.info("Updated block info state to match migration result");
-            }
+        if (configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .liveWritePrevWrappedRecordHashes()) {
+            final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoSingleton =
+                    blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
+            if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
+                // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
+                startupMigrationVoteSubmissionRequested = true;
+                startupMigrationJumpstartArchiveHandled = true;
+                log.info(
+                        "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                        existingBlockInfo.votingCompletionDeadlineBlockNumber(),
+                        existingBlockInfo.votingComplete());
+            } else {
+                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                        .build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
+                log.info(
+                        "Initialized wrapped record voting singleton with deadline={}",
+                        votingCompletionDeadlineBlockNumber);
 
-            // Archive the jumpstart file so the migration doesn't run again
-            final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
-            if (jumpstartFilePath != null) {
-                try {
-                    final var archivedPath =
-                            jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-                    Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-                    log.info("Archived jumpstart file to {}", archivedPath);
-                } catch (final IOException e) {
-                    log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
+                // Keep migration result available for asynchronous submission once gossip is active.
+                final var migration = wrappedRecordBlockHashMigration.result();
+                if (migration != null) {
+                    startupMigrationVoteSubmissionRequested = false;
+                    startupMigrationJumpstartArchiveHandled = false;
+                    log.info(
+                            "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
+                            networkInfo.selfNodeInfo().nodeId(),
+                            migration.wrappedIntermediateBlockRootsLeafCount(),
+                            migration
+                                    .wrappedIntermediatePreviousBlockRootHashes()
+                                    .size());
+                } else {
+                    startupMigrationVoteSubmissionRequested = true;
+                    startupMigrationJumpstartArchiveHandled = true;
+                    log.info(
+                            "No local startup migration root hash result for node{}",
+                            networkInfo.selfNodeInfo().nodeId());
                 }
             }
+        }
+    }
+
+    /**
+     * Submits this node's startup migration root-hash vote once round handling is active.
+     *
+     * <p>If this node's vote is already present in state, this is a no-op and the jumpstart file is archived.
+     * If no local migration result is available, this is also a no-op.
+     *
+     * @param state the writable state in the current handling context
+     */
+    public void maybeSubmitStartupMigrationRootHashVote(@NonNull final State state) {
+        requireNonNull(state);
+
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration == null) {
+            return;
+        }
+
+        final var selfNodeId = networkInfo.selfNodeInfo().nodeId();
+        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return;
+        }
+        final var existingVote = blockInfo.migrationRootHashVotes().stream()
+                .filter(vote -> vote.nodeIdOrElse(NodeId.DEFAULT).id() == selfNodeId)
+                .map(NodeMigrationRootHashVote::vote)
+                .findFirst()
+                .orElse(null);
+        if (existingVote != null || blockInfo.votingComplete()) {
+            archiveJumpstartFileIfPresent();
+            return;
+        }
+        if (startupMigrationVoteSubmissionRequested) {
+            return;
+        }
+
+        final var voteBody = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
+                .wrappedIntermediatePreviousBlockRootHashes(migration.wrappedIntermediatePreviousBlockRootHashes())
+                .wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount())
+                .build();
+        log.info("Submitting startup migration root hash vote for node{} during round handling", selfNodeId);
+        startupMigrationVoteSubmissionRequested = migrationRootHashSubmissions.submitStartupVoteIfActive(voteBody);
+    }
+
+    private void archiveJumpstartFileIfPresent() {
+        if (startupMigrationJumpstartArchiveHandled) {
+            return;
+        }
+        final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
+        if (jumpstartFilePath == null) {
+            startupMigrationJumpstartArchiveHandled = true;
+            return;
+        }
+        if (!Files.exists(jumpstartFilePath)) {
+            startupMigrationJumpstartArchiveHandled = true;
+            return;
+        }
+        try {
+            final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
+            Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
+            startupMigrationJumpstartArchiveHandled = true;
+            log.info("Archived jumpstart file to {}", archivedPath);
+        } catch (final IOException e) {
+            log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
         }
     }
 
@@ -562,8 +646,8 @@ public class SystemTransactions {
             log.info("No fees to distribute for nodes");
             return;
         }
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final var systemContext =
+                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -611,87 +695,27 @@ public class SystemTransactions {
     }
 
     /**
-     * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
-     * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
-     * reward.
+     * Dispatches node rewards using pre-calculated reward amounts.
      *
-     * @param state The state.
-     * @param now The current time.
-     * @param activeNodeIds The list of active node ids.
-     * @param perNodeReward The per node reward.
-     * @param nodeRewardsAccountId The node rewards account id.
-     * @param rewardAccountBalance The reward account balance.
-     * @param minNodeReward The minimum node reward.
-     * @param rosterEntries The list of roster entries.
+     * @param state the current state
+     * @param now the current time
+     * @param rewardAmounts the pre-calculated reward amounts to dispatch
      */
     public void dispatchNodeRewards(
-            @NonNull final State state,
-            @NonNull final Instant now,
-            @NonNull final List<Long> activeNodeIds,
-            final long perNodeReward,
-            @NonNull final AccountID nodeRewardsAccountId,
-            final long rewardAccountBalance,
-            final long minNodeReward,
-            @NonNull final List<RosterEntry> rosterEntries) {
+            @NonNull final State state, @NonNull final Instant now, @NonNull final NodeRewardAmounts rewardAmounts) {
         requireNonNull(state);
         requireNonNull(now);
-        requireNonNull(activeNodeIds);
-        requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        final var activeNodeAccountIds = activeNodeIds.stream()
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
-        final var inactiveNodeAccountIds = rosterEntries.stream()
-                .map(RosterEntry::nodeId)
-                .filter(id -> !activeNodeIds.contains(id))
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
-        if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
-            // No eligible rewards to distribute
+        requireNonNull(rewardAmounts);
+
+        if (rewardAmounts.isEmpty()) {
+            log.info("No node rewards to distribute for nodes");
             return;
         }
-        log.info("Found active node accounts {}", activeNodeAccountIds);
-        if (minNodeReward > 0 && !inactiveNodeAccountIds.isEmpty()) {
-            log.info(
-                    "Found inactive node accounts {} that will receive minimum node reward {}",
-                    inactiveNodeAccountIds,
-                    minNodeReward);
-        }
-        // Check if rewardAccountBalance is enough to distribute rewards. If the balance is not enough, distribute
-        // rewards to active nodes only. If the balance is enough, distribute rewards to both active and inactive nodes.
-        final long activeTotal = activeNodeAccountIds.size() * perNodeReward;
-        final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
-        if (rewardAccountBalance <= activeTotal) {
-            final long activeNodeReward = rewardAccountBalance / activeNodeAccountIds.size();
-            log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
-            if (activeNodeReward > 0) {
-                dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, activeNodeReward);
-            }
-        } else {
-            final long activeNodeReward =
-                    activeNodeAccountIds.isEmpty() ? 0 : activeTotal / activeNodeAccountIds.size();
-            final long totalInactiveNodesReward =
-                    Math.min(Math.max(0, rewardAccountBalance - activeTotal), inactiveTotal);
-            final long inactiveNodeReward =
-                    inactiveNodeAccountIds.isEmpty() ? 0 : totalInactiveNodesReward / inactiveNodeAccountIds.size();
-            log.info(
-                    "Paying active nodes {} tinybars each, inactive nodes {} tinybars each",
-                    activeNodeReward,
-                    inactiveNodeReward);
-            dispatchSynthNodeRewards(
-                    systemContext,
-                    activeNodeAccountIds,
-                    nodeRewardsAccountId,
-                    activeNodeReward,
-                    inactiveNodeAccountIds,
-                    inactiveNodeReward);
-        }
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+
+        dispatchSynthNodeRewards(systemContext, rewardAmounts);
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
@@ -702,7 +726,7 @@ public class SystemTransactions {
         final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
+        final var network = startupNetworks.lastUsedOverrideNetwork(configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
@@ -849,7 +873,8 @@ public class SystemTransactions {
      * Whether a context for system transactions should use reserved prior consensus times, or pick up from
      * the time given to the transaction context factory.
      */
-    private enum UseReservedConsensusTimes {
+    @VisibleForTesting
+    enum UseReservedConsensusTimes {
         YES,
         NO
     }
@@ -858,12 +883,14 @@ public class SystemTransactions {
      * Whether the dispatches in a context for system transactions should trigger stake period boundary
      * side effects.
      */
-    private enum TriggerStakePeriodSideEffects {
+    @VisibleForTesting
+    enum TriggerStakePeriodSideEffects {
         YES,
         NO
     }
 
-    private SystemContext newSystemContext(
+    @VisibleForTesting
+    SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,

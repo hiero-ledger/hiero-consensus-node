@@ -3,18 +3,31 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -24,12 +37,14 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -62,6 +77,8 @@ class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
     private static final AccountID NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3L).build();
+    private static final AccountID PAYER_ID =
+            AccountID.newBuilder().accountNum(800L).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -115,10 +132,16 @@ class SystemTransactionsTest {
     private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
 
     @Mock
+    private MigrationRootHashSubmissions migrationRootHashSubmissions;
+
+    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private NodeInfo creatorNodeInfo;
+
+    @Mock
+    private SystemTransactions.StateChangeStreaming stateChangeStreaming;
 
     private SystemTransactions subject;
 
@@ -158,7 +181,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
     }
 
     @Test
@@ -215,7 +239,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -266,130 +291,48 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void testDispatchNodeRewardsWithEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(
-                RosterEntry.newBuilder().nodeId(0L).build(),
-                RosterEntry.newBuilder().nodeId(1L).build());
+    void testDispatchNodeRewardsWithEmptyAmounts() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        // All nodes are inactive (not in activeNodeIds)
-        // And minNodeReward is 0, so no rewards should be dispatched
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
+        subject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
+        // Should not dispatch anything when rewardAmounts is empty
         verifyNoInteractions(parentTxnFactory);
         verifyNoInteractions(dispatchProcessor);
     }
 
     @Test
     void testDispatchNodeRewardsWithNullState() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        null, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(null, NOW, rewardAmounts));
     }
 
     @Test
     void testDispatchNodeRewardsWithNullNow() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, null, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, null, rewardAmounts));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullActiveNodeIds() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, null, 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+    void testDispatchNodeRewardsWithNullRewardAmounts() {
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, NOW, null));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullNodeRewardsAccountId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, null, 1000L, 0L, List.of()));
-    }
+    void testDispatchNodeRewardsSuccess() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
+        rewardAmounts.addConsensusNodeReward(
+                3L, AccountID.newBuilder().accountNum(3L).build(), 100L);
 
-    @Test
-    void testDispatchNodeRewardsWithActiveNodesButAllDeclineReward() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
+        final var mockSystemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(mockSystemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
 
-        // Mock node info that declines reward
-        final var nodeInfo = mock(NodeInfo.class);
-        given(nodeInfo.declineReward()).willReturn(true);
-        given(networkInfo.nodeInfo(0L)).willReturn(nodeInfo);
+        spySubject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when all active nodes decline reward
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithNullNodeInfo() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
-
-        // Mock null node info
-        given(networkInfo.nodeInfo(0L)).willReturn(null);
-
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when node info is null
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithNullRosterEntries() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, null));
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithEmptyRosterEntriesAndEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        // Empty active nodes and empty roster entries - no rewards to distribute
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, List.of());
-
-        // Should not dispatch anything
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
-    }
-
-    @Test
-    void testDispatchNodeRewardsWithInactiveNodesAndMinRewardZero() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        // Node 1 is in roster but not in active list
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(1L).build());
-
-        // Mock node info for inactive node
-        final var inactiveNodeInfo = mock(NodeInfo.class);
-        given(inactiveNodeInfo.declineReward()).willReturn(false);
-        given(inactiveNodeInfo.accountId())
-                .willReturn(AccountID.newBuilder().accountNum(4L).build());
-        given(networkInfo.nodeInfo(1L)).willReturn(inactiveNodeInfo);
-
-        // minNodeReward is 0, so inactive nodes should not receive rewards
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        verify(mockSystemContext).dispatchAdmin(any());
     }
 
     @Test
@@ -422,7 +365,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -464,7 +408,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -545,7 +490,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -580,7 +526,6 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
-
         // Recreate subject with updated config
         subject = new SystemTransactions(
                 initTrigger,
@@ -598,7 +543,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -607,7 +553,8 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeSetupArchivesJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupDefersArchivingJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir)
+            throws IOException {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -616,6 +563,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -632,11 +580,10 @@ class SystemTransactionsTest {
 
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
-        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
         final WritableStates writableStates = mock(WritableStates.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
@@ -658,14 +605,18 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        assertFalse(Files.exists(jumpstartFile), "Original jumpstart file should no longer exist");
-        assertTrue(Files.exists(tempDir.resolve("archived_jumpstart.bin")), "Archived jumpstart file should exist");
-        // Block info values match migration, so no update should have been made
-        verify(blockInfoSingleton, never()).put(any());
+        assertTrue(Files.exists(jumpstartFile), "Jumpstart file should remain until vote is observed in state");
+        assertFalse(
+                Files.exists(tempDir.resolve("archived_jumpstart.bin")),
+                "Archived jumpstart file should not exist yet");
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -678,6 +629,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -687,8 +639,12 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
-
-        given(wrappedRecordBlockHashMigration.result()).willReturn(null);
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -706,16 +662,20 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
-    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupOverwritesBlockInfo() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -724,6 +684,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -734,10 +695,6 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         // Migration result with specific values
         final var migrationRootHash = Bytes.wrap(new byte[] {1, 2, 3});
         final var migrationIntermediateHashes = List.of(Bytes.wrap(new byte[] {4, 5, 6}));
@@ -745,7 +702,6 @@ class SystemTransactionsTest {
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
                         Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
@@ -777,18 +733,71 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        // Verify that blockInfoSingleton.put() was called with updated values
-        final var captor = org.mockito.ArgumentCaptor.forClass(BlockInfo.class);
-        verify(blockInfoSingleton).put(captor.capture());
-        final var updatedBlockInfo = captor.getValue();
-        assertEquals(migrationRootHash, updatedBlockInfo.previousWrappedRecordBlockRootHash());
-        assertEquals(migrationIntermediateHashes, updatedBlockInfo.wrappedIntermediatePreviousBlockRootHashes());
-        assertEquals(migrationLeafCount, updatedBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-        // Verify commit() was called after put()
+        // Post-upgrade setup initializes voting metadata on first upgrade.
+        verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder().votingComplete(false).build());
+
+        given(migrationRootHashSubmissions.submitStartupVoteIfActive(any())).willReturn(true);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, times(1)).submitStartupVoteIfActive(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() throws IOException {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+        final var jumpstartFile = Files.createTempFile("jumpstart-", ".bin");
+        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder()
+                        .votingComplete(false)
+                        .migrationRootHashVotes(List.of(NodeMigrationRootHashVote.newBuilder()
+                                .nodeId(new com.hedera.hapi.platform.state.NodeId(0L))
+                                .vote(com.hedera.hapi.services.auxiliary.blockrecords
+                                        .MigrationRootHashVoteTransactionBody.newBuilder()
+                                        .build())
+                                .build()))
+                        .build());
+
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+        verify(wrappedRecordBlockHashMigration, times(1)).jumpstartFilePath();
+        assertFalse(Files.exists(jumpstartFile));
     }
 }
