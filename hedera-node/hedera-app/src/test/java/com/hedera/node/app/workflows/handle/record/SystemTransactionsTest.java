@@ -746,8 +746,7 @@ class SystemTransactionsTest {
 
     @Test
     void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
-        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);
@@ -769,8 +768,7 @@ class SystemTransactionsTest {
 
     @Test
     void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() throws IOException {
-        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);

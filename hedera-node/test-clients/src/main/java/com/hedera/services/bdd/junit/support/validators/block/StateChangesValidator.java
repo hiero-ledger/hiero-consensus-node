@@ -490,8 +490,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 (int) b.items().getFirst().blockHeaderOrThrow().number())
                         .findFirst()
                         .orElseThrow();
-        final IncrementalStreamingHasher incrementalBlockHashes =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);

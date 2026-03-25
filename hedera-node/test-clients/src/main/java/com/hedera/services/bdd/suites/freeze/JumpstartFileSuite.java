@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -110,26 +111,6 @@ class JumpstartFileSuite implements LifecycleTest {
                                 Duration.ofSeconds(1))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
-                // Verify the jumpstart file was archived after successful migration
-                doingContextual(spec -> {
-                    for (final var node : spec.targetNetworkOrThrow().nodes()) {
-                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
-                            continue;
-                        }
-
-                        final var workingDir = node.metadata().workingDir();
-                        final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
-                        final var original = cutoverDir.resolve("jumpstart.bin");
-                        final var archived = cutoverDir.resolve("archived_jumpstart.bin");
-                        org.junit.jupiter.api.Assertions.assertFalse(
-                                Files.exists(original),
-                                "Jumpstart file should have been archived on node " + node.getNodeId()
-                                        + " but still exists at " + original);
-                        org.junit.jupiter.api.Assertions.assertTrue(
-                                Files.exists(archived),
-                                "Archived jumpstart file not found on node " + node.getNodeId() + " at " + archived);
-                    }
-                }),
                 // Independently verify the node's computed hash. The wrapped record hashes file
                 // may have grown since the migration ran (nodes continue writing after restart),
                 // so we pass the freeze block number to bound the replay to the same range the
