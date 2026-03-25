@@ -649,13 +649,14 @@ public class TransactionExecutorsTest {
         @Override
         public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
             frame.setCurrentOperation(op);
-            delegate.tracePostExecution(frame, new Operation.OperationResult(gas,halt) );
+            delegate.tracePostExecution(frame, new Operation.OperationResult(gas, halt));
         }
 
         @Override
         public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
             delegate.tracePostExecution(parent, InvalidOperation.INVALID_RESULT);
         }
+
         @Override
         public void traceNotExecuting(MessageFrame child) {
             delegate.tracePostExecution(child, InvalidOperation.INVALID_RESULT);
