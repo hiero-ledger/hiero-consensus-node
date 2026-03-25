@@ -169,7 +169,7 @@ class MerkleDbCompactionCoordinator {
             return;
         }
         if (isCompactionRunning(key)) {
-            logger.info(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
+//            logger.info(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
             return;
         }
         compactorsByName.put(key, compactor);

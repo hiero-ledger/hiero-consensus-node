@@ -58,7 +58,7 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
     @Override
     public void close() {
         super.close();
-        logger.info(OBJECT_STREAM.getMarker(), "RunningHashCalculatorForStream is closed");
+//        logger.info(OBJECT_STREAM.getMarker(), "RunningHashCalculatorForStream is closed");
     }
 
     public Hash getRunningHash() {
@@ -72,6 +72,6 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
     public void setRunningHash(final Hash hash) {
         this.runningHash = hash;
         super.setRunningHash(hash);
-        logger.info(OBJECT_STREAM.getMarker(), "RunningHashCalculatorForStream :: setRunningHash: {}", hash);
+//        logger.info(OBJECT_STREAM.getMarker(), "RunningHashCalculatorForStream :: setRunningHash: {}", hash);
     }
 }
