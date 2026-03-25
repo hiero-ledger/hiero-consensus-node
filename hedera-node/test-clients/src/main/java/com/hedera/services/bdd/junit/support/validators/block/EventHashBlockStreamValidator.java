@@ -6,12 +6,15 @@ import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -22,25 +25,31 @@ import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A BlockStreamValidator implementation that reassembles consensus events and verifies the hash integrity of the event
- * chain that forms the hashgraph. Specifically, it checks that events whose parents are in a previous block can be
- * found among the reconstructed events. This proves that event hashes are calculated correctly using only data from
- * the block stream, which is required for downstream consumers to reconstruct the hashgraph.
- *
- * <p>A small percentage of cross-block parent lookups may fail due to "stale" events that went through gossip but
- * never reached consensus and thus are absent from the block stream. Their children still have correct hashes because
- * they contain the full parent {@code EventDescriptor}. The validator tolerates up to
- * {@value #MAX_UNRESOLVED_PARENT_PERCENT}% of such unresolvable parents.
+ * chain that forms the hashgraph. Specifically, it checks that events whose parents are in a previous block are found
+ * either among the reconstructed block stream events or among events read from PCES files (which serve as the source
+ * of truth, since some events may exist in PCES but never reach consensus).
  */
 public class EventHashBlockStreamValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final Set<Hash> pcesEventHashes;
+
     /**
-     * Maximum percentage of cross-block parent hashes that may be unresolvable before the validation fails.
-     * Stale events (events that never reached consensus) cause a small number of parent lookups to fail;
-     * a real problem with event reconstruction would affect far more lookups.
+     * Constructor for standalone use (e.g., from main method) without PCES hashes.
      */
-    static final double MAX_UNRESOLVED_PARENT_PERCENT = 2.0;
+    public EventHashBlockStreamValidator() {
+        this(Set.of());
+    }
+
+    /**
+     * Constructor with PCES event hashes for parent hash validation.
+     *
+     * @param pcesEventHashes known-valid event hashes from PCES files
+     */
+    public EventHashBlockStreamValidator(@NonNull final Set<Hash> pcesEventHashes) {
+        this.pcesEventHashes = pcesEventHashes;
+    }
 
     /**
      * A main method to run a standalone validation of the block stream files produced by HAPI tests in their default
@@ -63,7 +72,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     }
 
     /**
-     * Factory for creating EventHashBlockStreamValidator instances.
+     * Factory for creating EventHashBlockStreamValidator instances. Reads PCES files from the spec's
+     * network nodes to use as the source of truth for parent hash validation.
      */
     public static final Factory FACTORY = new Factory() {
         @Override
@@ -74,7 +84,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            return new EventHashBlockStreamValidator();
+            final Set<Hash> pcesHashes = readPcesHashesFromSpec(spec);
+            return new EventHashBlockStreamValidator(pcesHashes);
         }
     };
 
@@ -82,24 +93,27 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Processing {} blocks for event chain verification", blocks.size());
 
-        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks, pcesEventHashes);
         final var events = eventBuilder.getEvents();
 
-        validateEventHashChain(events, eventBuilder.getCrossBlockParentHashes());
+        validateEventHashChain(events, eventBuilder.getCrossBlockParentHashes(), pcesEventHashes);
 
         logger.info("Successfully processed and verified {} events in {} blocks", events.size(), blocks.size());
     }
 
     /**
      * Validates the event hash chain by looking up all events that have a parent reference to an event in another
-     * block. If we are unable to locate the parent event hash among the reconstructed events, it is likely a "stale"
-     * event that went through gossip but never reached consensus. A small percentage of such failures is tolerated.
+     * block. A cross-block parent hash is valid if it is found either among reconstructed block stream events or
+     * among PCES event hashes (for events that were gossiped but never reached consensus).
      *
      * @param events the list of reconstructed events
      * @param crossBlockParentHashes the set of parent hashes referencing events in other blocks
+     * @param pcesEventHashes known-valid event hashes from PCES files
      */
     static void validateEventHashChain(
-            @NonNull final List<PlatformEvent> events, @NonNull final Set<Hash> crossBlockParentHashes) {
+            @NonNull final List<PlatformEvent> events,
+            @NonNull final Set<Hash> crossBlockParentHashes,
+            @NonNull final Set<Hash> pcesEventHashes) {
         if (events.isEmpty()) {
             fail("No events found in the block stream");
             return;
@@ -110,8 +124,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
 
         final List<Hash> unresolvedHashes = new ArrayList<>();
         for (final Hash crossBlockParentHash : crossBlockParentHashes) {
-            if (!eventHashes.contains(crossBlockParentHash)) {
-                unresolvedHashes.add(crossBlockParentHash);
+            if (!eventHashes.contains(crossBlockParentHash) && !pcesEventHashes.contains(crossBlockParentHash)) {
+                fail("Cross block parent hash {} not found among event or PCES hashes!", crossBlockParentHash);
             }
         }
 
@@ -136,5 +150,24 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                     MAX_UNRESOLVED_PARENT_PERCENT,
                     unresolvedHashes);
         }
+    }
+
+    /**
+     * Reads PCES event hashes from all network nodes in the given spec.
+     *
+     * @param spec the HapiSpec providing access to network node paths
+     * @return the union of all PCES event hashes across all nodes
+     */
+    static Set<Hash> readPcesHashesFromSpec(@NonNull final HapiSpec spec) {
+        final Set<Hash> allHashes = new HashSet<>();
+        for (final var node : spec.getNetworkNodes()) {
+            final Path pcesDir =
+                    node.getExternalPath(ExternalPath.PCES_DIR).toAbsolutePath().normalize();
+            if (Files.exists(pcesDir)) {
+                allHashes.addAll(PcesEventHashReader.readEventHashes(pcesDir));
+            }
+        }
+        logger.info("Read {} total PCES event hashes from all network nodes", allHashes.size());
+        return allHashes;
     }
 }

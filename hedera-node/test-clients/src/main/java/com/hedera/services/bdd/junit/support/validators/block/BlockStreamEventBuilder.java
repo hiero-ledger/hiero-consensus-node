@@ -43,6 +43,9 @@ public class BlockStreamEventBuilder {
     /** The blocks to read events from. */
     private final List<Block> blocks;
 
+    /** Known-valid event hashes from PCES files (source of truth for parent references). */
+    private final Set<Hash> pcesEventHashes;
+
     /** Track event hashes by index within a single block  for parent lookups within a block */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
@@ -70,7 +73,18 @@ public class BlockStreamEventBuilder {
      * @param blocks the blocks to read events from
      */
     public BlockStreamEventBuilder(@NonNull final List<Block> blocks) {
+        this(blocks, Set.of());
+    }
+
+    /**
+     * Constructor with PCES event hashes for parent hash validation.
+     *
+     * @param blocks the blocks to read events from
+     * @param pcesEventHashes known-valid event hashes from PCES files
+     */
+    public BlockStreamEventBuilder(@NonNull final List<Block> blocks, @NonNull final Set<Hash> pcesEventHashes) {
         this.blocks = requireNonNull(blocks);
+        this.pcesEventHashes = requireNonNull(pcesEventHashes);
     }
 
     /**
@@ -292,7 +306,11 @@ public class BlockStreamEventBuilder {
                     // Parent is already an EventDescriptor (outside current block)
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
+                    final Hash parentHash = new Hash(parentDescriptor.hash());
+                    if (!eventHashToEvent.containsKey(parentHash) && !pcesEventHashes.contains(parentHash)) {
+                        fail("Unable to find event matching parent hash %s", parentHash);
+                    }
+                    crossBlockParentHashes.add(parentHash);
                     break;
 
                 default:
