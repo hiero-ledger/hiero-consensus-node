@@ -1525,14 +1525,23 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenMint failures in pre-handle.
      */
-    public static double expectedTokenMintNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenMintNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenMintNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenMintNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenBurn simple fees utils ---------//
@@ -1579,21 +1588,39 @@ public class FeesChargingUtils {
      * service = TOKEN_BURN_BASE (no extras for NFT serials in burn)
      * total   = node + network + service
      */
-    public static double expectedTokenBurnNftFullFeeUsd(long sigs, long nftSerials) {
+    public static double expectedTokenBurnNftFullFeeUsd(long sigs) {
         return expectedTokenBurnFungibleFullFeeUsd(sigs);
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenBurnNftFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenBurnFungibleFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     /**
      * Network-only fee for TokenBurn failures in pre-handle.
      */
-    public static double expectedTokenBurnNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenBurnNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenBurnNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenBurnNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenAssociate simple fees utils ---------//
