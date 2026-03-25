@@ -183,7 +183,7 @@ aggregate ratio is `Σalive / Σdead`, which describes the combined GC speed of 
 Files with `totalItems == 0` are assigned `garbageRatio = 1.0` and `liveToDeadRatio = 0.0` (fastest possible GC —
 nothing to copy). This covers two cases: the file is truly empty (compaction will be a no-op, which is harmless),
 or the file was written by an older version that did not record the item count (a full compaction is needed).
-Files with zero dead items get `liveToDeadRatio = MAX_VALUE` (no garbage — never individually selected for compaction).
+Files with zero dead items get `liveToDeadRatio = Double.MAX_VALUE` (no garbage — never individually selected for compaction).
 
 The scanner then applies a two-phase selection algorithm:
 
