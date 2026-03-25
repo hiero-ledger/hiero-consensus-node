@@ -10,7 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -42,6 +42,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> quiesceAndThenRestartMixedOps() {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
+        final AtomicReference<Instant> sleepStart = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
@@ -54,12 +55,17 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                assertHgcaaLogContainsPattern(
+                doWithStartupDuration("quiescence.tctDuration", duration -> {
+                    sleepStart.set(Instant.now());
+                    return sleepForSeconds(2 * duration.toSeconds());
+                }),
+                assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
-                        "Updating quiescence command from .* to QUIESCE",
-                        Duration.ofSeconds(1)),
-                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(5 * duration.toSeconds())),
+                        sleepStart::get,
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(5),
+                        "to QUIESCE"),
+                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
                     final var expected = scheduleExpiry.get();
