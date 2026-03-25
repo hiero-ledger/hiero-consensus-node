@@ -29,7 +29,11 @@ public class StandaloneFeeCalculatorCLI {
     public static void main(String[] args) throws IOException {
         try {
             System.out.println("args are " + Arrays.toString(args));
-            final String report_file = "/Users/josh/WebstormProjects/kitchen-sink-analyzer/full/march08_1024/reports/standalone.json";
+//            final String report_file = "/Users/josh/WebstormProjects/kitchen-sink-analyzer/full/march08_1024/reports/standalone.json";
+            //final String records_dir = "/Users/josh/WebstormProjects/kitchen-sink-analyzer/full/march08_1024/record_streams/simple/record0.0.3";
+            final String records_dir = args[0];
+            final String report_file = args[1];
+            System.out.println("writing json output at " + report_file);
             final var json = new JSONFormatter(new FileWriter(report_file));
 
 
@@ -42,7 +46,6 @@ public class StandaloneFeeCalculatorCLI {
             final StandaloneFeeCalculator calc =
                     new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
-            final String records_dir = "/Users/josh/WebstormProjects/kitchen-sink-analyzer/full/march08_1024/record_streams/simple/record0.0.3";
             System.out.println("records_dir is " + records_dir);
 
             try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
@@ -73,6 +76,7 @@ public class StandaloneFeeCalculatorCLI {
             }
 
             json.close();
+            System.out.println("wrote out to " +  report_file);
 
         } catch (Exception e) {
             System.out.println("exception " + e);
@@ -80,13 +84,18 @@ public class StandaloneFeeCalculatorCLI {
     }
 
     private static void process_item(RecordStreamItem item, StandaloneFeeCalculator calc, JSONFormatter json) throws IOException, ParseException {
-        System.out.println("processing " + item.getTransaction().hashCode());
+//        System.out.println("processing " + item.getTransaction().hashCode());
         final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
         final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
+//        System.out.println("type is " + txn.body().data().kind());
         if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+            // skip unset types
+            return;
+        }
+        if (txn.body().data().kind() == TransactionBody.DataOneOfType.NODE_STAKE_UPDATE) {
             // skip unset types
             return;
         }

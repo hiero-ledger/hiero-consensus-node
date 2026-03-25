@@ -132,6 +132,9 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
+        if(serviceFeeCalculator == null) {
+            System.out.println("no calc for " + txnBody.data().kind());
+        }
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
         final var functionality = simpleFeeContext.functionality();
