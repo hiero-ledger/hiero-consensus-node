@@ -11,7 +11,7 @@ import org.hiero.base.Clearable;
 import org.hiero.consensus.hashgraph.impl.consensus.CandidateWitness;
 import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
 import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
-import org.hiero.consensus.hashgraph.impl.metrics.Indexer;
+import org.hiero.consensus.hashgraph.impl.metrics.Sequencer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -78,7 +78,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
-    private long index = Indexer.NO_INDEX;
+    /** A unique sequence number determining the order in which this event was processed */
+    private long sequence = Sequencer.NO_SEQUENCE;
 
     /**
      * Constructor
@@ -522,12 +523,22 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
         this.deGen = deGen;
     }
 
-    public long getIndex() {
-        return index;
+    /**
+     * Get the sequence number of this event, which determines the order in which this event was processed.
+     *
+     * @return the sequence number of this event
+     */
+    public long getSequence() {
+        return sequence;
     }
 
-    public void setIndex(final long index) {
-        this.index = index;
+    /**
+     * Set the sequence number of this event, which determines the order in which this event was processed.
+     *
+     * @param sequence the sequence number to set
+     */
+    public void setSequence(final long sequence) {
+        this.sequence = sequence;
     }
 
     //

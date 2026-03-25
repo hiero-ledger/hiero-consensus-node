@@ -32,6 +32,7 @@ public interface ConsensusMetrics {
 
     /**
      * Update a statistics accumulator a round has reached consensus.
+     * @param round the round number that reached consensus
      */
     void consensusReachedOnRound(final long round);
 

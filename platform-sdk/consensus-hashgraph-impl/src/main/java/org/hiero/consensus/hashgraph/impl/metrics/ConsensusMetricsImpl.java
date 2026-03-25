@@ -116,7 +116,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      */
     private static volatile long lastRoundNumber = -1;
 
-    private final Indexer indexer = new Indexer();
+    private final Sequencer sequencer = new Sequencer();
 
 
     /**
@@ -180,7 +180,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
     @Override
     public void addedEvent(final EventImpl event) {
         // this method is only ever called by 1 thread, so no need for locks
-        indexer.eventAdded(event);
+        sequencer.assignSequenceNumber(event);
         if (!Objects.equals(selfId, event.getCreatorId())
                 && event.getRoundCreated() > lastRoundNumber) { // if first event in a round
             final Instant now = Instant.now();
@@ -221,8 +221,11 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
     @Override
     public void consensusReachedOnRound(final long round) {
         roundsPerSecond.cycle();
-        final EventImpl lastEventAdded = indexer.getLastEventAdded();
+        final EventImpl lastEventAdded = sequencer.getLastEventAdded();
         if (lastEventAdded != null) {
+            // we have reached consensus for a round, so the last event that we added decided fame
+            // the difference between the round number of the event that decided fame and the consensus round gives us
+            // the number of voting rounds that were needed to reach consensus for this round
             numVotingRounds.update(lastEventAdded.getRoundCreated() - round);
         }
     }
@@ -232,10 +235,14 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      */
     @Override
     public void consensusReached(final EventImpl event) {
-        if(indexer.getLastEventAdded() != null){
-            numEventsAddedUntilConsensus.update(indexer.diffWithLatestEvent(event));
+        final EventImpl lastEventAdded = sequencer.getLastEventAdded();
+        if(lastEventAdded != null) {
+            // this should never be null
+            // but if there is a bug, its better to not have metrics than to throw an NPE
+            numEventsAddedUntilConsensus.update(
+                    lastEventAdded.getSequence() - event.getSequence());
             graphDepthUntilConsensus.update(
-                    indexer.getLastEventAdded().getDeGen() - event.getDeGen()
+                    lastEventAdded.getDeGen() - event.getDeGen()
             );
         }
         // Keep a running average of how many seconds from when I first know of an event
