@@ -64,7 +64,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
 val matsSuffix = "MATS"
 
@@ -79,6 +79,7 @@ val basePrCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestWraps" to "WRAPS",
+        "hapiTestWrapsDownload" to "WRAPS_DOWNLOAD",
         "hapiTestCutover" to "CUTOVER",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
@@ -106,6 +107,7 @@ val concurrentTasks =
         "hapiTestMiscRecords",
         "hapiTestMiscRecordsSerial",
         "hapiTestWraps",
+        "hapiTestWrapsDownload",
         "hapiTestCutover",
         "hapiTestTimeConsuming",
         "hapiTestTimeConsumingSerial",
@@ -139,6 +141,7 @@ val remoteCheckTags =
                     "hapiTestIssMATS",
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
+                    "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
                 )
@@ -155,6 +158,7 @@ val prCheckStartPorts =
         put("hapiTestTimeConsuming", "26200")
         put("hapiTestWraps", "26300")
         put("hapiTestIss", "26400")
+        put("hapiTestWrapsDownload", "26500")
         put("hapiTestCutover", "26600")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
@@ -196,6 +200,10 @@ val prCheckPropOverrides =
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
+        put(
+            "hapiTestWrapsDownload",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=da83f3ae5eaa8575f5bedf583de2826ccfa5bff80bd6f58a54b0bf7e934e98919b5bcdaa074b3ae248f161317b87a22a",
         )
         put(
             "hapiTestMisc",
@@ -252,8 +260,9 @@ val prCheckPrepareUpgradeOffsets =
         }
     }
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
-// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be in CI and set it here
-val prCheckTssLibWrapsArtifactsPaths = mapOf("hapiTestWraps" to "", "hapiTestCutover" to "")
+// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
+val prCheckTssLibWrapsArtifactsPaths =
+    mapOf("hapiTestWraps" to "", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
