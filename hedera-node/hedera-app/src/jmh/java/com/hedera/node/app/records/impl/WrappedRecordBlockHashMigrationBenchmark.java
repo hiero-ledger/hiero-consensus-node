@@ -131,7 +131,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig);
+        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig, false);
     }
 
     public static void main(String... args) throws Exception {

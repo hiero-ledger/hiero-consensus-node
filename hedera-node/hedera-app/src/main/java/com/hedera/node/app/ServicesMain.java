@@ -21,12 +21,15 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -219,11 +222,14 @@ public class ServicesMain {
         // Run the wrapped record block hash migration before platform.build() so the result is available when
         // BlockRecordManagerImpl is constructed during DI initialization.
         // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
+        // If migration voting has already completed in state, skip the migration entirely.
+        final var migrationAlreadyApplied = isMigrationVotingComplete(state);
         hedera.wrappedRecordBlockHashMigration()
                 .execute(
                         platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
                         platformConfig.getConfigData(BlockRecordStreamConfig.class),
-                        platformConfig.getConfigData(BlockStreamJumpstartConfig.class));
+                        platformConfig.getConfigData(BlockStreamJumpstartConfig.class),
+                        migrationAlreadyApplied);
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
@@ -350,5 +356,16 @@ public class ServicesMain {
 
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
+    }
+
+    /**
+     * Checks if migration root hash voting has already completed in state.
+     */
+    private static boolean isMigrationVotingComplete(@NonNull final State state) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        return blockInfo != null && blockInfo.votingComplete();
     }
 }

@@ -29,7 +29,7 @@ import org.apache.logging.log4j.Logger;
  * hasher state) and a recent wrapped record hashes file, validates their consistency,
  * computes the Merkle block hashes for the range, and writes the results back to state.
  *
- * <p>TODO: Delete this in the release after receiving/injecting the jumpstart historical hashes file.
+ * <p>TODO: Delete this in the release after receiving/injecting the jumpstart historical hashes data.
  */
 public class WrappedRecordBlockHashMigration {
 
@@ -49,33 +49,13 @@ public class WrappedRecordBlockHashMigration {
             @NonNull List<Bytes> wrappedIntermediatePreviousBlockRootHashes,
             long wrappedIntermediateBlockRootsLeafCount) {}
 
-    /** Marker file written after a successful migration to prevent re-application on restart. */
-    public static final String JUMPSTART_USED_MARKER = "jumpstart-used.properties";
-
     private @Nullable Result result;
-    private @Nullable Path markerFilePath;
-    private @Nullable String markerFileContent;
 
     /**
      * Returns the computed migration result, or null if the migration has not run or was skipped.
      */
     public @Nullable Result result() {
         return result;
-    }
-
-    /**
-     * Returns the path where the marker file should be written after the migration result is
-     * successfully applied to state, or null if the migration did not run.
-     */
-    public @Nullable Path markerFilePath() {
-        return markerFilePath;
-    }
-
-    /**
-     * Returns the content to write to the marker file, or null if the migration did not run.
-     */
-    public @Nullable String markerFileContent() {
-        return markerFileContent;
     }
 
     private static final String RESUME_MESSAGE =
@@ -87,14 +67,22 @@ public class WrappedRecordBlockHashMigration {
      * @param streamMode the current stream mode
      * @param recordsConfig the block record stream configuration
      * @param jumpstartConfig the jumpstart configuration properties
+     * @param migrationAlreadyApplied should be true if migration voting has already completed.
+     *                                Prevents re-execution on restart
      */
     public void execute(
             @NonNull final StreamMode streamMode,
             @NonNull final BlockRecordStreamConfig recordsConfig,
-            @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            final boolean migrationAlreadyApplied) {
         requireNonNull(streamMode);
         requireNonNull(recordsConfig);
         requireNonNull(jumpstartConfig);
+
+        if (migrationAlreadyApplied) {
+            log.info("Jumpstart migration already applied (votingComplete=true), skipping");
+            return;
+        }
 
         final var computeHashesFromWrappedEnabled =
                 streamMode != BLOCKS && recordsConfig.computeHashesFromWrappedRecordBlocks();
@@ -123,13 +111,6 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        // Check if a previous migration already ran (marker file prevents re-application)
-        final var markerPath = recentHashesPath.resolveSibling(JUMPSTART_USED_MARKER);
-        if (Files.exists(markerPath)) {
-            log.info("Jumpstart migration already applied (marker file exists at {}), skipping", markerPath);
-            return;
-        }
-
         final var hasher = createHasherFromConfig(jumpstartConfig);
         if (hasher == null) {
             return;
@@ -146,12 +127,6 @@ public class WrappedRecordBlockHashMigration {
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
-        this.markerFilePath = markerPath;
-        this.markerFileContent = MARKER_FILE_TEMPLATE.formatted(
-                jumpstartConfig.blockNum(),
-                jumpstartConfig.previousWrappedRecordBlockHash().toHex(),
-                jumpstartConfig.streamingHasherLeafCount(),
-                jumpstartConfig.streamingHasherHashCount());
     }
 
     private Path resolveRecentHashesPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -347,13 +322,4 @@ public class WrappedRecordBlockHashMigration {
     private static boolean isBlank(final String s) {
         return s == null || s.isBlank();
     }
-
-    private static final String MARKER_FILE_TEMPLATE = """
-            # Jumpstart config properties used for this migration
-            blockStream.jumpstart.blockNum=%d
-            blockStream.jumpstart.previousWrappedRecordBlockHash=%s
-            blockStream.jumpstart.streamingHasherLeafCount=%d
-            blockStream.jumpstart.streamingHasherHashCount=%d
-            blockStream.jumpstart.streamingHasherSubtreeHashes=<see config for values>
-            """;
 }

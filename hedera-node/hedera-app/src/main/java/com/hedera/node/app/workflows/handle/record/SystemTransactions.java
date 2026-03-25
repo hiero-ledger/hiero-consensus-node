@@ -558,7 +558,7 @@ public class SystemTransactions {
     /**
      * Submits this node's startup migration root-hash vote once round handling is active.
      *
-     * <p>If this node's vote is already present in state, this is a no-op and the jumpstart file is archived.
+     * <p>If this node's vote is already present in state or voting is complete, this is a no-op.
      * If no local migration result is available, this is also a no-op.
      *
      * @param state the writable state in the current handling context
@@ -584,10 +584,7 @@ public class SystemTransactions {
                 .map(NodeMigrationRootHashVote::vote)
                 .findFirst()
                 .orElse(null);
-        if (existingVote != null || blockInfo.votingComplete()) {
-            return;
-        }
-        if (startupMigrationVoteSubmissionRequested) {
+        if (existingVote != null || blockInfo.votingComplete() || startupMigrationVoteSubmissionRequested) {
             return;
         }
 
