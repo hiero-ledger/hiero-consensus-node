@@ -156,8 +156,8 @@ public final class ParsedBucket extends Bucket {
     }
 
     /**
-    * Returns an unmodifiable view of the entries in this bucket.
-    */
+     * Returns an unmodifiable view of the entries in this bucket.
+     */
     @NonNull
     public List<BucketEntry> getEntries() {
         return Collections.unmodifiableList(entries);
