@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class LegacyListRecordSourceTest {
+    private static final long BLOCK_NUMBER = 1L;
     private static final TransactionRecord FIRST_RECORD = TransactionRecord.newBuilder()
             .receipt(TransactionReceipt.newBuilder()
                     .status(SCHEDULE_ALREADY_DELETED)
@@ -42,7 +43,7 @@ class LegacyListRecordSourceTest {
             new RecordSource.IdentifiedReceipt(FIRST_RECORD.transactionIDOrThrow(), FIRST_RECORD.receiptOrThrow()),
             new RecordSource.IdentifiedReceipt(SECOND_RECORD.transactionIDOrThrow(), SECOND_RECORD.receiptOrThrow()));
 
-    private final LegacyListRecordSource subject = new LegacyListRecordSource(ITEMS, RECEIPTS, 1L);
+    private final LegacyListRecordSource subject = new LegacyListRecordSource(ITEMS, RECEIPTS, BLOCK_NUMBER);
 
     @Mock
     private Consumer<TransactionRecord> recordAction;
@@ -72,5 +73,11 @@ class LegacyListRecordSourceTest {
         assertEquals(
                 List.of(),
                 subject.childReceiptsOf(TransactionID.newBuilder().nonce(3).build()));
+    }
+
+    @Test
+    void reportsProvidedBlockNumber() {
+        assertEquals(RECEIPTS, subject.identifiedReceipts());
+        assertEquals(BLOCK_NUMBER, subject.blockNumber());
     }
 }

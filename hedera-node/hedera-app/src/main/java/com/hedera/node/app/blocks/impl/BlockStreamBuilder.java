@@ -1213,6 +1213,12 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public BlockStreamBuilder blockNumber(final Long blockNumber) {
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder topicID(@NonNull final TopicID topicID) {

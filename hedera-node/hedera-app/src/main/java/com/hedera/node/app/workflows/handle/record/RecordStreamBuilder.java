@@ -233,6 +233,9 @@ public class RecordStreamBuilder
 
     private long highVolumePricingMultiplier;
 
+    @Nullable
+    private Long blockNumber;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
@@ -258,6 +261,9 @@ public class RecordStreamBuilder
         // This should be changed after differential testing
         if (exchangeRate != null && exchangeRate.hasCurrentRate() && exchangeRate.hasNextRate()) {
             builder.exchangeRate(exchangeRate);
+        }
+        if (blockNumber != null) {
+            builder.blockNumber(blockNumber);
         }
         final var transactionReceipt = builder.build();
 
@@ -457,6 +463,10 @@ public class RecordStreamBuilder
     public RecordStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
         this.serializedSignedTx = serializedSignedTx;
         return this;
+    }
+
+    public void blockNumber(final long blockNumber) {
+        this.blockNumber = blockNumber;
     }
 
     /**
@@ -1000,6 +1010,13 @@ public class RecordStreamBuilder
     public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
         this.highVolumePricingMultiplier = highVolumePricingMultiplier;
         transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
+        this.blockNumber = blockNumber;
         return this;
     }
 

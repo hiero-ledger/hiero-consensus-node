@@ -40,6 +40,7 @@ public class BlockRecordSource implements RecordSource {
     /**
      * Constructs a {@link BlockRecordSource} from a list of {@link BlockStreamBuilder.Output}s.
      * @param outputs the outputs
+     * @param blockNumber the block number, if known. May be null if the block number is not yet known.
      */
     public BlockRecordSource(@NonNull final List<BlockStreamBuilder.Output> outputs, @Nullable final Long blockNumber) {
         this(BLOCK_ITEMS_TRANSLATOR, outputs, blockNumber);
@@ -62,6 +63,7 @@ public class BlockRecordSource implements RecordSource {
     }
 
     @Override
+    @VisibleForTesting
     public @Nullable Long blockNumber() {
         return blockNumber;
     }

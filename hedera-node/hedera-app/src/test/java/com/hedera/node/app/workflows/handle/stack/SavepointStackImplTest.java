@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -17,6 +18,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -31,6 +34,7 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +52,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SavepointStackImplTest extends StateTestBase {
 
     private static final String FOOD_SERVICE = "FOOD_SERVICE";
+    private static final long BLOCK_NUMBER = 123L;
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(666L).build();
     private static final Timestamp VALID_START = new Timestamp(1_234_567L, 890);
@@ -254,6 +259,33 @@ class SavepointStackImplTest extends StateTestBase {
         assertThat(writableStatesStack).has(content(newData));
         assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(newData));
         assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(newData));
+    }
+
+    @Test
+    void buildHandleOutputSetsReceiptBlockNumberInRecordsMode() {
+        final var txnId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.RECORDS);
+        stack.getBaseBuilder(StreamBuilder.class)
+                .transactionID(txnId)
+                .signedTx(SignedTransaction.DEFAULT)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT);
+        stack.commitFullStack();
+
+        final var handleOutput = stack.buildHandleOutput(
+                Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()),
+                ExchangeRateSet.DEFAULT,
+                BLOCK_NUMBER);
+        final var records = new java.util.ArrayList<com.hedera.hapi.node.transaction.TransactionRecord>();
+        handleOutput.recordSourceOrThrow().forEachTxnRecord(records::add);
+
+        assertThat(records).singleElement().satisfies(record -> assertThat(
+                        record.receiptOrThrow().blockNumber())
+                .isEqualTo(BLOCK_NUMBER));
     }
 
     @Nested

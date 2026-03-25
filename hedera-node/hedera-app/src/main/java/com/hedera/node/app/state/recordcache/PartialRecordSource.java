@@ -74,6 +74,7 @@ public class PartialRecordSource implements RecordSource {
     }
 
     @Override
+    @VisibleForTesting
     public @Nullable Long blockNumber() {
         return blockNumber;
     }

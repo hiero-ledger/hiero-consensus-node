@@ -49,19 +49,23 @@ public interface RecordSource {
 
     /**
      * Returns the priority receipt for the given transaction id.
+     * @param txnId the transaction id
+     * @return the receipt
      * @throws IllegalArgumentException if the transaction id is unknown
      */
     TransactionReceipt receiptOf(@NonNull TransactionID txnId);
 
     /**
      * Returns all child receipts for the given transaction id.
+     * @param txnId the transaction id
+     * @return the child receipts, or an empty list if there are none or if the transaction id is unknown
      */
     List<TransactionReceipt> childReceiptsOf(@NonNull TransactionID txnId);
 
     /**
      * Returns the shared block number for records from this source, if one is known.
+     * @return the block number, or null if not known
      */
-    default @Nullable Long blockNumber() {
-        return null;
-    }
+    @Nullable
+    Long blockNumber();
 }
