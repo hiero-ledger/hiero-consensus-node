@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.intake.impl;
+package org.hiero.consensus.event.intake;
 
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -14,8 +14,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.ServiceLoader;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
@@ -44,9 +46,14 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * A JMH benchmark that measures the throughput of the event intake pipeline. Events are generated using a
- * {@link GeneratorEventGraphSource} with real cryptographic signatures, submitted to the intake module, and the benchmark
- * waits until all events have been validated and emitted.
+ * A JMH benchmark that measures the throughput of the event intake pipeline.
+ * Uses {@link ServiceLoader} to discover {@link EventIntakeModule} implementations,
+ * selected via the {@code intakeModule} parameter. This allows comparing different
+ * implementations (e.g. default vs concurrent) from a single benchmark.
+ *
+ * <p>Events are generated using a {@link GeneratorEventGraphSource} with real cryptographic
+ * signatures, submitted to the intake module, and the benchmark waits until all events have
+ * been validated and emitted.
  */
 @State(Scope.Thread)
 @Fork(value = 1)
@@ -58,51 +65,47 @@ public class IntakeBenchmark {
     /** The random seed used for deterministic event generation. */
     private static final long SEED = 0;
 
+    /**
+     * Simple class name of the {@link EventIntakeModule} implementation to benchmark.
+     * Must match one of the implementations discovered by {@link ServiceLoader}.
+     */
+    @Param({"DefaultEventIntakeModule", "ConcurrentEventIntakeModule"})
+    public String intakeModule;
+
     /** The number of nodes in the simulated network. */
     @Param({"4"})
     public int numNodes;
 
-    /** The number of threads in the {@link java.util.concurrent.ForkJoinPool} used by the wiring model. */
+    /** The number of threads in the {@link ForkJoinPool} used by the wiring model. */
     @Param({"10"})
     public int numberOfThreads;
 
     @Param({"RSA", "ED25519"})
     public SigningSchema signingSchema;
 
-    @Param({"0.5"}) // does not seem to affect the results much
+    @Param({"0.5"})
     public double duplicateRate;
 
-    @Param({"100"}) // does not seem to affect the results much
+    @Param({"100"})
     public int shuffleBatchSize;
 
     private List<PlatformEvent> events;
-    private DefaultEventIntakeModule intake;
+    private EventIntakeModule intake;
     private EventCounter counter;
     private ForkJoinPool threadPool;
     private WiringModel model;
 
-    /**
-     * Executed once at the beginning of the benchmark.
-     */
     @Setup(Level.Trial)
     public void beforeBenchmark() {
         threadPool = ExecutorFactory.create("JMH", IntakeBenchmark::uncaughtException)
                 .createForkJoinPool(numberOfThreads);
     }
 
-    /**
-     * Executed once at the end of the benchmark.
-     */
     @TearDown(Level.Trial)
     public void afterBenchmark() {
         threadPool.shutdown();
     }
 
-    /**
-     * Sets up the benchmark state before each invocation of the benchmarking method.
-     * <br/>
-     * At the moment, reconstructs the module every time. In the future, it would be better to reuse the same instance.
-     */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
         final PlatformContext platformContext =
@@ -129,7 +132,7 @@ public class IntakeBenchmark {
         final RosterHistory rosterHistory = new RosterHistory(
                 List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
 
-        intake = new DefaultEventIntakeModule();
+        intake = createIntakeModule(intakeModule);
         intake.initialize(
                 model,
                 platformContext.getConfiguration(),
@@ -141,26 +144,15 @@ public class IntakeBenchmark {
                 new EventPipelineTracker(platformContext.getMetrics()));
         counter = new EventCounter(NUMBER_OF_EVENTS);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
-        // builds the input wire
         intake.unhashedEventsInputWire();
         model.start();
     }
 
-    /**
-     * Stops the wiring model after each benchmark invocation.
-     */
     @TearDown(Level.Invocation)
     public void tearDown() {
         model.stop();
     }
 
-    /*
-    Results on a M1 Max MacBook Pro:
-
-    Benchmark               (duplicateRate)  (numNodes)  (numberOfThreads)  (shuffleBatchSize)  (signingSchema)   Mode  Cnt       Score        Error  Units
-    IntakeBenchmark.intake              0.5           4                 10                 100              RSA  thrpt    3   72183.508 ± 298798.404  ops/s
-    IntakeBenchmark.intake              0.5           4                 10                 100          ED25519  thrpt    3  144752.082 ±  18561.397  ops/s
-    */
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
@@ -173,14 +165,25 @@ public class IntakeBenchmark {
     }
 
     /**
-     * Creates a new list that contains all unique elements plus duplicate copies of randomly selected elements. The
-     * number of duplicates is determined by the {@link #duplicateRate}: for example, a rate of 0.5 means that for
-     * every unique elements, there is a 50% chance it will be immediately followed by a duplicate. The resulting list
-     * preserves the original order with duplicates interleaved.
-     *
-     * @param list the list of unique elements to use as source
-     * @return a new list containing unique elements with duplicates interleaved
+     * Discovers all {@link EventIntakeModule} implementations via {@link ServiceLoader} and
+     * returns a new instance of the one whose simple class name matches the given parameter.
      */
+    private static EventIntakeModule createIntakeModule(@NonNull final String simpleClassName) {
+        final List<ServiceLoader.Provider<EventIntakeModule>> providers =
+                ServiceLoader.load(EventIntakeModule.class).stream().toList();
+
+        for (final ServiceLoader.Provider<EventIntakeModule> provider : providers) {
+            if (provider.type().getSimpleName().equals(simpleClassName)) {
+                return provider.get();
+            }
+        }
+
+        final String available =
+                providers.stream().map(p -> p.type().getSimpleName()).collect(Collectors.joining(", "));
+        throw new IllegalArgumentException(
+                "No EventIntakeModule found with name '%s'. Available: [%s]".formatted(simpleClassName, available));
+    }
+
     private <T> List<T> injectDuplicates(@NonNull final List<T> list) {
         final Random random = new Random(SEED);
         if (duplicateRate <= 0.0) {
@@ -204,7 +207,6 @@ public class IntakeBenchmark {
         final Random random = new Random(SEED);
         for (int i = 0; i < events.size(); i += shuffleBatchSize) {
             final int end = Math.min(i + shuffleBatchSize, events.size());
-            // shuffle the sublist in place
             final List<T> batch = events.subList(i, end);
             Collections.shuffle(batch, random);
             result.addAll(batch);
