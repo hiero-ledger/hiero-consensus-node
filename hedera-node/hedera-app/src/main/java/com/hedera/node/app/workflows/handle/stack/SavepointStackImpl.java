@@ -626,10 +626,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
         BlockRecordSource blockRecordSource = null;
         if (streamMode != RECORDS) {
-            blockRecordSource = new BlockRecordSource(outputs, blockNumber);
+            blockRecordSource = new BlockRecordSource(outputs);
         }
-        final var recordSource =
-                streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts, blockNumber) : null;
+        final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
         return new HandleOutput(blockRecordSource, recordSource, lastAssignedConsenusTime);
     }
 

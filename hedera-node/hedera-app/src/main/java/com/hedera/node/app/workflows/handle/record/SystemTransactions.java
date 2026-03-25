@@ -1092,13 +1092,12 @@ public class SystemTransactions {
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
-            return failInvalidStreamItems(
-                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
+            return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
     }
 
-    private long currentBlockNumber() {
-        return streamMode == RECORDS ? blockRecordManager.blockNo() : blockStreamManager.blockNo();
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

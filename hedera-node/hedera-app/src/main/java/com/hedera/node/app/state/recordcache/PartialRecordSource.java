@@ -74,12 +74,6 @@ public class PartialRecordSource implements RecordSource {
     }
 
     @Override
-    @VisibleForTesting
-    public @Nullable Long blockNumber() {
-        return blockNumber;
-    }
-
-    @Override
     public List<IdentifiedReceipt> identifiedReceipts() {
         return identifiedReceipts;
     }

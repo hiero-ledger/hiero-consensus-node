@@ -18,7 +18,6 @@ package proto;
 import "services/basic_types.proto";
 import "services/transaction_record.proto";
 import "services/response_code.proto";
-import "google/protobuf/wrappers.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.recordcache">>> This comment is special code for setting PBJ Compiler java package

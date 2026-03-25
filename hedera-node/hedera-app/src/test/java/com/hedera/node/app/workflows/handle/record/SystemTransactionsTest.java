@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -848,18 +849,17 @@ class SystemTransactionsTest {
                 selfNodeAccountIdManager,
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
-        given(blockRecordManager.blockNo()).willReturn(123L);
 
         final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
         method.setAccessible(true);
 
-        assertEquals(123L, method.invoke(subject));
+        assertNull(method.invoke(subject));
         verify(blockStreamManager, never()).blockNo();
-        verify(blockRecordManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 
     @Test
-    void currentBlockNumberUsesBlockStreamNumberOutsideRecordsMode() throws Exception {
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
         given(blockStreamManager.blockNo()).willReturn(123L);
 
         final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");

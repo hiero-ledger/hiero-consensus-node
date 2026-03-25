@@ -2,12 +2,14 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -269,19 +271,18 @@ class HandleWorkflowTest {
     @Test
     void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
-        given(blockRecordManager.blockNo()).willReturn(123L);
 
         final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
         method.setAccessible(true);
 
-        assertEquals(123L, method.invoke(subject));
+        assertNull(method.invoke(subject));
         verify(blockStreamManager, never()).blockNo();
-        verify(blockRecordManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 
     @Test
-    void currentBlockNumberUsesBlockStreamNumberOutsideRecordsMode() throws Exception {
-        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
         given(blockStreamManager.blockNo()).willReturn(123L);
 
         final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");

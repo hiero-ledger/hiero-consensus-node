@@ -29,9 +29,6 @@ public class BlockRecordSource implements RecordSource {
     private final List<BlockStreamBuilder.Output> outputs;
 
     @Nullable
-    private final Long blockNumber;
-
-    @Nullable
     private List<TransactionRecord> computedRecords;
 
     @Nullable
@@ -40,10 +37,9 @@ public class BlockRecordSource implements RecordSource {
     /**
      * Constructs a {@link BlockRecordSource} from a list of {@link BlockStreamBuilder.Output}s.
      * @param outputs the outputs
-     * @param blockNumber the block number, if known. May be null if the block number is not yet known.
      */
-    public BlockRecordSource(@NonNull final List<BlockStreamBuilder.Output> outputs, @Nullable final Long blockNumber) {
-        this(BLOCK_ITEMS_TRANSLATOR, outputs, blockNumber);
+    public BlockRecordSource(@NonNull final List<BlockStreamBuilder.Output> outputs) {
+        this(BLOCK_ITEMS_TRANSLATOR, outputs);
     }
 
     /**
@@ -54,18 +50,9 @@ public class BlockRecordSource implements RecordSource {
      */
     @VisibleForTesting
     public BlockRecordSource(
-            @NonNull final BlockItemsTranslator blockItemsTranslator,
-            @NonNull final List<BlockStreamBuilder.Output> outputs,
-            @Nullable final Long blockNumber) {
+            @NonNull final BlockItemsTranslator blockItemsTranslator, @NonNull final List<BlockStreamBuilder.Output> outputs) {
         this.blockItemsTranslator = requireNonNull(blockItemsTranslator);
         this.outputs = requireNonNull(outputs);
-        this.blockNumber = blockNumber;
-    }
-
-    @Override
-    @VisibleForTesting
-    public @Nullable Long blockNumber() {
-        return blockNumber;
     }
 
     /**

@@ -891,7 +891,7 @@ public class HandleWorkflow {
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
+                    parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         } finally {
             this.inFlightDispatch = null;
         }
@@ -937,17 +937,17 @@ public class HandleWorkflow {
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
-                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache, currentBlockNumber());
+                    scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
     }
 
     /**
-     * Helper method to get the current block number from the appropriate manager based on the stream mode.
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
      *
-     * @return the current block number
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
      */
-    private long currentBlockNumber() {
-        return streamMode == RECORDS ? blockRecordManager.blockNo() : blockStreamManager.blockNo();
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     /**

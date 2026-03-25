@@ -58,8 +58,7 @@ public record HandleOutput(
             @NonNull final ParentTxn parentTxn,
             @NonNull final ExchangeRateSet exchangeRates,
             @NonNull final StreamMode streamMode,
-            @NonNull final HederaRecordCache recordCache,
-            final long blockNumber) {
+            @NonNull final HederaRecordCache recordCache) {
         requireNonNull(parentTxn);
         requireNonNull(exchangeRates);
         requireNonNull(streamMode);
@@ -79,8 +78,7 @@ public record HandleOutput(
                     List.of(failInvalidRecord),
                     List.of(new RecordSource.IdentifiedReceipt(
                             failInvalidRecord.transactionRecord().transactionIDOrThrow(),
-                            failInvalidRecord.transactionRecord().receiptOrThrow())),
-                    blockNumber);
+                            failInvalidRecord.transactionRecord().receiptOrThrow())));
         } else {
             recordSource = null;
         }
@@ -92,7 +90,7 @@ public record HandleOutput(
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
             outputs.add(failInvalidBuilder.build(true, null));
-            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs, blockNumber);
+            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
         } else {
             blockRecordSource = null;
         }

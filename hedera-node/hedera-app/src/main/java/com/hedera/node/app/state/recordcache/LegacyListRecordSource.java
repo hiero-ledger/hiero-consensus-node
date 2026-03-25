@@ -12,7 +12,6 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -23,8 +22,7 @@ import java.util.function.Consumer;
  */
 public record LegacyListRecordSource(
         @NonNull List<SingleTransactionRecord> precomputedRecords,
-        @NonNull List<IdentifiedReceipt> identifiedReceipts,
-        @Nullable Long blockNumber)
+        @NonNull List<IdentifiedReceipt> identifiedReceipts)
         implements RecordSource {
 
     public LegacyListRecordSource {

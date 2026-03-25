@@ -262,7 +262,7 @@ class SavepointStackImplTest extends StateTestBase {
     }
 
     @Test
-    void buildHandleOutputSetsReceiptBlockNumberInRecordsMode() {
+    void buildHandleOutputLeavesReceiptBlockNumberUnsetInRecordsMode() {
         final var txnId = TransactionID.newBuilder()
                 .accountID(PAYER_ID)
                 .transactionValidStart(VALID_START)
@@ -285,7 +285,7 @@ class SavepointStackImplTest extends StateTestBase {
 
         assertThat(records).singleElement().satisfies(record -> assertThat(
                         record.receiptOrThrow().blockNumber())
-                .isEqualTo(BLOCK_NUMBER));
+                .isNull());
     }
 
     @Nested

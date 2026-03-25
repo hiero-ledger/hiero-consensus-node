@@ -8,7 +8,6 @@ import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.spi.workflows.HandleContext.SavepointStack;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -27,8 +26,7 @@ public interface RecordSource {
      * @param txnId the transaction id
      * @param receipt the matching receipt
      */
-    record IdentifiedReceipt(
-            @NonNull TransactionID txnId, @NonNull TransactionReceipt receipt) {
+    record IdentifiedReceipt(@NonNull TransactionID txnId, @NonNull TransactionReceipt receipt) {
         public IdentifiedReceipt {
             requireNonNull(txnId);
             requireNonNull(receipt);
@@ -49,23 +47,12 @@ public interface RecordSource {
 
     /**
      * Returns the priority receipt for the given transaction id.
-     * @param txnId the transaction id
-     * @return the receipt
      * @throws IllegalArgumentException if the transaction id is unknown
      */
     TransactionReceipt receiptOf(@NonNull TransactionID txnId);
 
     /**
      * Returns all child receipts for the given transaction id.
-     * @param txnId the transaction id
-     * @return the child receipts, or an empty list if there are none or if the transaction id is unknown
      */
     List<TransactionReceipt> childReceiptsOf(@NonNull TransactionID txnId);
-
-    /**
-     * Returns the shared block number for records from this source, if one is known.
-     * @return the block number, or null if not known
-     */
-    @Nullable
-    Long blockNumber();
 }

@@ -180,17 +180,17 @@ final class RecordCacheImplTest extends AppTestBase {
 
             final var entries = List.of(
                     // preceding tx
-                    new TransactionReceiptEntry(0, pTxId1, SUCCESS, 1L),
+                    new TransactionReceiptEntry(0, pTxId1, SUCCESS),
                     // user tx
-                    new TransactionReceiptEntry(0, txId1, SUCCESS, 1L),
+                    new TransactionReceiptEntry(0, txId1, SUCCESS),
                     // child tx
-                    new TransactionReceiptEntry(0, cTxId1, SUCCESS, 1L),
+                    new TransactionReceiptEntry(0, cTxId1, SUCCESS),
                     // user tx
-                    new TransactionReceiptEntry(1, txId2, SUCCESS, 2L),
+                    new TransactionReceiptEntry(1, txId2, SUCCESS),
                     // duplicate  user tx
-                    new TransactionReceiptEntry(2, txId2, SUCCESS, 2L),
+                    new TransactionReceiptEntry(2, txId2, SUCCESS),
                     // duplicate  user tx
-                    new TransactionReceiptEntry(3, txId1, SUCCESS, 1L));
+                    new TransactionReceiptEntry(3, txId1, SUCCESS));
 
             final var entry = new TransactionReceiptEntries(entries);
 
@@ -258,10 +258,10 @@ final class RecordCacheImplTest extends AppTestBase {
             final var txId2 = txId1.copyBuilder().accountID(payer2).build();
 
             final var entries = List.of(
-                    new TransactionReceiptEntry(0, txId1, SUCCESS, 1L),
-                    new TransactionReceiptEntry(1, txId2, ACCOUNT_IS_IMMUTABLE, 2L),
-                    new TransactionReceiptEntry(2, txId2, DUPLICATE_TRANSACTION, 2L),
-                    new TransactionReceiptEntry(3, txId1, DUPLICATE_TRANSACTION, 1L));
+                    new TransactionReceiptEntry(0, txId1, SUCCESS),
+                    new TransactionReceiptEntry(1, txId2, ACCOUNT_IS_IMMUTABLE),
+                    new TransactionReceiptEntry(2, txId2, DUPLICATE_TRANSACTION),
+                    new TransactionReceiptEntry(3, txId1, DUPLICATE_TRANSACTION));
 
             final var entry = new TransactionReceiptEntries(entries);
             queue.add(entry);
@@ -298,9 +298,7 @@ final class RecordCacheImplTest extends AppTestBase {
     private TransactionRecord asRecord(final TransactionReceiptEntry transactionReceiptEntry) {
         return TransactionRecord.newBuilder()
                 .transactionID(transactionReceiptEntry.transactionId())
-                .receipt(TransactionReceipt.newBuilder()
-                        .status(transactionReceiptEntry.status())
-                        .blockNumber(transactionReceiptEntry.blockNumber()))
+                .receipt(TransactionReceipt.newBuilder().status(transactionReceiptEntry.status()))
                 .build();
     }
 
