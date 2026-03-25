@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyLiveWrappedHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
