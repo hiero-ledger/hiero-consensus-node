@@ -7,7 +7,7 @@ import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
 import static com.swirlds.base.units.UnitConstants.MINUTES_TO_SECONDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.config.data.CacheConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,7 +46,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     public GasCharges transactionGasRequirements(
             @NonNull final Bytes payload,
             final boolean isContractCreate,
-            @Nullable final List<AccessList> accessLists,
+            @Nullable final List<AccessListItem> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
         final int zeros = payloadZeroBytes(payload);
         final long intrinsicGas =
@@ -70,7 +70,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
             @NonNull final Bytes payload,
             final int zeros,
             final boolean isContractCreate,
-            @Nullable final List<AccessList> accessLists,
+            @Nullable final List<AccessListItem> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
         final int nonZeros = payload.size() - zeros;
         final long cost = TX_BASE_COST

@@ -1,29 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
+import org.apache.tuweni.bytes.Bytes;
 
 public final class TestTransactionUtils {
 
     private TestTransactionUtils() {}
 
     /**
-     * Generate configurable AccessList for tests. @see <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a>
+     * Generate configurable AccessListItem for tests. @see <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a>
      *
      * @param keysCount storage keys in corresponding access list object to generate
-     * @return AccessList
+     * @return AccessListItem
      */
     @NonNull
-    public static List<AccessList> generateAccessList(final List<Integer> keysCount) {
-        final List<AccessList> accessLists = new ArrayList<>();
+    public static List<AccessListItem> generateAccessList(final List<Integer> keysCount) {
+        final List<AccessListItem> accessLists = new ArrayList<>();
         for (final Integer count : keysCount) {
-            accessLists.add(new AccessList(
-                    TestByteUtils.randomAddressBytes(),
+            accessLists.add(new AccessListItem(
+                    Bytes.wrap(TestByteUtils.randomAddressBytes()),
                     IntStream.range(0, count)
                             .mapToObj(e -> TestByteUtils.randomKeyBytes32())
                             .toList()));

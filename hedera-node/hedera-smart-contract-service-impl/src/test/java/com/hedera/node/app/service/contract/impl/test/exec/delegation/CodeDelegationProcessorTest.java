@@ -92,7 +92,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verifyNoInteractions(world);
     }
 
@@ -106,7 +106,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -121,7 +121,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -137,7 +137,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -153,7 +153,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -170,7 +170,7 @@ class CodeDelegationProcessorTest {
         final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
         // then:
         assertNotNull(result);
-        assertEquals(0, result.authorities().size());
+        assertEquals(0, result.accessedAddresses().size());
         verify(proxyWorldUpdater).commit();
     }
 
@@ -190,7 +190,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(0, result.authorities().size());
+            assertEquals(0, result.accessedAddresses().size());
             verify(proxyWorldUpdater).commit();
         }
     }
@@ -244,8 +244,8 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(1, result.authorities().size());
-            assertEquals(authAddr, result.authorities().getFirst());
+            assertEquals(1, result.accessedAddresses().size());
+            assertEquals(authAddr, result.accessedAddresses().getFirst());
             verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
             verify(proxyWorldUpdater).createAccountWithKeyAndCodeDelegation(authAddr, new byte[32], contractAddr);
             verify(acct).incrementNonce();
@@ -287,7 +287,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(0, result.authorities().size());
+            assertEquals(1, result.accessedAddresses().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
             verify(proxyWorldUpdater).commit();
@@ -317,7 +317,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(0, result.authorities().size());
+            assertEquals(1, result.accessedAddresses().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
         }
@@ -352,8 +352,8 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(1, result.authorities().size());
-            assertEquals(authAddr, result.authorities().getFirst());
+            assertEquals(1, result.accessedAddresses().size());
+            assertEquals(authAddr, result.accessedAddresses().getFirst());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
             verify(acct).incrementNonce();
@@ -386,7 +386,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(0, result.authorities().size());
+            assertEquals(1, result.accessedAddresses().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
@@ -420,7 +420,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(0, result.authorities().size());
+            assertEquals(1, result.accessedAddresses().size());
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
@@ -457,8 +457,8 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
             // then:
             assertNotNull(result);
-            assertEquals(1, result.authorities().size());
-            assertEquals(zeroAddr, result.authorities().getFirst());
+            assertEquals(1, result.accessedAddresses().size());
+            assertEquals(zeroAddr, result.accessedAddresses().getFirst());
             verify(proxyWorldUpdater).getAccount(zeroAddr);
             verify(acct).incrementNonce();
         }

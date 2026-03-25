@@ -23,7 +23,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
@@ -143,7 +143,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
     }
 
-    private static List<AccessList> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
+    private static List<AccessListItem> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
         try {
             return ethTxData.extractAccessLists();
         } catch (final IllegalArgumentException e) {

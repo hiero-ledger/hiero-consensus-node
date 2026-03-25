@@ -58,7 +58,7 @@ import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
@@ -812,7 +812,7 @@ public final class TestHelpers {
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(
-            @Nullable final List<AccessList> accessLists, @Nullable List<CodeDelegation> codeDelegations) {
+            @Nullable final List<AccessListItem> accessLists, @Nullable List<CodeDelegation> codeDelegations) {
         return wellKnownHapiCall(null, VALUE, GAS_LIMIT, accessLists, codeDelegations);
     }
 
@@ -837,7 +837,7 @@ public final class TestHelpers {
             @Nullable final AccountID relayer,
             final long value,
             final long gasLimit,
-            @Nullable final List<AccessList> accessLists,
+            @Nullable final List<AccessListItem> accessLists,
             @Nullable List<CodeDelegation> codeDelegations) {
         return wellKnownHapiCall(
                 relayer, value, gasLimit, USER_OFFERED_GAS_PRICE, MAX_GAS_ALLOWANCE, accessLists, codeDelegations);
@@ -849,7 +849,7 @@ public final class TestHelpers {
             final long gasLimit,
             final long userGasPrice,
             final long maxGasAllowance,
-            @Nullable final List<AccessList> accessLists,
+            @Nullable final List<AccessListItem> accessLists,
             @Nullable List<CodeDelegation> codeDelegations) {
         return new HederaEvmTransaction(
                 SENDER_ID,

@@ -84,14 +84,14 @@ public record CodeDelegationProcessor(long chainId) {
 
         // Get a new proxy world updater to handle state changes and records for code delegations.
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
-        final var authorities = codeDelegations.stream()
+        final var accessedAddresses = codeDelegations.stream()
                 .map(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state))
                 .filter(Objects::nonNull)
                 .toList();
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
-        return state.toResult(authorities);
+        return state.toResult(accessedAddresses);
     }
 
     /**
@@ -100,7 +100,7 @@ public record CodeDelegationProcessor(long chainId) {
      * @param proxyWorldUpdater The world updater to handle state changes and records for code delegations
      * @param codeDelegation    The code delegation to handle
      * @param state             The code delegation processing state
-     * @return authority of the processed code delegation
+     * @return authority of the processed code delegation. Returned to add to "accessed addresses"
      */
     @SuppressWarnings("java:S3776")
     private Address processCodeDelegation(
@@ -136,9 +136,9 @@ public record CodeDelegationProcessor(long chainId) {
         }
         final var authorizer = maybeAuthorizer.get();
 
-        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
+        final var authorityAddress = Address.wrap(Bytes.wrap(authorizer.address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
-                Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
+                Optional.ofNullable(proxyWorldUpdater.getAccount(authorityAddress));
 
         final var delegatedContractAddress =
                 Address.fromHexString(Bytes.wrap(codeDelegation.address()).toString());
@@ -148,13 +148,13 @@ public record CodeDelegationProcessor(long chainId) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return null;
+                return authorityAddress;
             }
 
             // The base gas defined in EIP-7702 (PER_EMPTY_ACCOUNT_COST = 25000) is already included
             // in the transaction intrinsic gas.
             // Here we're only charging the Hedera-specific lazy account creation cost.
-            final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress);
+            final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorityAddress);
             if (state.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
                 state.addHollowAccountCreationGasCharge(lazyCreationCost);
             } else {
@@ -169,54 +169,52 @@ public record CodeDelegationProcessor(long chainId) {
                         proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
                 failedRecord.signedTx(synthCreateTransactionBody(
-                        authorizerAddress, delegatedContractAddress, unlimitedAutoAssociations));
+                        authorityAddress, delegatedContractAddress, unlimitedAutoAssociations));
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
-                return null;
+                return authorityAddress;
             }
 
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
-                    authorizerAddress, authorizer.publicKey(), delegatedContractAddress)) {
+                    authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return null;
+                return authorityAddress;
             }
 
-            authority = proxyWorldUpdater.getAccount(authorizerAddress);
+            authority = proxyWorldUpdater.getAccount(authorityAddress);
             if (authority == null) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return null;
+                return authorityAddress;
             }
         } else {
             authority = maybeAuthorityAccount.get();
 
             if (!canSetCodeDelegation(authority)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
-                return null;
+                return authorityAddress;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return null;
+                return authorityAddress;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return null;
+                return authorityAddress;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return null;
+                return authorityAddress;
             }
             state.incrementAuthorizationsEligibleForRefund();
         }
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
-        // TODO Glib: should we return authorizerAddress, when we already "extract" it, but something fails after? Or
-        // just on success?
-        return authorizerAddress;
+        return authorityAddress;
     }
 
     @NonNull

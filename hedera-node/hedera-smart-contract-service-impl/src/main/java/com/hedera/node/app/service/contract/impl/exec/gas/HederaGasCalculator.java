@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,6 +27,6 @@ public interface HederaGasCalculator extends GasCalculator {
     GasCharges transactionGasRequirements(
             @NonNull Bytes payload,
             boolean isContractCreate,
-            @Nullable List<AccessList> accessLists,
+            @Nullable List<AccessListItem> accessLists,
             @Nullable List<CodeDelegation> codeDelegations);
 }

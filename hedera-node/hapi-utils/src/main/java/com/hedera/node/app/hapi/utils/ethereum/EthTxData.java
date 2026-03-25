@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
@@ -477,9 +478,9 @@ public record EthTxData(
      * @throws IllegalArgumentException if RLP item of the Access list storage key is not 32 bytes length
      */
     @NonNull
-    public List<AccessList> extractAccessLists() throws IllegalArgumentException {
+    public List<AccessListItem> extractAccessLists() throws IllegalArgumentException {
         if (accessList() != null) {
-            final List<AccessList> accessLists = new ArrayList<>();
+            final List<AccessListItem> accessLists = new ArrayList<>();
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList());
             while (decoder.hasNext()) {
                 final var accessListItem = decoder.next();
@@ -499,8 +500,8 @@ public record EthTxData(
                     throw new IllegalArgumentException("Access list storage keys should be a list");
                 }
                 final var storageKeys = storageKeysItem.asRLPList().elements();
-                accessLists.add(new AccessList(
-                        address,
+                accessLists.add(new AccessListItem(
+                        Bytes.wrap(address),
                         storageKeys.stream()
                                 .map(RLPItem::data)
                                 // this will throw IllegalArgumentException if bytes.length != 32

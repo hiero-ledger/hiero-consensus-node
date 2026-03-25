@@ -25,7 +25,7 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
@@ -79,18 +79,17 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction               the transaction
-     * @param worldUpdater              the world updater for the transaction
-     * @param context                   the Hedera EVM context (gas price, block values, etc.)
-     * @param config                    the active Hedera configuration
-     * @param featureFlags              the feature flag currently used
-     * @param from                      the sender of the transaction
-     * @param to                        the recipient of the transaction
-     * @param initialGas                the initial gas amount available for execution
-     * @param codeFactory               the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     *                                  *                    from raw bytecode.
-     * @param gasCalculator             the gas calculator
-     * @param codeDelegationAuthorities the authorities of the processed code delegations
+     * @param transaction                     the transaction
+     * @param worldUpdater                    the world updater for the transaction
+     * @param context                         the Hedera EVM context (gas price, block values, etc.)
+     * @param config                          the active Hedera configuration
+     * @param featureFlags                    the feature flag currently used
+     * @param from                            the sender of the transaction
+     * @param to                              the recipient of the transaction
+     * @param initialGas                      the initial gas amount available for execution
+     * @param codeFactory                     the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code} from raw bytecode.
+     * @param gasCalculator                   the gas calculator
+     * @param codeDelegationAccessedAddresses the authorities of the processed code delegations
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -106,7 +105,7 @@ public class FrameBuilder {
             final long initialGas,
             @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final List<Address> codeDelegationAuthorities) {
+            @NonNull final List<Address> codeDelegationAccessedAddresses) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -129,13 +128,13 @@ public class FrameBuilder {
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
         // add accessLists and codeDelegations authorities to "warmed" addresses
-        if (transaction.accessLists() != null || !codeDelegationAuthorities.isEmpty()) {
-            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAuthorities);
+        if (transaction.accessLists() != null || !codeDelegationAccessedAddresses.isEmpty()) {
+            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
             final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
             // add accessLists to "warmed" addresses
             if (transaction.accessLists() != null) {
-                for (final AccessList accessList : transaction.accessLists()) {
-                    final Address address = Address.wrap(Bytes.wrap(accessList.address()));
+                for (final AccessListItem accessList : transaction.accessLists()) {
+                    final Address address = Address.wrap(accessList.address());
                     accessListWarmAddresses.add(address);
                     accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
                 }

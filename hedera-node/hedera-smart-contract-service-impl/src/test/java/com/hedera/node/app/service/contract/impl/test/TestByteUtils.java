@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Random;
 import org.apache.tuweni.bytes.Bytes32;
 
 public final class TestByteUtils {
 
     private TestByteUtils() {}
 
-    private static final ThreadLocalRandom RANDOM = ThreadLocalRandom.current();
+    private static final Random RANDOM = new Random();
 
     /**
      * Generate random byte array for the tests

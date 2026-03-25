@@ -35,7 +35,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -304,8 +304,8 @@ class FrameBuilderTest {
         final var warmUpStorage = frame.getWarmedUpStorage();
         assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
         // check accessLIsts are warm
-        for (final AccessList accessList : accessLists) {
-            final var address = Address.wrap(Bytes.wrap(accessList.address()));
+        for (final AccessListItem accessList : accessLists) {
+            final var address = Address.wrap(accessList.address());
             assertTrue(frame.isAddressWarm(address));
             for (final Bytes32 storageKey : accessList.storageKeys()) {
                 assertTrue(warmUpStorage.contains(address, storageKey));

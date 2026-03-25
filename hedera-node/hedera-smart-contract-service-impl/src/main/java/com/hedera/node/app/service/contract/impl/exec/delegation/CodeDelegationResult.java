@@ -11,7 +11,7 @@ public record CodeDelegationResult(
         int numAuthorizationsEligibleForRefund,
         int successfullyProcessedAuthorizations,
         @NonNull Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason,
-        @NonNull List<Address> authorities) {
+        @NonNull List<Address> accessedAddresses) {
     public enum EntryIgnoreReason {
         ChainIdMismatch,
         NonceMismatch,

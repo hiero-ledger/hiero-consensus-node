@@ -176,7 +176,7 @@ public class TransactionProcessor {
                 rootFrameInitialGas,
                 codeFactory,
                 gasCalculator,
-                codeDelegationResult.authorities());
+                codeDelegationResult.accessedAddresses());
 
         // As per EIP-7702: add code delegation refund (for setting the delegation on *existing* accounts)
         // to the global refund counter.

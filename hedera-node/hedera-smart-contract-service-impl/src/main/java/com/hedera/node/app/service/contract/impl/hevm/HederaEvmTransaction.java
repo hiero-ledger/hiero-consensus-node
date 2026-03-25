@@ -9,7 +9,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
-import com.hedera.node.app.hapi.utils.ethereum.AccessList;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -31,7 +31,7 @@ public record HederaEvmTransaction(
         long offeredGasPrice,
         long maxGasAllowance,
         @Nullable ContractCreateTransactionBody hapiCreation,
-        @Nullable List<AccessList> accessLists,
+        @Nullable List<AccessListItem> accessLists,
         @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
         @Nullable HookDispatchTransactionBody hookDispatch) {

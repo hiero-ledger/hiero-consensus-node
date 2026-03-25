@@ -2,7 +2,6 @@
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -122,8 +122,8 @@ class EthTxDataAccessListsTest {
         final var accessLists = tx.extractAccessLists();
         assertNotNull(accessLists);
         assertEquals(2, accessLists.size());
-        assertArrayEquals(fillBytes(20, 0x10), accessLists.getFirst().address());
-        assertArrayEquals(fillBytes(20, 0x20), accessLists.getLast().address());
+        assertEquals(Bytes.wrap(fillBytes(20, 0x10)), accessLists.getFirst().address());
+        assertEquals(Bytes.wrap(fillBytes(20, 0x20)), accessLists.getLast().address());
         assertNotNull(accessLists.getFirst().storageKeys());
         assertEquals(2, accessLists.getFirst().storageKeys().size());
         assertEquals(
