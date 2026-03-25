@@ -29,7 +29,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
 public class EvmActionTracer implements ActionSidecarContentTracer {
     private static final Logger log = LogManager.getLogger(EvmActionTracer.class);
 
-    public final ActionStack actionStack;
+    private final ActionStack actionStack;
 
     /**
      * @param actionStack the action stack of the contract

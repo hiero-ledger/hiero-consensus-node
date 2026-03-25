@@ -264,7 +264,7 @@ public class HederaEVM extends HEVM {
             }
 
             if (operationTracer != null) {
-                operationTracer.tracePerOpcode(frame, result.getGasCost(), result.getHaltReason(), currentOperation);
+                operationTracer.tracePostExecution(frame, result);
             }
         }
 

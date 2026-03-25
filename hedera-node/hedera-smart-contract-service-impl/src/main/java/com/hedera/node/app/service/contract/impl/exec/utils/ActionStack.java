@@ -278,7 +278,7 @@ public class ActionStack {
         return actionsStack.isEmpty();
     }
 
-    public void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {
+    private void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {
         builder.callType(asActionType(frame.getType()))
                 .gas(frame.getRemainingGas())
                 .input(tuweniToPbjBytes(frame.getInputData()))
@@ -350,7 +350,7 @@ public class ActionStack {
         return entityIdFactory(frame).newAccountId(num);
     }
 
-    public ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
+    private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
         return entityIdFactory(frame).newContractId(num);
     }
 

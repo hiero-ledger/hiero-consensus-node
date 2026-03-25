@@ -26,8 +26,8 @@ import static java.util.Objects.requireNonNull;
  * and all {@link ActionSidecarContentTracer} callbacks to a list of "add on" tracers.
  */
 public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
-    public final EvmActionTracer evmActionTracer;
-    public final List<ActionSidecarContentTracer> addOnTracers;
+    private final EvmActionTracer evmActionTracer;
+    private final List<ActionSidecarContentTracer> addOnTracers;
 
     /**
      * @param evmActionTracer the evm action tracer

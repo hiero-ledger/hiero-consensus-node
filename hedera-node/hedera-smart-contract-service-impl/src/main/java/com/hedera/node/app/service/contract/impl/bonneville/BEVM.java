@@ -1173,11 +1173,7 @@ class BEVM {
         // Special behavior for long-zero addresses below 0.0.1001
         if( _adrChk != null ) {
             if( _adrChk.isNonUserAccount(address) ) return push0();
-            if( contractRequired(address) && !_adrChk.isPresent(address, _frame)) {
-                // FrameUtils.invalidAddressContext(_frame).set(address,InvalidAddressContext.InvalidAddressType.NonCallTarget);
-                // return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-                throw new TODO();
-            }
+            assert assertValidSolidity(address);
         }
 
         // Warmup address; true if already warm.  This is a per-transaction
@@ -1205,11 +1201,7 @@ class BEVM {
         // Special behavior for long-zero addresses below 0.0.1001
         if( _adrChk != null) {
             if( _adrChk.isNonUserAccount(address) ) return push0();
-            if( contractRequired(address) && !_adrChk.isPresent(address, _frame) ) {
-                //    //FrameUtils.invalidAddressContext(_frame).set(address,InvalidAddressContext.InvalidAddressType.NonCallTarget);
-                //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-                throw new TODO();
-            }
+            assert assertValidSolidity(address);
         }
         return extCodeCopy(address, doff, soff, len);
     }
@@ -1236,11 +1228,7 @@ class BEVM {
         // Special behavior for long-zero addresses below 0.0.1001
         if( _adrChk != null) {
             if( _adrChk.isNonUserAccount(address)) return push0();
-            if( contractRequired(address) && !_adrChk.isPresent(address, _frame)) {
-                //    //FrameUtils.invalidAddressContext(_frame).set(address,InvalidAddressContext.InvalidAddressType.NonCallTarget);
-                //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-                throw new TODO();
-            }
+            assert assertValidSolidity(address);
         }
 
         // Warmup address; true if already warm.  This is a per-transaction
@@ -1255,6 +1243,16 @@ class BEVM {
         if( acct == null) return push0(); // No account, zero code size
         return push32(acct.getCodeHash().toArrayUnsafe());
     }
+
+    private boolean assertValidSolidity(Address adr) {
+        // CNC notes - I am unable to find a test case which triggers this
+        // original code, it may no longer be possible.  Asserting it cannot
+        // happen, but including the old handler code, commented out.
+        return !contractRequired(adr) || _adrChk.isPresent(adr, _frame);
+        // FrameUtils.invalidAddressContext(_frame).set(address,InvalidAddressContext.InvalidAddressType.NonCallTarget);
+        // return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+    }
+
 
     private ExceptionalHaltReason returnDataSize() {
         return push(_frame.getReturnData().size());

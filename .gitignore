@@ -73,7 +73,6 @@ local.properties
 ### Emacs
 TAGS
 #*
-cliff*.sh
 .dir-locals.el
 
 

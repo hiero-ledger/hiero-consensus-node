@@ -105,7 +105,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @NonNull final EvmFrameStateFactory evmFrameStateFactory,
             @Nullable final WorldUpdater parent) {
         this.parent = parent;
-        this.enhancement = enhancement;
+        this.enhancement = requireNonNull(enhancement);
         this.evmFrameStateFactory = requireNonNull(evmFrameStateFactory);
         this.evmFrameState = evmFrameStateFactory.get();
     }
