@@ -291,9 +291,14 @@ public class BlockNodeConnectionManager {
             return nodes;
         }
 
+        final long defaultHardLimit = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .defaultMessageHardLimitBytes();
+
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
-                final BlockNodeConfiguration cfg = BlockNodeConfiguration.from(nodeConfig);
+                final BlockNodeConfiguration cfg = BlockNodeConfiguration.from(nodeConfig, defaultHardLimit);
                 nodes.add(cfg);
             } catch (final RuntimeException e) {
                 logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
@@ -522,7 +527,17 @@ public class BlockNodeConnectionManager {
 
         logger.debug("Selecting highest priority available block node for connection attempt.");
 
-        final BlockNodeConfiguration selectedNode = getNextPriorityBlockNode();
+        // When forcing a switch, exclude the current active endpoint so we don't rotate back
+        // to the same block node. When not forcing, pass null so selection is unaffected.
+        final BlockNodeConfiguration excludedConfig;
+        if (force) {
+            final BlockNodeStreamingConnection activeConn = activeConnectionRef.get();
+            excludedConfig = activeConn != null ? activeConn.configuration() : null;
+        } else {
+            excludedConfig = null;
+        }
+
+        final BlockNodeConfiguration selectedNode = getNextPriorityBlockNode(excludedConfig);
 
         if (selectedNode == null) {
             logger.info("No available block nodes found for streaming.");
@@ -544,9 +559,11 @@ public class BlockNodeConnectionManager {
      * Selects the next available block node based on priority.
      * It will skip over any nodes that are already in retry or have a lower priority than the current active connection.
      *
+     * @param excludedConfig if non-null, candidates matching this endpoint (address + streamingPort) are excluded
      * @return the next available block node configuration
      */
-    private @Nullable BlockNodeConfiguration getNextPriorityBlockNode() {
+    private @Nullable BlockNodeConfiguration getNextPriorityBlockNode(
+            @Nullable final BlockNodeConfiguration excludedConfig) {
         logger.debug("Searching for new block node connection based on node priorities.");
 
         final List<BlockNodeConfiguration> snapshot;
@@ -565,7 +582,7 @@ public class BlockNodeConnectionManager {
             final List<BlockNodeConfiguration> nodesInGroup = entry.getValue();
             final GroupSelectionOutcome outcome;
             try {
-                outcome = findAvailableNode(nodesInGroup);
+                outcome = findAvailableNode(nodesInGroup, excludedConfig);
             } catch (final Exception e) {
                 logger.warn("Error encountered while trying to find available node in priority group {}", priority, e);
                 continue;
@@ -630,13 +647,17 @@ public class BlockNodeConnectionManager {
      * This ensures we always create fresh BlockNodeConnection instances for new pipelines.
      *
      * @param nodes list of possible nodes to connect to
+     * @param excludedConfig if non-null, candidates matching this endpoint (address + streamingPort) are excluded
      * @return outcome for this priority group, or null if no candidates were eligible
      */
-    private @Nullable GroupSelectionOutcome findAvailableNode(@NonNull final List<BlockNodeConfiguration> nodes) {
+    private @Nullable GroupSelectionOutcome findAvailableNode(
+            @NonNull final List<BlockNodeConfiguration> nodes, @Nullable final BlockNodeConfiguration excludedConfig) {
         requireNonNull(nodes, "nodes must not be null");
         // Only allow the selection of nodes which are not currently in the connections map
+        // and do not share an endpoint with the excluded configuration (forced-switch exclusion)
         final List<BlockNodeConfiguration> candidateNodes = nodes.stream()
                 .filter(nodeConfig -> !connections.containsKey(nodeConfig))
+                .filter(nodeConfig -> !isSameEndpoint(nodeConfig, excludedConfig))
                 .toList();
 
         if (candidateNodes.isEmpty()) {
@@ -1049,7 +1070,7 @@ public class BlockNodeConnectionManager {
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
                     // we were able to elevate this connection to the new active one
                     connection.updateConnectionState(ConnectionState.ACTIVE);
-                    recordActiveConnectionIp(connection.configuration());
+                    recordActiveConnectionIp(connection);
                 } else {
                     // Another connection task has preempted this task, reschedule and try again
                     logger.info("{} Current connection task was preempted, rescheduling.", connection);
@@ -1075,7 +1096,7 @@ public class BlockNodeConnectionManager {
                                 logger.warn(
                                         "Failed to schedule reschedule for previous active connection after forced switch.",
                                         e);
-                                connections.remove(activeConnection.configuration());
+                                connections.remove(activeConnection.configuration(), activeConnection);
                             }
                         }
                     } catch (final RuntimeException e) {
@@ -1129,7 +1150,7 @@ public class BlockNodeConnectionManager {
                 synchronized (availableBlockNodes) {
                     if (!availableBlockNodes.contains(connection.configuration())) {
                         logger.debug("{} Node no longer available, skipping reschedule.", connection);
-                        connections.remove(connection.configuration());
+                        connections.remove(connection.configuration(), connection);
                         return;
                     }
                 }
@@ -1368,7 +1389,8 @@ public class BlockNodeConnectionManager {
         return octet1 + octet2 + octet3 + octet4;
     }
 
-    private void recordActiveConnectionIp(final BlockNodeConfiguration nodeConfig) {
+    private void recordActiveConnectionIp(final BlockNodeStreamingConnection connection) {
+        final BlockNodeConfiguration nodeConfig = connection.configuration();
         long ipAsInteger;
 
         // Attempt to resolve the address of the block node
@@ -1384,8 +1406,6 @@ public class BlockNodeConnectionManager {
             // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use
             // the
             // label value and show which block node the consensus node is connected to at any given time.
-            // It may also be better to have a background task that runs every second or something that
-            // continuously emits the metric instead of just when a connection is promoted to active.
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
             if (logger.isInfoEnabled()) {
@@ -1402,6 +1422,7 @@ public class BlockNodeConnectionManager {
             ipAsInteger = -1L;
         }
 
+        connection.setCachedIpAsInteger(ipAsInteger);
         blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
     }
 
@@ -1472,7 +1493,22 @@ public class BlockNodeConnectionManager {
         // Remove from active connection if it is the current active
         activeConnectionRef.compareAndSet(connection, null);
 
-        // Remove from connections map
-        connections.remove(connection.configuration());
+        // Remove from connections map only if this exact instance is still the current entry.
+        // Using the two-arg remove prevents a stale close event from removing a newer connection
+        // that was created for the same BlockNodeConfiguration key.
+        connections.remove(connection.configuration(), connection);
+    }
+
+    /**
+     * Checks whether two block node configurations point to the same physical endpoint
+     * (same address and streaming port).
+     *
+     * @param a the first configuration (must not be null)
+     * @param b the second configuration (may be null)
+     * @return true if both configurations share the same address and streaming port
+     */
+    private static boolean isSameEndpoint(
+            @NonNull final BlockNodeConfiguration a, @Nullable final BlockNodeConfiguration b) {
+        return b != null && a.address().equals(b.address()) && a.streamingPort() == b.streamingPort();
     }
 }

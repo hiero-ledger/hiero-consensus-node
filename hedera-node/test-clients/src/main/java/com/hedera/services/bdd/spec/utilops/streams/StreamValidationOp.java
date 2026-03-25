@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
-import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
@@ -39,8 +38,11 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -187,25 +189,85 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        List<Block> blocks = null;
-        final var blockPaths = spec.getNetworkNodes().stream()
+        final var blockStreamDirs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        for (final var path : blockPaths) {
-            try {
-                log.info("Trying to read blocks from {}", path);
-                blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
-                log.info("Read {} blocks from {}", blocks.size(), path);
+        // Pick the node directory with the most block files (compare by count first,
+        // then sort only the winner to avoid unnecessary sorting of discarded lists)
+        Path bestDir = null;
+        List<Path> bestPaths = null;
+        for (final var dir : blockStreamDirs) {
+            try (final var stream = Files.walk(dir)) {
+                final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .toList();
+                if (bestPaths == null || paths.size() > bestPaths.size()) {
+                    bestDir = dir;
+                    bestPaths = paths;
+                }
             } catch (Exception ignore) {
-                // We will try to read the next node's streams
-            }
-            if (blocks != null && !blocks.isEmpty()) {
-                break;
+                // We will try the next node's directory
             }
         }
-        return Optional.ofNullable(blocks);
+        if (bestPaths == null || bestPaths.isEmpty()) {
+            return Optional.empty();
+        }
+        bestPaths = bestPaths.stream()
+                .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
+                .toList();
+        // Parse the winner's block files and pair each block with its source path
+        final var otherDirs = new ArrayList<>(blockStreamDirs);
+        otherDirs.remove(bestDir);
+        final var result = new ArrayList<Block>(bestPaths.size());
+        for (final var blockPath : bestPaths) {
+            final var relativePath = bestDir.relativize(blockPath);
+            Block block;
+            try {
+                block = BlockStreamAccess.blockFrom(blockPath);
+            } catch (Exception e) {
+                log.warn("Failed to parse block file {}", blockPath, e);
+                // Try the same file from other node directories to avoid a gap
+                final var fallback = findCompleteBlockIn(otherDirs, relativePath);
+                if (fallback != null) {
+                    result.add(fallback);
+                }
+                continue;
+            }
+            final var items = block.items();
+            if (items.isEmpty() || items.getLast().hasBlockProof()) {
+                result.add(block);
+                continue;
+            }
+            // Incomplete block — try the same relative path under other node directories
+            final var replacement = findCompleteBlockIn(otherDirs, relativePath);
+            result.add(replacement != null ? replacement : block);
+        }
+        return result.isEmpty() ? Optional.empty() : Optional.of(result);
+    }
+
+    /**
+     * Tries to find a complete version of a block file by resolving the same relative path
+     * under each of the given directories. Returns the first block whose last item is a proof.
+     */
+    @Nullable
+    private static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
+        for (final var dir : otherDirs) {
+            final var candidatePath = dir.resolve(relativePath);
+            if (!Files.exists(candidatePath)) {
+                continue;
+            }
+            try {
+                final var block = BlockStreamAccess.blockFrom(candidatePath);
+                final var items = block.items();
+                if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                    return block;
+                }
+            } catch (Exception ignore) {
+                // Try the next directory
+            }
+        }
+        return null;
     }
 
     private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {

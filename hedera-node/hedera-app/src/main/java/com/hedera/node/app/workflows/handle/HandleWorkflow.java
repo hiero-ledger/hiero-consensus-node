@@ -85,6 +85,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -315,6 +316,12 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -406,9 +413,20 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze
-                if (streamMode != BLOCKS) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockRecordStreamConfig.class)
+                                .liveWritePrevWrappedRecordHashes()
+                        && streamMode != BLOCKS) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockRecordStreamConfig.class)
+                                .writeWrappedRecordFileBlockHashesToDisk()
+                        && streamMode != BLOCKS) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
                 }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
@@ -1120,6 +1138,7 @@ public class HandleWorkflow {
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
             final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
             final var activeRosters = ActiveRosters.from(
                     rosterStore,
                     tssConfig.historyEnabled(),
@@ -1129,8 +1148,7 @@ public class HandleWorkflow {
                     !tssConfig.historyEnabled()
                             ? null
                             : () -> {
-                                final var activeConstruction =
-                                        new ReadableHistoryStoreImpl(historyWritableStates).getActiveConstruction();
+                                final var activeConstruction = readableHistoryStore.getActiveConstruction();
                                 return !activeConstruction.hasTargetProof()
                                         || (tssConfig.wrapsEnabled()
                                                 != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
@@ -1144,7 +1162,10 @@ public class HandleWorkflow {
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                workTime,
+                                isActive,
+                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
