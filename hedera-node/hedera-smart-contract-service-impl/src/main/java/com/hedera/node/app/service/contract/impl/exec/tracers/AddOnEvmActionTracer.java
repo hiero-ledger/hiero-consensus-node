@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.tracers;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
@@ -19,7 +21,6 @@ import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
-import static java.util.Objects.requireNonNull;
 
 /**
  * An {@link ActionSidecarContentTracer} that delegates just the relevant callbacks to a {@link EvmActionTracer},
@@ -166,15 +167,15 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     // Frame is in State CODE_EXECUTING.
     @Override
     public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
-        evmActionTracer.tracePerOpcode(frame,gas,halt,op);
-        addOnTracers.forEach(tracer -> tracer.tracePerOpcode(frame,gas,halt,op));
+        evmActionTracer.tracePerOpcode(frame, gas, halt, op);
+        addOnTracers.forEach(tracer -> tracer.tracePerOpcode(frame, gas, halt, op));
     }
 
     // Caller already checked that side-car data is enabled.
     @Override
     public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
-        evmActionTracer.traceSuspended(parent,child,opCall);
-        addOnTracers.forEach(tracer -> tracer.traceSuspended(parent,child,opCall));
+        evmActionTracer.traceSuspended(parent, child, opCall);
+        addOnTracers.forEach(tracer -> tracer.traceSuspended(parent, child, opCall));
     }
 
     // Caller already checked that side-car data is enabled.
@@ -183,5 +184,4 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
         evmActionTracer.traceNotExecuting(child);
         addOnTracers.forEach(tracer -> tracer.traceNotExecuting(child));
     }
-
 }

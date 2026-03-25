@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.tracers;
 
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionValidationEnabled;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasValidatedActionSidecarsEnabled;
+import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_EXECUTING;
+import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
+
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
@@ -15,12 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionValidationEnabled;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasValidatedActionSidecarsEnabled;
-import static java.util.Objects.requireNonNull;
-import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_EXECUTING;
-import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
 
 /**
  * Tracer implementation that chooses an appropriate {@link ActionStack} method to call based on the
@@ -116,8 +117,7 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
     // Called as a hot call from the Bonneville EVM.
     // Frame is in State CODE_EXECUTING.
     @Override
-    public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
-    }
+    public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {}
 
     // Called as a hot call from the Bonneville EVM.
     // Caller already checked that side-car data is enabled, and that the

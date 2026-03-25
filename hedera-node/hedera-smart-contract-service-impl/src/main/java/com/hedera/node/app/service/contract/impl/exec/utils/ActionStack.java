@@ -266,7 +266,6 @@ public class ActionStack {
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
     }
 
-
     public void pushActionOfIntermediate(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
         final var builder = ContractAction.newBuilder()
                 .callOperationType(opCall)

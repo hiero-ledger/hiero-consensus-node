@@ -33,7 +33,6 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -161,8 +160,7 @@ public class FrameRunner {
                 f.setExceptionalHaltReason(maybeFailureToPropagate.exceptionalHaltReason());
                 // Finalize the CONTRACT_ACTION for the propagated halt frame as well
                 var reason = maybeFailureToPropagate.exceptionalHaltReasonOrNull();
-                if( reason != null )
-                    tracer.traceNotExecuting(f);
+                if (reason != null) tracer.traceNotExecuting(f);
             });
         }
     }

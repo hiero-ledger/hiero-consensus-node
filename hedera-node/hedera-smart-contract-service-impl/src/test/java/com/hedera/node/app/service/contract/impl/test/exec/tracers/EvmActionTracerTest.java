@@ -104,7 +104,7 @@ class EvmActionTracerTest {
     @Test
     void postExecNoopIfCodeExecutingState() {
         // No-op.  API exists for other implementors.
-        subject.tracePerOpcode(frame,123,null,null);
+        subject.tracePerOpcode(frame, 123, null, null);
 
         verifyNoInteractions(actionStack);
     }
@@ -115,9 +115,9 @@ class EvmActionTracerTest {
         givenNoActionSidecars();
 
         MessageFrame child = frame.getMessageFrameStack().peek();
-        subject.traceSuspended(frame,child,null);
+        subject.traceSuspended(frame, child, null);
 
-        verify(actionStack).pushActionOfIntermediate(frame,child,null);
+        verify(actionStack).pushActionOfIntermediate(frame, child, null);
     }
 
     @Test

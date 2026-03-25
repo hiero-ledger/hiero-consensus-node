@@ -4,10 +4,8 @@ package com.hedera.node.app.service.contract.impl.exec;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.node.app.service.contract.impl.utils.TODO;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -52,11 +50,11 @@ public interface ActionSidecarContentTracer extends OperationTracer {
     List<ContractAction> contractActions();
 
     /**
-       The BESU API design here requires an allocated OperationResult
-       per-opcode-executed which is a hard performance fail.  Replace it with an
-       "open" API where the parts (gas, halt reason) are passed in instead of
-       making a wrapper object.  Keeping the old API for running BESU EVM tests.
-       Hedera and Bonneville EVMs should not call this.
+     * The BESU API design here requires an allocated OperationResult
+     * per-opcode-executed which is a hard performance fail.  Replace it with an
+     * "open" API where the parts (gas, halt reason) are passed in instead of
+     * making a wrapper object.  Keeping the old API for running BESU EVM tests.
+     * Hedera and Bonneville EVMs should not call this.
      */
     void tracePostExecution(MessageFrame frame, Operation.OperationResult operationResult);
 
@@ -79,5 +77,4 @@ public interface ActionSidecarContentTracer extends OperationTracer {
      * frame is already broken out.
      */
     void traceNotExecuting(MessageFrame child);
-
 }

@@ -11,12 +11,30 @@ import org.hyperledger.besu.evm.operation.Operation;
 
 public class NoTracer implements ActionSidecarContentTracer {
     public static final NoTracer NO_TRACER = new NoTracer();
-    @Override public void traceOriginAction(MessageFrame frame) { }
-    @Override public void sanitizeTracedActions(MessageFrame frame) { }
-    @Override public void tracePrecompileResult(MessageFrame frame, ContractActionType type) { }
-    @Override public void tracePostExecution(MessageFrame frame, Operation.OperationResult operationResult) { }
-    @Override public List contractActions() { return null; }
-    @Override public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) { }
-    @Override public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) { }
-    @Override public void traceNotExecuting(MessageFrame child) { }
+
+    @Override
+    public void traceOriginAction(MessageFrame frame) {}
+
+    @Override
+    public void sanitizeTracedActions(MessageFrame frame) {}
+
+    @Override
+    public void tracePrecompileResult(MessageFrame frame, ContractActionType type) {}
+
+    @Override
+    public void tracePostExecution(MessageFrame frame, Operation.OperationResult operationResult) {}
+
+    @Override
+    public List contractActions() {
+        return null;
+    }
+
+    @Override
+    public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {}
+
+    @Override
+    public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {}
+
+    @Override
+    public void traceNotExecuting(MessageFrame child) {}
 }

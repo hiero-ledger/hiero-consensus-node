@@ -34,7 +34,6 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
@@ -366,7 +365,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             if (forLazyCreation == ForLazyCreation.YES) {
                 operationTracer.traceAccountCreationResult(frame, Optional.of(reason));
             } else {
-                ((ActionSidecarContentTracer)operationTracer).traceNotExecuting( frame );
+                ((ActionSidecarContentTracer) operationTracer).traceNotExecuting(frame);
             }
         }
     }

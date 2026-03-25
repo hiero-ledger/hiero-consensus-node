@@ -17,8 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
-import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.internal.OverflowException;
@@ -100,8 +100,8 @@ public class HederaEVM extends HEVM {
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
         this.evmSpecVersion.maybeWarnVersion();
         ActionSidecarContentTracer operationTracer = null;
-        if( tracing != OperationTracer.NO_TRACING ) {
-            if( tracing instanceof ActionSidecarContentTracer asc ) operationTracer = asc;
+        if (tracing != OperationTracer.NO_TRACING) {
+            if (tracing instanceof ActionSidecarContentTracer asc) operationTracer = asc;
             else throw new TODO("Only for ASC Tracing");
         }
         byte[] code = frame.getCode().getBytes().toArrayUnsafe();
