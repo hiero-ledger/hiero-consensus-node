@@ -52,7 +52,7 @@ public final class StateAnalyzer {
         updateReport(
                 report,
                 vds.getKeyToPath().getFileCollection(),
-                (vds.getKeyToPath().getBucketIndexToBucketLocation()).size(),
+                vds.getKeyToPath().getBucketIndexToBucketLocation().size(),
                 Report::setKeyToPathReport,
                 obj -> {
                     final ParsedBucket bucket = new ParsedBucket();

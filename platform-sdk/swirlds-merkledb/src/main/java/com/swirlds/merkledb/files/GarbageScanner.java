@@ -4,10 +4,12 @@ package com.swirlds.merkledb.files;
 import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -39,7 +41,7 @@ import org.apache.logging.log4j.Logger;
  *       {@code gcRateThreshold} are collected as compaction candidates for their level.</li>
  *   <li><b>Phase 2 — Absorb small files:</b> for each level where the aggregate live/dead ratio
  *       is still below the threshold and the projected output size is below
- *       {@code maxCompactionDataPerLevelInKB}, the scanner sorts remaining files (those NOT
+ *       {@code maxCompactedFileSizeInKB}, the scanner sorts remaining files (those NOT
  *       selected in phase 1) by size ascending and greedily absorbs them until either limit is
  *       reached. This consolidates small files that individually don't have enough garbage but
  *       can be absorbed "for free" within the budget of dirtier files.</li>
@@ -65,16 +67,21 @@ public class GarbageScanner {
     }
 
     public GarbageScanner(
-            final LongList index,
-            final DataFileCollection dataFileCollection,
-            final String storeName,
-            final MerkleDbConfig config,
+            @NonNull final LongList index,
+            @NonNull final DataFileCollection dataFileCollection,
+            @NonNull final String storeName,
+            @NonNull final MerkleDbConfig config,
             final boolean deduplicateMirroredEntries) {
+        requireNonNull(index);
+        requireNonNull(dataFileCollection);
+        requireNonNull(storeName);
+        requireNonNull(config);
+
         this.index = index;
         this.dataFileCollection = dataFileCollection;
         this.storeName = storeName;
         this.gcRateThreshold = config.gcRateThreshold();
-        this.maxCompactionDataPerLevelInKB = config.maxCompactionDataPerLevelInKB();
+        this.maxCompactionDataPerLevelInKB = config.maxCompactedFileSizeInKB();
         this.deduplicateMirroredEntries = deduplicateMirroredEntries;
     }
 
@@ -149,9 +156,9 @@ public class GarbageScanner {
      * files from phase 1 provide a "budget" of GC efficiency that is spent absorbing clean files.
      */
     private void absorbSmallFiles(
-            final Map<Integer, List<DataFileReader>> selectedByLevel,
-            final Map<Integer, List<DataFileReader>> remainingByLevel,
-            final IndexedGarbageFileStats stats) {
+            @NonNull final Map<Integer, List<DataFileReader>> selectedByLevel,
+            @NonNull final Map<Integer, List<DataFileReader>> remainingByLevel,
+            @NonNull final IndexedGarbageFileStats stats) {
 
         final long maxProjectedBytes =
                 maxCompactionDataPerLevelInKB > 0 ? maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES : Long.MAX_VALUE;
@@ -298,12 +305,13 @@ public class GarbageScanner {
             final double levelGarbageRatio =
                     levelTotalItems == 0 ? 1.0 : 1.0 - ((double) levelAliveItems / levelTotalItems);
             final long levelDeadItems = levelTotalItems - levelAliveItems;
-            final double levelLiveToDeadRatio =
-                    levelDeadItems == 0 ? Double.MAX_VALUE : (double) levelAliveItems / levelDeadItems;
+            final String levelLiveToDeadRatio = levelDeadItems == 0
+                    ? "n/a"
+                    : String.valueOf(Math.round((double) levelAliveItems / levelDeadItems * 100) / 100.0);
 
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, live/dead=%1.2f"
+                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, live/dead=%s"
                             .formatted(
                                     storeName,
                                     level,

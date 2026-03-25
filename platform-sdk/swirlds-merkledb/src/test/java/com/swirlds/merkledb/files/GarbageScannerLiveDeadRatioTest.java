@@ -209,7 +209,7 @@ class GarbageScannerLiveDeadRatioTest {
             // File 2 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB → not selected
             // File 3 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB → not selected
             //
-            // maxCompactionDataPerLevelInKB = 4 (4KB cap)
+            // maxCompactedFileSizeInKB = 4 (4KB cap)
             // Phase 1 projected output: 1KB. Headroom: 3KB
             // Absorb file 2: 1KB + 1.8KB = 2.8KB < 4KB → absorbed
             // Absorb file 3: 2.8KB + 1.8KB = 4.6KB > 4KB → STOP
@@ -518,7 +518,7 @@ class GarbageScannerLiveDeadRatioTest {
         }
 
         @Test
-        @DisplayName("maxCompactionDataPerLevelInKB = 0 disables size cap in phase 2")
+        @DisplayName("maxCompactedFileSizeInKB = 0 disables size cap in phase 2")
         void zeroCDisablesSizeCap() {
             // Dirty file: 5 alive / 95 dead → selected
             // Clean file: 90 alive / 10 dead, size=100000 → huge projected size
@@ -632,7 +632,7 @@ class GarbageScannerLiveDeadRatioTest {
     }
 
     /**
-     * Creates a MerkleDbConfig with the specified gcRateThreshold and maxCompactionDataPerLevelInKB.
+     * Creates a MerkleDbConfig with the specified gcRateThreshold and maxCompactedFileSizeInKB.
      * The gcRateThreshold parameter replaces the former garbageThreshold in the config record.
      */
     private static MerkleDbConfig config(final double gcRateThreshold, final long maxCompactionDataPerLevelInKB) {

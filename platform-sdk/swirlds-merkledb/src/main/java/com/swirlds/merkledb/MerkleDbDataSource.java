@@ -208,9 +208,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     private MerkleDbStatisticsUpdater statisticsUpdater;
 
-    @Nullable
     private final GarbageScanner chunkStoreScanner;
-
     private final GarbageScanner pathToKeyValueStoreScanner;
     private final GarbageScanner objectkeyToPathScanner;
 
@@ -477,7 +475,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         COUNT_OF_OPEN_DATABASES.increment();
         chunkStoreScanner = new GarbageScanner(
                 idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
-
         pathToKeyValueStoreScanner = new GarbageScanner(
                 pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE, merkleDbConfig);
         objectkeyToPathScanner = new GarbageScanner(
@@ -645,7 +642,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      *
      * @param action action to run while compaction is paused
      */
-    void pauseCompactionAndRun(IORunnable action) throws IOException {
+    void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
         compactionCoordinator.pauseCompactionAndRun(action);
     }
 
@@ -1438,9 +1435,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     public void runHashChunkStoreCompaction() {
-        if (chunkStoreScanner == null) {
-            return;
-        }
         compactionCoordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, chunkStoreScanner);
         compactionCoordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, this::newHashChunkStoreCompactor, merkleDbConfig);
     }

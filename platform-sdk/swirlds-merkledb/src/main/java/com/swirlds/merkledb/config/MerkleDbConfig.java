@@ -29,11 +29,14 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
- * @param garbageThreshold
- *      Garbage ratio that triggers compaction for a level. 0.0 means every file is eligible for compaction,
- *      while 1.0 means only files where all items are no longer referenced from the index are eligible for compaction.
- * @param maxCompactionDataPerLevelInKB
- *      Maximum total size, in KB, of source files selected for a single-level compaction run. A non-positive
+ * @param gcRateThreshold
+ *      Maximum live-to-dead ratio for compaction decisions. In phase 1, files whose individual
+ *      {@code alive / dead < gcRateThreshold} are selected for compaction. In phase 2, small
+ *      remaining files are absorbed into the batch as long as the aggregate ratio stays below
+ *      this threshold. A value of 2.0 means: for every dead item reclaimed, up to 2 live items
+ *      can be copied..
+ * @param maxCompactedFileSizeInKB
+ *      Maximum total size, in KB, of the resulting file after compaction. A non-positive
  *      value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
  *      That is, the result of compaction at level N will be a file at level N.
@@ -85,7 +88,7 @@ public record MerkleDbConfig(
         @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
         @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
         /*Default is 1GB*/
-        @ConfigProperty(defaultValue = "1000000") long maxCompactionDataPerLevelInKB,
+        @ConfigProperty(defaultValue = "1000000") long maxCompactedFileSizeInKB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
