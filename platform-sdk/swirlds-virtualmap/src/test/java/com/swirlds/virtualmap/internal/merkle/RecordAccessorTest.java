@@ -246,7 +246,7 @@ public class RecordAccessorTest {
     }
 
     @Test
-    @DisplayName("close() shuts down the cache's cleaning pool")
+    @DisplayName("close() closes the data source")
     void closeClosesDataSource() throws Exception {
         final VirtualMapMetadata state = new VirtualMapMetadata();
         state.setLastLeafPath(2);
@@ -259,7 +259,7 @@ public class RecordAccessorTest {
         cache.putLeaf(leaf(1));
         cache.copy();
 
-        // Create a caller-owned pool and pass it to the snapshot
+        // Take a snapshot that inherits the parent's pool
         final VirtualNodeCache snapshot = cache.snapshot();
 
         // Wrap in RecordAccessor and close

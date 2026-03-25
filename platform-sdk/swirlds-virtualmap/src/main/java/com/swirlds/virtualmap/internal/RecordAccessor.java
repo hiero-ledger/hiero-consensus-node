@@ -224,7 +224,6 @@ public final class RecordAccessor {
      * @throws IOException If an I/O error occurs
      */
     public void close() throws IOException {
-        cache.shutdown();
         dataSource.close();
     }
 }
